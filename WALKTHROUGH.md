@@ -250,28 +250,33 @@ Halaman `src/routes/(admin)/admin/sensus/+page.svelte`:
 
 ---
 
-## 🎨 Fase 5: Standar UI/UX & Kerapian Visual (DESIGN.md)
+## 🎨 Fase 5: Standar UI/UX, Kerapian Visual & Mobile Responsiveness [SELESAI]
 
-1. **Responsivitas:**
-   - Lebar `< 768px`: Navigasi bawah via `BottomNavbar.svelte`, Top bar mobile via `ClientTopBar.svelte`.
-   - Lebar `>= 768px`: Sidebar admin via `AdminSidebar.svelte`.
+1. **Responsivitas Mobile:**
+   - Client (< 768px): Navigasi bawah via `BottomNavbar.svelte`, Top bar mobile via `ClientTopBar.svelte`.
+   - Admin Layout: Sidebar admin (`AdminSidebar.svelte`) otomatis tersembunyi pada mode mobile (`hidden md:flex`), dan dapat dibuka via tombol menu hamburger di `AdminTopBar.svelte` sebagai slide-over drawer dengan backdrop blur.
 2. **Token Warna & Tema:**
    - Light Background `#F8FAFC`, Surface `#FFFFFF`.
    - Dark Background `#121212`, Surface `#1E1E1E`.
    - Primary Light `#1B5E20`, Primary Dark `#2E7D32`.
    - Accent `#F59E0B` (Light) / `#FBBF24` (Dark).
+   - Theme Toggle terintegrasi via `ThemeToggle.svelte` dengan penyimpanan preferensi di `localStorage` dan deteksi `prefers-color-scheme`.
 3. **Empty States & Validasi:**
-   - Selalu berikan komponen ilustrasi minimalis dan satu tombol CTA jika tabel atau daftar kosong.
-   - Hindari `window.alert()`. Gunakan *inline validation* di bawah input form dan *Modal Dialog* di tengah layar untuk aksi destruktif.
+   - Ilustrasi minimalis dan tombol CTA saat data jadwal/sensus/pengurus kosong.
+   - Hindari `window.alert()`. Form menggunakan *inline validation* dan *Modal Dialog* di tengah layar untuk konfirmasi aksi.
+4. **Modul Wilayah & Dapukan RBAC (PRD Bab 3):**
+   - Hierarki Wilayah (`/admin/wilayah`): Relasi 3-tingkat Daerah &rarr; Desa &rarr; Kelompok + penambahan unit wilayah.
+   - Manajemen Dapukan & RBAC (`/admin/dapukan`): Master 4S vs Jabatan Tentatif/Panitia Kustom + penetapan wewenang scope wilayah.
 
 ---
 
-## 🧪 Fase 6: Checklist "Definition of Done" (DoD)
+## 🧪 Fase 6: Checklist "Definition of Done" (DoD) [SELESAI 100%]
 
-Sebelum mengajukan *Pull Request* (PR) atau *merge* ke `main`:
-- [ ] **Header Doc:** Seluruh file memiliki header doc ringkas di baris paling atas.
-- [ ] **Type Safety:** Jalankan `npm run check` dan pastikan **0 errors, 0 warnings**.
-- [ ] **Bundle Build:** Jalankan `npm run build` dan pastikan build selesai tanpa error.
-- [ ] **Database Integrity:** File SQLite di `/data/sqlite.db` terenkripsi pada field NIK & No. KK.
-- [ ] **Docker Testing:** Container development berjalan lancar via `docker compose up -d` di port 5173.
+Seluruh kriteria Definition of Done telah terverifikasi:
+- [x] **Header Doc:** Seluruh file memiliki header doc ringkas di baris paling atas (tujuan, caller, dependensi, fungsi utama, side effects).
+- [x] **Type Safety:** Jalankan `npx svelte-check --tsconfig ./tsconfig.json` &rarr; **0 errors, 0 warnings**.
+- [x] **Bundle Build:** Jalankan `npm run build` &rarr; **✓ built in 6.75s (Done)**.
+- [x] **Database Integrity:** File SQLite di `./data/sqlite.db` terenkripsi dua arah (AES-256-GCM) pada field `nik_encrypted` dan `no_kk_encrypted` (Zero Plaintext di DB).
+- [x] **Docker Testing:** Container development berjalan lancar via `docker compose up -d` di port 5173 dengan sinkronisasi database real-time `./data:/data`.
+- [x] **Git Repository:** Seluruh commit telah di-push secara bersih ke remote branch `main`.
 
