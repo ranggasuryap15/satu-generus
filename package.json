@@ -23,6 +23,7 @@
 		"@tailwindcss/vite": "^4.3.0",
 		"@types/bcryptjs": "^2.4.6",
 		"@types/better-sqlite3": "^9.6.0",
+		"@types/qrcode": "^1.5.6",
 		"drizzle-kit": "^0.31.11",
 		"svelte": "^5.57.1",
 		"svelte-check": "^4.6.0",
@@ -42,6 +43,8 @@
 		"bits-ui": "^2.19.5",
 		"clsx": "^2.1.1",
 		"drizzle-orm": "^0.45.3",
+		"html5-qrcode": "^2.3.8",
+		"qrcode": "^1.5.4",
 		"tailwind-merge": "^3.7.0"
 	},
 	"allowScripts": {

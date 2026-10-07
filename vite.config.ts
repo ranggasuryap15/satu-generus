@@ -4,7 +4,7 @@
  * @usedBy Vite dev server, build pipeline (npm run dev, npm run build)
  * @dependencies @tailwindcss/vite, @sveltejs/adapter-auto, @sveltejs/kit/vite, vite
  * @publicFunctions defineConfig
- * @sideEffects Mengatur plugin bundling, alias path ($lib), dan adapter target deploy
+ * @sideEffects Mengatur plugin bundling untuk Tailwind v4 dan SvelteKit adapter
  */
 
 import tailwindcss from '@tailwindcss/vite';
@@ -16,10 +16,10 @@ export default defineConfig({
 	plugins: [
 		tailwindcss(),
 		sveltekit({
+			adapter: adapter(),
 			alias: {
 				$lib: './src/lib'
-			},
-			adapter: adapter()
+			}
 		})
 	]
 });

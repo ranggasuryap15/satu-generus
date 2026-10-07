@@ -50,3 +50,4 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	return json({ error: 'Parameter keluargaId atau anggotaId wajib disediakan.' }, { status: 400 });
 };
+
