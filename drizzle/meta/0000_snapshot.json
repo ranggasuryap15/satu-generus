@@ -1,0 +1,769 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "8ee1575e-dbcf-4ae5-a72f-9092b1300494",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "tables": {
+    "anggota_keluarga": {
+      "name": "anggota_keluarga",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "keluarga_id": {
+          "name": "keluarga_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "nik_encrypted": {
+          "name": "nik_encrypted",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status_hubungan": {
+          "name": "status_hubungan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "tanggal_lahir": {
+          "name": "tanggal_lahir",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "jenis_kelamin": {
+          "name": "jenis_kelamin",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "anggota_keluarga_keluarga_id_idx": {
+          "name": "anggota_keluarga_keluarga_id_idx",
+          "columns": [
+            "keluarga_id"
+          ],
+          "isUnique": false
+        },
+        "anggota_keluarga_user_id_idx": {
+          "name": "anggota_keluarga_user_id_idx",
+          "columns": [
+            "user_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "anggota_keluarga_keluarga_id_keluarga_id_fk": {
+          "name": "anggota_keluarga_keluarga_id_keluarga_id_fk",
+          "tableFrom": "anggota_keluarga",
+          "tableTo": "keluarga",
+          "columnsFrom": [
+            "keluarga_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "anggota_keluarga_user_id_users_id_fk": {
+          "name": "anggota_keluarga_user_id_users_id_fk",
+          "tableFrom": "anggota_keluarga",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "daerah": {
+      "name": "daerah",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "nama": {
+          "name": "nama",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "provinsi": {
+          "name": "provinsi",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kota_kabupaten": {
+          "name": "kota_kabupaten",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "dapukan": {
+      "name": "dapukan",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "nama_dapukan": {
+          "name": "nama_dapukan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "is_4s": {
+          "name": "is_4s",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "desa": {
+      "name": "desa",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "daerah_id": {
+          "name": "daerah_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "nama": {
+          "name": "nama",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kecamatan": {
+          "name": "kecamatan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "desa_daerah_id_idx": {
+          "name": "desa_daerah_id_idx",
+          "columns": [
+            "daerah_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "desa_daerah_id_daerah_id_fk": {
+          "name": "desa_daerah_id_daerah_id_fk",
+          "tableFrom": "desa",
+          "tableTo": "daerah",
+          "columnsFrom": [
+            "daerah_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "kelompok": {
+      "name": "kelompok",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "desa_id": {
+          "name": "desa_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "nama": {
+          "name": "nama",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kelurahan": {
+          "name": "kelurahan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "kelompok_desa_id_idx": {
+          "name": "kelompok_desa_id_idx",
+          "columns": [
+            "desa_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "kelompok_desa_id_desa_id_fk": {
+          "name": "kelompok_desa_id_desa_id_fk",
+          "tableFrom": "kelompok",
+          "tableTo": "desa",
+          "columnsFrom": [
+            "desa_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "keluarga": {
+      "name": "keluarga",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "no_kk_encrypted": {
+          "name": "no_kk_encrypted",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kepala_keluarga_id": {
+          "name": "kepala_keluarga_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "alamat_lengkap": {
+          "name": "alamat_lengkap",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "keluarga_kepala_keluarga_id_idx": {
+          "name": "keluarga_kepala_keluarga_id_idx",
+          "columns": [
+            "kepala_keluarga_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "keluarga_kepala_keluarga_id_users_id_fk": {
+          "name": "keluarga_kepala_keluarga_id_users_id_fk",
+          "tableFrom": "keluarga",
+          "tableTo": "users",
+          "columnsFrom": [
+            "kepala_keluarga_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "presensi_jadwal": {
+      "name": "presensi_jadwal",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "kelompok_id": {
+          "name": "kelompok_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "tanggal": {
+          "name": "tanggal",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "nama_kegiatan": {
+          "name": "nama_kegiatan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "presensi_jadwal_kelompok_id_idx": {
+          "name": "presensi_jadwal_kelompok_id_idx",
+          "columns": [
+            "kelompok_id"
+          ],
+          "isUnique": false
+        },
+        "presensi_jadwal_tanggal_idx": {
+          "name": "presensi_jadwal_tanggal_idx",
+          "columns": [
+            "tanggal"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "presensi_jadwal_kelompok_id_kelompok_id_fk": {
+          "name": "presensi_jadwal_kelompok_id_kelompok_id_fk",
+          "tableFrom": "presensi_jadwal",
+          "tableTo": "kelompok",
+          "columnsFrom": [
+            "kelompok_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "presensi_kehadiran": {
+      "name": "presensi_kehadiran",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "jadwal_id": {
+          "name": "jadwal_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "waktu_scan": {
+          "name": "waktu_scan",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "presensi_kehadiran_jadwal_id_idx": {
+          "name": "presensi_kehadiran_jadwal_id_idx",
+          "columns": [
+            "jadwal_id"
+          ],
+          "isUnique": false
+        },
+        "presensi_kehadiran_user_id_idx": {
+          "name": "presensi_kehadiran_user_id_idx",
+          "columns": [
+            "user_id"
+          ],
+          "isUnique": false
+        },
+        "presensi_kehadiran_jadwal_user_uniq": {
+          "name": "presensi_kehadiran_jadwal_user_uniq",
+          "columns": [
+            "jadwal_id",
+            "user_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "presensi_kehadiran_jadwal_id_presensi_jadwal_id_fk": {
+          "name": "presensi_kehadiran_jadwal_id_presensi_jadwal_id_fk",
+          "tableFrom": "presensi_kehadiran",
+          "tableTo": "presensi_jadwal",
+          "columnsFrom": [
+            "jadwal_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "presensi_kehadiran_user_id_users_id_fk": {
+          "name": "presensi_kehadiran_user_id_users_id_fk",
+          "tableFrom": "presensi_kehadiran",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "user_dapukan": {
+      "name": "user_dapukan",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "dapukan_id": {
+          "name": "dapukan_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "nama_dapukan_custom": {
+          "name": "nama_dapukan_custom",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "tingkat_scope": {
+          "name": "tingkat_scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "daerah_id": {
+          "name": "daerah_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "desa_id": {
+          "name": "desa_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "kelompok_id": {
+          "name": "kelompok_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "user_dapukan_user_id_idx": {
+          "name": "user_dapukan_user_id_idx",
+          "columns": [
+            "user_id"
+          ],
+          "isUnique": false
+        },
+        "user_dapukan_dapukan_id_idx": {
+          "name": "user_dapukan_dapukan_id_idx",
+          "columns": [
+            "dapukan_id"
+          ],
+          "isUnique": false
+        },
+        "user_dapukan_scope_idx": {
+          "name": "user_dapukan_scope_idx",
+          "columns": [
+            "tingkat_scope"
+          ],
+          "isUnique": false
+        },
+        "user_dapukan_composite_scope_idx": {
+          "name": "user_dapukan_composite_scope_idx",
+          "columns": [
+            "tingkat_scope",
+            "daerah_id",
+            "desa_id",
+            "kelompok_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "user_dapukan_user_id_users_id_fk": {
+          "name": "user_dapukan_user_id_users_id_fk",
+          "tableFrom": "user_dapukan",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "user_dapukan_dapukan_id_dapukan_id_fk": {
+          "name": "user_dapukan_dapukan_id_dapukan_id_fk",
+          "tableFrom": "user_dapukan",
+          "tableTo": "dapukan",
+          "columnsFrom": [
+            "dapukan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "user_dapukan_daerah_id_daerah_id_fk": {
+          "name": "user_dapukan_daerah_id_daerah_id_fk",
+          "tableFrom": "user_dapukan",
+          "tableTo": "daerah",
+          "columnsFrom": [
+            "daerah_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "user_dapukan_desa_id_desa_id_fk": {
+          "name": "user_dapukan_desa_id_desa_id_fk",
+          "tableFrom": "user_dapukan",
+          "tableTo": "desa",
+          "columnsFrom": [
+            "desa_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "user_dapukan_kelompok_id_kelompok_id_fk": {
+          "name": "user_dapukan_kelompok_id_kelompok_id_fk",
+          "tableFrom": "user_dapukan",
+          "tableTo": "kelompok",
+          "columnsFrom": [
+            "kelompok_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "users": {
+      "name": "users",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kelompok_id": {
+          "name": "kelompok_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "nama_lengkap": {
+          "name": "nama_lengkap",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "password_hash": {
+          "name": "password_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "users_email_unique": {
+          "name": "users_email_unique",
+          "columns": [
+            "email"
+          ],
+          "isUnique": true
+        },
+        "users_kelompok_id_idx": {
+          "name": "users_kelompok_id_idx",
+          "columns": [
+            "kelompok_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "users_kelompok_id_kelompok_id_fk": {
+          "name": "users_kelompok_id_kelompok_id_fk",
+          "tableFrom": "users",
+          "tableTo": "kelompok",
+          "columnsFrom": [
+            "kelompok_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}

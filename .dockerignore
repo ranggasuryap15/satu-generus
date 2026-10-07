@@ -1,0 +1,16 @@
+# @file .dockerignore
+# @purpose Mengabaikan file yang tidak perlu dikirim ke Docker build context
+# @usedBy Docker daemon saat docker build
+# @dependencies N/A
+# @publicFunctions N/A
+# @sideEffects Mengurangi ukuran build context dan mencegah konflik dependensi host-container
+node_modules
+.svelte-kit
+build
+dist
+.git
+.env
+.env.*
+!.env.example
+npm-debug.log*
+

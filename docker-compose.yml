@@ -1,0 +1,33 @@
+# @file docker-compose.yml
+# @purpose Konfigurasi orchestrasi Docker Compose development untuk Satu Generus
+# @usedBy docker compose up / docker compose down
+# @dependencies Dockerfile, Docker Volume (sqlite_data)
+# @publicFunctions service: app
+# @sideEffects Mengekspos port 5173 ke host, me-mount named volume sqlite_data ke /data
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: satu-generus-dev
+    ports:
+      - "5173:5173"
+    environment:
+      - NODE_ENV=development
+      - HOST=0.0.0.0
+      - PORT=5173
+      - DATABASE_URL=/data/sqlite.db
+    volumes:
+      # Mount folder project untuk Vite hot module reloading
+      - .:/app
+      # Hindari penimpaan node_modules container oleh host
+      - /app/node_modules
+      - /app/.svelte-kit
+      # Persistent Docker volume untuk database SQLite agar tidak hilang saat container mati
+      - sqlite_data:/data
+    restart: unless-stopped
+
+volumes:
+  sqlite_data:
+    name: satu_generus_sqlite_data
+
