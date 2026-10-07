@@ -2,17 +2,26 @@
   @file src/routes/login/+page.svelte
   @purpose Halaman autentikasi login pengguna Satu Generus (Jamaah & Admin)
   @usedBy Route '/login'
-  @dependencies lucide-svelte (Lock, Mail, ArrowRight, ShieldCheck), src/lib/components/ThemeToggle.svelte
+  @dependencies lucide-svelte (Lock, Mail, ArrowRight, ShieldCheck, AlertCircle), src/lib/components/ThemeToggle.svelte
   @publicFunctions N/A (Svelte Component)
-  @sideEffects Mengirim formulir login kredensial pengguna
+  @sideEffects Mengirim formulir login kredensial pengguna dan menampilkan pesan validasi
 -->
 <script lang="ts">
-	import { Lock, Mail, ArrowRight, ShieldCheck } from 'lucide-svelte';
+	import { Lock, Mail, ArrowRight, ShieldCheck, AlertCircle } from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import type { ActionData } from './$types';
+
+	let { form } = $props<{ form: ActionData }>();
 
 	let identifier = $state('');
 	let password = $state('');
 	let rememberMe = $state(false);
+
+	$effect(() => {
+		if (form?.identifier) {
+			identifier = form.identifier;
+		}
+	});
 </script>
 
 <svelte:head>
@@ -39,6 +48,13 @@
 
 		<!-- Card Form Login -->
 		<div class="mt-8 bg-card py-8 px-6 shadow-sm border border-border sm:rounded-2xl sm:px-10">
+			{#if form?.error}
+				<div class="mb-5 p-3 rounded-lg bg-destructive/10 border border-destructive/20 flex items-center gap-2 text-xs text-destructive">
+					<AlertCircle class="w-4 h-4 shrink-0" />
+					<span>{form.error}</span>
+				</div>
+			{/if}
+
 			<form class="space-y-5" method="POST">
 				<div>
 					<label for="identifier" class="block text-xs font-medium text-foreground/80 mb-1.5">
@@ -117,4 +133,3 @@
 		</div>
 	</div>
 </div>
-

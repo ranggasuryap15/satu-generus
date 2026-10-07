@@ -7,7 +7,7 @@
   @sideEffects Menampilkan global search dan kontrol status admin
 -->
 <script lang="ts">
-	import { Search, Bell, UserCheck } from 'lucide-svelte';
+	import { Search, Bell, UserCheck } from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 </script>
 

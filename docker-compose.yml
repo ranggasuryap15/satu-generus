@@ -22,7 +22,6 @@ services:
       - .:/app
       # Hindari penimpaan node_modules container oleh host
       - /app/node_modules
-      - /app/.svelte-kit
       # Persistent Docker volume untuk database SQLite agar tidak hilang saat container mati
       - sqlite_data:/data
     restart: unless-stopped

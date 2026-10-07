@@ -274,3 +274,4 @@ Sebelum mengajukan *Pull Request* (PR) atau *merge* ke `main`:
 - [ ] **Bundle Build:** Jalankan `npm run build` dan pastikan build selesai tanpa error.
 - [ ] **Database Integrity:** File SQLite di `/data/sqlite.db` terenkripsi pada field NIK & No. KK.
 - [ ] **Docker Testing:** Container development berjalan lancar via `docker compose up -d` di port 5173.
+

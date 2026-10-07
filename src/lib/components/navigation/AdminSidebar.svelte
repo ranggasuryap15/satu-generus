@@ -15,7 +15,7 @@
 		ShieldCheck,
 		LogOut,
 		ExternalLink
-	} from 'lucide-svelte';
+	} from '@lucide/svelte';
 
 	interface AdminNavItem {
 		href: string;
@@ -78,7 +78,7 @@
 		</a>
 
 		<a
-			href="/login"
+			href="/logout"
 			class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors"
 		>
 			<LogOut class="w-4 h-4" />

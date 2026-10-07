@@ -7,7 +7,7 @@
   @sideEffects Menampilkan metrik data sensus dan ringkasan operasional jamaah
 -->
 <script lang="ts">
-	import { Users, Home, Calendar, ShieldCheck, Download, Plus } from 'lucide-svelte';
+	import { Users, Home, Calendar, ShieldCheck, Download, Plus } from '@lucide/svelte';
 
 	const stats = [
 		{ label: 'Total Jamaah', value: '1,280', icon: Users, change: '+12 bln ini' },

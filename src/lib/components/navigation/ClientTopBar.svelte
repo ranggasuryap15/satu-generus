@@ -7,7 +7,7 @@
   @sideEffects Menampilkan header persisten di bagian atas layar client
 -->
 <script lang="ts">
-	import { Search, Bell } from 'lucide-svelte';
+	import { Search, Bell } from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 
 	let { title = 'Satu Generus' } = $props<{ title?: string }>();

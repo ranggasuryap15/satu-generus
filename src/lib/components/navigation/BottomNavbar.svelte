@@ -7,7 +7,7 @@
   @sideEffects Navigasi halaman client melalui tag link
 -->
 <script lang="ts">
-	import { Home, Users, Plus, CalendarCheck, User } from 'lucide-svelte';
+	import { Home, Users, Plus, CalendarCheck, User } from '@lucide/svelte';
 
 	interface NavItem {
 		href: string;
