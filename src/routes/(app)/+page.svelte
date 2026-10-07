@@ -7,7 +7,7 @@
   @sideEffects Menampilkan menu tugas cepat dan ringkasan kartu informasi jamaah
 -->
 <script lang="ts">
-	import { QrCode, FileSpreadsheet, Users, ChevronRight, Calendar } from '@lucide/svelte';
+	import { Calendar, ChevronRight, FileSpreadsheet, QrCode } from '@lucide/svelte';
 	import type { PageData } from './$types';
 
 	let { data } = $props<{ data: PageData }>();

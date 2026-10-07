@@ -2,19 +2,19 @@
   @file src/lib/components/navigation/AdminSidebar.svelte
   @purpose Komponen Sidebar vertikal navigasi admin (Desktop-first) sesuai spesifikasi DESIGN.md
   @usedBy src/routes/(admin)/+layout.svelte
-  @dependencies lucide-svelte (LayoutDashboard, Users, CalendarCheck, MapPin, ShieldCheck, LogOut)
+  @dependencies @lucide/svelte (LayoutDashboard, Users, CalendarCheck, MapPin, ShieldCheck, LogOut, ExternalLink)
   @publicFunctions N/A (Svelte Component)
   @sideEffects Menavigasikan admin ke modul-modul manajemen data
 -->
 <script lang="ts">
 	import {
-		LayoutDashboard,
-		Users,
-		CalendarCheck,
-		MapPin,
-		ShieldCheck,
-		LogOut,
-		ExternalLink
+	  CalendarCheck,
+	  ExternalLink,
+	  LayoutDashboard,
+	  LogOut,
+	  MapPin,
+	  ShieldCheck,
+	  Users
 	} from '@lucide/svelte';
 
 	interface AdminNavItem {

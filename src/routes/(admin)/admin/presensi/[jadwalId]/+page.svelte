@@ -8,14 +8,13 @@
 -->
 <script lang="ts">
 	import {
-		ArrowLeft,
-		QrCode,
-		CheckCircle2,
-		AlertCircle,
-		XCircle,
-		Clock,
-		Search,
-		User
+	  AlertCircle,
+	  ArrowLeft,
+	  CheckCircle2,
+	  QrCode,
+	  Search,
+	  User,
+	  XCircle
 	} from '@lucide/svelte';
 	import type { PageData } from './$types';
 
