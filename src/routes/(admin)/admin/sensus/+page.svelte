@@ -747,7 +747,7 @@
 			if (e.target === e.currentTarget) closeCreateModal();
 		}}
 	>
-		<div class="bg-card border border-border rounded-2xl max-w-3xl w-full p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
+		<div class="bg-card border border-border rounded-2xl max-w-3xl w-full p-4 sm:p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
 			<div class="flex items-center justify-between pb-3 border-b border-border">
 				<div>
 					<h3 class="text-sm font-bold text-foreground">Tambah Sensus & Akun Jamaah Baru</h3>
@@ -934,7 +934,7 @@
 							</button>
 						</div>
 
-						<div class="space-y-3 max-h-80 overflow-y-auto pr-1">
+						<div class="space-y-3">
 							{#each newAnggotaList as anggota, idx}
 								<div class="p-3.5 rounded-lg border border-border bg-card space-y-3 shadow-xs">
 									<div class="flex items-center justify-between text-xs font-semibold text-foreground border-b border-border/50 pb-2">
@@ -1179,7 +1179,7 @@
 			if (e.target === e.currentTarget) closeAddMemberModal();
 		}}
 	>
-		<div class="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+		<div class="bg-card border border-border rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
 			<div class="flex items-center justify-between pb-3 border-b border-border">
 				<div>
 					<h3 class="text-sm font-bold text-foreground">Tambah Anggota Keluarga</h3>
@@ -1310,7 +1310,7 @@
 			if (e.target === e.currentTarget) selectedKeluarga = null;
 		}}
 	>
-		<div class="bg-card border border-border rounded-2xl max-w-lg w-full p-6 shadow-xl space-y-5">
+		<div class="bg-card border border-border rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-xl space-y-5 max-h-[92vh] overflow-y-auto">
 			<div class="flex items-center justify-between pb-3 border-b border-border">
 				<div>
 					<div class="flex items-center gap-2">
