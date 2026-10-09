@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(admin)/admin/sensus/+page.server.ts
- * @purpose Rekapitulasi sensus Kartu Keluarga, metrik dashboard, serta form actions penambahan sensus dan anggota keluarga dengan proteksi RBAC berjenjang
+ * @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri/Perantau, metrik dashboard, serta form actions penambahan sensus dan anggota keluarga dengan proteksi RBAC
  * @usedBy src/routes/(admin)/admin/sensus/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/auth, src/lib/server/scope, drizzle-orm
  * @publicFunctions load, actions.createSensus, actions.addAnggotaKeluarga
@@ -29,6 +29,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const rawKeluargaList = db
 		.select({
 			id: keluarga.id,
+			isKk: keluarga.isKk,
 			noKkEncrypted: keluarga.noKkEncrypted,
 			alamatLengkap: keluarga.alamatLengkap,
 			kepalaKeluargaId: keluarga.kepalaKeluargaId,
@@ -86,15 +87,27 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 
 	let totalJiwa = 0;
+	let totalKeluarga = 0;
+	let totalMandiri = 0;
 	let totalPengurus = 0;
 	let totalPengurus4S = 0;
 
 	// 5. Transformasi Data dengan Masking
 	const daftarKeluarga = scopedKeluargaList.map((k) => {
-		let noKkMasked = '****';
-		try {
-			noKkMasked = maskSensitive(decryptSensitive(k.noKkEncrypted));
-		} catch (_) {}
+		const isKk = k.isKk ?? true;
+		let noKkMasked = 'Tanpa KK';
+
+		if (isKk) {
+			totalKeluarga++;
+			try {
+				noKkMasked = maskSensitive(decryptSensitive(k.noKkEncrypted));
+			} catch (_) {
+				noKkMasked = '****';
+			}
+		} else {
+			totalMandiri++;
+			noKkMasked = 'Tanpa KK (Perantau)';
+		}
 
 		const familyMembers = anggotaByKeluargaMap.get(k.id) || [];
 		totalJiwa += familyMembers.length;
@@ -130,6 +143,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 		return {
 			id: k.id,
+			isKk,
 			noKkMasked,
 			alamatLengkap: k.alamatLengkap || '-',
 			kepalaKeluargaId: k.kepalaKeluargaId,
@@ -151,7 +165,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	// 6. Ringkasan Metrik Dashboard
 	const dashboardStats = {
-		totalKeluarga: daftarKeluarga.length,
+		totalKeluarga,
+		totalMandiri,
 		totalJiwa,
 		totalPengurus,
 		totalPengurus4S,
@@ -220,13 +235,11 @@ export const actions: Actions = {
 			});
 		}
 
-		// Validasi Nomor KK
-		if (!noKk || noKk.length !== 16 || !/^\d+$/.test(noKk)) {
-			return fail(400, {
-				error: 'Nomor Kartu Keluarga wajib 16 digit angka.'
-			});
-		}
+		const tipeSensus = formData.get('tipeSensus')?.toString()?.trim() || 'keluarga';
+		const isMandiri = tipeSensus === 'mandiri';
 
+		// Validasi Nomor KK jika tipe sensus adalah Kartu Keluarga
+		let noKkEncrypted = '';
 		let anggotaList: Array<{
 			namaLengkap?: string;
 			nik: string;
@@ -235,33 +248,68 @@ export const actions: Actions = {
 			jenisKelamin: string;
 		}> = [];
 
-		try {
-			anggotaList = JSON.parse(anggotaJson);
-		} catch (_) {
-			return fail(400, { error: 'Format data anggota keluarga tidak valid.' });
-		}
-
-		if (!Array.isArray(anggotaList) || anggotaList.length === 0) {
-			return fail(400, { error: 'Minimal 1 anggota keluarga wajib didaftarkan.' });
-		}
-
-		for (let i = 0; i < anggotaList.length; i++) {
-			const a = anggotaList[i];
-			if (!a.nik || a.nik.length !== 16 || !/^\d+$/.test(a.nik)) {
+		if (!isMandiri) {
+			if (!noKk || noKk.length !== 16 || !/^\d+$/.test(noKk)) {
 				return fail(400, {
-					error: `NIK anggota ke-${i + 1} wajib 16 digit angka.`
+					error: 'Nomor Kartu Keluarga wajib 16 digit angka.'
 				});
 			}
-			if (!a.statusHubungan || !a.tanggalLahir || !a.jenisKelamin) {
+			noKkEncrypted = encryptSensitive(noKk);
+
+			try {
+				anggotaList = JSON.parse(anggotaJson);
+			} catch (_) {
+				return fail(400, { error: 'Format data anggota keluarga tidak valid.' });
+			}
+
+			if (!Array.isArray(anggotaList) || anggotaList.length === 0) {
+				return fail(400, { error: 'Minimal 1 anggota keluarga wajib didaftarkan.' });
+			}
+
+			for (let i = 0; i < anggotaList.length; i++) {
+				const a = anggotaList[i];
+				if (!a.nik || a.nik.length !== 16 || !/^\d+$/.test(a.nik)) {
+					return fail(400, {
+						error: `NIK anggota ke-${i + 1} wajib 16 digit angka.`
+					});
+				}
+				if (!a.statusHubungan || !a.tanggalLahir || !a.jenisKelamin) {
+					return fail(400, {
+						error: `Data anggota ke-${i + 1} belum lengkap.`
+					});
+				}
+			}
+		} else {
+			// Validasi Data Diri Jamaah Mandiri / Perantau (Tanpa KK)
+			const nikMandiri = formData.get('nik')?.toString()?.trim() || '';
+			const tanggalLahirMandiri = formData.get('tanggalLahir')?.toString()?.trim() || '';
+			const jenisKelaminMandiri = formData.get('jenisKelamin')?.toString()?.trim() || '';
+
+			if (!nikMandiri || nikMandiri.length !== 16 || !/^\d+$/.test(nikMandiri)) {
 				return fail(400, {
-					error: `Data anggota ke-${i + 1} belum lengkap.`
+					error: 'NIK jamaah perorangan/perantau wajib 16 digit angka.'
 				});
 			}
+			if (!tanggalLahirMandiri || !jenisKelaminMandiri) {
+				return fail(400, {
+					error: 'Tanggal lahir dan jenis kelamin jamaah wajib diisi.'
+				});
+			}
+
+			noKkEncrypted = encryptSensitive('MANDIRI');
+			anggotaList = [
+				{
+					namaLengkap,
+					nik: nikMandiri,
+					statusHubungan: 'Mandiri / Perantau',
+					tanggalLahir: tanggalLahirMandiri,
+					jenisKelamin: jenisKelaminMandiri
+				}
+			];
 		}
 
 		// Password Baku Default Sesuai Spesifikasi: 'jokam354'
 		const defaultHash = await hashPassword('jokam354');
-		const noKkEncrypted = encryptSensitive(noKk);
 
 		// Eksekusi Transaksi DB Atomik (Minimum Lock)
 		try {
@@ -278,10 +326,11 @@ export const actions: Actions = {
 					.returning()
 					.all();
 
-				// 2. Buat Kartu Keluarga
+				// 2. Buat Record Sensus (isKk: false untuk Mandiri/Perantau agar tidak dihitung KK)
 				const [newKeluarga] = tx
 					.insert(keluarga)
 					.values({
+						isKk: !isMandiri,
 						noKkEncrypted,
 						kepalaKeluargaId: newUser.id,
 						alamatLengkap
@@ -289,10 +338,10 @@ export const actions: Actions = {
 					.returning()
 					.all();
 
-				// 3. Masukkan Anggota Keluarga
+				// 3. Masukkan Anggota Keluarga / Data Diri Jiwa
 				for (let i = 0; i < anggotaList.length; i++) {
 					const a = anggotaList[i];
-					const isKepala = a.statusHubungan === 'Kepala Keluarga' || i === 0;
+					const isKepala = isMandiri || a.statusHubungan === 'Kepala Keluarga' || i === 0;
 					const memberNama = a.namaLengkap?.trim() || (isKepala ? namaLengkap : a.statusHubungan);
 
 					tx.insert(anggotaKeluarga)
@@ -315,8 +364,12 @@ export const actions: Actions = {
 			});
 		}
 
+		const successMsg = isMandiri
+			? `Akun jamaah perorangan/perantau ${namaLengkap} berhasil didaftarkan ke sensus (tidak dihitung KK) dengan password: jokam354`
+			: `Akun jamaah ${namaLengkap} dan Kartu Keluarga berhasil dibuat dengan password awal: jokam354`;
+
 		return {
-			success: `Akun jamaah ${namaLengkap} dan Sensus berhasil dibuat dengan password awal: jokam354`
+			success: successMsg
 		};
 	},
 

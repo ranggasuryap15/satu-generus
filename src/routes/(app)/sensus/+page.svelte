@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(app)/sensus/+page.svelte
-  @purpose Tampilan status dan rincian Kartu Keluarga jamaah dengan fitur unmasking serta ubah No. KK, NIK, dan data anggota dengan proteksi draf input
+  @purpose Tampilan status dan rincian Kartu Keluarga serta Jamaah Mandiri/Perantau dengan fitur unmasking, ubah data domisili, NIK, dan data anggota dengan proteksi draf input
   @usedBy Route client '/sensus'
   @dependencies @lucide/svelte, $app/forms (enhance), $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
   @publicFunctions toggleKk, copyKk, toggleNik, copyNik, openEditKk, closeEditKkModal, openEditAnggota, closeEditAnggotaModal, openTambahAnggota, closeTambahAnggotaModal
@@ -343,58 +343,70 @@
 			</div>
 		</div>
 	{:else}
-		<!-- Kartu Informasi Kartu Keluarga -->
+		<!-- Kartu Informasi Kartu Keluarga / Status Mandiri -->
 		<div class="bg-card border border-border rounded-xl p-4 shadow-sm space-y-3">
 			<div class="flex items-start justify-between">
 				<div class="flex items-center gap-2.5">
 					<div class="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-						<Home class="w-5 h-5" />
+						{#if data.keluarga.isKk}
+							<Home class="w-5 h-5" />
+						{:else}
+							<UserCheck class="w-5 h-5" />
+						{/if}
 					</div>
 					<div>
 						<div class="flex items-center gap-1.5">
-							<p class="text-[11px] text-foreground/60 font-medium">Nomor Kartu Keluarga</p>
-							{#if isKkRevealed}
+							<p class="text-[11px] text-foreground/60 font-medium">
+								{data.keluarga.isKk ? 'Nomor Kartu Keluarga' : 'Status Sensus Jamaah'}
+							</p>
+							{#if data.keluarga.isKk && isKkRevealed}
 								<span class="text-[9px] font-semibold bg-primary/10 text-primary px-1.5 py-0.2 rounded">Tampil</span>
 							{/if}
 						</div>
 						<div class="flex items-center gap-1.5 mt-0.5">
-							<h3 class="text-sm font-bold font-mono text-foreground tracking-wide select-all">
-								{isKkRevealed && plainNoKk ? plainNoKk : data.keluarga.noKkMasked}
-							</h3>
+							{#if data.keluarga.isKk}
+								<h3 class="text-sm font-bold font-mono text-foreground tracking-wide select-all">
+									{isKkRevealed && plainNoKk ? plainNoKk : data.keluarga.noKkMasked}
+								</h3>
 
-							<!-- Tombol Lihat / Sembunyikan Nomor KK -->
-							<button
-								type="button"
-								onclick={toggleKk}
-								disabled={isKkLoading}
-								class="p-1.5 rounded-lg text-foreground/60 hover:text-foreground hover:bg-secondary transition-colors inline-flex items-center justify-center"
-								title={isKkRevealed ? "Sembunyikan Nomor KK" : "Lihat Nomor KK Asli"}
-								aria-label={isKkRevealed ? "Sembunyikan Nomor KK" : "Lihat Nomor KK Asli"}
-							>
-								{#if isKkLoading}
-									<span class="inline-block w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>
-								{:else if isKkRevealed}
-									<EyeOff class="w-4 h-4 text-primary" />
-								{:else}
-									<Eye class="w-4 h-4" />
-								{/if}
-							</button>
-
-							<!-- Tombol Salin jika nomor KK sedang tampil -->
-							{#if isKkRevealed && plainNoKk}
+								<!-- Tombol Lihat / Sembunyikan Nomor KK -->
 								<button
 									type="button"
-									onclick={copyKk}
+									onclick={toggleKk}
+									disabled={isKkLoading}
 									class="p-1.5 rounded-lg text-foreground/60 hover:text-foreground hover:bg-secondary transition-colors inline-flex items-center justify-center"
-									title="Salin Nomor KK"
-									aria-label="Salin Nomor KK"
+									title={isKkRevealed ? "Sembunyikan Nomor KK" : "Lihat Nomor KK Asli"}
+									aria-label={isKkRevealed ? "Sembunyikan Nomor KK" : "Lihat Nomor KK Asli"}
 								>
-									{#if copiedKk}
-										<Check class="w-4 h-4 text-primary" />
+									{#if isKkLoading}
+										<span class="inline-block w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>
+									{:else if isKkRevealed}
+										<EyeOff class="w-4 h-4 text-primary" />
 									{:else}
-										<Copy class="w-4 h-4" />
+										<Eye class="w-4 h-4" />
 									{/if}
 								</button>
+
+								<!-- Tombol Salin jika nomor KK sedang tampil -->
+								{#if isKkRevealed && plainNoKk}
+									<button
+										type="button"
+										onclick={copyKk}
+										class="p-1.5 rounded-lg text-foreground/60 hover:text-foreground hover:bg-secondary transition-colors inline-flex items-center justify-center"
+										title="Salin Nomor KK"
+										aria-label="Salin Nomor KK"
+									>
+										{#if copiedKk}
+											<Check class="w-4 h-4 text-primary" />
+										{:else}
+											<Copy class="w-4 h-4" />
+										{/if}
+									</button>
+								{/if}
+							{:else}
+								<span class="text-xs font-bold text-purple-600 dark:text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-md">
+									Perorangan / Perantau Mandiri (Tanpa KK)
+								</span>
 							{/if}
 						</div>
 					</div>
@@ -405,40 +417,44 @@
 						type="button"
 						onclick={openEditKk}
 						class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground text-xs font-semibold border border-border transition-colors cursor-pointer"
-						title="Ubah No. KK atau Alamat"
+						title={data.keluarga.isKk ? "Ubah No. KK atau Alamat" : "Ubah Alamat Domisili"}
 					>
 						<Pencil class="w-3 h-3 text-primary" />
-						<span>Ubah KK</span>
+						<span>{data.keluarga.isKk ? 'Ubah KK' : 'Ubah Alamat'}</span>
 					</button>
 
 					<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-primary/10 text-primary">
 						<Shield class="w-3 h-3" />
-						{isKkRevealed ? 'Terverifikasi' : 'Terenkripsi'}
+						{data.keluarga.isKk ? (isKkRevealed ? 'Terverifikasi' : 'Terenkripsi') : 'Terdaftar'}
 					</span>
 				</div>
 			</div>
 
 			<div class="pt-2 border-t border-border/60 text-xs text-foreground/70">
-				<p class="font-medium text-[11px] text-foreground/50">Alamat Lengkap:</p>
+				<p class="font-medium text-[11px] text-foreground/50">
+					{data.keluarga.isKk ? 'Alamat Lengkap Domisili:' : 'Alamat Tempat Tinggal Saat Ini:'}
+				</p>
 				<p class="mt-0.5">{data.keluarga.alamatLengkap || 'Belum ada alamat'}</p>
 			</div>
 		</div>
 
-		<!-- Daftar Anggota Keluarga (Card Layout) -->
+		<!-- Daftar Anggota Keluarga / Data Diri Jamaah -->
 		<div class="space-y-3">
 			<div class="flex items-center justify-between px-1">
 				<h3 class="text-xs font-semibold uppercase tracking-wider text-foreground/70">
-					Anggota Keluarga ({data.anggotaList.length})
+					{data.keluarga.isKk ? `Anggota Keluarga (${data.anggotaList.length})` : 'Data Diri Jamaah'}
 				</h3>
 
-				<button
-					type="button"
-					onclick={openTambahAnggota}
-					class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold transition-colors cursor-pointer"
-				>
-					<Plus class="w-3 h-3" />
-					<span>Tambah Anggota</span>
-				</button>
+				{#if data.keluarga.isKk}
+					<button
+						type="button"
+						onclick={openTambahAnggota}
+						class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold transition-colors cursor-pointer"
+					>
+						<Plus class="w-3 h-3" />
+						<span>Tambah Anggota</span>
+					</button>
+				{/if}
 			</div>
 
 			<div class="space-y-2.5">
@@ -562,7 +578,9 @@
 	>
 		<div class="w-full max-w-sm bg-card border border-border rounded-2xl shadow-xl overflow-hidden p-6 space-y-4">
 			<div class="flex items-center justify-between border-b border-border pb-3">
-				<h3 class="text-sm font-bold text-foreground">Ubah Kartu Keluarga</h3>
+				<h3 class="text-sm font-bold text-foreground">
+					{data.keluarga?.isKk ? 'Ubah Kartu Keluarga' : 'Ubah Alamat Tempat Tinggal'}
+				</h3>
 				<button
 					type="button"
 					onclick={closeEditKkModal}
@@ -586,25 +604,27 @@
 			>
 				<input type="hidden" name="keluargaId" value={data.keluarga?.id} />
 
-				<div>
-					<label for="noKk" class="block font-medium text-foreground/80 mb-1.5">
-						Nomor Kartu Keluarga
-					</label>
-					<input
-						id="noKk"
-						name="noKk"
-						type="text"
-						maxlength="16"
-						bind:value={editKkNoKk}
-						placeholder="Biarkan kosong jika tidak ingin mengubah"
-						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
-					/>
-					<p class="text-[10px] text-foreground/50 mt-1">16 digit angka. Terenkripsi otomatis dengan AES-256-GCM.</p>
-				</div>
+				{#if data.keluarga?.isKk}
+					<div>
+						<label for="noKk" class="block font-medium text-foreground/80 mb-1.5">
+							Nomor Kartu Keluarga
+						</label>
+						<input
+							id="noKk"
+							name="noKk"
+							type="text"
+							maxlength="16"
+							bind:value={editKkNoKk}
+							placeholder="Biarkan kosong jika tidak ingin mengubah"
+							class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
+						/>
+						<p class="text-[10px] text-foreground/50 mt-1">16 digit angka. Terenkripsi otomatis dengan AES-256-GCM.</p>
+					</div>
+				{/if}
 
 				<div>
 					<label for="alamatLengkap" class="block font-medium text-foreground/80 mb-1.5">
-						Alamat Lengkap
+						{data.keluarga?.isKk ? 'Alamat Lengkap Domisili' : 'Alamat Tempat Tinggal Saat Ini'}
 					</label>
 					<textarea
 						id="alamatLengkap"
@@ -612,6 +632,7 @@
 						rows="3"
 						required
 						bind:value={editKkAlamat}
+						placeholder={data.keluarga?.isKk ? 'Alamat lengkap domisili keluarga...' : 'Alamat kos/kontrakan/tempat tinggal saat ini...'}
 						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
 					></textarea>
 				</div>

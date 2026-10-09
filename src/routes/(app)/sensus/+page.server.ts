@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(app)/sensus/+page.server.ts
- * @purpose Menampilkan status sensus keluarga dan memproses server actions untuk edit No KK, NIK, dan data anggota
+ * @purpose Menampilkan status sensus keluarga/mandiri dan memproses server actions untuk edit data kependudukan dan anggota
  * @usedBy src/routes/(app)/sensus/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, drizzle-orm
  * @publicFunctions load, actions.updateKeluarga, actions.updateAnggota, actions.tambahAnggota, actions.hapusAnggota
@@ -34,12 +34,18 @@ export const load: PageServerLoad = async ({ locals }) => {
 		};
 	}
 
+	const isKk = keluargaRecord.isKk ?? true;
+
 	// Dekripsi nomor KK untuk dimasking di tampilan
-	let noKkMasked = '****';
-	try {
-		const decryptedKk = decryptSensitive(keluargaRecord.noKkEncrypted);
-		noKkMasked = maskSensitive(decryptedKk);
-	} catch (_) {}
+	let noKkMasked = 'Tanpa KK (Perantau)';
+	if (isKk) {
+		try {
+			const decryptedKk = decryptSensitive(keluargaRecord.noKkEncrypted);
+			noKkMasked = maskSensitive(decryptedKk);
+		} catch (_) {
+			noKkMasked = '****';
+		}
+	}
 
 	// Ambil daftar anggota keluarga
 	const rawAnggota = db
@@ -71,6 +77,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		hasKeluarga: true,
 		keluarga: {
 			id: keluargaRecord.id,
+			isKk,
 			noKkMasked,
 			alamatLengkap: keluargaRecord.alamatLengkap
 		},

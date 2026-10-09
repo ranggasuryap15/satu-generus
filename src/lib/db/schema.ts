@@ -110,13 +110,17 @@ export const keluarga = sqliteTable(
 		id: text('id')
 			.primaryKey()
 			.$defaultFn(() => createId()),
+		isKk: integer('is_kk', { mode: 'boolean' }).notNull().default(true),
 		noKkEncrypted: text('no_kk_encrypted').notNull(),
 		kepalaKeluargaId: text('kepala_keluarga_id').references(() => users.id, {
 			onDelete: 'set null'
 		}),
 		alamatLengkap: text('alamat_lengkap')
 	},
-	(table) => [index('keluarga_kepala_keluarga_id_idx').on(table.kepalaKeluargaId)]
+	(table) => [
+		index('keluarga_kepala_keluarga_id_idx').on(table.kepalaKeluargaId),
+		index('keluarga_is_kk_idx').on(table.isKk)
+	]
 );
 
 export const anggotaKeluarga = sqliteTable(

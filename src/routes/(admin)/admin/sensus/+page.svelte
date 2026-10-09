@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(admin)/admin/sensus/+page.svelte
-  @purpose Rekapitulasi sensus Kartu Keluarga, dashboard statistik singkat, filter bertingkat, dan form modal pendaftaran sensus serta anggota dengan proteksi draft input
+  @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri/Perantau, dashboard statistik, filter bertingkat, dan form modal pendaftaran sensus KK/Mandiri dengan proteksi draft input
   @usedBy Route admin '/admin/sensus'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/utils (formatDateDDMMYYYY)
   @publicFunctions requestUnmask, openCreateModal, closeCreateModal, openAddMemberModal, closeAddMemberModal, resetFilters
@@ -37,6 +37,7 @@
 	let filterDesaId = $state<string | number>('ALL');
 	let filterKelompokId = $state<string | number>('ALL');
 	let filterPeran = $state<'ALL' | '4S' | 'PENGURUS' | 'JAMAAH'>('ALL');
+	let filterTipeSensus = $state<'ALL' | 'KK' | 'MANDIRI'>('ALL');
 
 	// State Modal Detail & Unmasking
 	let selectedKeluarga = $state<(typeof data.daftarKeluarga)[0] | null>(null);
@@ -44,13 +45,20 @@
 	let unmaskLoading = $state(false);
 	let unmaskedData = $state<{ label: string; value: string } | null>(null);
 
-	// State Modal Tambah Sensus Baru (Akun + KK + Anggota)
+	// State Modal Tambah Sensus Baru (Akun + KK/Mandiri + Anggota)
 	let showCreateModal = $state(false);
+	let newTipeSensus = $state<'keluarga' | 'mandiri'>('keluarga');
 	let newNamaLengkap = $state('');
 	let newEmail = $state('');
 	let newKelompokId = $state<string | number>('');
 	let newNoKk = $state('');
 	let newAlamatLengkap = $state('');
+
+	// Field Khusus Jamaah Mandiri / Perantau (Tanpa KK)
+	let newNikMandiri = $state('');
+	let newTanggalLahirMandiri = $state('');
+	let newJenisKelaminMandiri = $state('Laki-laki');
+
 	interface NewAnggotaRow {
 		namaLengkap: string;
 		nik: string;
@@ -138,6 +146,13 @@
 		{ value: 'JAMAAH', label: 'Jamaah Biasa' }
 	];
 
+	// Opsi Filter Tipe Sensus (KK vs Mandiri)
+	const tipeSensusFilterOptions = [
+		{ value: 'ALL', label: 'Semua Tipe Sensus (All)' },
+		{ value: 'KK', label: 'Kartu Keluarga Saja' },
+		{ value: 'MANDIRI', label: 'Perorangan / Perantau Saja' }
+	];
+
 	// Filter Hasil Sensus
 	let filteredKeluarga = $derived(
 		(data.daftarKeluarga || []).filter((k: (typeof data.daftarKeluarga)[number]) => {
@@ -176,6 +191,10 @@
 			if (filterPeran === 'PENGURUS' && !k.isPengurus) return false;
 			if (filterPeran === 'JAMAAH' && k.isPengurus) return false;
 
+			// 6. Filter Tipe Sensus (KK vs Mandiri)
+			if (filterTipeSensus === 'KK' && !k.isKk) return false;
+			if (filterTipeSensus === 'MANDIRI' && k.isKk) return false;
+
 			return true;
 		})
 	);
@@ -186,9 +205,20 @@
 		filterDesaId = 'ALL';
 		filterKelompokId = 'ALL';
 		filterPeran = 'ALL';
+		filterTipeSensus = 'ALL';
 	}
 
 	function isCreateFormDirty(): boolean {
+		if (newTipeSensus === 'mandiri') {
+			return !!(
+				newNamaLengkap.trim() ||
+				newEmail.trim() ||
+				newKelompokId ||
+				newAlamatLengkap.trim() ||
+				newNikMandiri.trim() ||
+				newTanggalLahirMandiri
+			);
+		}
 		return !!(
 			newNamaLengkap.trim() ||
 			newEmail.trim() ||
@@ -203,11 +233,15 @@
 	}
 
 	function resetCreateForm() {
+		newTipeSensus = 'keluarga';
 		newNamaLengkap = '';
 		newEmail = '';
 		newKelompokId = '';
 		newNoKk = '';
 		newAlamatLengkap = '';
+		newNikMandiri = '';
+		newTanggalLahirMandiri = '';
+		newJenisKelaminMandiri = 'Laki-laki';
 		newAnggotaList = [
 			{ namaLengkap: '', nik: '', statusHubungan: 'Kepala Keluarga', tanggalLahir: '', jenisKelamin: 'Laki-laki' }
 		];
@@ -370,7 +404,14 @@
 			</div>
 			<div>
 				<p class="text-[11px] font-medium text-foreground/60">Total Kartu Keluarga</p>
-				<p class="text-xl font-bold text-foreground mt-0.5">{data.dashboardStats.totalKeluarga}</p>
+				<div class="flex items-baseline gap-1.5 mt-0.5">
+					<p class="text-xl font-bold text-foreground">{data.dashboardStats.totalKeluarga}</p>
+					{#if data.dashboardStats.totalMandiri > 0}
+						<span class="text-[10px] text-foreground/60 font-medium">
+							(+{data.dashboardStats.totalMandiri} Perantau)
+						</span>
+					{/if}
+				</div>
 			</div>
 		</div>
 
@@ -413,14 +454,14 @@
 		</div>
 	</div>
 
-	<!-- 2. FILTER TOOLBAR LENGKAP (Daerah, Desa, Kelompok, Pengurus/4S/Jamaah, Pencarian) -->
+	<!-- 2. FILTER TOOLBAR LENGKAP (Daerah, Desa, Kelompok, Pengurus/4S/Jamaah, Tipe Sensus, Pencarian) -->
 	<div class="bg-card border border-border rounded-2xl p-4 shadow-sm space-y-3">
 		<div class="flex items-center justify-between pb-2 border-b border-border text-xs">
 			<div class="flex items-center gap-2 font-semibold text-foreground">
 				<Filter class="w-3.5 h-3.5 text-primary" />
 				<span>Filter Data Sensus (Default: All)</span>
 			</div>
-			{#if searchQuery || filterDaerahId !== 'ALL' || filterDesaId !== 'ALL' || filterKelompokId !== 'ALL' || filterPeran !== 'ALL'}
+			{#if searchQuery || filterDaerahId !== 'ALL' || filterDesaId !== 'ALL' || filterKelompokId !== 'ALL' || filterPeran !== 'ALL' || filterTipeSensus !== 'ALL'}
 				<button
 					type="button"
 					onclick={resetFilters}
@@ -433,7 +474,7 @@
 		</div>
 
 		<!-- Baris Filter Dropdown Search -->
-		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
 			<!-- Filter Daerah -->
 			<div>
 				<span class="block text-[11px] font-medium text-foreground/70 mb-1">Daerah</span>
@@ -488,6 +529,18 @@
 					searchPlaceholder="Cari kategori..."
 				/>
 			</div>
+
+			<!-- Filter Tipe Sensus (KK vs Mandiri) -->
+			<div>
+				<span class="block text-[11px] font-medium text-foreground/70 mb-1">Tipe Sensus</span>
+				<SearchableSelect
+					name="filterTipeSensus"
+					options={tipeSensusFilterOptions}
+					bind:value={filterTipeSensus}
+					placeholder="Semua Tipe (All)"
+					searchPlaceholder="Cari tipe..."
+				/>
+			</div>
 		</div>
 
 		<!-- Pencarian Kata Kunci -->
@@ -508,14 +561,14 @@
 		</div>
 	</div>
 
-	<!-- 3. TABEL DATA SENSUS KARTU KELUARGA -->
+	<!-- 3. TABEL DATA SENSUS KARTU KELUARGA & JAMAAH MANDIRI -->
 	<div class="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
 		<div class="overflow-x-auto">
 			<table class="w-full text-left text-xs text-foreground/80">
 				<thead class="bg-secondary/40 text-foreground/60 uppercase text-[10px] tracking-wider border-b border-border">
 					<tr>
-						<th class="py-3 px-4 font-semibold">No. Kartu Keluarga</th>
-						<th class="py-3 px-4 font-semibold">Kepala Keluarga</th>
+						<th class="py-3 px-4 font-semibold">No. KK / Tipe Sensus</th>
+						<th class="py-3 px-4 font-semibold">Kepala Keluarga / Jamaah</th>
 						<th class="py-3 px-4 font-semibold">Wilayah Basis</th>
 						<th class="py-3 px-4 font-semibold">Alamat Domisili</th>
 						<th class="py-3 px-4 font-semibold">Jiwa</th>
@@ -528,25 +581,34 @@
 							<td colspan="6" class="py-12 text-center text-foreground/40">
 								<div class="flex flex-col items-center justify-center gap-2">
 									<Users class="w-8 h-8 opacity-40" />
-									<span class="text-xs">Tidak ada data sensus keluarga yang sesuai filter.</span>
+									<span class="text-xs">Tidak ada data sensus yang sesuai filter.</span>
 								</div>
 							</td>
 						</tr>
 					{:else}
 						{#each filteredKeluarga as k}
 							<tr class="hover:bg-secondary/20 transition-colors">
-								<!-- No. KK dengan Unmask Eye -->
+								<!-- No. KK / Tipe Sensus dengan Unmask Eye -->
 								<td class="py-3.5 px-4 font-mono font-medium text-foreground">
-									<div class="flex items-center gap-1.5">
-										<span>{k.noKkMasked}</span>
-										<button
-											type="button"
-											onclick={() => requestUnmask({ keluargaId: k.id, label: `No. KK (${k.kepalaKeluargaNama})` })}
-											class="text-primary hover:text-primary/80 p-1 rounded hover:bg-primary/10 transition-colors"
-											title="Buka Enkripsi No. KK"
-										>
-											<Eye class="w-3.5 h-3.5" />
-										</button>
+									<div class="flex items-center gap-1.5 flex-wrap">
+										{#if k.isKk}
+											<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+												KK
+											</span>
+											<span>{k.noKkMasked}</span>
+											<button
+												type="button"
+												onclick={() => requestUnmask({ keluargaId: k.id, label: `No. KK (${k.kepalaKeluargaNama})` })}
+												class="text-primary hover:text-primary/80 p-1 rounded hover:bg-primary/10 transition-colors"
+												title="Buka Enkripsi No. KK"
+											>
+												<Eye class="w-3.5 h-3.5" />
+											</button>
+										{:else}
+											<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+												Perorangan / Perantau
+											</span>
+										{/if}
 									</div>
 								</td>
 
@@ -555,6 +617,11 @@
 									<div class="flex flex-col">
 										<div class="flex items-center gap-1.5">
 											<span class="font-semibold text-foreground">{k.kepalaKeluargaNama}</span>
+											{#if !k.isKk}
+												<span class="px-1.5 py-0.2 rounded text-[9px] font-medium bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+													Mandiri
+												</span>
+											{/if}
 											{#if k.is4S}
 												<span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
 													4S
@@ -591,15 +658,17 @@
 								<!-- Tombol Aksi -->
 								<td class="py-3.5 px-4 text-right">
 									<div class="inline-flex items-center gap-1.5 justify-end">
-										<button
-											type="button"
-											onclick={() => openAddMemberModal(k)}
-											class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-border hover:bg-secondary text-foreground/80 text-xs font-medium transition-colors"
-											title="Tambah Anggota Keluarga"
-										>
-											<UserPlus class="w-3.5 h-3.5 text-primary" />
-											<span class="hidden sm:inline">+ Anggota</span>
-										</button>
+										{#if k.isKk}
+											<button
+												type="button"
+												onclick={() => openAddMemberModal(k)}
+												class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-border hover:bg-secondary text-foreground/80 text-xs font-medium transition-colors"
+												title="Tambah Anggota Keluarga"
+											>
+												<UserPlus class="w-3.5 h-3.5 text-primary" />
+												<span class="hidden sm:inline">+ Anggota</span>
+											</button>
+										{/if}
 
 										<button
 											type="button"
@@ -657,14 +726,51 @@
 			</div>
 
 			<form method="POST" action="?/createSensus" class="space-y-4">
-				<!-- Input Tersembunyi JSON Anggota Data -->
-				<input type="hidden" name="anggotaData" value={JSON.stringify(newAnggotaList)} />
+				<!-- Tipe Sensus Selector (KK vs Mandiri) -->
+				<div class="space-y-1.5">
+					<span class="block text-xs font-semibold text-foreground">Kategori Sensus *</span>
+					<div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+						<label class="p-3 border rounded-xl flex items-start gap-2.5 cursor-pointer transition-all {newTipeSensus === 'keluarga' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border bg-secondary/30 hover:bg-secondary/50'}">
+							<input
+								type="radio"
+								name="tipeSensusRadio"
+								value="keluarga"
+								bind:group={newTipeSensus}
+								class="mt-0.5 text-primary focus:ring-primary"
+							/>
+							<div>
+								<span class="text-xs font-bold text-foreground block">Kepala Keluarga (Dengan KK)</span>
+								<span class="text-[10px] text-foreground/60 block leading-tight mt-0.5">
+									Memiliki Nomor KK utuh dan dapat memiliki tanggungan anggota keluarga. Dihitung dalam total KK.
+								</span>
+							</div>
+						</label>
 
-				<!-- BAGIAN 1: DATA AKUN JAMAAH (KEPALA KELUARGA) -->
+						<label class="p-3 border rounded-xl flex items-start gap-2.5 cursor-pointer transition-all {newTipeSensus === 'mandiri' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border bg-secondary/30 hover:bg-secondary/50'}">
+							<input
+								type="radio"
+								name="tipeSensusRadio"
+								value="mandiri"
+								bind:group={newTipeSensus}
+								class="mt-0.5 text-primary focus:ring-primary"
+							/>
+							<div>
+								<span class="text-xs font-bold text-foreground block">Perorangan / Perantau (Tanpa KK)</span>
+								<span class="text-[10px] text-foreground/60 block leading-tight mt-0.5">
+									Remaja/i atau perantau mandiri tanpa keluarga di sini. Terdata di sensus jiwa, tidak dihitung kuota KK.
+								</span>
+							</div>
+						</label>
+					</div>
+				</div>
+
+				<input type="hidden" name="tipeSensus" value={newTipeSensus} />
+
+				<!-- BAGIAN 1: DATA AKUN JAMAAH -->
 				<div class="p-4 rounded-xl border border-border bg-secondary/20 space-y-3">
 					<h4 class="text-xs font-bold text-foreground flex items-center gap-1.5">
 						<UserCheck class="w-3.5 h-3.5 text-primary" />
-						1. Data Akun Jamaah (Kepala Keluarga)
+						1. Data Akun Jamaah {newTipeSensus === 'keluarga' ? '(Kepala Keluarga)' : '(Mandiri / Perantau)'}
 					</h4>
 
 					<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -678,7 +784,7 @@
 								type="text"
 								required
 								bind:value={newNamaLengkap}
-								placeholder="Contoh: Ahmad Dahlan"
+								placeholder={newTipeSensus === 'keluarga' ? 'Contoh: Ahmad Dahlan' : 'Contoh: Rian Pratama'}
 								class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 							/>
 						</div>
@@ -716,34 +822,170 @@
 					</div>
 				</div>
 
-				<!-- BAGIAN 2: DATA KARTU KELUARGA -->
-				<div class="p-4 rounded-xl border border-border bg-secondary/20 space-y-3">
-					<h4 class="text-xs font-bold text-foreground flex items-center gap-1.5">
-						<Home class="w-3.5 h-3.5 text-primary" />
-						2. Data Kartu Keluarga
-					</h4>
+				{#if newTipeSensus === 'keluarga'}
+					<!-- Input Tersembunyi JSON Anggota Data untuk Tipe Keluarga -->
+					<input type="hidden" name="anggotaData" value={JSON.stringify(newAnggotaList)} />
 
-					<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-						<div>
-							<label for="noKk" class="block text-[11px] font-semibold text-foreground mb-1">
-								Nomor Kartu Keluarga (16 Digit) *
-							</label>
-							<input
-								id="noKk"
-								name="noKk"
-								type="text"
-								maxlength="16"
-								pattern="[0-9]{16}"
-								required
-								bind:value={newNoKk}
-								placeholder="3216xxxxxxxxxxxx"
-								class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-							/>
+					<!-- BAGIAN 2: DATA KARTU KELUARGA -->
+					<div class="p-4 rounded-xl border border-border bg-secondary/20 space-y-3">
+						<h4 class="text-xs font-bold text-foreground flex items-center gap-1.5">
+							<Home class="w-3.5 h-3.5 text-primary" />
+							2. Data Kartu Keluarga
+						</h4>
+
+						<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+							<div>
+								<label for="noKk" class="block text-[11px] font-semibold text-foreground mb-1">
+									Nomor Kartu Keluarga (16 Digit) *
+								</label>
+								<input
+									id="noKk"
+									name="noKk"
+									type="text"
+									maxlength="16"
+									pattern="[0-9]{16}"
+									required
+									bind:value={newNoKk}
+									placeholder="3216xxxxxxxxxxxx"
+									class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+								/>
+							</div>
+
+							<div>
+								<label for="alamatLengkap" class="block text-[11px] font-semibold text-foreground mb-1">
+									Alamat Lengkap Domisili *
+								</label>
+								<input
+									id="alamatLengkap"
+									name="alamatLengkap"
+									type="text"
+									required
+									bind:value={newAlamatLengkap}
+									placeholder="Jl. Mawar No. 12, RT 01/RW 02"
+									class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+								/>
+							</div>
 						</div>
+					</div>
+
+					<!-- BAGIAN 3: DATA ANGGOTA KELUARGA -->
+					<div class="p-4 rounded-xl border border-border bg-secondary/20 space-y-3">
+						<div class="flex items-center justify-between">
+							<h4 class="text-xs font-bold text-foreground flex items-center gap-1.5">
+								<Users class="w-3.5 h-3.5 text-primary" />
+								3. Data Anggota Keluarga ({newAnggotaList.length} Jiwa)
+							</h4>
+							<button
+								type="button"
+								onclick={addAnggotaRow}
+								class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 text-xs font-semibold transition-colors"
+							>
+								<Plus class="w-3.5 h-3.5" />
+								<span>Tambah Anggota</span>
+							</button>
+						</div>
+
+						<div class="space-y-3 max-h-60 overflow-y-auto pr-1">
+							{#each newAnggotaList as anggota, idx}
+								<div class="p-3 rounded-lg border border-border bg-card space-y-2">
+									<div class="flex items-center justify-between text-xs font-semibold text-foreground">
+										<span>Anggota #{idx + 1} ({anggota.statusHubungan})</span>
+										{#if idx > 0}
+											<button
+												type="button"
+												onclick={() => removeAnggotaRow(idx)}
+												class="text-destructive hover:text-destructive/80 p-0.5"
+												title="Hapus baris"
+											>
+												<Trash2 class="w-3.5 h-3.5" />
+											</button>
+										{/if}
+									</div>
+
+									<div class="grid grid-cols-1 sm:grid-cols-5 gap-2 text-xs">
+										<div>
+											<label for={`new-nama-${idx}`} class="block text-[10px] text-foreground/60 mb-0.5">Nama Lengkap *</label>
+											<input
+												id={`new-nama-${idx}`}
+												type="text"
+												required
+												bind:value={anggota.namaLengkap}
+												placeholder="Nama Lengkap"
+												class="w-full bg-secondary/50 border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+											/>
+										</div>
+
+										<div>
+											<label for={`new-status-${idx}`} class="block text-[10px] text-foreground/60 mb-0.5">Status *</label>
+											<select
+												id={`new-status-${idx}`}
+												bind:value={anggota.statusHubungan}
+												required
+												class="w-full bg-secondary/50 border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+											>
+												<option value="Kepala Keluarga">Kepala Keluarga</option>
+												<option value="Suami">Suami</option>
+												<option value="Istri">Istri</option>
+												<option value="Anak">Anak</option>
+												<option value="Orang Tua">Orang Tua</option>
+												<option value="Famili Lain">Famili Lain</option>
+											</select>
+										</div>
+
+										<div>
+											<label for={`new-nik-${idx}`} class="block text-[10px] text-foreground/60 mb-0.5">NIK (16 Digit) *</label>
+											<input
+												id={`new-nik-${idx}`}
+												type="text"
+												maxlength="16"
+												pattern="[0-9]{16}"
+												required
+												bind:value={anggota.nik}
+												placeholder="3216xxxxxxxxxxxx"
+												class="w-full bg-secondary/50 border border-border rounded-lg px-2 py-1.5 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+											/>
+										</div>
+
+										<div>
+											<label for={`new-tgl-${idx}`} class="block text-[10px] text-foreground/60 mb-0.5">Tgl Lahir *</label>
+											<input
+												id={`new-tgl-${idx}`}
+												type="date"
+												required
+												bind:value={anggota.tanggalLahir}
+												class="w-full bg-secondary/50 border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+											/>
+										</div>
+
+										<div>
+											<label for={`new-jk-${idx}`} class="block text-[10px] text-foreground/60 mb-0.5">Jenis Kelamin *</label>
+											<select
+												id={`new-jk-${idx}`}
+												bind:value={anggota.jenisKelamin}
+												required
+												class="w-full bg-secondary/50 border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+											>
+												<option value="Laki-laki">Laki-laki</option>
+												<option value="Perempuan">Perempuan</option>
+											</select>
+										</div>
+									</div>
+								</div>
+							{/each}
+						</div>
+					</div>
+				{:else}
+					<!-- FORM KHUSUS JAMAAH MANDIRI / PERANTAU -->
+					<!-- BAGIAN 2: ALAMAT TINGGAL DOMISILI -->
+					<div class="p-4 rounded-xl border border-border bg-secondary/20 space-y-3">
+						<h4 class="text-xs font-bold text-foreground flex items-center gap-1.5">
+							<Home class="w-3.5 h-3.5 text-primary" />
+							2. Tempat Tinggal Domisili Saat Ini
+						</h4>
 
 						<div>
 							<label for="alamatLengkap" class="block text-[11px] font-semibold text-foreground mb-1">
-								Alamat Lengkap Domisili *
+								Alamat Lengkap Domisili / Kos / Kontrakan / Asrama *
 							</label>
 							<input
 								id="alamatLengkap"
@@ -751,119 +993,79 @@
 								type="text"
 								required
 								bind:value={newAlamatLengkap}
-								placeholder="Jl. Mawar No. 12, RT 01/RW 02"
+								placeholder="Contoh: Kost Griya Putri No. 4, RT 02/RW 03"
 								class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 							/>
 						</div>
 					</div>
-				</div>
 
-				<!-- BAGIAN 3: DATA ANGGOTA KELUARGA -->
-				<div class="p-4 rounded-xl border border-border bg-secondary/20 space-y-3">
-					<div class="flex items-center justify-between">
-						<h4 class="text-xs font-bold text-foreground flex items-center gap-1.5">
-							<Users class="w-3.5 h-3.5 text-primary" />
-							3. Data Anggota Keluarga ({newAnggotaList.length} Jiwa)
-						</h4>
-						<button
-							type="button"
-							onclick={addAnggotaRow}
-							class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 text-xs font-semibold transition-colors"
-						>
-							<Plus class="w-3.5 h-3.5" />
-							<span>Tambah Anggota</span>
-						</button>
-					</div>
+					<!-- BAGIAN 3: DATA DIRI JAMAAH MANDIRI (1 JIWA) -->
+					<div class="p-4 rounded-xl border border-border bg-secondary/20 space-y-3">
+						<div class="flex items-center justify-between">
+							<h4 class="text-xs font-bold text-foreground flex items-center gap-1.5">
+								<Users class="w-3.5 h-3.5 text-primary" />
+								3. Data Diri Jamaah Mandiri (1 Jiwa Sensus)
+							</h4>
+							<span class="text-[10px] bg-purple-500/10 text-purple-600 dark:text-purple-400 font-semibold px-2 py-0.5 rounded-full border border-purple-500/20">
+								Tidak dihitung KK
+							</span>
+						</div>
 
-					<div class="space-y-3 max-h-60 overflow-y-auto pr-1">
-						{#each newAnggotaList as anggota, idx}
-							<div class="p-3 rounded-lg border border-border bg-card space-y-2">
-								<div class="flex items-center justify-between text-xs font-semibold text-foreground">
-									<span>Anggota #{idx + 1} ({anggota.statusHubungan})</span>
-									{#if idx > 0}
-										<button
-											type="button"
-											onclick={() => removeAnggotaRow(idx)}
-											class="text-destructive hover:text-destructive/80 p-0.5"
-											title="Hapus baris"
-										>
-											<Trash2 class="w-3.5 h-3.5" />
-										</button>
-									{/if}
-								</div>
-
-								<div class="grid grid-cols-1 sm:grid-cols-5 gap-2 text-xs">
-									<div>
-										<label for={`new-nama-${idx}`} class="block text-[10px] text-foreground/60 mb-0.5">Nama Lengkap *</label>
-										<input
-											id={`new-nama-${idx}`}
-											type="text"
-											required
-											bind:value={anggota.namaLengkap}
-											placeholder="Nama Lengkap"
-											class="w-full bg-secondary/50 border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-										/>
-									</div>
-
-									<div>
-										<label for={`new-status-${idx}`} class="block text-[10px] text-foreground/60 mb-0.5">Status *</label>
-										<select
-											id={`new-status-${idx}`}
-											bind:value={anggota.statusHubungan}
-											required
-											class="w-full bg-secondary/50 border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-										>
-											<option value="Kepala Keluarga">Kepala Keluarga</option>
-											<option value="Suami">Suami</option>
-											<option value="Istri">Istri</option>
-											<option value="Anak">Anak</option>
-											<option value="Orang Tua">Orang Tua</option>
-											<option value="Famili Lain">Famili Lain</option>
-										</select>
-									</div>
-
-									<div>
-										<label for={`new-nik-${idx}`} class="block text-[10px] text-foreground/60 mb-0.5">NIK (16 Digit) *</label>
-										<input
-											id={`new-nik-${idx}`}
-											type="text"
-											maxlength="16"
-											pattern="[0-9]{16}"
-											required
-											bind:value={anggota.nik}
-											placeholder="3216xxxxxxxxxxxx"
-											class="w-full bg-secondary/50 border border-border rounded-lg px-2 py-1.5 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-										/>
-									</div>
-
-									<div>
-										<label for={`new-tgl-${idx}`} class="block text-[10px] text-foreground/60 mb-0.5">Tgl Lahir *</label>
-										<input
-											id={`new-tgl-${idx}`}
-											type="date"
-											required
-											bind:value={anggota.tanggalLahir}
-											class="w-full bg-secondary/50 border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-										/>
-									</div>
-
-									<div>
-										<label for={`new-jk-${idx}`} class="block text-[10px] text-foreground/60 mb-0.5">Jenis Kelamin *</label>
-										<select
-											id={`new-jk-${idx}`}
-											bind:value={anggota.jenisKelamin}
-											required
-											class="w-full bg-secondary/50 border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-										>
-											<option value="Laki-laki">Laki-laki</option>
-											<option value="Perempuan">Perempuan</option>
-										</select>
-									</div>
-								</div>
+						<div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+							<div>
+								<label for="nikMandiri" class="block text-[11px] font-semibold text-foreground mb-1">
+									NIK (16 Digit) *
+								</label>
+								<input
+									id="nikMandiri"
+									name="nik"
+									type="text"
+									maxlength="16"
+									pattern="[0-9]{16}"
+									required
+									bind:value={newNikMandiri}
+									placeholder="3216xxxxxxxxxxxx"
+									class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+								/>
 							</div>
-						{/each}
+
+							<div>
+								<label for="tanggalLahirMandiri" class="block text-[11px] font-semibold text-foreground mb-1">
+									Tanggal Lahir *
+								</label>
+								<input
+									id="tanggalLahirMandiri"
+									name="tanggalLahir"
+									type="date"
+									required
+									bind:value={newTanggalLahirMandiri}
+									class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+								/>
+							</div>
+
+							<div>
+								<label for="jenisKelaminMandiri" class="block text-[11px] font-semibold text-foreground mb-1">
+									Jenis Kelamin *
+								</label>
+								<select
+									id="jenisKelaminMandiri"
+									name="jenisKelamin"
+									bind:value={newJenisKelaminMandiri}
+									required
+									class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+								>
+									<option value="Laki-laki">Laki-laki</option>
+									<option value="Perempuan">Perempuan</option>
+								</select>
+							</div>
+						</div>
+
+						<div class="p-2.5 rounded-lg bg-background/60 border border-border text-[11px] text-foreground/70 flex items-center gap-2">
+							<ShieldCheck class="w-4 h-4 text-primary shrink-0" />
+							<span>Jamaah ini otomatis terdata sebagai sensus jiwa di kelompok basis, namun kuota kartu keluarga (KK) tidak akan bertambah.</span>
+						</div>
 					</div>
-				</div>
+				{/if}
 
 				<div class="flex items-center justify-between gap-2 pt-3 border-t border-border">
 					{#if isCreateFormDirty()}
@@ -1047,12 +1249,16 @@
 			<div class="flex items-center justify-between pb-3 border-b border-border">
 				<div>
 					<div class="flex items-center gap-2">
-						<h3 class="text-sm font-bold text-foreground">Rincian Anggota Kartu Keluarga</h3>
+						<h3 class="text-sm font-bold text-foreground">
+							{selectedKeluarga.isKk ? 'Rincian Anggota Kartu Keluarga' : 'Rincian Sensus Jamaah Mandiri / Perantau'}
+						</h3>
 						<span class="text-[10px] bg-secondary px-2 py-0.5 rounded-full text-foreground/70 font-semibold">
 							{selectedKeluarga.anggota.length} Jiwa
 						</span>
 					</div>
-					<p class="text-xs text-foreground/60 font-mono mt-0.5">{selectedKeluarga.noKkMasked} • {selectedKeluarga.kepalaKeluargaNama}</p>
+					<p class="text-xs text-foreground/60 font-mono mt-0.5">
+						{selectedKeluarga.isKk ? `${selectedKeluarga.noKkMasked} • ${selectedKeluarga.kepalaKeluargaNama}` : `Jamaah Mandiri / Perantau (Tanpa KK) • ${selectedKeluarga.kepalaKeluargaNama}`}
+					</p>
 				</div>
 				<button
 					type="button"
@@ -1094,18 +1300,22 @@
 			</div>
 
 			<div class="flex items-center justify-between pt-3 border-t border-border">
-				<button
-					type="button"
-					onclick={() => {
-						const target = selectedKeluarga;
-						selectedKeluarga = null;
-						if (target) openAddMemberModal(target);
-					}}
-					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-semibold text-foreground hover:bg-secondary"
-				>
-					<UserPlus class="w-3.5 h-3.5 text-primary" />
-					<span>+ Tambah Anggota</span>
-				</button>
+				{#if selectedKeluarga.isKk}
+					<button
+						type="button"
+						onclick={() => {
+							const target = selectedKeluarga;
+							selectedKeluarga = null;
+							if (target) openAddMemberModal(target);
+						}}
+						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-semibold text-foreground hover:bg-secondary"
+					>
+						<UserPlus class="w-3.5 h-3.5 text-primary" />
+						<span>+ Tambah Anggota</span>
+					</button>
+				{:else}
+					<div></div>
+				{/if}
 
 				<button
 					type="button"
