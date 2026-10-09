@@ -1,12 +1,13 @@
 <!--
   @file src/lib/components/navigation/BottomNavbar.svelte
-  @purpose Komponen navigasi bawah (Bottom Navbar) statis untuk tampilan mobile client/jamaah
+  @purpose Komponen navigasi bawah (Bottom Navbar) dengan penanda rute aktif untuk tampilan mobile client/jamaah
   @usedBy src/routes/(app)/+layout.svelte
-  @dependencies lucide-svelte (Home, Users, Plus, CalendarCheck, User)
-  @publicFunctions N/A (Svelte Component)
-  @sideEffects Navigasi halaman client melalui tag link
+  @dependencies $app/state (page), @lucide/svelte (Home, Users, Plus, CalendarCheck, User)
+  @publicFunctions isItemActive
+  @sideEffects Navigasi halaman client melalui tag link dengan penanda visual rute aktif
 -->
 <script lang="ts">
+	import { page } from '$app/state';
 	import { Home, Users, Plus, CalendarCheck, User } from '@lucide/svelte';
 
 	interface NavItem {
@@ -23,6 +24,16 @@
 		{ href: '/presensi', label: 'Presensi', icon: CalendarCheck },
 		{ href: '/profil', label: 'Profil', icon: User }
 	];
+
+	function isItemActive(item: NavItem): boolean {
+		if (item.href === '/') {
+			return page.url.pathname === '/';
+		}
+		if (item.href === '/sensus') {
+			return page.url.pathname === '/sensus';
+		}
+		return page.url.pathname === item.href || page.url.pathname.startsWith(`${item.href}/`);
+	}
 </script>
 
 <nav
@@ -31,26 +42,32 @@
 >
 	<div class="max-w-md mx-auto flex items-center justify-around h-16">
 		{#each navItems as item}
+			{@const active = isItemActive(item)}
 			{#if item.isFab}
 				<a
 					href={item.href}
-					class="-mt-6 flex flex-col items-center justify-center"
+					class="-mt-6 flex flex-col items-center justify-center group"
 					aria-label={item.label}
+					aria-current={active ? 'page' : undefined}
 				>
 					<div
-						class="w-13 h-13 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center transition-transform hover:scale-105 active:scale-95 border-4 border-background"
+						class="w-13 h-13 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center transition-transform hover:scale-105 active:scale-95 border-4 border-background {active ? 'ring-2 ring-primary ring-offset-2 ring-offset-background scale-105' : ''}"
 					>
 						<item.icon class="w-6 h-6 stroke-[2.5]" />
 					</div>
-					<span class="text-[10px] font-medium text-foreground/80 mt-0.5">{item.label}</span>
+					<span class="text-[10px] mt-0.5 {active ? 'font-bold text-primary' : 'font-medium text-foreground/80'}">{item.label}</span>
 				</a>
 			{:else}
 				<a
 					href={item.href}
-					class="flex flex-col items-center justify-center flex-1 py-1 text-foreground/70 hover:text-primary transition-colors group"
+					class="flex flex-col items-center justify-center flex-1 py-1 transition-colors group relative {active ? 'text-primary' : 'text-foreground/60 hover:text-foreground'}"
+					aria-current={active ? 'page' : undefined}
 				>
-					<item.icon class="w-5 h-5 group-hover:scale-110 transition-transform" />
-					<span class="text-[11px] font-medium mt-1 group-hover:text-primary">{item.label}</span>
+					<item.icon class="w-5 h-5 transition-transform {active ? 'scale-110 text-primary' : 'group-hover:scale-110'}" />
+					<span class="text-[11px] mt-1 {active ? 'font-bold text-primary' : 'font-medium text-foreground/60 group-hover:text-primary'}">{item.label}</span>
+					{#if active}
+						<span class="w-1.5 h-1.5 rounded-full bg-primary absolute bottom-0.5"></span>
+					{/if}
 				</a>
 			{/if}
 		{/each}

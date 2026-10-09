@@ -1,12 +1,13 @@
 <!--
   @file src/lib/components/navigation/AdminSidebar.svelte
-  @purpose Komponen Sidebar navigasi admin responsif (sembunyi di mobile, persisten di desktop >= 768px)
+  @purpose Komponen Sidebar navigasi admin responsif (sembunyi di mobile, persisten di desktop >= 768px) dengan penanda rute aktif
   @usedBy src/routes/(admin)/+layout.svelte
-  @dependencies @lucide/svelte (LayoutDashboard, Users, CalendarCheck, MapPin, ShieldCheck, ExternalLink, X)
-  @publicFunctions N/A (Svelte Component)
-  @sideEffects Menavigasikan admin ke modul-modul manajemen data dan menangani buka/tutup drawer mobile
+  @dependencies $app/state (page), @lucide/svelte (LayoutDashboard, Users, CalendarCheck, MapPin, ShieldCheck, ExternalLink, X)
+  @publicFunctions isItemActive
+  @sideEffects Menavigasikan admin ke modul-modul manajemen data, menandai menu aktif, dan menangani drawer mobile
 -->
 <script lang="ts">
+	import { page } from '$app/state';
 	import {
 		CalendarCheck,
 		ExternalLink,
@@ -35,6 +36,13 @@
 		{ href: '/admin/wilayah', label: 'Hierarki Wilayah', icon: MapPin },
 		{ href: '/admin/dapukan', label: 'Dapukan & RBAC', icon: ShieldCheck }
 	];
+
+	function isItemActive(href: string): boolean {
+		if (href === '/admin') {
+			return page.url.pathname === '/admin';
+		}
+		return page.url.pathname === href || page.url.pathname.startsWith(`${href}/`);
+	}
 </script>
 
 <!-- Backdrop Blur khusus mobile saat drawer terbuka -->
@@ -85,12 +93,16 @@
 		<!-- Navigasi Menu -->
 		<nav class="space-y-1">
 			{#each menuItems as item}
+				{@const active = isItemActive(item.href)}
 				<a
 					href={item.href}
 					onclick={onClose}
-					class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium text-foreground/70 hover:bg-secondary hover:text-foreground transition-colors group"
+					class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-colors group {active
+						? 'bg-secondary text-foreground font-semibold shadow-xs'
+						: 'text-foreground/70 hover:bg-secondary/60 hover:text-foreground'}"
+					aria-current={active ? 'page' : undefined}
 				>
-					<item.icon class="w-4 h-4 text-foreground/60 group-hover:text-primary transition-colors" />
+					<item.icon class="w-4 h-4 transition-colors {active ? 'text-primary' : 'text-foreground/60 group-hover:text-primary'}" />
 					<span>{item.label}</span>
 				</a>
 			{/each}
