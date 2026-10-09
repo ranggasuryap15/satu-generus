@@ -280,6 +280,9 @@
 		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
 		role="dialog"
 		aria-modal="true"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) showAssignModal = false;
+		}}
 	>
 		<div class="bg-card border border-border rounded-2xl max-w-lg w-full p-6 shadow-xl space-y-5 max-h-[90vh] overflow-y-auto">
 			<div class="flex items-center justify-between pb-3 border-b border-border">
@@ -473,6 +476,12 @@
 		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
 		role="dialog"
 		aria-modal="true"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) {
+				showRemoveModal = false;
+				selectedPengurusToRemove = null;
+			}
+		}}
 	>
 		<div class="bg-card border border-border rounded-2xl max-w-sm w-full p-6 shadow-xl space-y-4 text-center">
 			<div class="w-12 h-12 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mx-auto">

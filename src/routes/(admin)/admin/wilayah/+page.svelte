@@ -212,6 +212,9 @@
 		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
 		role="dialog"
 		aria-modal="true"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) showAddKelompokModal = false;
+		}}
 	>
 		<div class="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-xl space-y-5">
 			<div class="flex items-center justify-between pb-3 border-b border-border">
@@ -299,6 +302,9 @@
 		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
 		role="dialog"
 		aria-modal="true"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) showAddDesaModal = false;
+		}}
 	>
 		<div class="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-xl space-y-5">
 			<div class="flex items-center justify-between pb-3 border-b border-border">

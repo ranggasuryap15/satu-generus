@@ -370,6 +370,9 @@
 		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
 		role="dialog"
 		aria-modal="true"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) showConfirmModal = false;
+		}}
 	>
 		<div class="bg-card border border-border rounded-2xl max-w-sm w-full p-6 shadow-xl space-y-4">
 			<div class="w-12 h-12 rounded-xl bg-primary/10 text-primary mx-auto flex items-center justify-center">

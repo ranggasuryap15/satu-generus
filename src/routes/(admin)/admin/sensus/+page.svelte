@@ -562,6 +562,9 @@
 		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
 		role="dialog"
 		aria-modal="true"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) showCreateModal = false;
+		}}
 	>
 		<div class="bg-card border border-border rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
 			<div class="flex items-center justify-between pb-3 border-b border-border">
@@ -813,6 +816,9 @@
 		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
 		role="dialog"
 		aria-modal="true"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) showAddMemberModal = false;
+		}}
 	>
 		<div class="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
 			<div class="flex items-center justify-between pb-3 border-b border-border">
@@ -927,6 +933,9 @@
 		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
 		role="dialog"
 		aria-modal="true"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) selectedKeluarga = null;
+		}}
 	>
 		<div class="bg-card border border-border rounded-2xl max-w-lg w-full p-6 shadow-xl space-y-5">
 			<div class="flex items-center justify-between pb-3 border-b border-border">
@@ -1007,6 +1016,12 @@
 		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
 		role="dialog"
 		aria-modal="true"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) {
+				showUnmaskModal = false;
+				unmaskedData = null;
+			}
+		}}
 	>
 		<div class="bg-card border border-border rounded-2xl max-w-sm w-full p-6 shadow-xl space-y-4 text-center">
 			<div class="w-10 h-10 rounded-full bg-primary/10 text-primary mx-auto flex items-center justify-center">

@@ -207,7 +207,12 @@
 
 <!-- Modal 1: Ubah Profil (Nama & Email) -->
 {#if activeModal === 'profile'}
-	<div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150">
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) activeModal = 'none';
+		}}
+	>
 		<div class="w-full max-w-sm bg-card border border-border rounded-2xl shadow-xl overflow-hidden p-6 space-y-4">
 			<div class="flex items-center justify-between border-b border-border pb-3">
 				<h3 class="text-sm font-bold text-foreground">Ubah Profil Akun</h3>
@@ -290,7 +295,12 @@
 
 <!-- Modal 2: Ganti Kata Sandi -->
 {#if activeModal === 'password'}
-	<div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150">
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) activeModal = 'none';
+		}}
+	>
 		<div class="w-full max-w-sm bg-card border border-border rounded-2xl shadow-xl overflow-hidden p-6 space-y-4">
 			<div class="flex items-center justify-between border-b border-border pb-3">
 				<h3 class="text-sm font-bold text-foreground">Ganti Kata Sandi</h3>

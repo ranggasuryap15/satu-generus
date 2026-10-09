@@ -487,7 +487,12 @@
 
 <!-- Modal 1: Ubah Data Kartu Keluarga -->
 {#if activeModal === 'editKk'}
-	<div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150">
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) activeModal = 'none';
+		}}
+	>
 		<div class="w-full max-w-sm bg-card border border-border rounded-2xl shadow-xl overflow-hidden p-6 space-y-4">
 			<div class="flex items-center justify-between border-b border-border pb-3">
 				<h3 class="text-sm font-bold text-foreground">Ubah Kartu Keluarga</h3>
@@ -567,7 +572,15 @@
 
 <!-- Modal 2: Ubah Data Anggota Keluarga -->
 {#if activeModal === 'editAnggota' && selectedAnggota}
-	<div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150">
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) {
+				activeModal = 'none';
+				selectedAnggota = null;
+			}
+		}}
+	>
 		<div class="w-full max-w-sm bg-card border border-border rounded-2xl shadow-xl overflow-hidden p-6 space-y-4">
 			<div class="flex items-center justify-between border-b border-border pb-3">
 				<h3 class="text-sm font-bold text-foreground">Ubah Anggota Keluarga</h3>
@@ -681,7 +694,12 @@
 
 <!-- Modal 3: Tambah Anggota Keluarga Baru -->
 {#if activeModal === 'tambahAnggota'}
-	<div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150">
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) activeModal = 'none';
+		}}
+	>
 		<div class="w-full max-w-sm bg-card border border-border rounded-2xl shadow-xl overflow-hidden p-6 space-y-4">
 			<div class="flex items-center justify-between border-b border-border pb-3">
 				<h3 class="text-sm font-bold text-foreground">Tambah Anggota Keluarga</h3>
