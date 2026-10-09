@@ -37,6 +37,7 @@
 	// State Form Step 2: Anggota Keluarga
 	interface AnggotaItem {
 		id: string;
+		namaLengkap: string;
 		nik: string;
 		statusHubungan: string;
 		tanggalLahir: string;
@@ -46,6 +47,7 @@
 	let anggotaList = $state<AnggotaItem[]>([
 		{
 			id: '1',
+			namaLengkap: '',
 			nik: '',
 			statusHubungan: 'Kepala Keluarga',
 			tanggalLahir: '',
@@ -69,6 +71,10 @@
 		errors.anggota = undefined;
 		for (let i = 0; i < anggotaList.length; i++) {
 			const a = anggotaList[i];
+			if (!a.namaLengkap || !a.namaLengkap.trim()) {
+				errors.anggota = `Nama lengkap anggota ke-${i + 1} wajib diisi.`;
+				return false;
+			}
 			if (!a.nik || a.nik.trim().length !== 16 || !/^\d+$/.test(a.nik.trim())) {
 				errors.anggota = `NIK anggota ke-${i + 1} harus 16 digit angka.`;
 				return false;
@@ -96,6 +102,7 @@
 	function addAnggota() {
 		anggotaList.push({
 			id: Math.random().toString(36).substring(2, 9),
+			namaLengkap: '',
 			nik: '',
 			statusHubungan: 'Anak',
 			tanggalLahir: '',
@@ -234,6 +241,19 @@
 							</div>
 
 							<div>
+								<label for={`nama-${idx}`} class="block text-[11px] font-medium text-foreground/70 mb-1">
+									Nama Lengkap *
+								</label>
+								<input
+									id={`nama-${idx}`}
+									type="text"
+									placeholder="Contoh: Budi Santoso"
+									bind:value={anggota.namaLengkap}
+									class="w-full bg-background border border-border rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+								/>
+							</div>
+
+							<div>
 								<label for={`nik-${idx}`} class="block text-[11px] font-medium text-foreground/70 mb-1">
 									NIK (16 Digit) *
 								</label>
@@ -316,8 +336,11 @@
 					{#each anggotaList as a, idx}
 						<div class="flex items-center justify-between p-2.5 rounded-lg border border-border bg-card text-xs">
 							<div>
-								<span class="font-semibold text-foreground">{a.statusHubungan}</span>
-								<p class="text-[11px] text-foreground/60 font-mono">NIK: {a.nik}</p>
+								<span class="font-bold text-foreground">{a.namaLengkap}</span>
+								<div class="flex items-center gap-1.5 mt-0.5">
+									<span class="text-[10px] text-primary font-semibold">{a.statusHubungan}</span>
+									<span class="text-[11px] text-foreground/60 font-mono">• NIK: {a.nik}</span>
+								</div>
 							</div>
 							<span class="text-[10px] bg-secondary px-2 py-0.5 rounded text-foreground/70">
 								{a.jenisKelamin === 'L' ? 'L' : 'P'} • {formatDateDDMMYYYY(a.tanggalLahir)}

@@ -129,6 +129,7 @@ export const anggotaKeluarga = sqliteTable(
 			.notNull()
 			.references(() => keluarga.id, { onDelete: 'cascade' }),
 		userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+		namaLengkap: text('nama_lengkap'),
 		nikEncrypted: text('nik_encrypted').notNull(),
 		statusHubungan: text('status_hubungan').notNull(), // 'Suami' | 'Istri' | 'Anak' | dll
 		tanggalLahir: text('tanggal_lahir').notNull(), // ISO8601 YYYY-MM-DD

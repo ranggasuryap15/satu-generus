@@ -88,6 +88,7 @@ Drizzle ORM akan menyimpan data NIK dan No. KK dalam bentuk _Ciphertext_ menggun
 | `id`              | Text               | PRIMARY KEY | CUID                                        |
 | `keluarga_id`     | Text               | FOREIGN KEY | Merujuk ke`keluarga.id`                     |
 | `user_id`         | Text               | FOREIGN KEY | Merujuk ke`users.id` (Opsional jika balita) |
+| `nama_lengkap`    | Text               |             | Nama lengkap anggota keluarga               |
 | `nik_encrypted`   | Text               | NOT NULL    | Hasil enkripsi NIK                          |
 | `status_hubungan` | Text               | NOT NULL    | Enum: 'Suami', 'Istri', 'Anak', dll         |
 | `tanggal_lahir`   | Text               | NOT NULL    | Format ISO8601 YYYY-MM-DD                   |

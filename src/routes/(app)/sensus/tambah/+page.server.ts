@@ -43,6 +43,7 @@ export const actions: Actions = {
 		}
 
 		let anggotaList: Array<{
+			namaLengkap?: string;
 			nik: string;
 			statusHubungan: string;
 			tanggalLahir: string;
@@ -106,6 +107,7 @@ export const actions: Actions = {
 					tx.insert(anggotaKeluarga)
 						.values({
 							keluargaId: newKeluarga.id,
+							namaLengkap: a.namaLengkap?.trim() || locals.user?.namaLengkap || 'Anggota',
 							nikEncrypted: encryptSensitive(a.nik),
 							statusHubungan: a.statusHubungan,
 							tanggalLahir: a.tanggalLahir,

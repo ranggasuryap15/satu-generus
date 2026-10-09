@@ -57,6 +57,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 		return {
 			id: a.id,
+			namaLengkap:
+				a.namaLengkap ||
+				(a.statusHubungan === 'Kepala Keluarga' ? (locals.user?.namaLengkap || 'Kepala Keluarga') : a.statusHubungan),
 			nikMasked,
 			statusHubungan: a.statusHubungan,
 			tanggalLahir: a.tanggalLahir,
@@ -139,6 +142,7 @@ export const actions: Actions = {
 
 		const formData = await request.formData();
 		const anggotaId = formData.get('anggotaId')?.toString() || '';
+		const namaLengkap = formData.get('namaLengkap')?.toString()?.trim() || '';
 		const nik = formData.get('nik')?.toString()?.trim() || '';
 		const statusHubungan = formData.get('statusHubungan')?.toString()?.trim() || '';
 		const tanggalLahir = formData.get('tanggalLahir')?.toString()?.trim() || '';
@@ -165,6 +169,7 @@ export const actions: Actions = {
 		}
 
 		const updatePayload: {
+			namaLengkap?: string;
 			statusHubungan: string;
 			tanggalLahir: string;
 			jenisKelamin: string;
@@ -174,6 +179,10 @@ export const actions: Actions = {
 			tanggalLahir,
 			jenisKelamin
 		};
+
+		if (namaLengkap) {
+			updatePayload.namaLengkap = namaLengkap;
+		}
 
 		// Jika NIK diubah, validasi 16 digit angka dan enkripsi
 		if (nik) {
@@ -203,6 +212,7 @@ export const actions: Actions = {
 
 		const formData = await request.formData();
 		const keluargaId = formData.get('keluargaId')?.toString() || '';
+		const namaLengkap = formData.get('namaLengkap')?.toString()?.trim() || '';
 		const nik = formData.get('nik')?.toString()?.trim() || '';
 		const statusHubungan = formData.get('statusHubungan')?.toString()?.trim() || '';
 		const tanggalLahir = formData.get('tanggalLahir')?.toString()?.trim() || '';
@@ -223,6 +233,10 @@ export const actions: Actions = {
 			return fail(403, { errorTambahAnggota: 'Akses ditolak.' });
 		}
 
+		if (!namaLengkap) {
+			return fail(400, { errorTambahAnggota: 'Nama lengkap wajib diisi.' });
+		}
+
 		if (!nik || nik.length !== 16 || !/^\d+$/.test(nik)) {
 			return fail(400, { errorTambahAnggota: 'NIK wajib 16 digit angka.' });
 		}
@@ -235,6 +249,7 @@ export const actions: Actions = {
 			db.insert(anggotaKeluarga)
 				.values({
 					keluargaId,
+					namaLengkap,
 					nikEncrypted: encryptSensitive(nik),
 					statusHubungan,
 					tanggalLahir,

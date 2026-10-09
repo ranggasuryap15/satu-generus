@@ -118,6 +118,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 			return {
 				id: a.id,
+				namaLengkap:
+					a.namaLengkap ||
+					(a.statusHubungan === 'Kepala Keluarga' ? k.kepalaKeluargaNama || 'Kepala Keluarga' : a.statusHubungan),
 				nikMasked,
 				statusHubungan: a.statusHubungan,
 				tanggalLahir: a.tanggalLahir,
@@ -225,6 +228,7 @@ export const actions: Actions = {
 		}
 
 		let anggotaList: Array<{
+			namaLengkap?: string;
 			nik: string;
 			statusHubungan: string;
 			tanggalLahir: string;
@@ -289,11 +293,13 @@ export const actions: Actions = {
 				for (let i = 0; i < anggotaList.length; i++) {
 					const a = anggotaList[i];
 					const isKepala = a.statusHubungan === 'Kepala Keluarga' || i === 0;
+					const memberNama = a.namaLengkap?.trim() || (isKepala ? namaLengkap : a.statusHubungan);
 
 					tx.insert(anggotaKeluarga)
 						.values({
 							keluargaId: newKeluarga.id,
 							userId: isKepala ? newUser.id : null,
+							namaLengkap: memberNama,
 							nikEncrypted: encryptSensitive(a.nik),
 							statusHubungan: a.statusHubungan,
 							tanggalLahir: a.tanggalLahir,
@@ -327,6 +333,7 @@ export const actions: Actions = {
 
 		const formData = await request.formData();
 		const keluargaId = formData.get('keluargaId')?.toString()?.trim() || '';
+		const namaLengkap = formData.get('namaLengkap')?.toString()?.trim() || '';
 		const nik = formData.get('nik')?.toString()?.trim() || '';
 		const statusHubungan = formData.get('statusHubungan')?.toString()?.trim() || '';
 		const tanggalLahir = formData.get('tanggalLahir')?.toString()?.trim() || '';
@@ -360,8 +367,8 @@ export const actions: Actions = {
 			});
 		}
 
-		if (!nik || nik.length !== 16 || !/^\d+$/.test(nik)) {
-			return fail(400, { error: 'NIK wajib 16 digit angka.' });
+		if (!namaLengkap || !nik || nik.length !== 16 || !/^\d+$/.test(nik)) {
+			return fail(400, { error: 'Nama lengkap dan 16 digit NIK wajib diisi.' });
 		}
 
 		if (!statusHubungan || !tanggalLahir || !jenisKelamin) {
@@ -372,6 +379,7 @@ export const actions: Actions = {
 			db.insert(anggotaKeluarga)
 				.values({
 					keluargaId,
+					namaLengkap,
 					nikEncrypted: encryptSensitive(nik),
 					statusHubungan,
 					tanggalLahir,

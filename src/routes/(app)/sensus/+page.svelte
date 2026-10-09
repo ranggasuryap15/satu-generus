@@ -51,6 +51,7 @@
 	let editKkNoKk = $state('');
 	let editKkAlamat = $state('');
 
+	let editAnggotaNama = $state('');
 	let editAnggotaNik = $state('');
 	let editAnggotaStatus = $state('');
 	let editAnggotaTgl = $state('');
@@ -64,6 +65,7 @@
 
 	function openEditAnggota(anggota: (typeof data.anggotaList)[number]) {
 		selectedAnggota = anggota;
+		editAnggotaNama = anggota.namaLengkap || '';
 		editAnggotaNik = revealedNiks[anggota.id] || '';
 		editAnggotaStatus = anggota.statusHubungan;
 		editAnggotaTgl = anggota.tanggalLahir;
@@ -389,7 +391,12 @@
 									<UserCheck class="w-3.5 h-3.5 text-primary" />
 								</div>
 								<div>
-									<h4 class="text-xs font-semibold text-foreground">{anggota.statusHubungan}</h4>
+									<div class="flex items-center gap-1.5 flex-wrap">
+										<h4 class="text-xs font-bold text-foreground">{anggota.namaLengkap}</h4>
+										<span class="text-[10px] bg-primary/10 text-primary px-1.5 py-0.2 rounded font-medium">
+											{anggota.statusHubungan}
+										</span>
+									</div>
 									<div class="flex items-center gap-1.5 mt-0.5">
 										<p class="text-[11px] text-foreground/60 font-mono select-all">
 											NIK: {revealedNiks[anggota.id] || anggota.nikMasked}
@@ -609,6 +616,21 @@
 				<input type="hidden" name="anggotaId" value={selectedAnggota.id} />
 
 				<div>
+					<label for="editNama" class="block font-medium text-foreground/80 mb-1.5">
+						Nama Lengkap
+					</label>
+					<input
+						id="editNama"
+						name="namaLengkap"
+						type="text"
+						required
+						bind:value={editAnggotaNama}
+						placeholder="Nama Lengkap Anggota"
+						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
+					/>
+				</div>
+
+				<div>
 					<label for="editNik" class="block font-medium text-foreground/80 mb-1.5">
 						NIK (Nomor Induk Kependudukan)
 					</label>
@@ -726,6 +748,20 @@
 				class="space-y-4 text-xs"
 			>
 				<input type="hidden" name="keluargaId" value={data.keluarga?.id} />
+
+				<div>
+					<label for="newNamaLengkap" class="block font-medium text-foreground/80 mb-1.5">
+						Nama Lengkap
+					</label>
+					<input
+						id="newNamaLengkap"
+						name="namaLengkap"
+						type="text"
+						required
+						placeholder="Contoh: Siti Rahayu"
+						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
+					/>
+				</div>
 
 				<div>
 					<label for="newNik" class="block font-medium text-foreground/80 mb-1.5">

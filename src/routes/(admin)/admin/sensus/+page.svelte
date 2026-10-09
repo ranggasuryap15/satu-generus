@@ -52,18 +52,20 @@
 	let newNoKk = $state('');
 	let newAlamatLengkap = $state('');
 	interface NewAnggotaRow {
+		namaLengkap: string;
 		nik: string;
 		statusHubungan: string;
 		tanggalLahir: string;
 		jenisKelamin: string;
 	}
 	let newAnggotaList = $state<NewAnggotaRow[]>([
-		{ nik: '', statusHubungan: 'Kepala Keluarga', tanggalLahir: '', jenisKelamin: 'Laki-laki' }
+		{ namaLengkap: '', nik: '', statusHubungan: 'Kepala Keluarga', tanggalLahir: '', jenisKelamin: 'Laki-laki' }
 	]);
 
 	// State Modal Tambah Anggota ke KK yang Ada
 	let showAddMemberModal = $state(false);
 	let targetKeluargaForMember = $state<(typeof data.daftarKeluarga)[0] | null>(null);
+	let memberNamaLengkap = $state('');
 	let memberNik = $state('');
 	let memberStatus = $state('Anak');
 	let memberTanggalLahir = $state('');
@@ -193,7 +195,7 @@
 		newNoKk = '';
 		newAlamatLengkap = '';
 		newAnggotaList = [
-			{ nik: '', statusHubungan: 'Kepala Keluarga', tanggalLahir: '', jenisKelamin: 'Laki-laki' }
+			{ namaLengkap: '', nik: '', statusHubungan: 'Kepala Keluarga', tanggalLahir: '', jenisKelamin: 'Laki-laki' }
 		];
 		showCreateModal = true;
 	}
@@ -201,7 +203,7 @@
 	function addAnggotaRow() {
 		newAnggotaList = [
 			...newAnggotaList,
-			{ nik: '', statusHubungan: 'Anak', tanggalLahir: '', jenisKelamin: 'Laki-laki' }
+			{ namaLengkap: '', nik: '', statusHubungan: 'Anak', tanggalLahir: '', jenisKelamin: 'Laki-laki' }
 		];
 	}
 
@@ -212,6 +214,7 @@
 
 	function openAddMemberModal(k: (typeof data.daftarKeluarga)[number]) {
 		targetKeluargaForMember = k;
+		memberNamaLengkap = '';
 		memberNik = '';
 		memberStatus = 'Anak';
 		memberTanggalLahir = '';
@@ -730,7 +733,19 @@
 									{/if}
 								</div>
 
-								<div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+								<div class="grid grid-cols-1 sm:grid-cols-5 gap-2 text-xs">
+									<div>
+										<label for={`new-nama-${idx}`} class="block text-[10px] text-foreground/60 mb-0.5">Nama Lengkap *</label>
+										<input
+											id={`new-nama-${idx}`}
+											type="text"
+											required
+											bind:value={anggota.namaLengkap}
+											placeholder="Nama Lengkap"
+											class="w-full bg-secondary/50 border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+										/>
+									</div>
+
 									<div>
 										<label for={`new-status-${idx}`} class="block text-[10px] text-foreground/60 mb-0.5">Status *</label>
 										<select
@@ -840,6 +855,21 @@
 
 			<form method="POST" action="?/addAnggotaKeluarga" class="space-y-3 text-xs">
 				<input type="hidden" name="keluargaId" value={targetKeluargaForMember.id} />
+
+				<div>
+					<label for="memberNama" class="block font-semibold text-foreground mb-1">
+						Nama Lengkap *
+					</label>
+					<input
+						id="memberNama"
+						name="namaLengkap"
+						type="text"
+						required
+						bind:value={memberNamaLengkap}
+						placeholder="Contoh: Siti Rahayu"
+						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+					/>
+				</div>
 
 				<div>
 					<label for="memberStatus" class="block font-semibold text-foreground mb-1">
@@ -962,9 +992,12 @@
 				{#each selectedKeluarga.anggota as a}
 					<div class="p-3 rounded-xl border border-border bg-secondary/30 flex items-center justify-between text-xs">
 						<div>
-							<div class="flex items-center gap-2">
-								<span class="font-semibold text-foreground">{a.statusHubungan}</span>
-								<span class="text-[10px] bg-secondary px-1.5 py-0.5 rounded text-foreground/70">
+							<div class="flex items-center gap-2 flex-wrap">
+								<span class="font-bold text-foreground text-sm">{a.namaLengkap}</span>
+								<span class="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
+									{a.statusHubungan}
+								</span>
+								<span class="text-[10px] bg-secondary px-1.5 py-0.5 rounded text-foreground/70 font-mono">
 									{a.jenisKelamin}
 								</span>
 							</div>
@@ -972,7 +1005,7 @@
 								<span class="font-mono text-[11px] text-foreground/70">NIK: {a.nikMasked}</span>
 								<button
 									type="button"
-									onclick={() => requestUnmask({ anggotaId: a.id, label: `NIK (${a.statusHubungan})` })}
+									onclick={() => requestUnmask({ anggotaId: a.id, label: `NIK (${a.namaLengkap} - ${a.statusHubungan})` })}
 									class="text-primary hover:text-primary/80 p-0.5 rounded hover:bg-primary/10 transition-colors"
 									title="Buka Enkripsi NIK"
 								>
