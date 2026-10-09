@@ -1,9 +1,9 @@
 <!--
   @file src/routes/(admin)/admin/dapukan/+page.svelte
-  @purpose Halaman manajemen struktur dapukan/jabatan dan penugasan RBAC pengurus
+  @purpose Halaman manajemen struktur dapukan/jabatan dan penugasan RBAC pengurus dengan proteksi draf modal
   @usedBy Route admin '/admin/dapukan'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte
-  @publicFunctions openModal, closeModal, confirmRemove
+  @publicFunctions openAssignModal, closeAssignModal, resetAssignForm, confirmRemove
   @sideEffects Menampilkan data dapukan/pengurus dan mengirim form mutasi pengurus ke server
 -->
 <script lang="ts">
@@ -33,6 +33,7 @@
 	let selectedScope = $state<'Pusat' | 'Daerah' | 'Desa' | 'Kelompok'>('Kelompok');
 	let selectedUserId = $state<string | number>('');
 	let selectedDapukanId = $state<string | number>('');
+	let inputNamaDapukanCustom = $state('');
 	let selectedKelompokId = $state<string | number>('');
 	let selectedDesaId = $state<string | number>('');
 	let selectedDaerahId = $state<string | number>('');
@@ -76,14 +77,54 @@
 		}))
 	);
 
-	function openAssignModal() {
+	function isAssignFormDirty() {
+		return (
+			String(selectedUserId).trim() !== '' ||
+			String(selectedDapukanId).trim() !== '' ||
+			inputNamaDapukanCustom.trim() !== '' ||
+			String(selectedKelompokId).trim() !== '' ||
+			String(selectedDesaId).trim() !== '' ||
+			String(selectedDaerahId).trim() !== '' ||
+			tipeJabatan !== 'tetap' ||
+			selectedScope !== 'Kelompok'
+		);
+	}
+
+	function resetAssignForm() {
 		selectedUserId = '';
+		tipeJabatan = 'tetap';
 		selectedDapukanId = '';
+		inputNamaDapukanCustom = '';
+		selectedScope = 'Kelompok';
 		selectedKelompokId = '';
 		selectedDesaId = '';
 		selectedDaerahId = '';
+	}
+
+	function openAssignModal() {
 		showAssignModal = true;
 	}
+
+	function closeAssignModal() {
+		if (isAssignFormDirty()) {
+			if (
+				confirm(
+					'Ada isian penugasan yang belum disimpan. Tetap tutup modal? (Isian Anda akan tetap tersimpan sebagai draf)'
+				)
+			) {
+				showAssignModal = false;
+			}
+		} else {
+			showAssignModal = false;
+		}
+	}
+
+	$effect(() => {
+		if (form?.success) {
+			resetAssignForm();
+			showAssignModal = false;
+		}
+	});
 
 	let filteredPengurus = $derived(
 		(data.daftarPengurus || []).filter((p: (typeof data.daftarPengurus)[number]) => {
@@ -281,7 +322,7 @@
 		role="dialog"
 		aria-modal="true"
 		onclick={(e) => {
-			if (e.target === e.currentTarget) showAssignModal = false;
+			if (e.target === e.currentTarget) closeAssignModal();
 		}}
 	>
 		<div class="bg-card border border-border rounded-2xl max-w-lg w-full p-6 shadow-xl space-y-5 max-h-[90vh] overflow-y-auto">
@@ -294,7 +335,7 @@
 				</div>
 				<button
 					type="button"
-					onclick={() => (showAssignModal = false)}
+					onclick={closeAssignModal}
 					class="p-1 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground"
 				>
 					<X class="w-5 h-5" />
@@ -376,6 +417,7 @@
 							id="namaDapukanCustom"
 							name="namaDapukanCustom"
 							type="text"
+							bind:value={inputNamaDapukanCustom}
 							required
 							placeholder="Contoh: Panitia Qurban, Seksi Konsumsi"
 							class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
@@ -450,20 +492,33 @@
 					</div>
 				{/if}
 
-				<div class="flex items-center justify-end gap-2 pt-3 border-t border-border">
-					<button
-						type="button"
-						onclick={() => (showAssignModal = false)}
-						class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary"
-					>
-						Batal
-					</button>
-					<button
-						type="submit"
-						class="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90"
-					>
-						Simpan Penugasan
-					</button>
+				<div class="flex items-center justify-between gap-2 pt-3 border-t border-border">
+					{#if isAssignFormDirty()}
+						<button
+							type="button"
+							onclick={resetAssignForm}
+							class="text-[11px] text-destructive hover:underline font-medium"
+						>
+							Kosongkan Isian
+						</button>
+					{:else}
+						<div></div>
+					{/if}
+					<div class="flex items-center gap-2">
+						<button
+							type="button"
+							onclick={closeAssignModal}
+							class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary"
+						>
+							Batal
+						</button>
+						<button
+							type="submit"
+							class="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90"
+						>
+							Simpan Penugasan
+						</button>
+					</div>
 				</div>
 			</form>
 		</div>

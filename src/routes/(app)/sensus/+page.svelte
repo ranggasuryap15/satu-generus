@@ -1,9 +1,9 @@
 <!--
   @file src/routes/(app)/sensus/+page.svelte
-  @purpose Tampilan status dan rincian Kartu Keluarga jamaah dengan fitur unmasking serta ubah No. KK, NIK, dan data anggota
+  @purpose Tampilan status dan rincian Kartu Keluarga jamaah dengan fitur unmasking serta ubah No. KK, NIK, dan data anggota dengan proteksi draf input
   @usedBy Route client '/sensus'
   @dependencies @lucide/svelte, $app/forms (enhance), $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
-  @publicFunctions toggleKk, copyKk, toggleNik, copyNik, openEditKk, openEditAnggota, openTambahAnggota
+  @publicFunctions toggleKk, copyKk, toggleNik, copyNik, openEditKk, closeEditKkModal, openEditAnggota, closeEditAnggotaModal, openTambahAnggota, closeTambahAnggotaModal
   @sideEffects Mengirim HTTP POST ke /api/sensus/unmask serta server actions updateKeluarga/updateAnggota/tambahAnggota/hapusAnggota
 -->
 <script lang="ts">
@@ -57,10 +57,37 @@
 	let editAnggotaTgl = $state('');
 	let editAnggotaJk = $state('');
 
+	// State Tambah Anggota (Persisten agar tidak hilang saat modal tertutup)
+	let newAnggotaNama = $state('');
+	let newAnggotaNik = $state('');
+	let newAnggotaStatus = $state('Anak');
+	let newAnggotaTgl = $state('');
+	let newAnggotaJk = $state('Laki-laki');
+
+	function resetTambahAnggota() {
+		newAnggotaNama = '';
+		newAnggotaNik = '';
+		newAnggotaStatus = 'Anak';
+		newAnggotaTgl = '';
+		newAnggotaJk = 'Laki-laki';
+	}
+
 	function openEditKk() {
 		editKkNoKk = isKkRevealed && plainNoKk ? plainNoKk : '';
 		editKkAlamat = data.keluarga?.alamatLengkap || '';
 		activeModal = 'editKk';
+	}
+
+	function closeEditKkModal() {
+		const initialNoKk = isKkRevealed && plainNoKk ? plainNoKk : '';
+		const initialAlamat = data.keluarga?.alamatLengkap || '';
+		const isDirty = editKkNoKk !== initialNoKk || editKkAlamat !== initialAlamat;
+		if (isDirty) {
+			if (!confirm('Ada perubahan data Kartu Keluarga yang belum disimpan. Yakin ingin menutup modal?')) {
+				return;
+			}
+		}
+		activeModal = 'none';
 	}
 
 	function openEditAnggota(anggota: (typeof data.anggotaList)[number]) {
@@ -73,8 +100,37 @@
 		activeModal = 'editAnggota';
 	}
 
+	function closeEditAnggotaModal() {
+		if (selectedAnggota) {
+			const isDirty = (
+				editAnggotaNama !== (selectedAnggota.namaLengkap || '') ||
+				editAnggotaNik !== (revealedNiks[selectedAnggota.id] || '') ||
+				editAnggotaStatus !== selectedAnggota.statusHubungan ||
+				editAnggotaTgl !== selectedAnggota.tanggalLahir ||
+				editAnggotaJk !== selectedAnggota.jenisKelamin
+			);
+			if (isDirty) {
+				if (!confirm('Ada perubahan data anggota yang belum disimpan. Yakin ingin menutup modal?')) {
+					return;
+				}
+			}
+		}
+		activeModal = 'none';
+		selectedAnggota = null;
+	}
+
 	function openTambahAnggota() {
 		activeModal = 'tambahAnggota';
+	}
+
+	function closeTambahAnggotaModal() {
+		const isDirty = !!(newAnggotaNama.trim() || newAnggotaNik.trim() || newAnggotaTgl);
+		if (isDirty) {
+			if (!confirm('Ada data anggota yang sudah Anda isi. Yakin ingin menutup modal? Isian Anda akan tetap tersimpan sebagai draf.')) {
+				return;
+			}
+		}
+		activeModal = 'none';
 	}
 
 	$effect(() => {
@@ -84,6 +140,9 @@
 			form?.successTambahAnggota ||
 			form?.successHapusAnggota
 		) {
+			if (form?.successTambahAnggota) {
+				resetTambahAnggota();
+			}
 			activeModal = 'none';
 			selectedAnggota = null;
 		}
@@ -498,7 +557,7 @@
 	<div
 		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150"
 		onclick={(e) => {
-			if (e.target === e.currentTarget) activeModal = 'none';
+			if (e.target === e.currentTarget) closeEditKkModal();
 		}}
 	>
 		<div class="w-full max-w-sm bg-card border border-border rounded-2xl shadow-xl overflow-hidden p-6 space-y-4">
@@ -506,7 +565,7 @@
 				<h3 class="text-sm font-bold text-foreground">Ubah Kartu Keluarga</h3>
 				<button
 					type="button"
-					onclick={() => { activeModal = 'none'; }}
+					onclick={closeEditKkModal}
 					class="text-foreground/50 hover:text-foreground text-sm font-semibold"
 				>
 					✕
@@ -560,7 +619,7 @@
 				<div class="flex gap-2 pt-2">
 					<button
 						type="button"
-						onclick={() => { activeModal = 'none'; }}
+						onclick={closeEditKkModal}
 						class="flex-1 py-2 rounded-lg border border-border bg-secondary/60 hover:bg-secondary text-foreground font-semibold transition-colors"
 					>
 						Batal
@@ -583,10 +642,7 @@
 	<div
 		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150"
 		onclick={(e) => {
-			if (e.target === e.currentTarget) {
-				activeModal = 'none';
-				selectedAnggota = null;
-			}
+			if (e.target === e.currentTarget) closeEditAnggotaModal();
 		}}
 	>
 		<div class="w-full max-w-sm bg-card border border-border rounded-2xl shadow-xl overflow-hidden p-6 space-y-4">
@@ -594,7 +650,7 @@
 				<h3 class="text-sm font-bold text-foreground">Ubah Anggota Keluarga</h3>
 				<button
 					type="button"
-					onclick={() => { activeModal = 'none'; selectedAnggota = null; }}
+					onclick={closeEditAnggotaModal}
 					class="text-foreground/50 hover:text-foreground text-sm font-semibold"
 				>
 					✕
@@ -697,7 +753,7 @@
 				<div class="flex gap-2 pt-2">
 					<button
 						type="button"
-						onclick={() => { activeModal = 'none'; selectedAnggota = null; }}
+						onclick={closeEditAnggotaModal}
 						class="flex-1 py-2 rounded-lg border border-border bg-secondary/60 hover:bg-secondary text-foreground font-semibold transition-colors"
 					>
 						Batal
@@ -720,7 +776,7 @@
 	<div
 		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150"
 		onclick={(e) => {
-			if (e.target === e.currentTarget) activeModal = 'none';
+			if (e.target === e.currentTarget) closeTambahAnggotaModal();
 		}}
 	>
 		<div class="w-full max-w-sm bg-card border border-border rounded-2xl shadow-xl overflow-hidden p-6 space-y-4">
@@ -728,7 +784,7 @@
 				<h3 class="text-sm font-bold text-foreground">Tambah Anggota Keluarga</h3>
 				<button
 					type="button"
-					onclick={() => { activeModal = 'none'; }}
+					onclick={closeTambahAnggotaModal}
 					class="text-foreground/50 hover:text-foreground text-sm font-semibold"
 				>
 					✕
@@ -758,6 +814,7 @@
 						name="namaLengkap"
 						type="text"
 						required
+						bind:value={newAnggotaNama}
 						placeholder="Contoh: Siti Rahayu"
 						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
 					/>
@@ -773,6 +830,7 @@
 						type="text"
 						required
 						maxlength="16"
+						bind:value={newAnggotaNik}
 						placeholder="16 digit angka"
 						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
 					/>
@@ -786,10 +844,11 @@
 						id="newStatus"
 						name="statusHubungan"
 						required
+						bind:value={newAnggotaStatus}
 						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
 					>
 						<option value="Istri">Istri</option>
-						<option value="Anak" selected>Anak</option>
+						<option value="Anak">Anak</option>
 						<option value="Kepala Keluarga">Kepala Keluarga</option>
 						<option value="Famili Lain">Famili Lain</option>
 					</select>
@@ -804,6 +863,7 @@
 						name="tanggalLahir"
 						type="date"
 						required
+						bind:value={newAnggotaTgl}
 						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
 					/>
 				</div>
@@ -816,6 +876,7 @@
 						id="newJk"
 						name="jenisKelamin"
 						required
+						bind:value={newAnggotaJk}
 						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
 					>
 						<option value="Laki-laki">Laki-laki</option>
@@ -826,7 +887,7 @@
 				<div class="flex gap-2 pt-2">
 					<button
 						type="button"
-						onclick={() => { activeModal = 'none'; }}
+						onclick={closeTambahAnggotaModal}
 						class="flex-1 py-2 rounded-lg border border-border bg-secondary/60 hover:bg-secondary text-foreground font-semibold transition-colors"
 					>
 						Batal

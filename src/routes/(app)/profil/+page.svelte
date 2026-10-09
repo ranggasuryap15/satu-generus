@@ -1,9 +1,9 @@
 <!--
   @file src/routes/(app)/profil/+page.svelte
-  @purpose Halaman profil pengguna dengan fitur update nama, email, ganti kata sandi, pengaturan tema, dan logout
+  @purpose Halaman profil pengguna dengan fitur update nama, email, ganti kata sandi, pengaturan tema, dan logout dengan proteksi draf modal
   @usedBy Route client '/profil'
   @dependencies @lucide/svelte (User, ShieldCheck, MapPin, Mail, LogOut, ArrowRight, Moon, KeyRound, CheckCircle, AlertCircle, Pencil), ThemeToggle, $app/forms (enhance)
-  @publicFunctions N/A (Svelte Component)
+  @publicFunctions closeProfileModal, closePasswordModal, resetProfileDraft, resetPasswordDraft, isProfileDirty, isPasswordDirty
   @sideEffects Mengirim form updateProfile dan updatePassword ke server actions
 -->
 <script lang="ts">
@@ -29,13 +29,12 @@
 	let activeModal = $state<'none' | 'profile' | 'password'>('none');
 	let isSubmitting = $state(false);
 
-	let inputNama = $state('');
-	let inputEmail = $state('');
+	let inputNama = $state(data.user.namaLengkap);
+	let inputEmail = $state(data.user.email || '');
 
-	$effect(() => {
-		inputNama = data.user.namaLengkap;
-		inputEmail = data.user.email || '';
-	});
+	let currentPassword = $state('');
+	let newPassword = $state('');
+	let confirmPassword = $state('');
 
 	const userInitials = $derived(
 		(data.user.namaLengkap || 'User')
@@ -46,8 +45,62 @@
 			.toUpperCase()
 	);
 
+	function isProfileDirty() {
+		return (
+			inputNama.trim() !== (data.user.namaLengkap || '').trim() ||
+			inputEmail.trim() !== (data.user.email || '').trim()
+		);
+	}
+
+	function resetProfileDraft() {
+		inputNama = data.user.namaLengkap;
+		inputEmail = data.user.email || '';
+	}
+
+	function closeProfileModal() {
+		if (isProfileDirty()) {
+			if (
+				confirm(
+					'Ada perubahan profil yang belum disimpan. Tetap tutup modal? (Isian Anda akan tetap tersimpan sebagai draf)'
+				)
+			) {
+				activeModal = 'none';
+			}
+		} else {
+			activeModal = 'none';
+		}
+	}
+
+	function isPasswordDirty() {
+		return currentPassword !== '' || newPassword !== '' || confirmPassword !== '';
+	}
+
+	function resetPasswordDraft() {
+		currentPassword = '';
+		newPassword = '';
+		confirmPassword = '';
+	}
+
+	function closePasswordModal() {
+		if (isPasswordDirty()) {
+			if (
+				confirm(
+					'Ada isian kata sandi yang belum disimpan. Tetap tutup modal? (Isian Anda akan tetap tersimpan sebagai draf)'
+				)
+			) {
+				activeModal = 'none';
+			}
+		} else {
+			activeModal = 'none';
+		}
+	}
+
 	$effect(() => {
-		if (form?.profileSuccess || form?.passwordSuccess) {
+		if (form?.profileSuccess) {
+			activeModal = 'none';
+		}
+		if (form?.passwordSuccess) {
+			resetPasswordDraft();
 			activeModal = 'none';
 		}
 	});
@@ -210,7 +263,7 @@
 	<div
 		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150"
 		onclick={(e) => {
-			if (e.target === e.currentTarget) activeModal = 'none';
+			if (e.target === e.currentTarget) closeProfileModal();
 		}}
 	>
 		<div class="w-full max-w-sm bg-card border border-border rounded-2xl shadow-xl overflow-hidden p-6 space-y-4">
@@ -218,7 +271,7 @@
 				<h3 class="text-sm font-bold text-foreground">Ubah Profil Akun</h3>
 				<button
 					type="button"
-					onclick={() => { activeModal = 'none'; }}
+					onclick={closeProfileModal}
 					class="text-foreground/50 hover:text-foreground text-sm font-semibold"
 				>
 					✕
@@ -272,10 +325,22 @@
 					/>
 				</div>
 
+				{#if isProfileDirty()}
+					<div class="flex justify-end">
+						<button
+							type="button"
+							onclick={resetProfileDraft}
+							class="text-[11px] text-destructive hover:underline font-medium"
+						>
+							Reset ke Data Awal
+						</button>
+					</div>
+				{/if}
+
 				<div class="flex gap-2 pt-2">
 					<button
 						type="button"
-						onclick={() => { activeModal = 'none'; }}
+						onclick={closeProfileModal}
 						class="flex-1 py-2 rounded-lg border border-border bg-secondary/60 hover:bg-secondary text-foreground font-semibold transition-colors"
 					>
 						Batal
@@ -298,7 +363,7 @@
 	<div
 		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150"
 		onclick={(e) => {
-			if (e.target === e.currentTarget) activeModal = 'none';
+			if (e.target === e.currentTarget) closePasswordModal();
 		}}
 	>
 		<div class="w-full max-w-sm bg-card border border-border rounded-2xl shadow-xl overflow-hidden p-6 space-y-4">
@@ -306,7 +371,7 @@
 				<h3 class="text-sm font-bold text-foreground">Ganti Kata Sandi</h3>
 				<button
 					type="button"
-					onclick={() => { activeModal = 'none'; }}
+					onclick={closePasswordModal}
 					class="text-foreground/50 hover:text-foreground text-sm font-semibold"
 				>
 					✕
@@ -341,6 +406,7 @@
 						name="currentPassword"
 						type="password"
 						required
+						bind:value={currentPassword}
 						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
 					/>
 				</div>
@@ -356,6 +422,7 @@
 						required
 						minlength="6"
 						placeholder="Minimal 6 karakter"
+						bind:value={newPassword}
 						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
 					/>
 				</div>
@@ -370,14 +437,27 @@
 						type="password"
 						required
 						minlength="6"
+						bind:value={confirmPassword}
 						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
 					/>
 				</div>
 
+				{#if isPasswordDirty()}
+					<div class="flex justify-end">
+						<button
+							type="button"
+							onclick={resetPasswordDraft}
+							class="text-[11px] text-destructive hover:underline font-medium"
+						>
+							Kosongkan Isian
+						</button>
+					</div>
+				{/if}
+
 				<div class="flex gap-2 pt-2">
 					<button
 						type="button"
-						onclick={() => { activeModal = 'none'; }}
+						onclick={closePasswordModal}
 						class="flex-1 py-2 rounded-lg border border-border bg-secondary/60 hover:bg-secondary text-foreground font-semibold transition-colors"
 					>
 						Batal

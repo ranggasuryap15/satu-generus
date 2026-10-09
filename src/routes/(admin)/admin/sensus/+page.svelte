@@ -1,9 +1,9 @@
 <!--
   @file src/routes/(admin)/admin/sensus/+page.svelte
-  @purpose Rekapitulasi sensus Kartu Keluarga, dashboard statistik singkat, filter bertingkat, dan form modal pendaftaran sensus serta anggota
+  @purpose Rekapitulasi sensus Kartu Keluarga, dashboard statistik singkat, filter bertingkat, dan form modal pendaftaran sensus serta anggota dengan proteksi draft input
   @usedBy Route admin '/admin/sensus'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/utils (formatDateDDMMYYYY)
-  @publicFunctions requestUnmask, openCreateModal, openAddMemberModal, resetFilters
+  @publicFunctions requestUnmask, openCreateModal, closeCreateModal, openAddMemberModal, closeAddMemberModal, resetFilters
   @sideEffects Menampilkan metrik, unmask data sensitif via /api/sensus/unmask, submit form createSensus & addAnggotaKeluarga
 -->
 <script lang="ts">
@@ -188,7 +188,21 @@
 		filterPeran = 'ALL';
 	}
 
-	function openCreateModal() {
+	function isCreateFormDirty(): boolean {
+		return !!(
+			newNamaLengkap.trim() ||
+			newEmail.trim() ||
+			newKelompokId ||
+			newNoKk.trim() ||
+			newAlamatLengkap.trim() ||
+			newAnggotaList.length > 1 ||
+			newAnggotaList[0]?.namaLengkap?.trim() ||
+			newAnggotaList[0]?.nik?.trim() ||
+			newAnggotaList[0]?.tanggalLahir
+		);
+	}
+
+	function resetCreateForm() {
 		newNamaLengkap = '';
 		newEmail = '';
 		newKelompokId = '';
@@ -197,7 +211,20 @@
 		newAnggotaList = [
 			{ namaLengkap: '', nik: '', statusHubungan: 'Kepala Keluarga', tanggalLahir: '', jenisKelamin: 'Laki-laki' }
 		];
+	}
+
+	function openCreateModal() {
+		// Buka modal tanpa menghapus draf isian yang sedang diketik
 		showCreateModal = true;
+	}
+
+	function closeCreateModal() {
+		if (isCreateFormDirty()) {
+			if (!confirm('Ada data sensus yang sudah Anda isi. Yakin ingin menutup modal? Isian Anda akan tetap tersimpan sebagai draf.')) {
+				return;
+			}
+		}
+		showCreateModal = false;
 	}
 
 	function addAnggotaRow() {
@@ -212,15 +239,47 @@
 		newAnggotaList = newAnggotaList.filter((_, idx) => idx !== index);
 	}
 
-	function openAddMemberModal(k: (typeof data.daftarKeluarga)[number]) {
-		targetKeluargaForMember = k;
+	function isAddMemberFormDirty(): boolean {
+		return !!(
+			memberNamaLengkap.trim() ||
+			memberNik.trim() ||
+			memberTanggalLahir
+		);
+	}
+
+	function resetAddMemberForm() {
 		memberNamaLengkap = '';
 		memberNik = '';
 		memberStatus = 'Anak';
 		memberTanggalLahir = '';
 		memberJenisKelamin = 'Laki-laki';
+	}
+
+	function openAddMemberModal(k: (typeof data.daftarKeluarga)[number]) {
+		if (targetKeluargaForMember?.id !== k.id) {
+			resetAddMemberForm();
+		}
+		targetKeluargaForMember = k;
 		showAddMemberModal = true;
 	}
+
+	function closeAddMemberModal() {
+		if (isAddMemberFormDirty()) {
+			if (!confirm('Ada data anggota yang sudah Anda isi. Yakin ingin menutup modal? Isian Anda akan tetap tersimpan sebagai draf.')) {
+				return;
+			}
+		}
+		showAddMemberModal = false;
+	}
+
+	$effect(() => {
+		if (form?.success) {
+			resetCreateForm();
+			resetAddMemberForm();
+			showCreateModal = false;
+			showAddMemberModal = false;
+		}
+	});
 
 	async function requestUnmask(params: { keluargaId?: string; anggotaId?: string; label: string }) {
 		unmaskLoading = true;
@@ -567,7 +626,7 @@
 		role="dialog"
 		aria-modal="true"
 		onclick={(e) => {
-			if (e.target === e.currentTarget) showCreateModal = false;
+			if (e.target === e.currentTarget) closeCreateModal();
 		}}
 	>
 		<div class="bg-card border border-border rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
@@ -580,7 +639,7 @@
 				</div>
 				<button
 					type="button"
-					onclick={() => (showCreateModal = false)}
+					onclick={closeCreateModal}
 					class="p-1 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground"
 				>
 					<X class="w-5 h-5" />
@@ -806,20 +865,36 @@
 					</div>
 				</div>
 
-				<div class="flex items-center justify-end gap-2 pt-3 border-t border-border">
-					<button
-						type="button"
-						onclick={() => (showCreateModal = false)}
-						class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary"
-					>
-						Batal
-					</button>
-					<button
-						type="submit"
-						class="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 shadow-sm"
-					>
-						Simpan Sensus & Buat Akun
-					</button>
+				<div class="flex items-center justify-between gap-2 pt-3 border-t border-border">
+					{#if isCreateFormDirty()}
+						<button
+							type="button"
+							onclick={() => {
+								if (confirm('Kosongkan semua isian formulir sensus?')) resetCreateForm();
+							}}
+							class="text-xs font-medium text-destructive hover:text-destructive/80 transition-colors"
+						>
+							Kosongkan Isian
+						</button>
+					{:else}
+						<div></div>
+					{/if}
+
+					<div class="flex items-center gap-2">
+						<button
+							type="button"
+							onclick={closeCreateModal}
+							class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary"
+						>
+							Batal
+						</button>
+						<button
+							type="submit"
+							class="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 shadow-sm"
+						>
+							Simpan Sensus & Buat Akun
+						</button>
+					</div>
 				</div>
 			</form>
 		</div>
@@ -833,7 +908,7 @@
 		role="dialog"
 		aria-modal="true"
 		onclick={(e) => {
-			if (e.target === e.currentTarget) showAddMemberModal = false;
+			if (e.target === e.currentTarget) closeAddMemberModal();
 		}}
 	>
 		<div class="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
@@ -846,7 +921,7 @@
 				</div>
 				<button
 					type="button"
-					onclick={() => (showAddMemberModal = false)}
+					onclick={closeAddMemberModal}
 					class="p-1 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground"
 				>
 					<X class="w-5 h-5" />
@@ -941,7 +1016,7 @@
 				<div class="flex items-center justify-end gap-2 pt-3 border-t border-border">
 					<button
 						type="button"
-						onclick={() => (showAddMemberModal = false)}
+						onclick={closeAddMemberModal}
 						class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary"
 					>
 						Batal

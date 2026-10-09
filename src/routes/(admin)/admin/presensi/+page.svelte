@@ -1,9 +1,9 @@
 <!--
   @file src/routes/(admin)/admin/presensi/+page.svelte
-  @purpose Halaman rekapitulasi jadwal pengajian dan pembuat jadwal baru bagi admin
+  @purpose Halaman rekapitulasi jadwal pengajian dan pembuat jadwal baru bagi admin dengan perlindungan draf modal
   @usedBy Route admin '/admin/presensi'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/utils (formatDateDDMMYYYY)
-  @publicFunctions openModal, closeModal, openAddModal
+  @publicFunctions openAddModal, closeAddModal, resetAddForm, isAddFormDirty
   @sideEffects Menampilkan data jadwal dan mengirim form pembuatan jadwal ke server
 -->
 <script lang="ts">
@@ -16,6 +16,8 @@
 
 	let showAddModal = $state(false);
 	let searchQuery = $state('');
+	let newNamaKegiatan = $state('');
+	let newTanggal = $state('');
 	let selectedKelompokId = $state<string | number>('');
 
 	const kelompokOptions = $derived(
@@ -25,10 +27,36 @@
 		}))
 	);
 
-	function openAddModal() {
+	function isAddFormDirty() {
+		return newNamaKegiatan.trim() !== '' || newTanggal !== '' || String(selectedKelompokId).trim() !== '';
+	}
+
+	function resetAddForm() {
+		newNamaKegiatan = '';
+		newTanggal = '';
 		selectedKelompokId = '';
+	}
+
+	function openAddModal() {
 		showAddModal = true;
 	}
+
+	function closeAddModal() {
+		if (isAddFormDirty()) {
+			if (confirm('Ada isian jadwal yang belum disimpan. Tetap tutup modal? (Isian Anda akan tetap tersimpan sebagai draf)')) {
+				showAddModal = false;
+			}
+		} else {
+			showAddModal = false;
+		}
+	}
+
+	$effect(() => {
+		if (form?.success) {
+			resetAddForm();
+			showAddModal = false;
+		}
+	});
 
 	let filteredJadwal = $derived(
 		(data.daftarJadwal || []).filter((j: (typeof data.daftarJadwal)[number]) => {
@@ -151,7 +179,7 @@
 		role="dialog"
 		aria-modal="true"
 		onclick={(e) => {
-			if (e.target === e.currentTarget) showAddModal = false;
+			if (e.target === e.currentTarget) closeAddModal();
 		}}
 	>
 		<div class="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-xl space-y-5">
@@ -164,7 +192,7 @@
 				</div>
 				<button
 					type="button"
-					onclick={() => (showAddModal = false)}
+					onclick={closeAddModal}
 					class="p-1 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground"
 				>
 					<X class="w-5 h-5" />
@@ -180,6 +208,7 @@
 						id="namaKegiatan"
 						name="namaKegiatan"
 						type="text"
+						bind:value={newNamaKegiatan}
 						required
 						placeholder="Contoh: Pengajian Rutin Muda/i"
 						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
@@ -195,6 +224,7 @@
 							id="tanggal"
 							name="tanggal"
 							type="date"
+							bind:value={newTanggal}
 							required
 							class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 						/>
@@ -216,20 +246,33 @@
 					</div>
 				</div>
 
-				<div class="flex items-center justify-end gap-2 pt-3 border-t border-border">
-					<button
-						type="button"
-						onclick={() => (showAddModal = false)}
-						class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary"
-					>
-						Batal
-					</button>
-					<button
-						type="submit"
-						class="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90"
-					>
-						Simpan Jadwal
-					</button>
+				<div class="flex items-center justify-between gap-2 pt-3 border-t border-border">
+					{#if isAddFormDirty()}
+						<button
+							type="button"
+							onclick={resetAddForm}
+							class="text-[11px] text-destructive hover:underline font-medium"
+						>
+							Kosongkan Isian
+						</button>
+					{:else}
+						<div></div>
+					{/if}
+					<div class="flex items-center gap-2">
+						<button
+							type="button"
+							onclick={closeAddModal}
+							class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary"
+						>
+							Batal
+						</button>
+						<button
+							type="submit"
+							class="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90"
+						>
+							Simpan Jadwal
+						</button>
+					</div>
 				</div>
 			</form>
 		</div>

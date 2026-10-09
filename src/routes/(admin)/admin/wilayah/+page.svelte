@@ -1,9 +1,9 @@
 <!--
   @file src/routes/(admin)/admin/wilayah/+page.svelte
-  @purpose Halaman manajemen hierarki wilayah (Daerah -> Desa -> Kelompok) dan penambahan unit wilayah
+  @purpose Halaman manajemen hierarki wilayah (Daerah -> Desa -> Kelompok) dan penambahan unit wilayah dengan proteksi draf modal
   @usedBy Route admin '/admin/wilayah'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte
-  @publicFunctions openModal, closeModal, openAddKelompokModal, openAddDesaModal
+  @publicFunctions openAddKelompokModal, closeAddKelompokModal, openAddDesaModal, closeAddDesaModal, resetAddKelompokForm, resetAddDesaForm
   @sideEffects Menampilkan data hierarki wilayah dan mengirimkan form pembuatan unit ke server
 -->
 <script lang="ts">
@@ -17,8 +17,13 @@
 	let showAddKelompokModal = $state(false);
 	let showAddDesaModal = $state(false);
 
+	let inputNamaKelompok = $state('');
 	let selectedDesaId = $state<string | number>('');
+	let inputKelurahan = $state('');
+
+	let inputNamaDesa = $state('');
 	let selectedDaerahId = $state<string | number>('');
+	let inputKecamatan = $state('');
 
 	const desaOptions = $derived(
 		(data.desaList || []).map((d: (typeof data.desaList)[number]) => ({
@@ -36,15 +41,78 @@
 		}))
 	);
 
-	function openAddKelompokModal() {
+	function isAddKelompokDirty() {
+		return (
+			inputNamaKelompok.trim() !== '' ||
+			String(selectedDesaId).trim() !== '' ||
+			inputKelurahan.trim() !== ''
+		);
+	}
+
+	function resetAddKelompokForm() {
+		inputNamaKelompok = '';
 		selectedDesaId = '';
+		inputKelurahan = '';
+	}
+
+	function openAddKelompokModal() {
 		showAddKelompokModal = true;
 	}
 
-	function openAddDesaModal() {
+	function closeAddKelompokModal() {
+		if (isAddKelompokDirty()) {
+			if (
+				confirm(
+					'Ada isian kelompok yang belum disimpan. Tetap tutup modal? (Isian Anda akan tetap tersimpan sebagai draf)'
+				)
+			) {
+				showAddKelompokModal = false;
+			}
+		} else {
+			showAddKelompokModal = false;
+		}
+	}
+
+	function isAddDesaDirty() {
+		return (
+			inputNamaDesa.trim() !== '' ||
+			String(selectedDaerahId).trim() !== '' ||
+			inputKecamatan.trim() !== ''
+		);
+	}
+
+	function resetAddDesaForm() {
+		inputNamaDesa = '';
 		selectedDaerahId = '';
+		inputKecamatan = '';
+	}
+
+	function openAddDesaModal() {
 		showAddDesaModal = true;
 	}
+
+	function closeAddDesaModal() {
+		if (isAddDesaDirty()) {
+			if (
+				confirm(
+					'Ada isian desa yang belum disimpan. Tetap tutup modal? (Isian Anda akan tetap tersimpan sebagai draf)'
+				)
+			) {
+				showAddDesaModal = false;
+			}
+		} else {
+			showAddDesaModal = false;
+		}
+	}
+
+	$effect(() => {
+		if (form?.success) {
+			resetAddKelompokForm();
+			resetAddDesaForm();
+			showAddKelompokModal = false;
+			showAddDesaModal = false;
+		}
+	});
 
 	let filteredKelompok = $derived(
 		(data.kelompokList || []).filter((k: (typeof data.kelompokList)[number]) => {
@@ -213,7 +281,7 @@
 		role="dialog"
 		aria-modal="true"
 		onclick={(e) => {
-			if (e.target === e.currentTarget) showAddKelompokModal = false;
+			if (e.target === e.currentTarget) closeAddKelompokModal();
 		}}
 	>
 		<div class="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-xl space-y-5">
@@ -226,7 +294,7 @@
 				</div>
 				<button
 					type="button"
-					onclick={() => (showAddKelompokModal = false)}
+					onclick={closeAddKelompokModal}
 					class="p-1 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground"
 				>
 					<X class="w-5 h-5" />
@@ -242,6 +310,7 @@
 						id="namaKelompok"
 						name="nama"
 						type="text"
+						bind:value={inputNamaKelompok}
 						required
 						placeholder="Contoh: Kelompok 2"
 						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
@@ -271,25 +340,39 @@
 						id="kelurahan"
 						name="kelurahan"
 						type="text"
+						bind:value={inputKelurahan}
 						placeholder="Contoh: Senayan"
 						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 					/>
 				</div>
 
-				<div class="flex items-center justify-end gap-2 pt-3 border-t border-border">
-					<button
-						type="button"
-						onclick={() => (showAddKelompokModal = false)}
-						class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary"
-					>
-						Batal
-					</button>
-					<button
-						type="submit"
-						class="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90"
-					>
-						Simpan Kelompok
-					</button>
+				<div class="flex items-center justify-between gap-2 pt-3 border-t border-border">
+					{#if isAddKelompokDirty()}
+						<button
+							type="button"
+							onclick={resetAddKelompokForm}
+							class="text-[11px] text-destructive hover:underline font-medium"
+						>
+							Kosongkan Isian
+						</button>
+					{:else}
+						<div></div>
+					{/if}
+					<div class="flex items-center gap-2">
+						<button
+							type="button"
+							onclick={closeAddKelompokModal}
+							class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary"
+						>
+							Batal
+						</button>
+						<button
+							type="submit"
+							class="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90"
+						>
+							Simpan Kelompok
+						</button>
+					</div>
 				</div>
 			</form>
 		</div>
@@ -303,7 +386,7 @@
 		role="dialog"
 		aria-modal="true"
 		onclick={(e) => {
-			if (e.target === e.currentTarget) showAddDesaModal = false;
+			if (e.target === e.currentTarget) closeAddDesaModal();
 		}}
 	>
 		<div class="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-xl space-y-5">
@@ -316,7 +399,7 @@
 				</div>
 				<button
 					type="button"
-					onclick={() => (showAddDesaModal = false)}
+					onclick={closeAddDesaModal}
 					class="p-1 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground"
 				>
 					<X class="w-5 h-5" />
@@ -332,6 +415,7 @@
 						id="namaDesa"
 						name="nama"
 						type="text"
+						bind:value={inputNamaDesa}
 						required
 						placeholder="Contoh: Kebayoran Baru"
 						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
@@ -361,25 +445,39 @@
 						id="kecamatan"
 						name="kecamatan"
 						type="text"
+						bind:value={inputKecamatan}
 						placeholder="Contoh: Kebayoran Baru"
 						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 					/>
 				</div>
 
-				<div class="flex items-center justify-end gap-2 pt-3 border-t border-border">
-					<button
-						type="button"
-						onclick={() => (showAddDesaModal = false)}
-						class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary"
-					>
-						Batal
-					</button>
-					<button
-						type="submit"
-						class="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90"
-					>
-						Simpan Desa
-					</button>
+				<div class="flex items-center justify-between gap-2 pt-3 border-t border-border">
+					{#if isAddDesaDirty()}
+						<button
+							type="button"
+							onclick={resetAddDesaForm}
+							class="text-[11px] text-destructive hover:underline font-medium"
+						>
+							Kosongkan Isian
+						</button>
+					{:else}
+						<div></div>
+					{/if}
+					<div class="flex items-center gap-2">
+						<button
+							type="button"
+							onclick={closeAddDesaModal}
+							class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary"
+						>
+							Batal
+						</button>
+						<button
+							type="submit"
+							class="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90"
+						>
+							Simpan Desa
+						</button>
+					</div>
 				</div>
 			</form>
 		</div>
