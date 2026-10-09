@@ -2,7 +2,7 @@
   @file src/lib/components/navigation/AdminSidebar.svelte
   @purpose Komponen Sidebar navigasi admin responsif (sembunyi di mobile, persisten di desktop >= 768px)
   @usedBy src/routes/(admin)/+layout.svelte
-  @dependencies @lucide/svelte (LayoutDashboard, Users, CalendarCheck, MapPin, ShieldCheck, LogOut, ExternalLink, X)
+  @dependencies @lucide/svelte (LayoutDashboard, Users, CalendarCheck, MapPin, ShieldCheck, ExternalLink, X)
   @publicFunctions N/A (Svelte Component)
   @sideEffects Menavigasikan admin ke modul-modul manajemen data dan menangani buka/tutup drawer mobile
 -->
@@ -11,7 +11,6 @@
 		CalendarCheck,
 		ExternalLink,
 		LayoutDashboard,
-		LogOut,
 		MapPin,
 		ShieldCheck,
 		Users,
@@ -98,8 +97,8 @@
 		</nav>
 	</div>
 
-	<!-- Bottom Section: Link ke Client & Logout -->
-	<div class="border-t border-border pt-4 space-y-1">
+	<!-- Bottom Section: Link ke Tampilan Jamaah (Client) -->
+	<div class="border-t border-border pt-4">
 		<a
 			href="/"
 			onclick={onClose}
@@ -110,14 +109,6 @@
 				Tampilan Jamaah
 			</span>
 			<span class="text-[10px] bg-secondary px-1.5 py-0.5 rounded text-foreground/60">Client</span>
-		</a>
-
-		<a
-			href="/logout"
-			class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors"
-		>
-			<LogOut class="w-4 h-4" />
-			<span>Keluar Akun</span>
 		</a>
 	</div>
 </aside>
