@@ -23,7 +23,9 @@ export const handle: Handle = async ({ event, resolve }) => {
 			headers: {
 				'Access-Control-Allow-Origin': requestOrigin || '*',
 				'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-				'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+				'Access-Control-Allow-Headers':
+					event.request.headers.get('access-control-request-headers') ||
+					'Content-Type, Authorization, X-Requested-With, Accept, Origin',
 				'Access-Control-Allow-Credentials': 'true',
 				'Access-Control-Max-Age': '86400'
 			}
