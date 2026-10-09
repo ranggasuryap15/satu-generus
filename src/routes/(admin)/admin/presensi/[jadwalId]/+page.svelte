@@ -154,6 +154,11 @@
 											<CheckCircle2 class="w-3 h-3" />
 											Hadir
 										</span>
+										{#if peserta.waktuScan}
+											<span class="block text-[10px] text-foreground/40 font-mono mt-0.5">
+												{formatDateDDMMYYYY(peserta.waktuScan)}
+											</span>
+										{/if}
 									{:else if peserta.status === 'Izin' || peserta.status === 'Sakit'}
 										<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-accent/20 text-accent">
 											<AlertCircle class="w-3 h-3" />

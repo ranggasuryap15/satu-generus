@@ -2,7 +2,7 @@
  * @file src/routes/(app)/sensus/tambah/+page.server.ts
  * @purpose Form action pemrosesan pendaftaran sensus KK dan anggota keluarga dengan enkripsi AES-256-GCM
  * @usedBy Wizard form sensus pada src/routes/(app)/sensus/tambah/+page.svelte
- * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto
+ * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/utils (normalizeDateToISO)
  * @publicFunctions load, actions.default
  * @sideEffects Menulis record terenkripsi ke tabel keluarga dan anggota_keluarga dalam satu transaksi SQLite
  */
@@ -12,6 +12,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { db } from '$lib/db';
 import { keluarga, anggotaKeluarga } from '$lib/db/schema';
 import { encryptSensitive } from '$lib/server/crypto';
+import { normalizeDateToISO } from '$lib/utils';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) {
@@ -110,7 +111,7 @@ export const actions: Actions = {
 							namaLengkap: a.namaLengkap?.trim() || locals.user?.namaLengkap || 'Anggota',
 							nikEncrypted: encryptSensitive(a.nik),
 							statusHubungan: a.statusHubungan,
-							tanggalLahir: a.tanggalLahir,
+							tanggalLahir: normalizeDateToISO(a.tanggalLahir),
 							jenisKelamin: a.jenisKelamin
 						})
 						.run();

@@ -2,7 +2,7 @@
   @file src/routes/(admin)/admin/sensus/+page.svelte
   @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri/Perantau, dashboard statistik, filter bertingkat, dan form modal pendaftaran sensus KK/Mandiri dengan proteksi draft input
   @usedBy Route admin '/admin/sensus'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/utils (formatDateDDMMYYYY)
+  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/utils (formatDateDDMMYYYY)
   @publicFunctions requestUnmask, openCreateModal, closeCreateModal, openAddMemberModal, closeAddMemberModal, resetFilters
   @sideEffects Menampilkan metrik, unmask data sensitif via /api/sensus/unmask, submit form createSensus & addAnggotaKeluarga
 -->
@@ -27,6 +27,7 @@
 	} from '@lucide/svelte';
 	import type { PageData, ActionData } from './$types';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
+	import DateInput from '$lib/components/DateInput.svelte';
 	import { formatDateDDMMYYYY } from '$lib/utils';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
@@ -166,7 +167,12 @@
 				const matchKelompok = (k.kelompokNama || '').toLowerCase().includes(q);
 				const matchDesa = (k.desaNama || '').toLowerCase().includes(q);
 				const matchDaerah = (k.daerahNama || '').toLowerCase().includes(q);
-				if (!matchKk && !matchNama && !matchEmail && !matchAlamat && !matchKelompok && !matchDesa && !matchDaerah) {
+				const matchAnggota = (k.anggota || []).some((a: any) =>
+					(a.namaLengkap || '').toLowerCase().includes(q) ||
+					formatDateDDMMYYYY(a.tanggalLahir).includes(q) ||
+					(a.tanggalLahir || '').includes(q)
+				);
+				if (!matchKk && !matchNama && !matchEmail && !matchAlamat && !matchKelompok && !matchDesa && !matchDaerah && !matchAnggota) {
 					return false;
 				}
 			}
@@ -947,13 +953,12 @@
 										</div>
 
 										<div>
-											<label for={`new-tgl-${idx}`} class="block text-[10px] text-foreground/60 mb-0.5">Tgl Lahir *</label>
-											<input
+											<label for={`new-tgl-${idx}`} class="block text-[10px] text-foreground/60 mb-0.5">Tgl Lahir (DD-MM-YYYY) *</label>
+											<DateInput
 												id={`new-tgl-${idx}`}
-												type="date"
 												required
 												bind:value={anggota.tanggalLahir}
-												class="w-full bg-secondary/50 border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+												class="bg-secondary/50 border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 											/>
 										</div>
 
@@ -1031,15 +1036,14 @@
 
 							<div>
 								<label for="tanggalLahirMandiri" class="block text-[11px] font-semibold text-foreground mb-1">
-									Tanggal Lahir *
+									Tanggal Lahir (DD-MM-YYYY) *
 								</label>
-								<input
+								<DateInput
 									id="tanggalLahirMandiri"
 									name="tanggalLahir"
-									type="date"
 									required
 									bind:value={newTanggalLahirMandiri}
-									class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+									class="bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 								/>
 							</div>
 
@@ -1187,15 +1191,14 @@
 
 				<div>
 					<label for="memberTgl" class="block font-semibold text-foreground mb-1">
-						Tanggal Lahir *
+						Tanggal Lahir (DD-MM-YYYY) *
 					</label>
-					<input
+					<DateInput
 						id="memberTgl"
 						name="tanggalLahir"
-						type="date"
 						required
 						bind:value={memberTanggalLahir}
-						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+						class="bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 					/>
 				</div>
 

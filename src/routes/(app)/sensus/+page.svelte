@@ -2,7 +2,7 @@
   @file src/routes/(app)/sensus/+page.svelte
   @purpose Tampilan status dan rincian Kartu Keluarga serta Jamaah Mandiri/Perantau dengan fitur unmasking, ubah data domisili, NIK, dan data anggota dengan proteksi draf input
   @usedBy Route client '/sensus'
-  @dependencies @lucide/svelte, $app/forms (enhance), $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
+  @dependencies @lucide/svelte, $app/forms (enhance), $lib/components/DateInput.svelte, $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
   @publicFunctions toggleKk, copyKk, toggleNik, copyNik, openEditKk, closeEditKkModal, openEditAnggota, closeEditAnggotaModal, openTambahAnggota, closeTambahAnggotaModal
   @sideEffects Mengirim HTTP POST ke /api/sensus/unmask serta server actions updateKeluarga/updateAnggota/tambahAnggota/hapusAnggota
 -->
@@ -26,6 +26,7 @@
 	} from '@lucide/svelte';
 	import { enhance } from '$app/forms';
 	import type { PageData, ActionData } from './$types';
+	import DateInput from '$lib/components/DateInput.svelte';
 	import { formatDateDDMMYYYY } from '$lib/utils';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
@@ -743,15 +744,14 @@
 
 				<div>
 					<label for="editTgl" class="block font-medium text-foreground/80 mb-1.5">
-						Tanggal Lahir
+						Tanggal Lahir (DD-MM-YYYY)
 					</label>
-					<input
+					<DateInput
 						id="editTgl"
 						name="tanggalLahir"
-						type="date"
 						required
 						bind:value={editAnggotaTgl}
-						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
+						class="bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
 					/>
 				</div>
 
@@ -877,15 +877,14 @@
 
 				<div>
 					<label for="newTgl" class="block font-medium text-foreground/80 mb-1.5">
-						Tanggal Lahir
+						Tanggal Lahir (DD-MM-YYYY)
 					</label>
-					<input
+					<DateInput
 						id="newTgl"
 						name="tanggalLahir"
-						type="date"
 						required
 						bind:value={newAnggotaTgl}
-						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
+						class="bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
 					/>
 				</div>
 

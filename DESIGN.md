@@ -8,7 +8,7 @@
 - **Responsive Navigation:** Seluruh aplikasi menggunakan **Bottom Navbar** saat diakses via _mobile_ (layar < 768px) dan otomatis berubah menjadi **Sidebar** saat diakses via desktop/tablet (layar >= 768px).
 - **Single Source of Truth:** Tidak ada duplikasi fitur. Misalnya, detail profil dan form edit disatukan dalam satu layar dengan mode _toggle_, menghindari penumpukan tumpukan navigasi (_navigation stack_).
 - **Dropdown Search:** Pada bagian dropdown yang berpotensi akan banyak data, seperti Daerah, Desa, Kelompok, maka buatkan Dropdown Search untuk memudahkan pencarian
-- **Format Tanggal Baku (DD-MM-YYYY):** Seluruh tampilan tanggal pada UI (tabel, kartu ringkasan, rincian sensus, tanggal lahir, jadwal presensi) **wajib disajikan dalam format DD-MM-YYYY** (contoh: `10-10-2026`). Format penyimpanan database dan native HTML input date tetap menggunakan `YYYY-MM-DD`. Utilitas pemformatan disediakan secara terpusat melalui `formatDateDDMMYYYY()` di `src/lib/utils.ts`.
+- **Format Tanggal Baku (DD-MM-YYYY):** Seluruh hal yang berkaitan dengan tanggal pada UI (tabel, kartu ringkasan, rincian sensus, tanggal lahir, jadwal presensi, serta seluruh formulir input tanggal) **wajib disajikan dan diinput dalam format DD-MM-YYYY** (contoh: `10-10-2026`). Seluruh input form tanggal wajib menggunakan komponen terstandarisasi `DateInput` (`src/lib/components/DateInput.svelte`) yang mendukung auto-masking pengetikan dan pemilih kalender visual. Penyimpanan database SQLite dinormalisasi secara terpusat ke standar ISO `YYYY-MM-DD` via helper `normalizeDateToISO()`, dan diformat kembali ke UI via `formatDateDDMMYYYY()` di `src/lib/utils.ts`.
 
 ## 2. Design Tokens
 

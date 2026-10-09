@@ -2,7 +2,7 @@
   @file src/routes/(app)/sensus/tambah/+page.svelte
   @purpose Form wizard interaktif 3-langkah pendaftaran sensus keluarga jamaah
   @usedBy Route client '/sensus/tambah'
-  @dependencies @lucide/svelte, $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
+  @dependencies @lucide/svelte, $lib/components/DateInput.svelte, $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
   @publicFunctions nextStep, prevStep, addAnggota, removeAnggota
   @sideEffects Mengirim formulir sensus terenkripsi ke server action
 -->
@@ -17,6 +17,7 @@
 		AlertCircle,
 		CheckCircle2
 	} from '@lucide/svelte';
+	import DateInput from '$lib/components/DateInput.svelte';
 	import { formatDateDDMMYYYY } from '$lib/utils';
 	import type { ActionData } from './$types';
 
@@ -303,13 +304,13 @@
 
 							<div>
 								<label for={`tgl-${idx}`} class="block text-[11px] font-medium text-foreground/70 mb-1">
-									Tanggal Lahir *
+									Tanggal Lahir (DD-MM-YYYY) *
 								</label>
-								<input
+								<DateInput
 									id={`tgl-${idx}`}
-									type="date"
+									required
 									bind:value={anggota.tanggalLahir}
-									class="w-full bg-background border border-border rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+									class="bg-background border border-border rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 								/>
 							</div>
 						</div>

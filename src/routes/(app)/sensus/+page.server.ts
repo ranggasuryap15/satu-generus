@@ -2,7 +2,7 @@
  * @file src/routes/(app)/sensus/+page.server.ts
  * @purpose Menampilkan status sensus keluarga/mandiri dan memproses server actions untuk edit data kependudukan dan anggota
  * @usedBy src/routes/(app)/sensus/+page.svelte
- * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, drizzle-orm
+ * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/utils (normalizeDateToISO), drizzle-orm
  * @publicFunctions load, actions.updateKeluarga, actions.updateAnggota, actions.tambahAnggota, actions.hapusAnggota
  * @sideEffects Mengambil & memperbarui record keluarga dan anggotaKeluarga di SQLite dengan enkripsi AES-256-GCM
  */
@@ -13,6 +13,7 @@ import { db } from '$lib/db';
 import { keluarga, anggotaKeluarga } from '$lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { decryptSensitive, encryptSensitive, maskSensitive } from '$lib/server/crypto';
+import { normalizeDateToISO } from '$lib/utils';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) {
@@ -183,7 +184,7 @@ export const actions: Actions = {
 			nikEncrypted?: string;
 		} = {
 			statusHubungan,
-			tanggalLahir,
+			tanggalLahir: normalizeDateToISO(tanggalLahir),
 			jenisKelamin
 		};
 
@@ -259,7 +260,7 @@ export const actions: Actions = {
 					namaLengkap,
 					nikEncrypted: encryptSensitive(nik),
 					statusHubungan,
-					tanggalLahir,
+					tanggalLahir: normalizeDateToISO(tanggalLahir),
 					jenisKelamin
 				})
 				.run();

@@ -2,7 +2,7 @@
  * @file src/routes/(admin)/admin/sensus/+page.server.ts
  * @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri/Perantau, metrik dashboard, serta form actions penambahan sensus dan anggota keluarga dengan proteksi RBAC
  * @usedBy src/routes/(admin)/admin/sensus/+page.svelte
- * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/auth, src/lib/server/scope, drizzle-orm
+ * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/auth, src/lib/server/scope, src/lib/utils (normalizeDateToISO), drizzle-orm
  * @publicFunctions load, actions.createSensus, actions.addAnggotaKeluarga
  * @sideEffects Transaksi penulisan database tabel users, keluarga, anggota_keluarga; query join multi-tabel terindeks
  */
@@ -15,6 +15,7 @@ import { eq, desc } from 'drizzle-orm';
 import { decryptSensitive, encryptSensitive, maskSensitive } from '$lib/server/crypto';
 import { hashPassword } from '$lib/server/auth';
 import { getAdminScope, getAccessibleWilayah, isKelompokAllowed } from '$lib/server/scope';
+import { normalizeDateToISO } from '$lib/utils';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user || !locals.isAdmin) {
@@ -351,7 +352,7 @@ export const actions: Actions = {
 							namaLengkap: memberNama,
 							nikEncrypted: encryptSensitive(a.nik),
 							statusHubungan: a.statusHubungan,
-							tanggalLahir: a.tanggalLahir,
+							tanggalLahir: normalizeDateToISO(a.tanggalLahir),
 							jenisKelamin: a.jenisKelamin
 						})
 						.run();
@@ -435,7 +436,7 @@ export const actions: Actions = {
 					namaLengkap,
 					nikEncrypted: encryptSensitive(nik),
 					statusHubungan,
-					tanggalLahir,
+					tanggalLahir: normalizeDateToISO(tanggalLahir),
 					jenisKelamin
 				})
 				.run();

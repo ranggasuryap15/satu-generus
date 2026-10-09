@@ -2,7 +2,7 @@
  * @file src/routes/(admin)/admin/presensi/+page.server.ts
  * @purpose Memuat seluruh jadwal pengajian dan menangani aksi pembuatan jadwal kegiatan baru bagi admin
  * @usedBy src/routes/(admin)/admin/presensi/+page.svelte
- * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm
+ * @dependencies src/lib/db, src/lib/db/schema, src/lib/utils (normalizeDateToISO), drizzle-orm
  * @publicFunctions load, actions.createJadwal
  * @sideEffects Query jadwal & rekap kehadiran, insert jadwal pengajian baru ke SQLite
  */
@@ -12,6 +12,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { db } from '$lib/db';
 import { presensiJadwal, presensiKehadiran, kelompok } from '$lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
+import { normalizeDateToISO } from '$lib/utils';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user || !locals.isAdmin) {
@@ -76,7 +77,7 @@ export const actions: Actions = {
 			db.insert(presensiJadwal)
 				.values({
 					kelompokId,
-					tanggal,
+					tanggal: normalizeDateToISO(tanggal),
 					namaKegiatan
 				})
 				.run();

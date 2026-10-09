@@ -2,7 +2,7 @@
   @file src/routes/(admin)/admin/presensi/+page.svelte
   @purpose Halaman rekapitulasi jadwal pengajian dan pembuat jadwal baru bagi admin dengan perlindungan draf modal
   @usedBy Route admin '/admin/presensi'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/utils (formatDateDDMMYYYY)
+  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/utils (formatDateDDMMYYYY)
   @publicFunctions openAddModal, closeAddModal, resetAddForm, isAddFormDirty
   @sideEffects Menampilkan data jadwal dan mengirim form pembuatan jadwal ke server
 -->
@@ -10,6 +10,7 @@
 	import { Calendar, Plus, QrCode, SquareCheck, Search, X, Users } from '@lucide/svelte';
 	import type { PageData, ActionData } from './$types';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
+	import DateInput from '$lib/components/DateInput.svelte';
 	import { formatDateDDMMYYYY } from '$lib/utils';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
@@ -218,15 +219,14 @@
 				<div class="grid grid-cols-2 gap-3">
 					<div>
 						<label for="tanggal" class="block text-xs font-semibold text-foreground mb-1.5">
-							Tanggal Pelaksanaan *
+							Tanggal Pelaksanaan (DD-MM-YYYY) *
 						</label>
-						<input
+						<DateInput
 							id="tanggal"
 							name="tanggal"
-							type="date"
 							bind:value={newTanggal}
 							required
-							class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+							class="bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 						/>
 					</div>
 
