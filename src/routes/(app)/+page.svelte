@@ -2,13 +2,14 @@
   @file src/routes/(app)/+page.svelte
   @purpose Halaman beranda client/jamaah (Mobile-First) berbasis Card Layout sesuai DESIGN.md
   @usedBy Route utama client '/'
-  @dependencies @lucide/svelte (QrCode, FileSpreadsheet, Users, ChevronRight, Calendar), Svelte 5 Runes
+  @dependencies @lucide/svelte, $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
   @publicFunctions N/A (Svelte Component)
   @sideEffects Menampilkan menu tugas cepat dan ringkasan kartu informasi jamaah
 -->
 <script lang="ts">
 	import { Calendar, ChevronRight, FileSpreadsheet, QrCode } from '@lucide/svelte';
 	import type { PageData } from './$types';
+	import { formatDateDDMMYYYY } from '$lib/utils';
 
 	let { data } = $props<{ data: PageData }>();
 </script>
@@ -88,7 +89,7 @@
 					<div class="flex items-start justify-between p-2 rounded-lg hover:bg-secondary/40 transition-colors">
 						<div>
 							<h4 class="text-xs font-semibold text-foreground">{jadwal.namaKegiatan}</h4>
-							<p class="text-[11px] text-foreground/60 font-mono mt-0.5">{jadwal.tanggal}</p>
+							<p class="text-[11px] text-foreground/60 font-mono mt-0.5">{formatDateDDMMYYYY(jadwal.tanggal)}</p>
 						</div>
 						<span class="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
 							{data.kelompokNama}

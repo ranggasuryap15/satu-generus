@@ -2,7 +2,7 @@
   @file src/routes/(app)/sensus/tambah/+page.svelte
   @purpose Form wizard interaktif 3-langkah pendaftaran sensus keluarga jamaah
   @usedBy Route client '/sensus/tambah'
-  @dependencies @lucide/svelte (ArrowLeft, ArrowRight, Check, Plus, Trash2, Shield, AlertCircle), Svelte 5 Runes
+  @dependencies @lucide/svelte, $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
   @publicFunctions nextStep, prevStep, addAnggota, removeAnggota
   @sideEffects Mengirim formulir sensus terenkripsi ke server action
 -->
@@ -17,6 +17,7 @@
 		AlertCircle,
 		CheckCircle2
 	} from '@lucide/svelte';
+	import { formatDateDDMMYYYY } from '$lib/utils';
 	import type { ActionData } from './$types';
 
 	let { form } = $props<{ form: ActionData }>();
@@ -319,7 +320,7 @@
 								<p class="text-[11px] text-foreground/60 font-mono">NIK: {a.nik}</p>
 							</div>
 							<span class="text-[10px] bg-secondary px-2 py-0.5 rounded text-foreground/70">
-								{a.jenisKelamin === 'L' ? 'L' : 'P'} • {a.tanggalLahir}
+								{a.jenisKelamin === 'L' ? 'L' : 'P'} • {formatDateDDMMYYYY(a.tanggalLahir)}
 							</span>
 						</div>
 					{/each}

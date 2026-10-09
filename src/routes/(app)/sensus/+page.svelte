@@ -2,7 +2,7 @@
   @file src/routes/(app)/sensus/+page.svelte
   @purpose Tampilan status dan rincian Kartu Keluarga jamaah dengan fitur unmasking serta ubah No. KK, NIK, dan data anggota
   @usedBy Route client '/sensus'
-  @dependencies @lucide/svelte (Users, Plus, Home, Shield, Calendar, UserCheck, Eye, EyeOff, Copy, Check, Pencil, Trash2, X, AlertCircle, CheckCircle), $app/forms (enhance), Svelte 5 Runes
+  @dependencies @lucide/svelte, $app/forms (enhance), $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
   @publicFunctions toggleKk, copyKk, toggleNik, copyNik, openEditKk, openEditAnggota, openTambahAnggota
   @sideEffects Mengirim HTTP POST ke /api/sensus/unmask serta server actions updateKeluarga/updateAnggota/tambahAnggota/hapusAnggota
 -->
@@ -26,6 +26,7 @@
 	} from '@lucide/svelte';
 	import { enhance } from '$app/forms';
 	import type { PageData, ActionData } from './$types';
+	import { formatDateDDMMYYYY } from '$lib/utils';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -476,7 +477,7 @@
 
 						<div class="flex items-center gap-1.5 text-[11px] text-foreground/50 pt-1 border-t border-border/40">
 							<Calendar class="w-3 h-3" />
-							<span>Tgl Lahir: {anggota.tanggalLahir}</span>
+							<span>Tgl Lahir: {formatDateDDMMYYYY(anggota.tanggalLahir)}</span>
 						</div>
 					</div>
 				{/each}

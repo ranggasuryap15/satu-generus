@@ -2,7 +2,7 @@
   @file src/routes/(app)/presensi/+page.svelte
   @purpose Tampilan presensi jamaah: Kartu QR Code unik dan riwayat jadwal pengajian (Mobile-First)
   @usedBy Route client '/presensi'
-  @dependencies qrcode, @lucide/svelte (QrCode, Calendar, CheckCircle2, Clock, XCircle)
+  @dependencies qrcode, @lucide/svelte, $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
   @publicFunctions N/A (Svelte Component)
   @sideEffects Men-generate gambar QR Code secara client-side pada kanvas/gambar
 -->
@@ -11,6 +11,7 @@
 	import QRCode from 'qrcode';
 	import { QrCode, Calendar, CheckCircle2, Clock, XCircle, AlertCircle } from '@lucide/svelte';
 	import type { PageData } from './$types';
+	import { formatDateDDMMYYYY } from '$lib/utils';
 
 	let { data } = $props<{ data: PageData }>();
 
@@ -112,7 +113,7 @@
 								<h4 class="text-xs font-semibold text-foreground">{item.namaKegiatan}</h4>
 								<div class="flex items-center gap-1.5 text-[11px] text-foreground/50">
 									<Clock class="w-3.5 h-3.5" />
-									<span>{item.tanggal}</span>
+									<span>{formatDateDDMMYYYY(item.tanggal)}</span>
 								</div>
 							</div>
 

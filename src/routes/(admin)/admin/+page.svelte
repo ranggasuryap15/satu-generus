@@ -2,12 +2,13 @@
   @file src/routes/(admin)/admin/+page.svelte
   @purpose Halaman utama Dashboard Admin untuk rekapitulasi data demografi dan presensi dinamis
   @usedBy Route admin '/admin'
-  @dependencies @lucide/svelte (Users, Home, Calendar, ShieldCheck, ArrowRight, Plus), Svelte 5 Runes
+  @dependencies @lucide/svelte, $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
   @publicFunctions N/A (Svelte Component)
   @sideEffects Menampilkan metrik data sensus dan ringkasan operasional jamaah
 -->
 <script lang="ts">
 	import { ArrowRight, Calendar, Home, Plus, ShieldCheck, Users } from '@lucide/svelte';
+	import { formatDateDDMMYYYY } from '$lib/utils';
 	import type { PageData } from './$types';
 
 	let { data } = $props<{ data: PageData }>();
@@ -124,7 +125,7 @@
 					{:else}
 						{#each data.recentJadwal as item}
 							<tr class="hover:bg-secondary/30 transition-colors">
-								<td class="py-3 px-4 font-mono font-medium text-foreground">{item.tanggal}</td>
+								<td class="py-3 px-4 font-mono font-medium text-foreground">{formatDateDDMMYYYY(item.tanggal)}</td>
 								<td class="py-3 px-4 font-semibold text-foreground">{item.namaKegiatan}</td>
 								<td class="py-3 px-4 text-foreground/70">{item.kelompokNama || '-'}</td>
 								<td class="py-3 px-4 text-right">

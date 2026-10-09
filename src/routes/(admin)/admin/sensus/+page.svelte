@@ -2,7 +2,7 @@
   @file src/routes/(admin)/admin/sensus/+page.svelte
   @purpose Rekapitulasi sensus Kartu Keluarga, dashboard statistik singkat, filter bertingkat, dan form modal pendaftaran sensus serta anggota
   @usedBy Route admin '/admin/sensus'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte
+  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/utils (formatDateDDMMYYYY)
   @publicFunctions requestUnmask, openCreateModal, openAddMemberModal, resetFilters
   @sideEffects Menampilkan metrik, unmask data sensitif via /api/sensus/unmask, submit form createSensus & addAnggotaKeluarga
 -->
@@ -27,6 +27,7 @@
 	} from '@lucide/svelte';
 	import type { PageData, ActionData } from './$types';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
+	import { formatDateDDMMYYYY } from '$lib/utils';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -978,7 +979,7 @@
 									<Eye class="w-3.5 h-3.5" />
 								</button>
 							</div>
-							<p class="text-[10px] text-foreground/50 mt-0.5">Tgl Lahir: {a.tanggalLahir}</p>
+							<p class="text-[10px] text-foreground/50 mt-0.5">Tgl Lahir: {formatDateDDMMYYYY(a.tanggalLahir)}</p>
 						</div>
 					</div>
 				{/each}

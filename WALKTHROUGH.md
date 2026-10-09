@@ -23,6 +23,7 @@ Sebelum menyentuh kode modul apapun, pegang teguh 5 aturan utama ini:
    - Hindari N+1 query. Manfaatkan *composite index* di `user_dapukan` dan index foreign key yang telah tersedia di `src/lib/db/schema.ts`.
 4. **Keamanan Ekstrem:** Kolom NIK dan Nomor KK **tidak boleh** masuk ke database dalam bentuk *plaintext*. Wajib dienkripsi *two-way* (AES-256-GCM) di sisi server.
 5. **No Over-Engineering:** Fokus hanya pada cakupan MVP (Autentikasi RBAC, Sensus Terenkripsi, Presensi Pengajian). Jangan membangun modul masa depan (PPG, Saham UB, Keuangan).
+6. **Format Tanggal Baku (DD-MM-YYYY):** Seluruh visualisasi tanggal pada antarmuka pengguna (tabel, jadwal presensi, kartu sensus, tanggal lahir) **wajib diformat menjadi DD-MM-YYYY** (contoh: `10-10-2026`) menggunakan fungsi helper `formatDateDDMMYYYY()` dari `$lib/utils`.
 
 ---
 

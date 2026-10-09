@@ -2,7 +2,7 @@
   @file src/routes/(admin)/admin/presensi/+page.svelte
   @purpose Halaman rekapitulasi jadwal pengajian dan pembuat jadwal baru bagi admin
   @usedBy Route admin '/admin/presensi'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte
+  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/utils (formatDateDDMMYYYY)
   @publicFunctions openModal, closeModal, openAddModal
   @sideEffects Menampilkan data jadwal dan mengirim form pembuatan jadwal ke server
 -->
@@ -10,6 +10,7 @@
 	import { Calendar, Plus, QrCode, SquareCheck, Search, X, Users } from '@lucide/svelte';
 	import type { PageData, ActionData } from './$types';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
+	import { formatDateDDMMYYYY } from '$lib/utils';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -35,7 +36,8 @@
 			return (
 				j.namaKegiatan.toLowerCase().includes(q) ||
 				(j.kelompokNama || '').toLowerCase().includes(q) ||
-				j.tanggal.includes(q)
+				j.tanggal.includes(q) ||
+				formatDateDDMMYYYY(j.tanggal).includes(q)
 			);
 		})
 	);
@@ -105,7 +107,7 @@
 					{:else}
 						{#each filteredJadwal as item}
 							<tr class="hover:bg-secondary/30 transition-colors">
-								<td class="py-3.5 px-4 font-mono font-medium text-foreground">{item.tanggal}</td>
+								<td class="py-3.5 px-4 font-mono font-medium text-foreground">{formatDateDDMMYYYY(item.tanggal)}</td>
 								<td class="py-3.5 px-4 font-semibold text-foreground">{item.namaKegiatan}</td>
 								<td class="py-3.5 px-4 text-foreground/70">{item.kelompokNama || '-'}</td>
 								<td class="py-3.5 px-4">

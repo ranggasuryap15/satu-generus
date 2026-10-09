@@ -2,7 +2,7 @@
   @file src/routes/(admin)/admin/presensi/[jadwalId]/+page.svelte
   @purpose Halaman checklist absensi manual jamaah per jadwal kegiatan pengajian
   @usedBy Route admin '/admin/presensi/[jadwalId]'
-  @dependencies @lucide/svelte (ArrowLeft, QrCode, CheckCircle2, AlertCircle, XCircle, Clock), Svelte 5 Runes
+  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/utils (formatDateDDMMYYYY)
   @publicFunctions N/A (Svelte Component)
   @sideEffects Mengirim form updateStatus kehadiran per jamaah ke server action
 -->
@@ -16,6 +16,7 @@
 	  User,
 	  XCircle
 	} from '@lucide/svelte';
+	import { formatDateDDMMYYYY } from '$lib/utils';
 	import type { PageData } from './$types';
 
 	let { data } = $props<{ data: PageData }>();
@@ -64,7 +65,7 @@
 					</span>
 				</div>
 				<p class="text-xs text-foreground/60 mt-0.5 font-mono">
-					Tanggal: {data.jadwal.tanggal}
+					Tanggal: {formatDateDDMMYYYY(data.jadwal.tanggal)}
 				</p>
 			</div>
 		</div>
