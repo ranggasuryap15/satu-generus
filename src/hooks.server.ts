@@ -1,10 +1,10 @@
 /**
  * @file src/hooks.server.ts
- * @purpose Middleware otorisasi, ekstraksi session cookie, dan route guard SvelteKit
- * @usedBy SvelteKit server runtime pada setiap request
+ * @purpose Middleware otorisasi, penanganan CORS, ekstraksi session cookie, dan route guard SvelteKit
+ * @usedBy SvelteKit server runtime pada setiap HTTP request
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/auth
  * @publicFunctions handle
- * @sideEffects Mengisi event.locals dan melakukan pengalihan rute (redirect) jika akses tidak diizinkan
+ * @sideEffects Mengisi event.locals, menyematkan header CORS, menangani OPTIONS preflight, dan redirect route
  */
 
 import { redirect } from '@sveltejs/kit';
@@ -15,6 +15,21 @@ import { eq } from 'drizzle-orm';
 import { getSessionUserId } from '$lib/server/auth';
 
 export const handle: Handle = async ({ event, resolve }) => {
+	// Preflight request handling untuk CORS
+	if (event.request.method === 'OPTIONS') {
+		const requestOrigin = event.request.headers.get('origin');
+		return new Response(null, {
+			status: 204,
+			headers: {
+				'Access-Control-Allow-Origin': requestOrigin || '*',
+				'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+				'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+				'Access-Control-Allow-Credentials': 'true',
+				'Access-Control-Max-Age': '86400'
+			}
+		});
+	}
+
 	const userId = getSessionUserId(event.cookies);
 
 	event.locals.user = null;
@@ -81,5 +96,15 @@ export const handle: Handle = async ({ event, resolve }) => {
 		}
 	}
 
-	return resolve(event);
+	const response = await resolve(event);
+
+	// Pasang header CORS jika ada Origin header
+	const requestOrigin = event.request.headers.get('origin');
+	if (requestOrigin) {
+		response.headers.set('Access-Control-Allow-Origin', requestOrigin);
+		response.headers.set('Access-Control-Allow-Credentials', 'true');
+	}
+
+	return response;
 };
+

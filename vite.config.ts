@@ -1,10 +1,10 @@
 /**
  * @file vite.config.ts
- * @purpose Konfigurasi build Vite, Tailwind CSS v4 Vite plugin, dan adapter SvelteKit
+ * @purpose Konfigurasi build Vite, Tailwind CSS v4, SvelteKit adapter, dan pengaturan CORS/CSRF
  * @usedBy Vite dev server, build pipeline (npm run dev, npm run build)
  * @dependencies @tailwindcss/vite, @sveltejs/adapter-auto, @sveltejs/kit/vite, vite
  * @publicFunctions defineConfig
- * @sideEffects Mengatur plugin bundling untuk Tailwind v4 dan SvelteKit adapter
+ * @sideEffects Mengatur plugin bundling, menonaktifkan origin mismatch CSRF untuk remote server, mengizinkan akses host eksternal
  */
 
 import tailwindcss from '@tailwindcss/vite';
@@ -19,7 +19,26 @@ export default defineConfig({
 			adapter: adapter(),
 			alias: {
 				$lib: './src/lib'
+			},
+			csrf: {
+				trustedOrigins: ['*']
 			}
 		})
-	]
+	],
+	server: {
+		host: '0.0.0.0',
+		port: 5173,
+		allowedHosts: true,
+		cors: {
+			preflightContinue: true
+		}
+	},
+	preview: {
+		host: '0.0.0.0',
+		port: 5173,
+		allowedHosts: true,
+		cors: {
+			preflightContinue: true
+		}
+	}
 });
