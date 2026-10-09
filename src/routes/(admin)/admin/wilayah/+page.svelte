@@ -2,19 +2,49 @@
   @file src/routes/(admin)/admin/wilayah/+page.svelte
   @purpose Halaman manajemen hierarki wilayah (Daerah -> Desa -> Kelompok) dan penambahan unit wilayah
   @usedBy Route admin '/admin/wilayah'
-  @dependencies @lucide/svelte (MapPin, Plus, Search, Building, Home, Users, X), Svelte 5 Runes
-  @publicFunctions openModal, closeModal
+  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte
+  @publicFunctions openModal, closeModal, openAddKelompokModal, openAddDesaModal
   @sideEffects Menampilkan data hierarki wilayah dan mengirimkan form pembuatan unit ke server
 -->
 <script lang="ts">
 	import { MapPin, Plus, Search, Building, Home, Users, X } from '@lucide/svelte';
 	import type { PageData, ActionData } from './$types';
+	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
 	let searchQuery = $state('');
 	let showAddKelompokModal = $state(false);
 	let showAddDesaModal = $state(false);
+
+	let selectedDesaId = $state<string | number>('');
+	let selectedDaerahId = $state<string | number>('');
+
+	const desaOptions = $derived(
+		(data.desaList || []).map((d: (typeof data.desaList)[number]) => ({
+			value: d.id,
+			label: d.nama,
+			sublabel: d.daerahNama ? `Daerah ${d.daerahNama}` : undefined
+		}))
+	);
+
+	const daerahOptions = $derived(
+		(data.daerahList || []).map((d: (typeof data.daerahList)[number]) => ({
+			value: d.id,
+			label: d.nama,
+			sublabel: d.kotaKabupaten
+		}))
+	);
+
+	function openAddKelompokModal() {
+		selectedDesaId = '';
+		showAddKelompokModal = true;
+	}
+
+	function openAddDesaModal() {
+		selectedDaerahId = '';
+		showAddDesaModal = true;
+	}
 
 	let filteredKelompok = $derived(
 		(data.kelompokList || []).filter((k: (typeof data.kelompokList)[number]) => {
@@ -46,7 +76,7 @@
 		<div class="flex items-center gap-2">
 			<button
 				type="button"
-				onclick={() => (showAddDesaModal = true)}
+				onclick={openAddDesaModal}
 				class="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-card text-xs font-semibold text-foreground/80 hover:bg-secondary transition-all shadow-sm active:scale-95"
 			>
 				<Building class="w-3.5 h-3.5 text-primary" />
@@ -55,7 +85,7 @@
 
 			<button
 				type="button"
-				onclick={() => (showAddKelompokModal = true)}
+				onclick={openAddKelompokModal}
 				class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all shadow-sm active:scale-95"
 			>
 				<Plus class="w-4 h-4" />
@@ -219,16 +249,15 @@
 					<label for="desaId" class="block text-xs font-semibold text-foreground mb-1.5">
 						Desa Induk *
 					</label>
-					<select
+					<SearchableSelect
 						id="desaId"
 						name="desaId"
+						options={desaOptions}
+						bind:value={selectedDesaId}
 						required
-						class="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-					>
-						{#each data.desaList as d}
-							<option value={d.id}>{d.nama} ({d.daerahNama})</option>
-						{/each}
-					</select>
+						placeholder="-- Pilih Desa Induk --"
+						searchPlaceholder="Cari nama desa..."
+					/>
 				</div>
 
 				<div>
@@ -307,16 +336,15 @@
 					<label for="daerahId" class="block text-xs font-semibold text-foreground mb-1.5">
 						Daerah Induk *
 					</label>
-					<select
+					<SearchableSelect
 						id="daerahId"
 						name="daerahId"
+						options={daerahOptions}
+						bind:value={selectedDaerahId}
 						required
-						class="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-					>
-						{#each data.daerahList as d}
-							<option value={d.id}>{d.nama} ({d.kotaKabupaten})</option>
-						{/each}
-					</select>
+						placeholder="-- Pilih Daerah Induk --"
+						searchPlaceholder="Cari nama daerah atau kabupaten..."
+					/>
 				</div>
 
 				<div>

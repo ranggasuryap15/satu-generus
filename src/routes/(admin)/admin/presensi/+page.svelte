@@ -2,18 +2,32 @@
   @file src/routes/(admin)/admin/presensi/+page.svelte
   @purpose Halaman rekapitulasi jadwal pengajian dan pembuat jadwal baru bagi admin
   @usedBy Route admin '/admin/presensi'
-  @dependencies @lucide/svelte (Calendar, Plus, QrCode, SquareCheck, Search, X), Svelte 5 Runes
-  @publicFunctions openModal, closeModal
+  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte
+  @publicFunctions openModal, closeModal, openAddModal
   @sideEffects Menampilkan data jadwal dan mengirim form pembuatan jadwal ke server
 -->
 <script lang="ts">
 	import { Calendar, Plus, QrCode, SquareCheck, Search, X, Users } from '@lucide/svelte';
 	import type { PageData, ActionData } from './$types';
+	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
 	let showAddModal = $state(false);
 	let searchQuery = $state('');
+	let selectedKelompokId = $state<string | number>('');
+
+	const kelompokOptions = $derived(
+		(data.kelompokList || []).map((k: (typeof data.kelompokList)[number]) => ({
+			value: k.id,
+			label: k.nama
+		}))
+	);
+
+	function openAddModal() {
+		selectedKelompokId = '';
+		showAddModal = true;
+	}
 
 	let filteredJadwal = $derived(
 		(data.daftarJadwal || []).filter((j: (typeof data.daftarJadwal)[number]) => {
@@ -43,7 +57,7 @@
 
 		<button
 			type="button"
-			onclick={() => (showAddModal = true)}
+			onclick={openAddModal}
 			class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all shadow-sm active:scale-95"
 		>
 			<Plus class="w-4 h-4" />
@@ -185,16 +199,15 @@
 						<label for="kelompokId" class="block text-xs font-semibold text-foreground mb-1.5">
 							Pilih Kelompok *
 						</label>
-						<select
+						<SearchableSelect
 							id="kelompokId"
 							name="kelompokId"
+							options={kelompokOptions}
+							bind:value={selectedKelompokId}
 							required
-							class="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-						>
-							{#each data.kelompokList as k}
-								<option value={k.id}>{k.nama}</option>
-							{/each}
-						</select>
+							placeholder="-- Pilih Kelompok --"
+							searchPlaceholder="Cari nama kelompok..."
+						/>
 					</div>
 				</div>
 

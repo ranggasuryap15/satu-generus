@@ -2,7 +2,7 @@
   @file src/routes/(admin)/admin/dapukan/+page.svelte
   @purpose Halaman manajemen struktur dapukan/jabatan dan penugasan RBAC pengurus
   @usedBy Route admin '/admin/dapukan'
-  @dependencies @lucide/svelte (ShieldCheck, Plus, Search, UserCheck, Trash2, X, Award, MapPin), Svelte 5 Runes
+  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte
   @publicFunctions openModal, closeModal, confirmRemove
   @sideEffects Menampilkan data dapukan/pengurus dan mengirim form mutasi pengurus ke server
 -->
@@ -19,6 +19,7 @@
 		AlertTriangle
 	} from '@lucide/svelte';
 	import type { PageData, ActionData } from './$types';
+	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -30,6 +31,59 @@
 	// Form State
 	let tipeJabatan = $state<'tetap' | 'custom'>('tetap');
 	let selectedScope = $state<'Pusat' | 'Daerah' | 'Desa' | 'Kelompok'>('Kelompok');
+	let selectedUserId = $state<string | number>('');
+	let selectedDapukanId = $state<string | number>('');
+	let selectedKelompokId = $state<string | number>('');
+	let selectedDesaId = $state<string | number>('');
+	let selectedDaerahId = $state<string | number>('');
+
+	// Options untuk Searchable Dropdowns
+	const userOptions = $derived(
+		(data.userList || []).map((u: (typeof data.userList)[number]) => ({
+			value: u.id,
+			label: u.namaLengkap,
+			sublabel: u.email || 'Tanpa Email'
+		}))
+	);
+
+	const masterDapukanOptions = $derived(
+		(data.masterDapukan || []).map((m: (typeof data.masterDapukan)[number]) => ({
+			value: m.id,
+			label: m.namaDapukan,
+			sublabel: m.is4S ? '4S' : undefined
+		}))
+	);
+
+	const kelompokOptions = $derived(
+		(data.kelompokList || []).map((k: (typeof data.kelompokList)[number]) => ({
+			value: k.id,
+			label: k.nama
+		}))
+	);
+
+	const desaOptions = $derived(
+		(data.desaList || []).map((d: (typeof data.desaList)[number]) => ({
+			value: d.id,
+			label: d.nama
+		}))
+	);
+
+	const daerahOptions = $derived(
+		(data.daerahList || []).map((d: (typeof data.daerahList)[number]) => ({
+			value: d.id,
+			label: d.nama,
+			sublabel: d.kotaKabupaten
+		}))
+	);
+
+	function openAssignModal() {
+		selectedUserId = '';
+		selectedDapukanId = '';
+		selectedKelompokId = '';
+		selectedDesaId = '';
+		selectedDaerahId = '';
+		showAssignModal = true;
+	}
 
 	let filteredPengurus = $derived(
 		(data.daftarPengurus || []).filter((p: (typeof data.daftarPengurus)[number]) => {
@@ -58,7 +112,7 @@
 
 		<button
 			type="button"
-			onclick={() => (showAssignModal = true)}
+			onclick={openAssignModal}
 			class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all shadow-sm active:scale-95"
 		>
 			<Plus class="w-4 h-4" />
@@ -250,17 +304,15 @@
 					<label for="userId" class="block text-xs font-semibold text-foreground mb-1.5">
 						Pilih Jamaah *
 					</label>
-					<select
+					<SearchableSelect
 						id="userId"
 						name="userId"
+						options={userOptions}
+						bind:value={selectedUserId}
 						required
-						class="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-					>
-						<option value="">-- Pilih Nama Jamaah --</option>
-						{#each data.userList as u}
-							<option value={u.id}>{u.namaLengkap} ({u.email || 'Tanpa Email'})</option>
-						{/each}
-					</select>
+						placeholder="-- Pilih Nama Jamaah --"
+						searchPlaceholder="Cari nama jamaah atau email..."
+					/>
 				</div>
 
 				<!-- Jenis Jabatan: Baku vs Kustom -->
@@ -302,16 +354,15 @@
 						<label for="dapukanId" class="block text-xs font-semibold text-foreground mb-1.5">
 							Pilih Jabatan Master 4S *
 						</label>
-						<select
+						<SearchableSelect
 							id="dapukanId"
 							name="dapukanId"
+							options={masterDapukanOptions}
+							bind:value={selectedDapukanId}
 							required
-							class="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-						>
-							{#each data.masterDapukan as m}
-								<option value={m.id}>{m.namaDapukan} {m.is4S ? '(4S)' : ''}</option>
-							{/each}
-						</select>
+							placeholder="-- Pilih Jabatan Master 4S --"
+							searchPlaceholder="Cari nama jabatan..."
+						/>
 					</div>
 				{:else}
 					<div>
@@ -339,7 +390,7 @@
 						name="tingkatScope"
 						bind:value={selectedScope}
 						required
-						class="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+						class="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
 					>
 						<option value="Kelompok">Kelompok (Tingkat Basis)</option>
 						<option value="Desa">Desa (Mengawasi Semua Kelompok)</option>
@@ -354,48 +405,45 @@
 						<label for="kelompokId" class="block text-xs font-semibold text-foreground mb-1.5">
 							Pilih Kelompok Cakupan *
 						</label>
-						<select
+						<SearchableSelect
 							id="kelompokId"
 							name="kelompokId"
+							options={kelompokOptions}
+							bind:value={selectedKelompokId}
 							required
-							class="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-						>
-							{#each data.kelompokList as k}
-								<option value={k.id}>{k.nama}</option>
-							{/each}
-						</select>
+							placeholder="-- Pilih Kelompok Cakupan --"
+							searchPlaceholder="Cari kelompok..."
+						/>
 					</div>
 				{:else if selectedScope === 'Desa'}
 					<div>
 						<label for="desaId" class="block text-xs font-semibold text-foreground mb-1.5">
 							Pilih Desa Cakupan *
 						</label>
-						<select
+						<SearchableSelect
 							id="desaId"
 							name="desaId"
+							options={desaOptions}
+							bind:value={selectedDesaId}
 							required
-							class="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-						>
-							{#each data.desaList as d}
-								<option value={d.id}>{d.nama}</option>
-							{/each}
-						</select>
+							placeholder="-- Pilih Desa Cakupan --"
+							searchPlaceholder="Cari desa..."
+						/>
 					</div>
 				{:else if selectedScope === 'Daerah'}
 					<div>
 						<label for="daerahId" class="block text-xs font-semibold text-foreground mb-1.5">
 							Pilih Daerah Cakupan *
 						</label>
-						<select
+						<SearchableSelect
 							id="daerahId"
 							name="daerahId"
+							options={daerahOptions}
+							bind:value={selectedDaerahId}
 							required
-							class="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-						>
-							{#each data.daerahList as d}
-								<option value={d.id}>{d.nama} ({d.kotaKabupaten})</option>
-							{/each}
-						</select>
+							placeholder="-- Pilih Daerah Cakupan --"
+							searchPlaceholder="Cari daerah..."
+						/>
 					</div>
 				{/if}
 
