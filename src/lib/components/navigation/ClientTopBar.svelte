@@ -1,16 +1,19 @@
 <!--
   @file src/lib/components/navigation/ClientTopBar.svelte
-  @purpose Komponen Top Bar untuk tampilan client (mobile-first) sesuai spesifikasi DESIGN.md
+  @purpose Komponen Top Bar untuk tampilan client (mobile-first) dengan tautan kembali ke Panel Admin
   @usedBy src/routes/(app)/+layout.svelte
-  @dependencies lucide-svelte (Search, Bell), src/lib/components/ThemeToggle.svelte
+  @dependencies lucide-svelte (Search, Bell, ShieldCheck), src/lib/components/ThemeToggle.svelte, $app/state (page)
   @publicFunctions N/A (Svelte Component)
-  @sideEffects Menampilkan header persisten di bagian atas layar client
+  @sideEffects Menampilkan header persisten di bagian atas layar client dan tautan kembali ke /admin bagi admin
 -->
 <script lang="ts">
-	import { Search, Bell } from '@lucide/svelte';
+	import { Search, Bell, ShieldCheck } from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import { page } from '$app/state';
 
 	let { title = 'Satu Generus' } = $props<{ title?: string }>();
+
+	const isAdmin = $derived(page.data.isAdmin);
 </script>
 
 <header
@@ -24,7 +27,18 @@
 			<h1 class="text-base font-semibold text-foreground tracking-tight line-clamp-1">{title}</h1>
 		</div>
 
-		<div class="flex items-center gap-1">
+		<div class="flex items-center gap-1.5">
+			{#if isAdmin}
+				<a
+					href="/admin"
+					class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-semibold transition-colors"
+					title="Kembali ke Panel Admin"
+				>
+					<ShieldCheck class="w-3.5 h-3.5" />
+					<span class="text-[11px]">Admin</span>
+				</a>
+			{/if}
+
 			<button
 				type="button"
 				class="p-2 text-foreground/70 hover:text-foreground rounded-lg hover:bg-secondary transition-colors"
@@ -44,4 +58,5 @@
 		</div>
 	</div>
 </header>
+
 
