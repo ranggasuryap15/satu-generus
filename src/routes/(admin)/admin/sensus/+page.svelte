@@ -1,9 +1,9 @@
 <!--
   @file src/routes/(admin)/admin/sensus/+page.svelte
-  @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri/Perantau, dashboard statistik, filter bertingkat, dan form modal pendaftaran sensus KK/Mandiri dengan proteksi draft input
+  @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri/Perantau, dashboard statistik, filter bertingkat (collapsible di mobile), dan form modal pendaftaran sensus KK/Mandiri dengan proteksi draft input
   @usedBy Route admin '/admin/sensus'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/utils (formatDateDDMMYYYY)
-  @publicFunctions requestUnmask, openCreateModal, closeCreateModal, openAddMemberModal, closeAddMemberModal, resetFilters
+  @dependencies @lucide/svelte (Search, Eye, ShieldCheck, Users, Download, X, Home, UserCheck, MapPin, Plus, CheckCircle2, AlertCircle, Filter, RotateCcw, UserPlus, Trash2, ChevronDown, ChevronUp), Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/utils (formatDateDDMMYYYY)
+  @publicFunctions requestUnmask, openCreateModal, closeCreateModal, openAddMemberModal, closeAddMemberModal, resetFilters, toggleMobileFilter
   @sideEffects Menampilkan metrik, unmask data sensitif via /api/sensus/unmask, submit form createSensus & addAnggotaKeluarga
 -->
 <script lang="ts">
@@ -23,7 +23,9 @@
 		Filter,
 		RotateCcw,
 		UserPlus,
-		Trash2
+		Trash2,
+		ChevronDown,
+		ChevronUp
 	} from '@lucide/svelte';
 	import type { PageData, ActionData } from './$types';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
@@ -39,6 +41,15 @@
 	let filterKelompokId = $state<string | number>('ALL');
 	let filterPeran = $state<'ALL' | '4S' | 'PENGURUS' | 'JAMAAH'>('ALL');
 	let filterTipeSensus = $state<'ALL' | 'KK' | 'MANDIRI'>('ALL');
+	let isFilterMobileOpen = $state(false);
+
+	const activeFilterCount = $derived(
+		(filterDaerahId !== 'ALL' ? 1 : 0) +
+		(filterDesaId !== 'ALL' ? 1 : 0) +
+		(filterKelompokId !== 'ALL' ? 1 : 0) +
+		(filterPeran !== 'ALL' ? 1 : 0) +
+		(filterTipeSensus !== 'ALL' ? 1 : 0)
+	);
 
 	// State Modal Detail & Unmasking
 	let selectedKeluarga = $state<(typeof data.daftarKeluarga)[0] | null>(null);
@@ -212,6 +223,10 @@
 		filterKelompokId = 'ALL';
 		filterPeran = 'ALL';
 		filterTipeSensus = 'ALL';
+	}
+
+	function toggleMobileFilter() {
+		isFilterMobileOpen = !isFilterMobileOpen;
 	}
 
 	function isCreateFormDirty(): boolean {
@@ -462,16 +477,41 @@
 
 	<!-- 2. FILTER TOOLBAR LENGKAP (Daerah, Desa, Kelompok, Pengurus/4S/Jamaah, Tipe Sensus, Pencarian) -->
 	<div class="bg-card border border-border rounded-2xl p-4 shadow-sm space-y-3">
-		<div class="flex items-center justify-between pb-2 border-b border-border text-xs">
-			<div class="flex items-center gap-2 font-semibold text-foreground">
-				<Filter class="w-3.5 h-3.5 text-primary" />
-				<span>Filter Data Sensus (Default: All)</span>
-			</div>
+		<div class="flex items-center justify-between pb-2 border-b border-border text-xs gap-2">
+			<button
+				type="button"
+				onclick={toggleMobileFilter}
+				class="flex items-center gap-2 font-semibold text-foreground hover:text-primary transition-colors cursor-pointer text-left flex-1"
+				aria-expanded={isFilterMobileOpen}
+				aria-controls="filter-dropdown-container"
+			>
+				<Filter class="w-3.5 h-3.5 text-primary shrink-0" />
+				<span>Filter Data Sensus</span>
+				{#if activeFilterCount > 0}
+					<span class="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+						{activeFilterCount} Aktif
+					</span>
+				{:else}
+					<span class="text-[11px] text-foreground/50 font-normal hidden sm:inline">(Default: All)</span>
+				{/if}
+
+				<!-- Toggle Button Pill di Mobile -->
+				<span class="sm:hidden text-foreground/60 flex items-center gap-1 text-[11px] font-medium ml-auto bg-secondary/80 px-2 py-0.5 rounded-md">
+					{#if isFilterMobileOpen}
+						<ChevronUp class="w-3.5 h-3.5" />
+						<span>Tutup</span>
+					{:else}
+						<ChevronDown class="w-3.5 h-3.5" />
+						<span>Filter</span>
+					{/if}
+				</span>
+			</button>
+
 			{#if searchQuery || filterDaerahId !== 'ALL' || filterDesaId !== 'ALL' || filterKelompokId !== 'ALL' || filterPeran !== 'ALL' || filterTipeSensus !== 'ALL'}
 				<button
 					type="button"
 					onclick={resetFilters}
-					class="inline-flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 font-medium cursor-pointer"
+					class="inline-flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 font-medium cursor-pointer shrink-0"
 				>
 					<RotateCcw class="w-3 h-3" />
 					<span>Reset Filter</span>
@@ -479,8 +519,11 @@
 			{/if}
 		</div>
 
-		<!-- Baris Filter Dropdown Search -->
-		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+		<!-- Baris Filter Dropdown Search (Collapsible di Mobile < 640px, Terbuka di Desktop >= 640px) -->
+		<div
+			id="filter-dropdown-container"
+			class="{isFilterMobileOpen ? 'grid' : 'hidden'} sm:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-1"
+		>
 			<!-- Filter Daerah -->
 			<div>
 				<span class="block text-[11px] font-medium text-foreground/70 mb-1">Daerah</span>
