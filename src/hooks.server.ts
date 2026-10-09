@@ -1,3 +1,12 @@
+/**
+ * @file src/hooks.server.ts
+ * @purpose Middleware otorisasi, penanganan CORS preflight & headers, ekstraksi session cookie, dan route guard SvelteKit
+ * @usedBy SvelteKit server runtime pada setiap HTTP request
+ * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/auth
+ * @publicFunctions handle
+ * @sideEffects Mengisi event.locals, menyematkan header CORS, menangani OPTIONS preflight, dan redirect/response route guard
+ */
+
 import { db } from "$lib/db";
 import { dapukan, userDapukan, users } from "$lib/db/schema";
 import { getSessionUserId } from "$lib/server/auth";
