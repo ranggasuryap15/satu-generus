@@ -2,13 +2,14 @@
   @file src/routes/login/+page.svelte
   @purpose Halaman autentikasi login pengguna Satu Generus (Jamaah & Admin)
   @usedBy Route '/login'
-  @dependencies lucide-svelte (Lock, Mail, ArrowRight, ShieldCheck, AlertCircle), src/lib/components/ThemeToggle.svelte
+  @dependencies lucide-svelte (Lock, Mail, ArrowRight, ShieldCheck, AlertCircle), src/lib/components/ThemeToggle.svelte, $app/forms (enhance)
   @publicFunctions N/A (Svelte Component)
   @sideEffects Mengirim formulir login kredensial pengguna dan menampilkan pesan validasi
 -->
 <script lang="ts">
 	import { Lock, Mail, ArrowRight, ShieldCheck, AlertCircle } from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import { enhance } from '$app/forms';
 	import type { ActionData } from './$types';
 
 	let { form } = $props<{ form: ActionData }>();
@@ -55,7 +56,7 @@
 				</div>
 			{/if}
 
-			<form class="space-y-5" method="POST">
+			<form class="space-y-5" method="POST" use:enhance>
 				<div>
 					<label for="identifier" class="block text-xs font-medium text-foreground/80 mb-1.5">
 						Email atau Nomor HP
