@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(app)/profil/+page.svelte
-  @purpose Halaman profil pengguna/jamaah dengan pengaturan tema dan navigasi wewenang
+  @purpose Halaman profil pengguna dengan fitur update nama, email, ganti kata sandi, pengaturan tema, dan logout
   @usedBy Route client '/profil'
-  @dependencies @lucide/svelte (User, Shield, MapPin, Mail, LogOut, ArrowRight), ThemeToggle
+  @dependencies @lucide/svelte (User, ShieldCheck, MapPin, Mail, LogOut, ArrowRight, Moon, KeyRound, CheckCircle, AlertCircle, Pencil), ThemeToggle, $app/forms (enhance)
   @publicFunctions N/A (Svelte Component)
-  @sideEffects Menampilkan data profil dan navigasi logout / admin panel
+  @sideEffects Mengirim form updateProfile dan updatePassword ke server actions
 -->
 <script lang="ts">
 	import {
@@ -14,12 +14,28 @@
 		Mail,
 		LogOut,
 		ArrowRight,
-		Moon
+		Moon,
+		KeyRound,
+		CheckCircle,
+		AlertCircle,
+		Pencil
 	} from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
-	import type { PageData } from './$types';
+	import { enhance } from '$app/forms';
+	import type { PageData, ActionData } from './$types';
 
-	let { data } = $props<{ data: PageData }>();
+	let { data, form } = $props<{ data: PageData; form: ActionData }>();
+
+	let activeModal = $state<'none' | 'profile' | 'password'>('none');
+	let isSubmitting = $state(false);
+
+	let inputNama = $state('');
+	let inputEmail = $state('');
+
+	$effect(() => {
+		inputNama = data.user.namaLengkap;
+		inputEmail = data.user.email || '';
+	});
 
 	const userInitials = $derived(
 		(data.user.namaLengkap || 'User')
@@ -29,13 +45,34 @@
 			.join('')
 			.toUpperCase()
 	);
+
+	$effect(() => {
+		if (form?.profileSuccess || form?.passwordSuccess) {
+			activeModal = 'none';
+		}
+	});
 </script>
 
 <svelte:head>
 	<title>Profil Saya - Satu Generus</title>
 </svelte:head>
 
-<div class="space-y-5">
+<div class="space-y-5 pb-8">
+	<!-- Pesan Feedback Global -->
+	{#if form?.profileSuccess}
+		<div class="p-3.5 rounded-xl bg-primary/10 border border-primary/20 flex items-center gap-2.5 text-xs text-primary font-medium">
+			<CheckCircle class="w-4 h-4 shrink-0" />
+			<span>{form.profileSuccess}</span>
+		</div>
+	{/if}
+
+	{#if form?.passwordSuccess}
+		<div class="p-3.5 rounded-xl bg-primary/10 border border-primary/20 flex items-center gap-2.5 text-xs text-primary font-medium">
+			<CheckCircle class="w-4 h-4 shrink-0" />
+			<span>{form.passwordSuccess}</span>
+		</div>
+	{/if}
+
 	<!-- Card Identitas Pengguna -->
 	<section class="bg-card border border-border rounded-2xl p-5 shadow-sm text-center relative overflow-hidden">
 		<div class="w-20 h-20 rounded-full bg-primary/10 text-primary font-bold text-2xl flex items-center justify-center mx-auto mb-3 border-2 border-primary/20 shadow-inner">
@@ -57,6 +94,27 @@
 					Pengurus 4S
 				</span>
 			{/if}
+		</div>
+
+		<!-- Tombol Aksi Cepat Akun -->
+		<div class="grid grid-cols-2 gap-2 mt-5 pt-4 border-t border-border">
+			<button
+				type="button"
+				onclick={() => { activeModal = 'profile'; }}
+				class="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-secondary/80 hover:bg-secondary text-foreground text-xs font-semibold transition-colors border border-border/60"
+			>
+				<Pencil class="w-3.5 h-3.5 text-primary" />
+				<span>Ubah Profil</span>
+			</button>
+
+			<button
+				type="button"
+				onclick={() => { activeModal = 'password'; }}
+				class="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-secondary/80 hover:bg-secondary text-foreground text-xs font-semibold transition-colors border border-border/60"
+			>
+				<KeyRound class="w-3.5 h-3.5 text-primary" />
+				<span>Ganti Kata Sandi</span>
+			</button>
 		</div>
 	</section>
 
@@ -108,10 +166,17 @@
 					<Mail class="w-4 h-4" />
 				</div>
 				<div>
-					<p class="font-semibold text-foreground">Kontak Akun</p>
+					<p class="font-semibold text-foreground">Email Akun</p>
 					<p class="text-[11px] text-foreground/50">{data.user.email || 'Belum diisi'}</p>
 				</div>
 			</div>
+			<button
+				type="button"
+				onclick={() => { activeModal = 'profile'; }}
+				class="text-xs text-primary font-semibold hover:underline"
+			>
+				Ubah
+			</button>
 		</div>
 
 		<!-- Status Kelompok -->
@@ -139,4 +204,185 @@
 		</a>
 	</section>
 </div>
+
+<!-- Modal 1: Ubah Profil (Nama & Email) -->
+{#if activeModal === 'profile'}
+	<div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150">
+		<div class="w-full max-w-sm bg-card border border-border rounded-2xl shadow-xl overflow-hidden p-6 space-y-4">
+			<div class="flex items-center justify-between border-b border-border pb-3">
+				<h3 class="text-sm font-bold text-foreground">Ubah Profil Akun</h3>
+				<button
+					type="button"
+					onclick={() => { activeModal = 'none'; }}
+					class="text-foreground/50 hover:text-foreground text-sm font-semibold"
+				>
+					✕
+				</button>
+			</div>
+
+			{#if form?.profileError}
+				<div class="p-3 rounded-lg bg-destructive/10 border border-destructive/20 flex items-center gap-2 text-xs text-destructive">
+					<AlertCircle class="w-4 h-4 shrink-0" />
+					<span>{form.profileError}</span>
+				</div>
+			{/if}
+
+			<form
+				method="POST"
+				action="?/updateProfile"
+				use:enhance={() => {
+					isSubmitting = true;
+					return async ({ update }) => {
+						isSubmitting = false;
+						await update();
+					};
+				}}
+				class="space-y-4 text-xs"
+			>
+				<div>
+					<label for="namaLengkap" class="block font-medium text-foreground/80 mb-1.5">
+						Nama Lengkap
+					</label>
+					<input
+						id="namaLengkap"
+						name="namaLengkap"
+						type="text"
+						required
+						bind:value={inputNama}
+						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
+					/>
+				</div>
+
+				<div>
+					<label for="email" class="block font-medium text-foreground/80 mb-1.5">
+						Alamat Email
+					</label>
+					<input
+						id="email"
+						name="email"
+						type="email"
+						required
+						bind:value={inputEmail}
+						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
+					/>
+				</div>
+
+				<div class="flex gap-2 pt-2">
+					<button
+						type="button"
+						onclick={() => { activeModal = 'none'; }}
+						class="flex-1 py-2 rounded-lg border border-border bg-secondary/60 hover:bg-secondary text-foreground font-semibold transition-colors"
+					>
+						Batal
+					</button>
+					<button
+						type="submit"
+						disabled={isSubmitting}
+						class="flex-1 py-2 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-semibold transition-colors disabled:opacity-50"
+					>
+						{isSubmitting ? 'Menyimpan...' : 'Simpan'}
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- Modal 2: Ganti Kata Sandi -->
+{#if activeModal === 'password'}
+	<div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150">
+		<div class="w-full max-w-sm bg-card border border-border rounded-2xl shadow-xl overflow-hidden p-6 space-y-4">
+			<div class="flex items-center justify-between border-b border-border pb-3">
+				<h3 class="text-sm font-bold text-foreground">Ganti Kata Sandi</h3>
+				<button
+					type="button"
+					onclick={() => { activeModal = 'none'; }}
+					class="text-foreground/50 hover:text-foreground text-sm font-semibold"
+				>
+					✕
+				</button>
+			</div>
+
+			{#if form?.passwordError}
+				<div class="p-3 rounded-lg bg-destructive/10 border border-destructive/20 flex items-center gap-2 text-xs text-destructive">
+					<AlertCircle class="w-4 h-4 shrink-0" />
+					<span>{form.passwordError}</span>
+				</div>
+			{/if}
+
+			<form
+				method="POST"
+				action="?/updatePassword"
+				use:enhance={() => {
+					isSubmitting = true;
+					return async ({ update }) => {
+						isSubmitting = false;
+						await update();
+					};
+				}}
+				class="space-y-4 text-xs"
+			>
+				<div>
+					<label for="currentPassword" class="block font-medium text-foreground/80 mb-1.5">
+						Kata Sandi Saat Ini
+					</label>
+					<input
+						id="currentPassword"
+						name="currentPassword"
+						type="password"
+						required
+						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
+					/>
+				</div>
+
+				<div>
+					<label for="newPassword" class="block font-medium text-foreground/80 mb-1.5">
+						Kata Sandi Baru
+					</label>
+					<input
+						id="newPassword"
+						name="newPassword"
+						type="password"
+						required
+						minlength="6"
+						placeholder="Minimal 6 karakter"
+						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
+					/>
+				</div>
+
+				<div>
+					<label for="confirmPassword" class="block font-medium text-foreground/80 mb-1.5">
+						Konfirmasi Kata Sandi Baru
+					</label>
+					<input
+						id="confirmPassword"
+						name="confirmPassword"
+						type="password"
+						required
+						minlength="6"
+						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
+					/>
+				</div>
+
+				<div class="flex gap-2 pt-2">
+					<button
+						type="button"
+						onclick={() => { activeModal = 'none'; }}
+						class="flex-1 py-2 rounded-lg border border-border bg-secondary/60 hover:bg-secondary text-foreground font-semibold transition-colors"
+					>
+						Batal
+					</button>
+					<button
+						type="submit"
+						disabled={isSubmitting}
+						class="flex-1 py-2 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-semibold transition-colors disabled:opacity-50"
+					>
+						{isSubmitting ? 'Memperbarui...' : 'Simpan Sandi'}
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
+
 

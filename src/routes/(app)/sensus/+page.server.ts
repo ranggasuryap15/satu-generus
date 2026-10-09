@@ -1,24 +1,25 @@
 /**
  * @file src/routes/(app)/sensus/+page.server.ts
- * @purpose Menampilkan status sensus keluarga pengguna saat ini dan daftar anggota keluarga
+ * @purpose Menampilkan status sensus keluarga dan memproses server actions untuk edit No KK, NIK, dan data anggota
  * @usedBy src/routes/(app)/sensus/+page.svelte
- * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto
- * @publicFunctions load
- * @sideEffects Query data keluarga dan anggota keluarga dari SQLite dengan masking NIK/KK
+ * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, drizzle-orm
+ * @publicFunctions load, actions.updateKeluarga, actions.updateAnggota, actions.tambahAnggota, actions.hapusAnggota
+ * @sideEffects Mengambil & memperbarui record keluarga dan anggotaKeluarga di SQLite dengan enkripsi AES-256-GCM
  */
 
-import { redirect, type ServerLoad } from '@sveltejs/kit';
+import { fail, redirect, type Actions } from '@sveltejs/kit';
+import type { PageServerLoad } from './$types';
 import { db } from '$lib/db';
-import { keluarga, anggotaKeluarga, users } from '$lib/db/schema';
-import { eq } from 'drizzle-orm';
-import { decryptSensitive, maskSensitive } from '$lib/server/crypto';
+import { keluarga, anggotaKeluarga } from '$lib/db/schema';
+import { eq, and } from 'drizzle-orm';
+import { decryptSensitive, encryptSensitive, maskSensitive } from '$lib/server/crypto';
 
-export const load: ServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) {
 		throw redirect(303, '/login?redirectTo=/sensus');
 	}
 
-	// Cari kartu keluarga di mana user adalah kepala keluarga atau anggota
+	// Cari kartu keluarga di mana user adalah kepala keluarga
 	const keluargaRecord = db
 		.select()
 		.from(keluarga)
@@ -73,4 +74,225 @@ export const load: ServerLoad = async ({ locals }) => {
 		anggotaList
 	};
 };
+
+export const actions: Actions = {
+	updateKeluarga: async ({ request, locals }) => {
+		if (!locals.user) {
+			throw redirect(303, '/login');
+		}
+
+		const formData = await request.formData();
+		const keluargaId = formData.get('keluargaId')?.toString() || '';
+		const noKk = formData.get('noKk')?.toString()?.trim() || '';
+		const alamatLengkap = formData.get('alamatLengkap')?.toString()?.trim() || '';
+
+		if (!keluargaId) {
+			return fail(400, { errorKeluarga: 'ID keluarga tidak ditemukan.' });
+		}
+
+		// Validasi kepemilikan KK oleh user saat ini
+		const currentKeluarga = db
+			.select()
+			.from(keluarga)
+			.where(and(eq(keluarga.id, keluargaId), eq(keluarga.kepalaKeluargaId, locals.user.id)))
+			.get();
+
+		if (!currentKeluarga) {
+			return fail(403, { errorKeluarga: 'Anda tidak memiliki hak akses untuk mengubah data ini.' });
+		}
+
+		if (!alamatLengkap) {
+			return fail(400, { errorKeluarga: 'Alamat lengkap wajib diisi.' });
+		}
+
+		const updatePayload: { alamatLengkap: string; noKkEncrypted?: string } = {
+			alamatLengkap
+		};
+
+		// Jika input noKk diisi baru, validasi 16 digit dan enkripsi
+		if (noKk) {
+			if (noKk.length !== 16 || !/^\d+$/.test(noKk)) {
+				return fail(400, {
+					errorKeluarga: 'Nomor Kartu Keluarga wajib 16 digit angka.'
+				});
+			}
+			updatePayload.noKkEncrypted = encryptSensitive(noKk);
+		}
+
+		try {
+			db.update(keluarga)
+				.set(updatePayload)
+				.where(eq(keluarga.id, keluargaId))
+				.run();
+		} catch (error) {
+			console.error('Gagal memperbarui Kartu Keluarga:', error);
+			return fail(500, { errorKeluarga: 'Terjadi kesalahan sistem saat memperbarui data KK.' });
+		}
+
+		return { successKeluarga: 'Data Kartu Keluarga berhasil diperbarui.' };
+	},
+
+	updateAnggota: async ({ request, locals }) => {
+		if (!locals.user) {
+			throw redirect(303, '/login');
+		}
+
+		const formData = await request.formData();
+		const anggotaId = formData.get('anggotaId')?.toString() || '';
+		const nik = formData.get('nik')?.toString()?.trim() || '';
+		const statusHubungan = formData.get('statusHubungan')?.toString()?.trim() || '';
+		const tanggalLahir = formData.get('tanggalLahir')?.toString()?.trim() || '';
+		const jenisKelamin = formData.get('jenisKelamin')?.toString()?.trim() || '';
+
+		if (!anggotaId) {
+			return fail(400, { errorAnggota: 'ID anggota keluarga tidak ditemukan.' });
+		}
+
+		// Pastikan anggota keluarga ini berada di dalam KK milik user
+		const verifiedAnggota = db
+			.select({ id: anggotaKeluarga.id })
+			.from(anggotaKeluarga)
+			.innerJoin(keluarga, eq(anggotaKeluarga.keluargaId, keluarga.id))
+			.where(and(eq(anggotaKeluarga.id, anggotaId), eq(keluarga.kepalaKeluargaId, locals.user.id)))
+			.get();
+
+		if (!verifiedAnggota) {
+			return fail(403, { errorAnggota: 'Anda tidak memiliki hak akses mengubah anggota ini.' });
+		}
+
+		if (!statusHubungan || !tanggalLahir || !jenisKelamin) {
+			return fail(400, { errorAnggota: 'Semua kolom status, tanggal lahir, dan jenis kelamin wajib diisi.' });
+		}
+
+		const updatePayload: {
+			statusHubungan: string;
+			tanggalLahir: string;
+			jenisKelamin: string;
+			nikEncrypted?: string;
+		} = {
+			statusHubungan,
+			tanggalLahir,
+			jenisKelamin
+		};
+
+		// Jika NIK diubah, validasi 16 digit angka dan enkripsi
+		if (nik) {
+			if (nik.length !== 16 || !/^\d+$/.test(nik)) {
+				return fail(400, { errorAnggota: 'NIK wajib 16 digit angka.' });
+			}
+			updatePayload.nikEncrypted = encryptSensitive(nik);
+		}
+
+		try {
+			db.update(anggotaKeluarga)
+				.set(updatePayload)
+				.where(eq(anggotaKeluarga.id, anggotaId))
+				.run();
+		} catch (error) {
+			console.error('Gagal memperbarui data anggota keluarga:', error);
+			return fail(500, { errorAnggota: 'Terjadi kesalahan sistem saat memperbarui anggota.' });
+		}
+
+		return { successAnggota: 'Data anggota keluarga berhasil diperbarui.' };
+	},
+
+	tambahAnggota: async ({ request, locals }) => {
+		if (!locals.user) {
+			throw redirect(303, '/login');
+		}
+
+		const formData = await request.formData();
+		const keluargaId = formData.get('keluargaId')?.toString() || '';
+		const nik = formData.get('nik')?.toString()?.trim() || '';
+		const statusHubungan = formData.get('statusHubungan')?.toString()?.trim() || '';
+		const tanggalLahir = formData.get('tanggalLahir')?.toString()?.trim() || '';
+		const jenisKelamin = formData.get('jenisKelamin')?.toString()?.trim() || '';
+
+		if (!keluargaId) {
+			return fail(400, { errorTambahAnggota: 'ID keluarga tidak ditemukan.' });
+		}
+
+		// Validasi kepemilikan KK
+		const ownedKeluarga = db
+			.select({ id: keluarga.id })
+			.from(keluarga)
+			.where(and(eq(keluarga.id, keluargaId), eq(keluarga.kepalaKeluargaId, locals.user.id)))
+			.get();
+
+		if (!ownedKeluarga) {
+			return fail(403, { errorTambahAnggota: 'Akses ditolak.' });
+		}
+
+		if (!nik || nik.length !== 16 || !/^\d+$/.test(nik)) {
+			return fail(400, { errorTambahAnggota: 'NIK wajib 16 digit angka.' });
+		}
+
+		if (!statusHubungan || !tanggalLahir || !jenisKelamin) {
+			return fail(400, { errorTambahAnggota: 'Semua kolom data anggota wajib diisi.' });
+		}
+
+		try {
+			db.insert(anggotaKeluarga)
+				.values({
+					keluargaId,
+					nikEncrypted: encryptSensitive(nik),
+					statusHubungan,
+					tanggalLahir,
+					jenisKelamin
+				})
+				.run();
+		} catch (error) {
+			console.error('Gagal menambahkan anggota keluarga:', error);
+			return fail(500, { errorTambahAnggota: 'Terjadi kesalahan sistem saat menambah anggota.' });
+		}
+
+		return { successTambahAnggota: 'Anggota keluarga baru berhasil ditambahkan.' };
+	},
+
+	hapusAnggota: async ({ request, locals }) => {
+		if (!locals.user) {
+			throw redirect(303, '/login');
+		}
+
+		const formData = await request.formData();
+		const anggotaId = formData.get('anggotaId')?.toString() || '';
+
+		if (!anggotaId) {
+			return fail(400, { errorHapusAnggota: 'ID anggota tidak valid.' });
+		}
+
+		// Cek kepemilikan
+		const target = db
+			.select({ id: anggotaKeluarga.id, keluargaId: anggotaKeluarga.keluargaId })
+			.from(anggotaKeluarga)
+			.innerJoin(keluarga, eq(anggotaKeluarga.keluargaId, keluarga.id))
+			.where(and(eq(anggotaKeluarga.id, anggotaId), eq(keluarga.kepalaKeluargaId, locals.user.id)))
+			.get();
+
+		if (!target) {
+			return fail(403, { errorHapusAnggota: 'Akses ditolak.' });
+		}
+
+		// Pastikan tidak menghapus jika tersisa 1 anggota
+		const totalAnggota = db
+			.select({ id: anggotaKeluarga.id })
+			.from(anggotaKeluarga)
+			.where(eq(anggotaKeluarga.keluargaId, target.keluargaId))
+			.all();
+
+		if (totalAnggota.length <= 1) {
+			return fail(400, { errorHapusAnggota: 'Tidak dapat menghapus anggota terakhir di Kartu Keluarga.' });
+		}
+
+		try {
+			db.delete(anggotaKeluarga).where(eq(anggotaKeluarga.id, anggotaId)).run();
+		} catch (error) {
+			console.error('Gagal menghapus anggota keluarga:', error);
+			return fail(500, { errorHapusAnggota: 'Terjadi kesalahan sistem saat menghapus anggota.' });
+		}
+
+		return { successHapusAnggota: 'Anggota keluarga berhasil dihapus.' };
+	}
+};
+
 
