@@ -747,7 +747,7 @@
 			if (e.target === e.currentTarget) closeCreateModal();
 		}}
 	>
-		<div class="bg-card border border-border rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
+		<div class="bg-card border border-border rounded-2xl max-w-3xl w-full p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
 			<div class="flex items-center justify-between pb-3 border-b border-border">
 				<div>
 					<h3 class="text-sm font-bold text-foreground">Tambah Sensus & Akun Jamaah Baru</h3>
@@ -934,43 +934,55 @@
 							</button>
 						</div>
 
-						<div class="space-y-3 max-h-60 overflow-y-auto pr-1">
+						<div class="space-y-3 max-h-80 overflow-y-auto pr-1">
 							{#each newAnggotaList as anggota, idx}
-								<div class="p-3 rounded-lg border border-border bg-card space-y-2">
-									<div class="flex items-center justify-between text-xs font-semibold text-foreground">
-										<span>Anggota #{idx + 1} ({anggota.statusHubungan})</span>
+								<div class="p-3.5 rounded-lg border border-border bg-card space-y-3 shadow-xs">
+									<div class="flex items-center justify-between text-xs font-semibold text-foreground border-b border-border/50 pb-2">
+										<span class="flex items-center gap-1.5">
+											<span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-[11px] font-bold">
+												{idx + 1}
+											</span>
+											<span>Anggota #{idx + 1}</span>
+											<span class="text-[11px] font-normal text-muted-foreground">({anggota.statusHubungan})</span>
+										</span>
 										{#if idx > 0}
 											<button
 												type="button"
 												onclick={() => removeAnggotaRow(idx)}
-												class="text-destructive hover:text-destructive/80 p-0.5"
-												title="Hapus baris"
+												class="inline-flex items-center gap-1 text-[11px] text-destructive hover:text-destructive/80 font-medium px-2 py-0.5 rounded hover:bg-destructive/10 transition-colors"
+												title="Hapus baris anggota"
 											>
 												<Trash2 class="w-3.5 h-3.5" />
+												<span>Hapus</span>
 											</button>
 										{/if}
 									</div>
 
-									<div class="grid grid-cols-1 sm:grid-cols-5 gap-2 text-xs">
-										<div>
-											<label for={`new-nama-${idx}`} class="block text-[10px] text-foreground/60 mb-0.5">Nama Lengkap *</label>
+									<div class="grid grid-cols-1 sm:grid-cols-12 gap-3 text-xs">
+										<!-- Baris 1: Nama Lengkap & Status Hubungan -->
+										<div class="sm:col-span-7">
+											<label for={`new-nama-${idx}`} class="block text-[11px] font-semibold text-foreground mb-1">
+												Nama Lengkap *
+											</label>
 											<input
 												id={`new-nama-${idx}`}
 												type="text"
 												required
 												bind:value={anggota.namaLengkap}
-												placeholder="Nama Lengkap"
-												class="w-full bg-secondary/50 border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+												placeholder={idx === 0 ? "Nama Kepala Keluarga" : "Nama Lengkap Anggota"}
+												class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 											/>
 										</div>
 
-										<div>
-											<label for={`new-status-${idx}`} class="block text-[10px] text-foreground/60 mb-0.5">Status *</label>
+										<div class="sm:col-span-5">
+											<label for={`new-status-${idx}`} class="block text-[11px] font-semibold text-foreground mb-1">
+												Status Hubungan *
+											</label>
 											<select
 												id={`new-status-${idx}`}
 												bind:value={anggota.statusHubungan}
 												required
-												class="w-full bg-secondary/50 border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+												class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 											>
 												<option value="Kepala Keluarga">Kepala Keluarga</option>
 												<option value="Suami">Suami</option>
@@ -981,8 +993,11 @@
 											</select>
 										</div>
 
-										<div>
-											<label for={`new-nik-${idx}`} class="block text-[10px] text-foreground/60 mb-0.5">NIK (16 Digit) *</label>
+										<!-- Baris 2: NIK, Tgl Lahir, Jenis Kelamin -->
+										<div class="sm:col-span-5">
+											<label for={`new-nik-${idx}`} class="block text-[11px] font-semibold text-foreground mb-1">
+												NIK (16 Digit) *
+											</label>
 											<input
 												id={`new-nik-${idx}`}
 												type="text"
@@ -991,27 +1006,31 @@
 												required
 												bind:value={anggota.nik}
 												placeholder="3216xxxxxxxxxxxx"
-												class="w-full bg-secondary/50 border border-border rounded-lg px-2 py-1.5 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+												class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 											/>
 										</div>
 
-										<div>
-											<label for={`new-tgl-${idx}`} class="block text-[10px] text-foreground/60 mb-0.5">Tgl Lahir (DD-MM-YYYY) *</label>
+										<div class="sm:col-span-4">
+											<label for={`new-tgl-${idx}`} class="block text-[11px] font-semibold text-foreground mb-1">
+												Tgl Lahir (DD-MM-YYYY) *
+											</label>
 											<DateInput
 												id={`new-tgl-${idx}`}
 												required
 												bind:value={anggota.tanggalLahir}
-												class="bg-secondary/50 border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+												class="bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 											/>
 										</div>
 
-										<div>
-											<label for={`new-jk-${idx}`} class="block text-[10px] text-foreground/60 mb-0.5">Jenis Kelamin *</label>
+										<div class="sm:col-span-3">
+											<label for={`new-jk-${idx}`} class="block text-[11px] font-semibold text-foreground mb-1">
+												Jenis Kelamin *
+											</label>
 											<select
 												id={`new-jk-${idx}`}
 												bind:value={anggota.jenisKelamin}
 												required
-												class="w-full bg-secondary/50 border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+												class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 											>
 												<option value="Laki-laki">Laki-laki</option>
 												<option value="Perempuan">Perempuan</option>
