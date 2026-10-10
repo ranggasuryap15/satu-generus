@@ -1,16 +1,17 @@
 <!--
   @file src/routes/(admin)/admin/presensi/+page.svelte
-  @purpose Halaman rekapitulasi jadwal pengajian dan pembuat jadwal baru bagi admin dengan perlindungan draf modal
+  @purpose Halaman rekapitulasi jadwal pengajian dan pembuat jadwal baru bagi admin dengan pemilihan lokasi interaktif (geser pinpoint, cari tempat, link Google Maps)
   @usedBy Route admin '/admin/presensi'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/utils (formatDateDDMMYYYY)
+  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/components/LocationPicker.svelte, $lib/utils (formatDateDDMMYYYY)
   @publicFunctions openAddModal, closeAddModal, resetAddForm, isAddFormDirty
   @sideEffects Menampilkan data jadwal dan mengirim form pembuatan jadwal ke server
 -->
 <script lang="ts">
-	import { Calendar, Plus, QrCode, SquareCheck, Search, X, Users } from '@lucide/svelte';
+	import { Calendar, MapPin, Plus, QrCode, SquareCheck, Search, X, Users } from '@lucide/svelte';
 	import type { PageData, ActionData } from './$types';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
 	import DateInput from '$lib/components/DateInput.svelte';
+	import LocationPicker from '$lib/components/LocationPicker.svelte';
 	import { formatDateDDMMYYYY } from '$lib/utils';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
@@ -20,6 +21,11 @@
 	let newNamaKegiatan = $state('');
 	let newTanggal = $state('');
 	let selectedKelompokId = $state<string | number>('');
+	let newLokasiNama = $state('');
+	let newLatitude = $state('');
+	let newLongitude = $state('');
+	let newRadiusMeter = $state(100);
+	let newGmapsUrl = $state('');
 
 	const kelompokOptions = $derived(
 		(data.kelompokList || []).map((k: (typeof data.kelompokList)[number]) => ({
@@ -29,13 +35,25 @@
 	);
 
 	function isAddFormDirty() {
-		return newNamaKegiatan.trim() !== '' || newTanggal !== '' || String(selectedKelompokId).trim() !== '';
+		return (
+			newNamaKegiatan.trim() !== '' ||
+			newTanggal !== '' ||
+			String(selectedKelompokId).trim() !== '' ||
+			newLokasiNama.trim() !== '' ||
+			newLatitude !== '' ||
+			newLongitude !== ''
+		);
 	}
 
 	function resetAddForm() {
 		newNamaKegiatan = '';
 		newTanggal = '';
 		selectedKelompokId = '';
+		newLokasiNama = '';
+		newLatitude = '';
+		newLongitude = '';
+		newRadiusMeter = 100;
+		newGmapsUrl = '';
 	}
 
 	function openAddModal() {
@@ -65,6 +83,7 @@
 			return (
 				j.namaKegiatan.toLowerCase().includes(q) ||
 				(j.kelompokNama || '').toLowerCase().includes(q) ||
+				(j.lokasiNama || '').toLowerCase().includes(q) ||
 				j.tanggal.includes(q) ||
 				formatDateDDMMYYYY(j.tanggal).includes(q)
 			);
@@ -120,7 +139,7 @@
 				<thead class="bg-secondary/60 text-foreground/70 uppercase text-[10px] tracking-wider border-b border-border">
 					<tr>
 						<th class="py-3 px-4 font-semibold">Tanggal</th>
-						<th class="py-3 px-4 font-semibold">Nama Kegiatan</th>
+						<th class="py-3 px-4 font-semibold">Kegiatan & Lokasi</th>
 						<th class="py-3 px-4 font-semibold">Kelompok</th>
 						<th class="py-3 px-4 font-semibold">Kehadiran</th>
 						<th class="py-3 px-4 font-semibold text-right">Aksi Input Presensi</th>
@@ -137,7 +156,18 @@
 						{#each filteredJadwal as item}
 							<tr class="hover:bg-secondary/30 transition-colors">
 								<td class="py-3.5 px-4 font-mono font-medium text-foreground">{formatDateDDMMYYYY(item.tanggal)}</td>
-								<td class="py-3.5 px-4 font-semibold text-foreground">{item.namaKegiatan}</td>
+								<td class="py-3.5 px-4">
+									<div class="font-semibold text-foreground">{item.namaKegiatan}</div>
+									{#if item.lokasiNama}
+										<div class="text-[11px] text-foreground/60 flex items-center gap-1 mt-0.5">
+											<MapPin class="w-3 h-3 text-primary shrink-0" />
+											<span class="truncate max-w-[200px]">{item.lokasiNama}</span>
+											{#if item.radiusMeter}
+												<span class="text-[10px] text-foreground/45">({item.radiusMeter}m)</span>
+											{/if}
+										</div>
+									{/if}
+								</td>
 								<td class="py-3.5 px-4 text-foreground/70">{item.kelompokNama || '-'}</td>
 								<td class="py-3.5 px-4">
 									<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-primary/10 text-primary">
@@ -183,13 +213,16 @@
 			if (e.target === e.currentTarget) closeAddModal();
 		}}
 	>
-		<div class="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-xl space-y-5">
+		<div class="bg-card border border-border rounded-2xl max-w-2xl w-full max-h-[92vh] overflow-y-auto p-5 sm:p-6 shadow-xl space-y-4">
 			<div class="flex items-center justify-between pb-3 border-b border-border">
 				<div class="flex items-center gap-2">
 					<div class="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
 						<Calendar class="w-4 h-4" />
 					</div>
-					<h3 class="text-sm font-bold text-foreground">Buat Jadwal Pengajian Baru</h3>
+					<div>
+						<h3 class="text-sm font-bold text-foreground">Buat Jadwal Pengajian Baru</h3>
+						<p class="text-[11px] text-foreground/50">Tentukan nama acara, tanggal, dan lokasi titik presensi jamaah</p>
+					</div>
 				</div>
 				<button
 					type="button"
@@ -216,7 +249,7 @@
 					/>
 				</div>
 
-				<div class="grid grid-cols-2 gap-3">
+				<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
 					<div>
 						<label for="tanggal" class="block text-xs font-semibold text-foreground mb-1.5">
 							Tanggal Pelaksanaan (DD-MM-YYYY) *
@@ -244,6 +277,17 @@
 							searchPlaceholder="Cari nama kelompok..."
 						/>
 					</div>
+				</div>
+
+				<!-- Komponen Pemilih Lokasi Interaktif (Leaflet Draggable Pinpoint, Search Tempat, Link Google Maps) -->
+				<div class="pt-2 border-t border-border/70">
+					<LocationPicker
+						bind:lokasiNama={newLokasiNama}
+						bind:latitude={newLatitude}
+						bind:longitude={newLongitude}
+						bind:radiusMeter={newRadiusMeter}
+						bind:gmapsUrl={newGmapsUrl}
+					/>
 				</div>
 
 				<div class="flex items-center justify-between gap-2 pt-3 border-t border-border">

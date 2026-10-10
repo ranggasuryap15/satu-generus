@@ -30,3 +30,7 @@ vite.config.ts.timestamp-*
 /data/*.db-shm
 !/data/.gitkeep
 
+# Uploads
+/static/uploads/*
+!/static/uploads/.gitkeep
+

@@ -96,9 +96,29 @@
 						{data.kelompokNama}
 					</span>
 				</div>
-				<p class="text-xs text-foreground/60 mt-0.5 font-mono">
-					Tanggal: {formatDateDDMMYYYY(data.jadwal.tanggal)}
-				</p>
+				<div class="flex items-center gap-2.5 text-xs text-foreground/60 mt-1 flex-wrap">
+					<span class="font-mono">Tanggal: {formatDateDDMMYYYY(data.jadwal.tanggal)}</span>
+					{#if data.jadwal.lokasiNama}
+						<span class="inline-flex items-center gap-1 text-primary font-medium">
+							<MapPin class="w-3.5 h-3.5" />
+							<span>{data.jadwal.lokasiNama}</span>
+							{#if data.jadwal.radiusMeter}
+								<span class="text-[10px] text-foreground/50">({data.jadwal.radiusMeter}m)</span>
+							{/if}
+						</span>
+					{/if}
+					{#if data.jadwal.latitude && data.jadwal.longitude}
+						<a
+							href={data.jadwal.gmapsUrl || `https://www.google.com/maps?q=${data.jadwal.latitude},${data.jadwal.longitude}`}
+							target="_blank"
+							rel="noopener noreferrer"
+							class="text-[11px] text-blue-500 hover:underline inline-flex items-center gap-0.5"
+						>
+							<span>Peta Titik Acara</span>
+							<ExternalLink class="w-3 h-3" />
+						</a>
+					{/if}
+				</div>
 			</div>
 		</div>
 

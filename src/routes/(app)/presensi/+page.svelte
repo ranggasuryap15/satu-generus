@@ -1,9 +1,9 @@
 <!--
   @file src/routes/(app)/presensi/+page.svelte
-  @purpose Halaman presensi mandiri jamaah (Hadir Offline dengan GPS & foto kamera wajib, Hadir Online dengan foto/SS SDC, dan permohonan Izin/Sakit yang membutuhkan approval admin)
+  @purpose Halaman presensi mandiri jamaah (Hadir Offline dengan GPS, verifikasi radius venue & foto kamera wajib, Hadir Online dengan foto/SS SDC, dan permohonan Izin/Sakit yang membutuhkan approval admin)
   @usedBy Route client '/presensi'
   @dependencies qrcode, @lucide/svelte, $app/forms, $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
-  @publicFunctions captureLocation, handleFotoChange, resetPresensiForm
+  @publicFunctions captureLocation, calculateDistanceMeters, handleFotoChange, resetPresensiForm
   @sideEffects Mengakses HTML5 Geolocation API, input kamera/galeri, generate QR code personal, dan mengirim form presensi mandiri ke server action
 -->
 <script lang="ts">
@@ -16,6 +16,7 @@
 		Camera,
 		CheckCircle2,
 		Clock,
+		ExternalLink,
 		FileText,
 		Globe,
 		ImageIcon,
@@ -43,12 +44,60 @@
 	let metodeKehadiran = $state<'offline' | 'online'>('offline');
 	let isSubmitting = $state(false);
 
+	let selectedJadwal = $derived(
+		data.jadwalList.find((j: (typeof data.jadwalList)[number]) => String(j.id) === String(selectedJadwalId))
+	);
+
 	// State Geolocation (Untuk Hadir Offline)
 	let latitude = $state<string>('');
 	let longitude = $state<string>('');
 	let accuracy = $state<number | null>(null);
 	let isLocating = $state(false);
 	let locationError = $state<string>('');
+
+	// Formula Haversine untuk kalkulasi jarak (dalam meter) antara koordinat jamaah dan titik venue kegiatan
+	function calculateDistanceMeters(
+		lat1: number,
+		lon1: number,
+		lat2: number,
+		lon2: number
+	): number {
+		const R = 6371e3; // Radius bumi dalam meter
+		const dLat = ((lat2 - lat1) * Math.PI) / 180;
+		const dLon = ((lon2 - lon1) * Math.PI) / 180;
+		const a =
+			Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+			Math.cos((lat1 * Math.PI) / 180) *
+				Math.cos((lat2 * Math.PI) / 180) *
+				Math.sin(dLon / 2) *
+				Math.sin(dLon / 2);
+		const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+		return Math.round(R * c);
+	}
+
+	let distanceToVenue = $derived.by(() => {
+		if (
+			!latitude ||
+			!longitude ||
+			!selectedJadwal?.latitudeVenue ||
+			!selectedJadwal?.longitudeVenue
+		) {
+			return null;
+		}
+		const latUser = parseFloat(latitude);
+		const lonUser = parseFloat(longitude);
+		const latVenue = parseFloat(selectedJadwal.latitudeVenue);
+		const lonVenue = parseFloat(selectedJadwal.longitudeVenue);
+		if (isNaN(latUser) || isNaN(lonUser) || isNaN(latVenue) || isNaN(lonVenue)) {
+			return null;
+		}
+		return calculateDistanceMeters(latUser, lonUser, latVenue, lonVenue);
+	});
+
+	let isWithinRadius = $derived.by(() => {
+		if (distanceToVenue === null || !selectedJadwal?.radiusMeterVenue) return null;
+		return distanceToVenue <= selectedJadwal.radiusMeterVenue;
+	});
 
 	// State Bukti Foto
 	let fotoDataUrl = $state<string>('');
@@ -338,6 +387,33 @@
 							</option>
 						{/each}
 					</select>
+
+					{#if selectedJadwal?.lokasiNama || selectedJadwal?.latitudeVenue}
+						<div class="mt-2.5 p-2.5 rounded-xl bg-secondary/40 border border-border/80 flex items-start justify-between gap-3 text-[11px]">
+							<div class="space-y-0.5 min-w-0">
+								<div class="flex items-center gap-1.5 font-semibold text-foreground truncate">
+									<MapPin class="w-3.5 h-3.5 text-primary shrink-0" />
+									<span class="truncate">{selectedJadwal.lokasiNama || 'Titik Lokasi Kegiatan'}</span>
+								</div>
+								{#if selectedJadwal.latitudeVenue && selectedJadwal.longitudeVenue}
+									<p class="text-[10px] text-foreground/60 font-mono">
+										Radius Absensi: &plusmn;{selectedJadwal.radiusMeterVenue || 100}m
+									</p>
+								{/if}
+							</div>
+							{#if selectedJadwal.gmapsUrlVenue || (selectedJadwal.latitudeVenue && selectedJadwal.longitudeVenue)}
+								<a
+									href={selectedJadwal.gmapsUrlVenue || `https://www.google.com/maps?q=${selectedJadwal.latitudeVenue},${selectedJadwal.longitudeVenue}`}
+									target="_blank"
+									rel="noopener noreferrer"
+									class="inline-flex items-center gap-1 text-[10.5px] font-medium text-primary hover:underline shrink-0 px-2 py-1 bg-primary/10 rounded-lg"
+								>
+									<span>Buka Maps</span>
+									<ExternalLink class="w-3 h-3" />
+								</a>
+							{/if}
+						</div>
+					{/if}
 				</div>
 
 				<!-- Pilihan Kriteria: Hadir Offline vs Hadir Online -->
@@ -410,16 +486,34 @@
 						</div>
 
 						{#if latitude && longitude}
-							<div class="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[11px] flex items-center justify-between">
-								<div class="font-mono text-[10.5px]">
-									<span>Lat: {latitude}, Lng: {longitude}</span>
-									{#if accuracy}
-										<span class="block text-[10px] text-foreground/50">
-											Akurasi GPS: &plusmn;{accuracy} meter
-										</span>
-									{/if}
+							<div class="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[11px] space-y-2">
+								<div class="flex items-center justify-between">
+									<div class="font-mono text-[10.5px]">
+										<span>Lat: {latitude}, Lng: {longitude}</span>
+										{#if accuracy}
+											<span class="block text-[10px] text-foreground/50">
+												Akurasi GPS: &plusmn;{accuracy} meter
+											</span>
+										{/if}
+									</div>
+									<CheckCircle2 class="w-4 h-4 text-emerald-600 shrink-0" />
 								</div>
-								<CheckCircle2 class="w-4 h-4 text-emerald-600 shrink-0" />
+
+								{#if distanceToVenue !== null}
+									<div class="pt-2 border-t border-emerald-500/20 flex items-center gap-1.5 text-[10.5px]">
+										{#if isWithinRadius}
+											<CheckCircle2 class="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+											<span class="text-emerald-700 dark:text-emerald-300 font-medium">
+												Dalam radius kegiatan (~{distanceToVenue} m dari lokasi, batas &plusmn;{selectedJadwal?.radiusMeterVenue || 100} m)
+											</span>
+										{:else}
+											<AlertCircle class="w-3.5 h-3.5 text-amber-500 shrink-0" />
+											<span class="text-amber-700 dark:text-amber-300 font-medium">
+												Di luar radius kegiatan (~{distanceToVenue} m dari lokasi, batas &plusmn;{selectedJadwal?.radiusMeterVenue || 100} m)
+											</span>
+										{/if}
+									</div>
+								{/if}
 							</div>
 						{:else}
 							<div class="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-200 text-[11px]">

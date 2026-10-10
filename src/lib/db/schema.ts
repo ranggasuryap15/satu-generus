@@ -183,7 +183,12 @@ export const presensiJadwal = sqliteTable(
 			.notNull()
 			.references(() => kelompok.id, { onDelete: 'cascade' }),
 		tanggal: text('tanggal').notNull(), // ISO8601 YYYY-MM-DD
-		namaKegiatan: text('nama_kegiatan').notNull()
+		namaKegiatan: text('nama_kegiatan').notNull(),
+		lokasiNama: text('lokasi_nama'),
+		latitude: text('latitude'),
+		longitude: text('longitude'),
+		radiusMeter: integer('radius_meter').default(100),
+		gmapsUrl: text('gmaps_url')
 	},
 	(table) => [
 		index('presensi_jadwal_kelompok_id_idx').on(table.kelompokId),

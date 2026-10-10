@@ -29,7 +29,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 			kelompokId: presensiJadwal.kelompokId,
 			kelompokNama: kelompok.nama,
 			tanggal: presensiJadwal.tanggal,
-			namaKegiatan: presensiJadwal.namaKegiatan
+			namaKegiatan: presensiJadwal.namaKegiatan,
+			lokasiNama: presensiJadwal.lokasiNama,
+			latitude: presensiJadwal.latitude,
+			longitude: presensiJadwal.longitude,
+			radiusMeter: presensiJadwal.radiusMeter,
+			gmapsUrl: presensiJadwal.gmapsUrl
 		})
 		.from(presensiJadwal)
 		.leftJoin(kelompok, eq(presensiJadwal.kelompokId, kelompok.id))
@@ -66,6 +71,12 @@ export const actions: Actions = {
 		const tanggal = formData.get('tanggal')?.toString()?.trim() || '';
 		const kelompokIdStr = formData.get('kelompokId')?.toString() || '';
 		const kelompokId = parseInt(kelompokIdStr, 10);
+		const lokasiNama = formData.get('lokasiNama')?.toString()?.trim() || null;
+		const latitude = formData.get('latitude')?.toString()?.trim() || null;
+		const longitude = formData.get('longitude')?.toString()?.trim() || null;
+		const radiusMeterStr = formData.get('radiusMeter')?.toString() || '100';
+		const radiusMeter = parseInt(radiusMeterStr, 10) || 100;
+		const gmapsUrl = formData.get('gmapsUrl')?.toString()?.trim() || null;
 
 		if (!namaKegiatan || !tanggal || isNaN(kelompokId)) {
 			return fail(400, {
@@ -78,7 +89,12 @@ export const actions: Actions = {
 				.values({
 					kelompokId,
 					tanggal: normalizeDateToISO(tanggal),
-					namaKegiatan
+					namaKegiatan,
+					lokasiNama,
+					latitude,
+					longitude,
+					radiusMeter,
+					gmapsUrl
 				})
 				.run();
 		} catch (error) {
