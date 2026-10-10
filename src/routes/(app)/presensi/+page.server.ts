@@ -1,10 +1,10 @@
 /**
  * @file src/routes/(app)/presensi/+page.server.ts
- * @purpose Memuat jadwal pengajian, riwayat absensi, QR token, serta menangani aksi presensi mandiri (offline GPS + foto kamera, online foto bukti) dan pengajuan izin/sakit (menunggu approval admin)
+ * @purpose Memuat jadwal pengajian dengan fallback lokasi kelompok, QR token, dan validasi radius lokasi GPS offline / wajib bukti gambar jika di luar radius
  * @usedBy src/routes/(app)/presensi/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm, node:fs, node:path
  * @publicFunctions load, actions.presensiMandiri, actions.ajukanIzin
- * @sideEffects Menulis file bukti foto ke static/uploads/presensi dan menyimpan record presensi_kehadiran ke SQLite
+ * @sideEffects Validasi jarak radius Haversine lokasi kelompok, menyimpan file foto ke static/uploads/presensi, dan menulis presensi_kehadiran ke SQLite
  */
 
 import { fail, redirect } from '@sveltejs/kit';
@@ -61,10 +61,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	const userKelompokId = locals.user.kelompokId;
 	let kelompokNama = 'Kelompok';
+	let kelompokData: (typeof kelompok.$inferSelect) | undefined = undefined;
 
 	if (userKelompokId) {
-		const kel = db.select().from(kelompok).where(eq(kelompok.id, userKelompokId)).get();
-		if (kel) kelompokNama = kel.nama;
+		kelompokData = db.select().from(kelompok).where(eq(kelompok.id, userKelompokId)).get();
+		if (kelompokData) kelompokNama = kelompokData.nama;
 	}
 
 	// Ambil jadwal kegiatan untuk kelompok jamaah
@@ -91,15 +92,23 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	const jadwalWithStatus = jadwalList.map((j) => {
 		const rec = recordMap.get(j.id);
+		// Prioritaskan lokasi jadwal jika ada, fallback ke lokasi basis kelompok
+		const venueLat = j.latitude || kelompokData?.latitude || null;
+		const venueLng = j.longitude || kelompokData?.longitude || null;
+		const venueRadius = j.radiusMeter || kelompokData?.radiusMeter || 100;
+		const venueNama = j.lokasiNama || kelompokData?.lokasiNama || kelompokData?.nama || null;
+		const venueGmaps = j.gmapsUrl || kelompokData?.gmapsUrl || null;
+
 		return {
 			id: j.id,
 			tanggal: j.tanggal,
 			namaKegiatan: j.namaKegiatan,
-			lokasiNama: j.lokasiNama || null,
-			latitudeVenue: j.latitude || null,
-			longitudeVenue: j.longitude || null,
-			radiusMeterVenue: j.radiusMeter || 100,
-			gmapsUrlVenue: j.gmapsUrl || null,
+			lokasiNama: venueNama,
+			latitudeVenue: venueLat,
+			longitudeVenue: venueLng,
+			radiusMeterVenue: venueRadius,
+			gmapsUrlVenue: venueGmaps,
+			hasVenueLocation: Boolean(venueLat && venueLng),
 			statusKehadiran: rec?.status || 'Belum Terdata',
 			metodeKehadiran: rec?.metodeKehadiran || null,
 			fotoUrl: rec?.fotoUrl || null,
@@ -119,6 +128,17 @@ export const load: PageServerLoad = async ({ locals }) => {
 	return {
 		user: locals.user,
 		kelompokNama,
+		kelompokData: kelompokData
+			? {
+					id: kelompokData.id,
+					nama: kelompokData.nama,
+					lokasiNama: kelompokData.lokasiNama,
+					latitude: kelompokData.latitude,
+					longitude: kelompokData.longitude,
+					radiusMeter: kelompokData.radiusMeter,
+					gmapsUrl: kelompokData.gmapsUrl
+				}
+			: null,
 		qrPayload,
 		jadwalList: jadwalWithStatus
 	};
@@ -151,6 +171,54 @@ export const actions: Actions = {
 					error: 'Presensi Hadir Offline wajib mendeteksi lokasi GPS Anda. Aktifkan lokasi perangkat dan coba lagi.'
 				});
 			}
+
+			// Ambil detail jadwal & kelompok untuk validasi jarak radius
+			const jadwal = db.select().from(presensiJadwal).where(eq(presensiJadwal.id, jadwalId)).get();
+			const targetKelompokId = jadwal?.kelompokId || locals.user.kelompokId;
+			const targetKelompok = targetKelompokId
+				? db.select().from(kelompok).where(eq(kelompok.id, targetKelompokId)).get()
+				: null;
+
+			const targetLatStr = jadwal?.latitude || targetKelompok?.latitude || null;
+			const targetLngStr = jadwal?.longitude || targetKelompok?.longitude || null;
+			const targetRadius = jadwal?.radiusMeter || targetKelompok?.radiusMeter || 100;
+
+			if (!targetLatStr || !targetLngStr) {
+				return fail(400, {
+					error: 'Lokasi kelompok belum didaftarkan oleh admin. Anda tidak dapat presensi menggunakan lokasi. Silakan gunakan metode Hadir Online dengan foto bukti gambar.'
+				});
+			}
+
+			// Hitung jarak Haversine di server
+			const latUser = parseFloat(latitude);
+			const lonUser = parseFloat(longitude);
+			const latVenue = parseFloat(targetLatStr);
+			const lonVenue = parseFloat(targetLngStr);
+
+			if (isNaN(latUser) || isNaN(lonUser) || isNaN(latVenue) || isNaN(lonVenue)) {
+				return fail(400, {
+					error: 'Koordinat lokasi tidak valid.'
+				});
+			}
+
+			const R = 6371e3; // Radius bumi dalam meter
+			const dLat = ((latVenue - latUser) * Math.PI) / 180;
+			const dLon = ((lonVenue - lonUser) * Math.PI) / 180;
+			const a =
+				Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+				Math.cos((latUser * Math.PI) / 180) *
+					Math.cos((latVenue * Math.PI) / 180) *
+					Math.sin(dLon / 2) *
+					Math.sin(dLon / 2);
+			const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+			const distanceMeters = Math.round(R * c);
+
+			if (distanceMeters > targetRadius) {
+				return fail(400, {
+					error: `Lokasi Anda berada di luar area kelompok (~${distanceMeters}m dari lokasi, batas toleransi ±${targetRadius}m). Anda tidak dapat presensi menggunakan lokasi! Silakan gunakan metode Hadir Online dengan WAJIB melampirkan foto bukti gambar.`
+				});
+			}
+
 			if ((!fotoFile || (fotoFile instanceof File && fotoFile.size === 0)) && !fotoBase64) {
 				return fail(400, {
 					error: 'Presensi Hadir Offline wajib menyertakan foto langsung dari kamera.'

@@ -42,7 +42,12 @@ export const kelompok = sqliteTable(
 			.notNull()
 			.references(() => desa.id, { onDelete: 'cascade' }),
 		nama: text('nama').notNull(),
-		kelurahan: text('kelurahan')
+		kelurahan: text('kelurahan'),
+		lokasiNama: text('lokasi_nama'),
+		latitude: text('latitude'),
+		longitude: text('longitude'),
+		radiusMeter: integer('radius_meter').default(100),
+		gmapsUrl: text('gmaps_url')
 	},
 	(table) => [index('kelompok_desa_id_idx').on(table.desaId)]
 );

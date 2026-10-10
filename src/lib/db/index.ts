@@ -4,7 +4,7 @@
  * @usedBy Backend server routes (+page.server.ts, +server.ts, hooks.server.ts, scripts migrasi/seed)
  * @dependencies better-sqlite3, drizzle-orm/better-sqlite3, src/lib/db/schema.ts
  * @publicFunctions db, sqlite
- * @sideEffects Membuka koneksi file database SQLite, mengaktifkan PRAGMA WAL & foreign_keys, auto-migrasi kolom & tabel skema (sub_kelompok, no_telepon di users, detail sensus di anggota_keluarga, lokasi presensi_jadwal & presensi_kehadiran)
+ * @sideEffects Membuka koneksi file database SQLite, mengaktifkan PRAGMA WAL & foreign_keys, auto-migrasi kolom & tabel skema (sub_kelompok, no_telepon di users, detail sensus di anggota_keluarga, lokasi presensi_jadwal, presensi_kehadiran, dan kelompok)
  */
 
 import Database from 'better-sqlite3';
@@ -193,6 +193,27 @@ try {
 		for (const [colName, colDef] of Object.entries(newJadwalCols)) {
 			if (!jadwalCols.includes(colName)) {
 				sqlite.exec(`ALTER TABLE presensi_jadwal ADD COLUMN ${colName} ${colDef}`);
+			}
+		}
+	}
+
+	// Auto-heal / migrasi kolom kelompok untuk data lokasi, koordinat GPS, radius, dan link GMaps
+	const tableKelompok = sqlite
+		.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='kelompok'")
+		.get();
+	if (tableKelompok) {
+		const rawKelompokInfo = sqlite.prepare('PRAGMA table_info(kelompok)').all() as Array<{ name: string }>;
+		const kelompokCols = rawKelompokInfo.map((c) => c.name);
+		const newKelompokCols: Record<string, string> = {
+			lokasi_nama: 'TEXT',
+			latitude: 'TEXT',
+			longitude: 'TEXT',
+			radius_meter: 'INTEGER DEFAULT 100',
+			gmaps_url: 'TEXT'
+		};
+		for (const [colName, colDef] of Object.entries(newKelompokCols)) {
+			if (!kelompokCols.includes(colName)) {
+				sqlite.exec(`ALTER TABLE kelompok ADD COLUMN ${colName} ${colDef}`);
 			}
 		}
 	}

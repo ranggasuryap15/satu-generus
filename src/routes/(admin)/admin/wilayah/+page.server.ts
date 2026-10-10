@@ -3,8 +3,8 @@
  * @purpose Memuat data wilayah administratif (Daerah, Desa, Kelompok, Sub-Kelompok) dan menangani aksi pembuatan unit wilayah baru
  * @usedBy src/routes/(admin)/admin/wilayah/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm
- * @publicFunctions load, actions.createDaerah, actions.createDesa, actions.createKelompok, actions.createSubKelompok
- * @sideEffects Insert data daerah/desa/kelompok/sub_kelompok ke SQLite, query agregasi jumlah jamaah dan sub-kelompok
+ * @publicFunctions load, actions.createDaerah, actions.createDesa, actions.createKelompok, actions.createSubKelompok, actions.updateKelompokLocation
+ * @sideEffects Insert data daerah/desa/kelompok/sub_kelompok dan update lokasi kelompok ke SQLite, query agregasi jumlah jamaah dan sub-kelompok
  */
 
 import { fail, redirect } from '@sveltejs/kit';
@@ -40,6 +40,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 			id: kelompok.id,
 			nama: kelompok.nama,
 			kelurahan: kelompok.kelurahan,
+			lokasiNama: kelompok.lokasiNama,
+			latitude: kelompok.latitude,
+			longitude: kelompok.longitude,
+			radiusMeter: kelompok.radiusMeter,
+			gmapsUrl: kelompok.gmapsUrl,
 			desaId: kelompok.desaId,
 			desaNama: desa.nama,
 			daerahNama: daerah.nama,
@@ -198,5 +203,42 @@ export const actions: Actions = {
 		}
 
 		return { success: true };
+	},
+
+	updateKelompokLocation: async ({ request, locals }) => {
+		if (!locals.user || !locals.isAdmin) {
+			return fail(403, { error: 'Akses ditolak.' });
+		}
+
+		const formData = await request.formData();
+		const kelompokId = parseInt(formData.get('kelompokId')?.toString() || '0', 10);
+		const lokasiNama = formData.get('lokasiNama')?.toString()?.trim() || null;
+		const latitude = formData.get('latitude')?.toString()?.trim() || null;
+		const longitude = formData.get('longitude')?.toString()?.trim() || null;
+		const radiusMeterRaw = parseInt(formData.get('radiusMeter')?.toString() || '100', 10);
+		const radiusMeter = isNaN(radiusMeterRaw) ? 100 : radiusMeterRaw;
+		const gmapsUrl = formData.get('gmapsUrl')?.toString()?.trim() || null;
+
+		if (!kelompokId) {
+			return fail(400, { error: 'ID Kelompok tidak valid.' });
+		}
+
+		try {
+			db.update(kelompok)
+				.set({
+					lokasiNama,
+					latitude,
+					longitude,
+					radiusMeter,
+					gmapsUrl
+				})
+				.where(eq(kelompok.id, kelompokId))
+				.run();
+
+			return { success: true, message: 'Data lokasi kelompok berhasil disimpan.' };
+		} catch (error: any) {
+			console.error('Gagal memperbarui lokasi kelompok:', error);
+			return fail(500, { error: `Terjadi kesalahan sistem: ${error.message}` });
+		}
 	}
 };
