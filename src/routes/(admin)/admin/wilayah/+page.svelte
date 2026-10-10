@@ -1518,10 +1518,22 @@
 							{/if}
 
 							<div class="flex items-center gap-2">
+								{#if data.permissions?.canDeleteKelompok}
+									<button
+										type="button"
+										onclick={() => openDeleteSingleKelompok(selectedKelompok!)}
+										class="px-3.5 py-2 rounded-lg bg-destructive/10 hover:bg-destructive text-destructive hover:text-destructive-foreground border border-destructive/20 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+										title="Hapus Kelompok Ini"
+									>
+										<Trash2 class="w-3.5 h-3.5" />
+										<span>Hapus Kelompok</span>
+									</button>
+								{/if}
+
 								<button
 									type="button"
 									onclick={closeKelompokDetail}
-									class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary cursor-pointer"
+									class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary cursor-pointer transition-colors"
 								>
 									Tutup
 								</button>
@@ -1536,6 +1548,92 @@
 					</form>
 				</div>
 			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Modal Konfirmasi Hapus Wilayah (Single / Batch) -->
+{#if showDeleteConfirmModal && deleteTarget}
+	<div
+		class="fixed inset-0 z-60 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150"
+		role="dialog"
+		aria-modal="true"
+	>
+		<div
+			class="bg-card border border-destructive/30 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150"
+		>
+			<div class="flex items-start gap-3.5">
+				<div class="w-10 h-10 rounded-xl bg-destructive/10 text-destructive flex items-center justify-center shrink-0 mt-0.5">
+					<AlertTriangle class="w-5 h-5" />
+				</div>
+				<div class="space-y-1">
+					<h3 class="text-sm font-bold text-foreground">
+						{#if deleteTarget.type === 'singleKelompok'}
+							Hapus Kelompok "{deleteTarget.nama}"?
+						{:else if deleteTarget.type === 'batchKelompok'}
+							Hapus {deleteTarget.count} Kelompok Terpilih?
+						{:else if deleteTarget.type === 'singleSubKelompok'}
+							Hapus Sub-Kelompok "{deleteTarget.nama}"?
+						{:else if deleteTarget.type === 'batchSubKelompok'}
+							Hapus {deleteTarget.count} Sub-Kelompok Terpilih?
+						{/if}
+					</h3>
+					<p class="text-xs text-foreground/60 leading-relaxed">
+						{#if deleteTarget.type === 'singleKelompok'}
+							Aksi ini akan menghapus kelompok secara permanen beserta seluruh data sub-kelompok dan jadwal kegiatan pengajian terkait.
+							{#if (deleteTarget.totalJamaah ?? 0) > 0}
+								<span class="block mt-1 font-semibold text-amber-600 dark:text-amber-400">
+									Perhatian: Terdapat {deleteTarget.totalJamaah} jamaah di kelompok ini. Relasi kelompok pada jamaah akan diubah menjadi kosong.
+								</span>
+							{/if}
+						{:else if deleteTarget.type === 'batchKelompok'}
+							Aksi ini akan menghapus <strong>{deleteTarget.count} kelompok</strong> terpilih secara massal beserta sub-kelompok dan jadwal terkait dari database.
+						{:else if deleteTarget.type === 'singleSubKelompok'}
+							Aksi ini akan menghapus sub-kelompok "{deleteTarget.nama}" secara permanen.
+						{:else if deleteTarget.type === 'batchSubKelompok'}
+							Aksi ini akan menghapus <strong>{deleteTarget.count} sub-kelompok</strong> terpilih secara massal dari database.
+						{/if}
+					</p>
+				</div>
+			</div>
+
+			<form
+				method="POST"
+				action={deleteTarget.type === 'singleKelompok'
+					? '?/deleteKelompok'
+					: deleteTarget.type === 'batchKelompok'
+						? '?/batchDeleteKelompok'
+						: deleteTarget.type === 'singleSubKelompok'
+							? '?/deleteSubKelompok'
+							: '?/batchDeleteSubKelompok'}
+				use:enhance
+				class="flex items-center justify-end gap-2 pt-3 border-t border-border"
+			>
+				{#if deleteTarget.type === 'singleKelompok'}
+					<input type="hidden" name="kelompokId" value={deleteTarget.id} />
+				{:else if deleteTarget.type === 'batchKelompok'}
+					<input type="hidden" name="kelompokIds" value={JSON.stringify(selectedKelompokIds)} />
+				{:else if deleteTarget.type === 'singleSubKelompok'}
+					<input type="hidden" name="subKelompokId" value={deleteTarget.id} />
+				{:else if deleteTarget.type === 'batchSubKelompok'}
+					<input type="hidden" name="subKelompokIds" value={JSON.stringify(selectedSubKelompokIds)} />
+				{/if}
+
+				<button
+					type="button"
+					onclick={closeDeleteModal}
+					class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary cursor-pointer transition-colors"
+				>
+					Batal
+				</button>
+				<button
+					type="submit"
+					class="px-4 py-2 rounded-lg bg-destructive hover:bg-destructive/90 text-destructive-foreground text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+				>
+					<Trash2 class="w-3.5 h-3.5" />
+					<span>Ya, Hapus Sekarang</span>
+				</button>
+			</form>
 		</div>
 	</div>
 {/if}
