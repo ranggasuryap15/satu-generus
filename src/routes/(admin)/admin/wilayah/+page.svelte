@@ -3,7 +3,7 @@
   @purpose Halaman manajemen Data Wilayah lengkap (Daerah, Desa, Kelompok, Sub-Kelompok) dengan dashboard 4 metrik, filter responsif lengkap di desktop dan collapse di mobile, serta tab kelompok & sub-kelompok
   @usedBy Route admin '/admin/wilayah'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte
-  @publicFunctions openAddKelompokModal, closeAddKelompokModal, openAddDesaModal, closeAddDesaModal, openAddSubKelompokModal, closeAddSubKelompokModal, resetFilter
+  @publicFunctions openAddDaerahModal, closeAddDaerahModal, openAddKelompokModal, closeAddKelompokModal, openAddDesaModal, closeAddDesaModal, openAddSubKelompokModal, closeAddSubKelompokModal, resetFilter
   @sideEffects Menampilkan data wilayah, menyaring tampilan secara reaktif, dan mengirimkan form pembuatan unit wilayah ke server
 -->
 <script lang="ts">
@@ -38,9 +38,15 @@
 	let showMobileFilter = $state(false);
 
 	// State Modal Tambah
+	let showAddDaerahModal = $state(false);
 	let showAddKelompokModal = $state(false);
 	let showAddDesaModal = $state(false);
 	let showAddSubKelompokModal = $state(false);
+
+	// Form Tambah Daerah
+	let inputNamaDaerah = $state('');
+	let inputProvinsi = $state('');
+	let inputKotaKabupaten = $state('');
 
 	// Form Tambah Kelompok
 	let inputNamaKelompok = $state('');
@@ -166,6 +172,12 @@
 	);
 
 	// Reset forms
+	function resetAddDaerahForm() {
+		inputNamaDaerah = '';
+		inputProvinsi = '';
+		inputKotaKabupaten = '';
+	}
+
 	function resetAddKelompokForm() {
 		inputNamaKelompok = '';
 		selectedDesaId = '';
@@ -184,6 +196,10 @@
 		inputKeteranganSubKelompok = '';
 	}
 
+	function closeAddDaerahModal() {
+		showAddDaerahModal = false;
+	}
+
 	function closeAddKelompokModal() {
 		showAddKelompokModal = false;
 	}
@@ -198,9 +214,11 @@
 
 	$effect(() => {
 		if (form?.success) {
+			resetAddDaerahForm();
 			resetAddKelompokForm();
 			resetAddDesaForm();
 			resetAddSubKelompokForm();
+			showAddDaerahModal = false;
 			showAddKelompokModal = false;
 			showAddDesaModal = false;
 			showAddSubKelompokModal = false;
@@ -238,6 +256,15 @@
 
 			<button
 				type="button"
+				onclick={() => (showAddDaerahModal = true)}
+				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold transition-all shadow-xs"
+			>
+				<MapPin class="w-3.5 h-3.5" />
+				<span>+ Daerah</span>
+			</button>
+
+			<button
+				type="button"
 				onclick={() => (showAddDesaModal = true)}
 				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-secondary/50 hover:bg-secondary text-foreground text-xs font-semibold transition-colors"
 			>
@@ -257,9 +284,9 @@
 			<button
 				type="button"
 				onclick={() => (showAddSubKelompokModal = true)}
-				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all shadow-xs"
+				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-secondary/50 hover:bg-secondary text-foreground text-xs font-semibold transition-colors"
 			>
-				<Plus class="w-3.5 h-3.5" />
+				<Layers class="w-3.5 h-3.5 text-blue-500" />
 				<span>+ Sub-Kelompok</span>
 			</button>
 		</div>
@@ -618,6 +645,96 @@
 		</div>
 	{/if}
 </div>
+
+<!-- Modal Tambah Daerah Baru -->
+{#if showAddDaerahModal}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
+		role="dialog"
+		aria-modal="true"
+	>
+		<div class="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-xl space-y-5">
+			<div class="flex items-center justify-between pb-3 border-b border-border">
+				<div class="flex items-center gap-2">
+					<div class="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+						<MapPin class="w-4 h-4" />
+					</div>
+					<h3 class="text-sm font-bold text-foreground">Tambah Daerah Baru</h3>
+				</div>
+				<button
+					type="button"
+					onclick={closeAddDaerahModal}
+					class="p-1 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground"
+				>
+					<X class="w-5 h-5" />
+				</button>
+			</div>
+
+			<form method="POST" action="?/createDaerah" class="space-y-4">
+				<div>
+					<label for="namaDaerah" class="block text-xs font-semibold text-foreground mb-1.5">
+						Nama Daerah *
+					</label>
+					<input
+						id="namaDaerah"
+						name="nama"
+						type="text"
+						bind:value={inputNamaDaerah}
+						required
+						placeholder="Contoh: Surabaya Barat / Jakarta Selatan"
+						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+					/>
+				</div>
+
+				<div>
+					<label for="kotaKabupaten" class="block text-xs font-semibold text-foreground mb-1.5">
+						Kota / Kabupaten *
+					</label>
+					<input
+						id="kotaKabupaten"
+						name="kotaKabupaten"
+						type="text"
+						bind:value={inputKotaKabupaten}
+						required
+						placeholder="Contoh: Kota Surabaya / Kota Administrasi Jakarta Selatan"
+						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+					/>
+				</div>
+
+				<div>
+					<label for="provinsi" class="block text-xs font-semibold text-foreground mb-1.5">
+						Provinsi *
+					</label>
+					<input
+						id="provinsi"
+						name="provinsi"
+						type="text"
+						bind:value={inputProvinsi}
+						required
+						placeholder="Contoh: Jawa Timur / DKI Jakarta"
+						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+					/>
+				</div>
+
+				<div class="flex items-center justify-end gap-2 pt-3 border-t border-border">
+					<button
+						type="button"
+						onclick={closeAddDaerahModal}
+						class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary"
+					>
+						Batal
+					</button>
+					<button
+						type="submit"
+						class="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90"
+					>
+						Simpan Daerah
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
 
 <!-- Modal Tambah Kelompok Baru -->
 {#if showAddKelompokModal}
