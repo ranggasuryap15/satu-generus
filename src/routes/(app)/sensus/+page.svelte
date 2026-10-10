@@ -618,8 +618,13 @@
 							id="noKk"
 							name="noKk"
 							type="text"
+							inputmode="numeric"
+							pattern="[0-9]*"
 							maxlength="16"
 							bind:value={editKkNoKk}
+							oninput={(e) => {
+								editKkNoKk = e.currentTarget.value.replace(/\D/g, '');
+							}}
 							placeholder="Biarkan kosong jika tidak ingin mengubah"
 							class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
 						/>
@@ -720,8 +725,13 @@
 						id="editNik"
 						name="nik"
 						type="text"
+						inputmode="numeric"
+						pattern="[0-9]*"
 						maxlength="16"
 						bind:value={editAnggotaNik}
+						oninput={(e) => {
+							editAnggotaNik = e.currentTarget.value.replace(/\D/g, '');
+						}}
 						placeholder="Biarkan kosong jika tidak ingin mengubah NIK"
 						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
 					/>
@@ -853,8 +863,13 @@
 						id="newNik"
 						name="nik"
 						type="text"
+						inputmode="numeric"
+						pattern="[0-9]*"
 						maxlength="16"
 						bind:value={newAnggotaNik}
+						oninput={(e) => {
+							newAnggotaNik = e.currentTarget.value.replace(/\D/g, '');
+						}}
 						placeholder="16 digit angka (opsional)"
 						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
 					/>

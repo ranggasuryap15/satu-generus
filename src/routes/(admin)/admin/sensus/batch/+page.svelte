@@ -268,7 +268,7 @@
 				rGenerus = cols[10] || '';
 				rMenikah = cols[11]?.toLowerCase().includes('sudah') ? 'Sudah Menikah' : 'Belum Menikah';
 				rKeluarga = cols[12]?.trim() || '';
-				rKk = cols[13] || '';
+				rKk = (cols[13] || '').replace(/\D/g, '').slice(0, 16);
 				rStatusJam = cols[14]?.toLowerCase().includes('tidak') ? 'Tidak Aktif' : 'Aktif';
 				rIsrun = cols[15]?.toLowerCase().includes('ya') ? 'Ya' : 'Tidak';
 				rGoldar = cols[16] || '-';
@@ -277,7 +277,7 @@
 				const jkRaw = (cols[1] || '').trim().toUpperCase();
 				rJk = jkRaw === 'P' || jkRaw.startsWith('PEREMPUAN') || jkRaw.startsWith('WANITA') ? 'P' : 'L';
 				rTgl = cols[2] || '';
-				rKk = cols[3] || '';
+				rKk = (cols[3] || '').replace(/\D/g, '').slice(0, 16);
 				if (cols[4]) rKeluarga = cols[4].trim();
 				if (cols[5]) rTelp = cols[5];
 				if (cols[6]) rAlamat = cols[6];
@@ -1072,7 +1072,13 @@
 								<input
 									id="noKk-{fam.id}"
 									type="text"
+									inputmode="numeric"
+									pattern="[0-9]*"
+									maxlength="16"
 									bind:value={fam.noKk}
+									oninput={(e) => {
+										fam.noKk = e.currentTarget.value.replace(/\D/g, '');
+									}}
 									placeholder="Nomor KK (Opsional)"
 									class="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary"
 								/>

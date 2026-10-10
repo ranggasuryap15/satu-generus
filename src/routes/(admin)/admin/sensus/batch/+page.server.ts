@@ -192,8 +192,9 @@ export const actions: Actions = {
 					if (!fam.members || fam.members.length === 0) continue;
 
 					const isActualKk = !fam.isPerantau;
+					const rawNoKk = fam.noKk ? fam.noKk.trim().replace(/\D/g, '').slice(0, 16) : '';
 					const noKkEncrypted =
-						isActualKk && fam.noKk?.trim() ? encryptSensitive(fam.noKk.trim()) : null;
+						isActualKk && rawNoKk ? encryptSensitive(rawNoKk) : null;
 
 					// Cari kepala keluarga: cari member 'Kepala Keluarga' atau 'Bapak'
 					let headIndex = fam.members.findIndex(
@@ -271,7 +272,8 @@ export const actions: Actions = {
 						const statusGenerusFinal =
 							m.statusGenerus || hitungStatusGenerus(umurCalc, m.statusMenikah);
 
-						const nikEncrypted = m.nik?.trim() ? encryptSensitive(m.nik.trim()) : null;
+						const rawNik = m.nik ? m.nik.trim().replace(/\D/g, '').slice(0, 16) : '';
+						const nikEncrypted = rawNik ? encryptSensitive(rawNik) : null;
 
 						tx.insert(anggotaKeluarga)
 							.values({

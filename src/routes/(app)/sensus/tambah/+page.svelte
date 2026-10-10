@@ -182,9 +182,14 @@
 					<input
 						id="noKk"
 						type="text"
+						inputmode="numeric"
+						pattern="[0-9]*"
 						maxlength="16"
 						placeholder="Contoh: 3216012345670001 (opsional)"
 						bind:value={noKk}
+						oninput={(e) => {
+							noKk = e.currentTarget.value.replace(/\D/g, '');
+						}}
 						class="w-full bg-secondary/50 border {errors.noKk
 							? 'border-destructive'
 							: 'border-border'} rounded-lg px-3 py-2 text-xs text-foreground font-mono placeholder:text-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
@@ -265,9 +270,14 @@
 								<input
 									id={`nik-${idx}`}
 									type="text"
+									inputmode="numeric"
+									pattern="[0-9]*"
 									maxlength="16"
 									placeholder="16 digit angka (opsional)"
 									bind:value={anggota.nik}
+									oninput={(e) => {
+										anggota.nik = e.currentTarget.value.replace(/\D/g, '');
+									}}
 									class="w-full bg-background border border-border rounded-lg px-3 py-1.5 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary"
 								/>
 							</div>

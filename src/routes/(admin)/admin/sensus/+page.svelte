@@ -934,9 +934,13 @@
 									id="noKk"
 									name="noKk"
 									type="text"
+									inputmode="numeric"
+									pattern="[0-9]*"
 									maxlength="16"
-									pattern="[0-9]{16}"
 									bind:value={newNoKk}
+									oninput={(e) => {
+										newNoKk = e.currentTarget.value.replace(/\D/g, '');
+									}}
 									placeholder="3216xxxxxxxxxxxx (opsional)"
 									class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 								/>
@@ -1043,9 +1047,13 @@
 											<input
 												id={`new-nik-${idx}`}
 												type="text"
+												inputmode="numeric"
+												pattern="[0-9]*"
 												maxlength="16"
-												pattern="[0-9]{16}"
 												bind:value={anggota.nik}
+												oninput={(e) => {
+													anggota.nik = e.currentTarget.value.replace(/\D/g, '');
+												}}
 												placeholder="3216xxxxxxxxxxxx (opsional)"
 												class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 											/>
@@ -1128,9 +1136,13 @@
 									id="nikMandiri"
 									name="nik"
 									type="text"
+									inputmode="numeric"
+									pattern="[0-9]*"
 									maxlength="16"
-									pattern="[0-9]{16}"
 									bind:value={newNikMandiri}
+									oninput={(e) => {
+										newNikMandiri = e.currentTarget.value.replace(/\D/g, '');
+									}}
 									placeholder="3216xxxxxxxxxxxx (opsional)"
 									class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 								/>
@@ -1282,9 +1294,13 @@
 						id="memberNik"
 						name="nik"
 						type="text"
+						inputmode="numeric"
+						pattern="[0-9]*"
 						maxlength="16"
-						pattern="[0-9]{16}"
 						bind:value={memberNik}
+						oninput={(e) => {
+							memberNik = e.currentTarget.value.replace(/\D/g, '');
+						}}
 						placeholder="3216xxxxxxxxxxxx (opsional)"
 						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 					/>
