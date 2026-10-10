@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(admin)/admin/sensus/+page.svelte
-  @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri/Perantau, dashboard statistik, link batch insert, dan pembuatan akun login mandiri bagi anggota keluarga
+  @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri/Perantau, dashboard statistik, modal detail lengkap, modal ubah data manual versi admin (anggota, isrun, keaktifan, KK), dan pembuatan akun login mandiri
   @usedBy Route admin '/admin/sensus'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/utils (formatDateDDMMYYYY)
-  @publicFunctions requestUnmask, openCreateModal, closeCreateModal, openAddMemberModal, closeAddMemberModal, openCreateAccountModal, resetFilters, toggleMobileFilter
-  @sideEffects Menampilkan metrik, unmask data sensitif via /api/sensus/unmask, submit createSensus, addAnggotaKeluarga, createMemberAccount
+  @publicFunctions requestUnmask, openCreateModal, closeCreateModal, openAddMemberModal, closeAddMemberModal, openCreateAccountModal, openEditAnggotaModal, closeEditAnggotaModal, openEditKeluargaModal, closeEditKeluargaModal, resetFilters, toggleMobileFilter
+  @sideEffects Menampilkan metrik, unmask data sensitif via /api/sensus/unmask, submit createSensus, addAnggotaKeluarga, updateAnggota, updateKeluarga, createMemberAccount
 -->
 <script lang="ts">
 	import DateInput from '$lib/components/DateInput.svelte';
@@ -21,6 +21,7 @@
 	  Home,
 	  KeyRound,
 	  MapPin,
+	  Pencil,
 	  Plus,
 	  RotateCcw,
 	  Search,
@@ -73,6 +74,72 @@
 		newAccountPhone = member.noTelepon !== '-' ? member.noTelepon : '';
 		newAccountPassword = '12345678';
 	}
+
+	// State Modal Edit Anggota Keluarga (Manual Versi Admin)
+	let editingAnggota = $state<(typeof data.daftarKeluarga)[0]['anggota'][0] | null>(null);
+	let editAnggotaNama = $state('');
+	let editAnggotaNik = $state('');
+	let editAnggotaHubungan = $state('');
+	let editAnggotaJenisKelamin = $state('');
+	let editAnggotaTanggalLahir = $state('');
+	let editAnggotaTempatLahir = $state('');
+	let editAnggotaProfesi = $state('');
+	let editAnggotaNoTelepon = $state('');
+	let editAnggotaStatusGenerus = $state('');
+	let editAnggotaStatusPernikahan = $state('');
+	let editAnggotaStatusJamaah = $state('Aktif');
+	let editAnggotaIsrun = $state(false);
+	let editAnggotaGolonganDarah = $state('');
+	let isEditAnggotaSubmitting = $state(false);
+
+	function openEditAnggotaModal(a: (typeof data.daftarKeluarga)[0]['anggota'][0]) {
+		editingAnggota = a;
+		editAnggotaNama = a.namaLengkap;
+		editAnggotaNik = '';
+		editAnggotaHubungan = a.statusHubungan;
+		editAnggotaJenisKelamin = a.jenisKelamin === 'P' || a.jenisKelamin === 'Perempuan' ? 'P' : 'L';
+		editAnggotaTanggalLahir = a.tanggalLahir;
+		editAnggotaTempatLahir = (a as any).tempatLahirRaw || (a.tempatLahir !== '-' ? a.tempatLahir : '');
+		editAnggotaProfesi = (a as any).profesiRaw || (a.profesi !== '-' ? a.profesi : '');
+		editAnggotaNoTelepon = (a as any).noTeleponRaw || (a.noTelepon !== '-' ? a.noTelepon : '');
+		editAnggotaStatusGenerus = (a as any).statusGenerusRaw || (a.statusGenerus !== '-' ? a.statusGenerus : '');
+		editAnggotaStatusPernikahan = (a as any).statusPernikahanRaw || (a.statusPernikahan !== '-' ? a.statusPernikahan : '');
+		editAnggotaStatusJamaah = a.statusJamaah || 'Aktif';
+		editAnggotaIsrun = a.isrun === 'Ya';
+		editAnggotaGolonganDarah = (a as any).golonganDarahRaw || (a.golonganDarah !== '-' ? a.golonganDarah : '');
+	}
+
+	function closeEditAnggotaModal() {
+		editingAnggota = null;
+	}
+
+	// State Modal Edit Data KK & Domisili
+	let editingKeluarga = $state<(typeof data.daftarKeluarga)[0] | null>(null);
+	let editKeluargaNoKk = $state('');
+	let editKeluargaAlamat = $state('');
+	let editKeluargaKelompokId = $state<string | number>('');
+	let isEditKeluargaSubmitting = $state(false);
+
+	function openEditKeluargaModal(k: (typeof data.daftarKeluarga)[0]) {
+		editingKeluarga = k;
+		editKeluargaNoKk = '';
+		editKeluargaAlamat = (k as any).alamatLengkapRaw || (k.alamatLengkap !== '-' ? k.alamatLengkap : '');
+		editKeluargaKelompokId = k.kelompokId || '';
+	}
+
+	function closeEditKeluargaModal() {
+		editingKeluarga = null;
+	}
+
+	// Sinkronisasi reaktif selectedKeluarga ketika data mutasi berhasil
+	$effect(() => {
+		if (selectedKeluarga) {
+			const fresh = data.daftarKeluarga.find((item) => item.id === selectedKeluarga?.id);
+			if (fresh) {
+				selectedKeluarga = fresh;
+			}
+		}
+	});
 
 	// State Modal Tambah Sensus Baru (Akun + KK/Mandiri + Anggota)
 	let showCreateModal = $state(false);
@@ -1365,12 +1432,12 @@
 			if (e.target === e.currentTarget) selectedKeluarga = null;
 		}}
 	>
-		<div class="bg-card border border-border rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-xl space-y-5 max-h-[92vh] overflow-y-auto">
+		<div class="bg-card border border-border rounded-2xl max-w-2xl w-full p-4 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
 			<div class="flex items-center justify-between pb-3 border-b border-border">
 				<div>
 					<div class="flex items-center gap-2">
 						<h3 class="text-sm font-bold text-foreground">
-							{selectedKeluarga.isKk ? 'Rincian Anggota Kartu Keluarga' : 'Rincian Sensus Jamaah Mandiri / Perantau'}
+							{selectedKeluarga.isKk ? 'Rincian Lengkap Kartu Keluarga' : 'Rincian Sensus Jamaah Mandiri / Perantau'}
 						</h3>
 						<span class="text-[10px] bg-secondary px-2 py-0.5 rounded-full text-foreground/70 font-semibold">
 							{selectedKeluarga.anggota.length} Jiwa
@@ -1383,94 +1450,155 @@
 				<button
 					type="button"
 					onclick={() => (selectedKeluarga = null)}
-					class="p-1 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground"
+					class="p-1 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground cursor-pointer"
 				>
 					<X class="w-5 h-5" />
 				</button>
 			</div>
 
-			<div class="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+			<!-- Box Informasi Domisili & Tombol Edit KK -->
+			<div class="p-3 bg-secondary/40 border border-border rounded-xl space-y-2 text-xs">
+				<div class="flex items-center justify-between flex-wrap gap-2">
+					<div class="flex items-center gap-2">
+						<Home class="w-4 h-4 text-primary" />
+						<span class="font-bold text-foreground">
+							{selectedKeluarga.isKk ? 'Kepala Keluarga: ' : 'Nama Jamaah: '}
+							<span class="text-primary">{selectedKeluarga.kepalaKeluargaNama}</span>
+						</span>
+						{#if selectedKeluarga.isKk}
+							<span class="font-mono text-[11px] text-foreground/70 bg-card px-2 py-0.5 rounded border border-border">
+								No. KK: {selectedKeluarga.noKkMasked}
+							</span>
+						{/if}
+					</div>
+					<button
+						type="button"
+						onclick={() => {
+							const target = selectedKeluarga;
+							if (target) openEditKeluargaModal(target);
+						}}
+						class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-semibold text-[11px] border border-primary/30 transition-colors cursor-pointer"
+					>
+						<Pencil class="w-3 h-3" />
+						<span>Edit KK & Domisili</span>
+					</button>
+				</div>
+				<div class="flex items-center gap-4 text-[11px] text-foreground/70 flex-wrap">
+					<div class="flex items-center gap-1">
+						<MapPin class="w-3.5 h-3.5 text-muted-foreground" />
+						<span>{selectedKeluarga.kelompokNama} ({selectedKeluarga.desaNama}, {selectedKeluarga.daerahNama})</span>
+					</div>
+					{#if selectedKeluarga.alamatLengkap && selectedKeluarga.alamatLengkap !== '-'}
+						<div>
+							<span class="text-foreground/50">Alamat:</span> {selectedKeluarga.alamatLengkap}
+						</div>
+					{/if}
+				</div>
+			</div>
+
+			<!-- Daftar Anggota Lengkap -->
+			<div class="space-y-3 max-h-96 overflow-y-auto pr-1">
 				{#each selectedKeluarga.anggota as a}
-					<div class="p-3 rounded-xl border border-border bg-secondary/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-						<div class="space-y-1">
-							<div class="flex items-center gap-1.5 flex-wrap">
-								<span class="font-bold text-foreground text-sm">{a.namaLengkap}</span>
-								<span class="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-semibold">
-									{a.statusHubungan}
-								</span>
-								<span class="text-[10px] bg-secondary px-1.5 py-0.5 rounded text-foreground/70 font-mono font-bold">
-									{a.jenisKelamin}
-								</span>
-								{#if a.statusGenerus && a.statusGenerus !== '-'}
-									<span class="text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-full font-semibold">
-										{a.statusGenerus}
+					<div class="p-3.5 rounded-xl border border-border bg-secondary/20 hover:bg-secondary/30 transition-colors space-y-2.5 text-xs">
+						<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/50 pb-2">
+							<div class="space-y-1">
+								<div class="flex items-center gap-1.5 flex-wrap">
+									<span class="font-bold text-foreground text-sm">{a.namaLengkap}</span>
+									<span class="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-semibold">
+										{a.statusHubungan}
 									</span>
-								{/if}
-								{#if a.statusPernikahan && a.statusPernikahan !== '-'}
-									<span class="text-[10px] bg-blue-500/10 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded font-medium">
-										{a.statusPernikahan}
+									<span class="text-[10px] bg-secondary px-1.5 py-0.5 rounded text-foreground/70 font-mono font-bold">
+										{a.jenisKelamin === 'P' || a.jenisKelamin === 'Perempuan' ? 'Perempuan' : 'Laki-laki'}
 									</span>
-								{/if}
-								{#if a.statusJamaah}
-									<span class="text-[10px] {a.statusJamaah === 'Aktif' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-destructive/10 text-destructive'} px-1.5 py-0.5 rounded font-medium">
-										{a.statusJamaah}
+									{#if a.statusJamaah}
+										<span class="text-[10px] {a.statusJamaah === 'Aktif' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' : 'bg-destructive/10 text-destructive border border-destructive/20'} px-2 py-0.5 rounded-full font-semibold">
+											{a.statusJamaah === 'Aktif' ? '● Aktif' : '○ Tidak Aktif'}
+										</span>
+									{/if}
+									<span class="text-[10px] {a.isrun === 'Ya' ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 font-bold' : 'bg-secondary text-foreground/50'} px-2 py-0.5 rounded-full">
+										Isrun: {a.isrun || 'Tidak'}
 									</span>
-								{/if}
-								{#if a.isrun === 'Ya'}
-									<span class="text-[10px] bg-purple-500/10 text-purple-600 px-1.5 py-0.5 rounded font-medium">
-										Isrun: Ya
-									</span>
-								{/if}
+									{#if a.statusGenerus && a.statusGenerus !== '-'}
+										<span class="text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-full font-semibold">
+											{a.statusGenerus}
+										</span>
+									{/if}
+									{#if a.statusPernikahan && a.statusPernikahan !== '-'}
+										<span class="text-[10px] bg-blue-500/10 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded font-medium">
+											{a.statusPernikahan}
+										</span>
+									{/if}
+								</div>
+								<div class="flex items-center gap-2">
+									<span class="font-mono text-[11px] text-foreground/70">NIK: {a.nikMasked}</span>
+									{#if a.hasNik}
+										<button
+											type="button"
+											onclick={() => requestUnmask({ anggotaId: a.id, label: `NIK (${a.namaLengkap} - ${a.statusHubungan})` })}
+											class="text-primary hover:text-primary/80 p-0.5 rounded hover:bg-primary/10 transition-colors cursor-pointer"
+											title="Buka Enkripsi NIK"
+										>
+											<Eye class="w-3.5 h-3.5" />
+										</button>
+									{/if}
+								</div>
 							</div>
-							<div class="flex items-center gap-2">
-								<span class="font-mono text-[11px] text-foreground/70">NIK: {a.nikMasked}</span>
-								{#if a.hasNik}
+
+							<!-- Aksi per Anggota -->
+							<div class="shrink-0 flex items-center gap-1.5 flex-wrap">
+								<button
+									type="button"
+									onclick={() => openEditAnggotaModal(a)}
+									class="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg border border-border bg-card hover:bg-secondary text-foreground font-semibold transition-colors cursor-pointer shadow-xs"
+									title="Ubah data anggota secara manual versi admin"
+								>
+									<Pencil class="w-3 h-3 text-primary" />
+									<span>Edit Data</span>
+								</button>
+
+								{#if a.userId}
+									<span class="inline-flex items-center gap-1 text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded-lg font-semibold border border-emerald-500/20">
+										<CheckCircle2 class="w-3 h-3" />
+										<span>Punya Akun</span>
+									</span>
+								{:else}
 									<button
 										type="button"
-										onclick={() => requestUnmask({ anggotaId: a.id, label: `NIK (${a.namaLengkap} - ${a.statusHubungan})` })}
-										class="text-primary hover:text-primary/80 p-0.5 rounded hover:bg-primary/10 transition-colors"
-										title="Buka Enkripsi NIK"
+										onclick={() => openCreateAccountModal(a)}
+										class="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg border border-primary/40 bg-primary/10 hover:bg-primary/20 text-primary font-semibold transition-colors cursor-pointer"
+										title="Buatkan akun mandiri agar anggota ini bisa login sendiri"
 									>
-										<Eye class="w-3.5 h-3.5" />
+										<KeyRound class="w-3 h-3" />
+										<span>Buatkan Akun</span>
 									</button>
-								{/if}
-							</div>
-							<div class="flex items-center gap-3 text-[10px] text-foreground/60 flex-wrap">
-								<span>Lahir: {a.tempatLahir !== '-' ? `${a.tempatLahir}, ` : ''}{formatDateDDMMYYYY(a.tanggalLahir)}</span>
-								{#if a.noTelepon && a.noTelepon !== '-'}
-									<span class="font-mono">HP: {a.noTelepon}</span>
-								{/if}
-								{#if a.profesi && a.profesi !== '-'}
-									<span>Profesi: {a.profesi}</span>
-								{/if}
-								{#if a.golonganDarah && a.golonganDarah !== '-'}
-									<span>Gol. Darah: {a.golonganDarah}</span>
 								{/if}
 							</div>
 						</div>
 
-						<div class="shrink-0 flex items-center gap-2">
-							{#if a.userId}
-								<span class="inline-flex items-center gap-1 text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded-lg font-semibold border border-emerald-500/20">
-									<CheckCircle2 class="w-3 h-3" />
-									<span>Punya Akun</span>
-								</span>
-							{:else}
-								<button
-									type="button"
-									onclick={() => openCreateAccountModal(a)}
-									class="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg border border-primary/40 bg-primary/10 hover:bg-primary/20 text-primary font-semibold transition-colors"
-									title="Buatkan akun mandiri agar anggota ini bisa login sendiri"
-								>
-									<KeyRound class="w-3 h-3" />
-									<span>Buatkan Akun</span>
-								</button>
-							{/if}
+						<!-- Detail Rinci Jiwa -->
+						<div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-foreground/70 bg-card/60 p-2 rounded-lg border border-border/40">
+							<div>
+								<span class="text-foreground/40 block text-[10px]">Tempat, Tgl Lahir:</span>
+								<span class="font-medium text-foreground">{a.tempatLahir !== '-' ? `${a.tempatLahir}, ` : ''}{formatDateDDMMYYYY(a.tanggalLahir)}</span>
+							</div>
+							<div>
+								<span class="text-foreground/40 block text-[10px]">No. HP / WA:</span>
+								<span class="font-mono text-foreground">{a.noTelepon && a.noTelepon !== '-' ? a.noTelepon : '-'}</span>
+							</div>
+							<div>
+								<span class="text-foreground/40 block text-[10px]">Profesi / Pekerjaan:</span>
+								<span class="text-foreground">{a.profesi && a.profesi !== '-' ? a.profesi : '-'}</span>
+							</div>
+							<div>
+								<span class="text-foreground/40 block text-[10px]">Golongan Darah:</span>
+								<span class="font-semibold text-foreground">{a.golonganDarah && a.golonganDarah !== '-' ? a.golonganDarah : '-'}</span>
+							</div>
 						</div>
 					</div>
 				{/each}
 			</div>
 
+			<!-- Footer Modal Detail -->
 			<div class="flex items-center justify-between pt-3 border-t border-border">
 				{#if selectedKeluarga.isKk}
 					<button
@@ -1480,7 +1608,7 @@
 							selectedKeluarga = null;
 							if (target) openAddMemberModal(target);
 						}}
-						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-semibold text-foreground hover:bg-secondary"
+						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-semibold text-foreground hover:bg-secondary cursor-pointer"
 					>
 						<UserPlus class="w-3.5 h-3.5 text-primary" />
 						<span>+ Tambah Anggota</span>
@@ -1492,11 +1620,437 @@
 				<button
 					type="button"
 					onclick={() => (selectedKeluarga = null)}
-					class="px-4 py-1.5 rounded-lg bg-secondary text-foreground text-xs font-semibold hover:bg-secondary/80"
+					class="px-4 py-1.5 rounded-lg bg-secondary text-foreground text-xs font-semibold hover:bg-secondary/80 cursor-pointer"
 				>
 					Tutup
 				</button>
 			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- MODAL EDIT DATA ANGGOTA SECARA MANUAL VERSI ADMIN -->
+{#if editingAnggota}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150"
+		role="dialog"
+		aria-modal="true"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) closeEditAnggotaModal();
+		}}
+	>
+		<div class="bg-card border border-border rounded-2xl max-w-xl w-full p-4 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+			<div class="flex items-center justify-between pb-3 border-b border-border">
+				<div>
+					<h3 class="text-sm font-bold text-foreground flex items-center gap-2">
+						<Pencil class="w-4 h-4 text-primary" />
+						<span>Ubah Data Anggota Sensus (Manual Versi Admin)</span>
+					</h3>
+					<p class="text-[11px] text-foreground/60 mt-0.5">
+						Perbarui data demografi, keaktifan jamaah, checklist isrun, dan identitas.
+					</p>
+				</div>
+				<button
+					type="button"
+					onclick={closeEditAnggotaModal}
+					class="p-1 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground cursor-pointer"
+				>
+					<X class="w-5 h-5" />
+				</button>
+			</div>
+
+			<form
+				method="POST"
+				action="?/updateAnggota"
+				use:enhance={() => {
+					isEditAnggotaSubmitting = true;
+					return async ({ update }) => {
+						await update();
+						isEditAnggotaSubmitting = false;
+						closeEditAnggotaModal();
+					};
+				}}
+				class="space-y-4 text-xs"
+			>
+				<input type="hidden" name="anggotaId" value={editingAnggota.id} />
+
+				<!-- Status Khusus Admin: Isrun & Keaktifan Jamaah -->
+				<div class="p-3 bg-primary/5 border border-primary/20 rounded-xl space-y-3">
+					<p class="font-bold text-foreground text-[11px] uppercase tracking-wider text-primary">
+						Status Khusus Wewenang Admin
+					</p>
+					<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+						<!-- Keaktifan Jamaah -->
+						<div>
+							<label for="edit-statusJamaah" class="block font-semibold text-foreground mb-1">
+								Status Keaktifan Jamaah *
+							</label>
+							<select
+								id="edit-statusJamaah"
+								name="statusJamaah"
+								bind:value={editAnggotaStatusJamaah}
+								class="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-primary"
+							>
+								<option value="Aktif">🟢 Aktif</option>
+								<option value="Tidak Aktif">🔴 Tidak Aktif</option>
+							</select>
+						</div>
+
+						<!-- Checklist Isrun -->
+						<div>
+							<label class="block font-semibold text-foreground mb-1">
+								Checklist Isrun *
+							</label>
+							<label class="flex items-center gap-2.5 p-2 rounded-lg bg-card border border-border cursor-pointer hover:bg-secondary/50 transition-colors">
+								<input
+									type="checkbox"
+									bind:checked={editAnggotaIsrun}
+									class="w-4 h-4 rounded text-primary focus:ring-primary border-border cursor-pointer"
+								/>
+								<span class="text-xs font-medium text-foreground">
+									{editAnggotaIsrun ? 'Jamaah Isrun (Ya)' : 'Bukan Isrun (Tidak)'}
+								</span>
+							</label>
+							<input type="hidden" name="isrun" value={editAnggotaIsrun ? 'Ya' : 'Tidak'} />
+						</div>
+					</div>
+				</div>
+
+				<!-- Data Demografi Utama -->
+				<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+					<div class="sm:col-span-2">
+						<label for="edit-namaLengkap" class="block font-semibold text-foreground mb-1">
+							Nama Lengkap *
+						</label>
+						<input
+							type="text"
+							id="edit-namaLengkap"
+							name="namaLengkap"
+							bind:value={editAnggotaNama}
+							required
+							class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-primary"
+						/>
+					</div>
+
+					<div>
+						<label for="edit-nik" class="block font-semibold text-foreground mb-1">
+							Nomor Induk Kependudukan (NIK)
+						</label>
+						<input
+							type="text"
+							id="edit-nik"
+							name="nik"
+							bind:value={editAnggotaNik}
+							maxlength="16"
+							placeholder={editingAnggota.hasNik ? 'Biarkan kosong jika tidak ubah' : '16 digit angka NIK'}
+							class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground font-mono focus:ring-1 focus:ring-primary"
+						/>
+						<p class="text-[10px] text-foreground/50 mt-0.5">
+							{editingAnggota.hasNik ? `NIK saat ini: ${editingAnggota.nikMasked}` : 'Belum memiliki NIK'}
+						</p>
+					</div>
+
+					<div>
+						<label for="edit-statusHubungan" class="block font-semibold text-foreground mb-1">
+							Hubungan dalam Keluarga *
+						</label>
+						<select
+							id="edit-statusHubungan"
+							name="statusHubungan"
+							bind:value={editAnggotaHubungan}
+							required
+							class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-primary"
+						>
+							<option value="Kepala Keluarga">Kepala Keluarga</option>
+							<option value="Suami">Suami</option>
+							<option value="Istri">Istri</option>
+							<option value="Anak">Anak</option>
+							<option value="Orang Tua">Orang Tua</option>
+							<option value="Mertua">Mertua</option>
+							<option value="Famili Lain">Famili Lain</option>
+						</select>
+					</div>
+
+					<div>
+						<label for="edit-jenisKelamin" class="block font-semibold text-foreground mb-1">
+							Jenis Kelamin *
+						</label>
+						<select
+							id="edit-jenisKelamin"
+							name="jenisKelamin"
+							bind:value={editAnggotaJenisKelamin}
+							required
+							class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-primary"
+						>
+							<option value="L">Laki-laki (L)</option>
+							<option value="P">Perempuan (P)</option>
+						</select>
+					</div>
+
+					<div>
+						<label for="edit-tanggalLahir" class="block font-semibold text-foreground mb-1">
+							Tanggal Lahir *
+						</label>
+						<input
+							type="date"
+							id="edit-tanggalLahir"
+							name="tanggalLahir"
+							bind:value={editAnggotaTanggalLahir}
+							required
+							class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-primary"
+						/>
+					</div>
+
+					<div>
+						<label for="edit-tempatLahir" class="block font-semibold text-foreground mb-1">
+							Tempat Lahir
+						</label>
+						<input
+							type="text"
+							id="edit-tempatLahir"
+							name="tempatLahir"
+							bind:value={editAnggotaTempatLahir}
+							placeholder="Kota / Kabupaten Lahir"
+							class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-primary"
+						/>
+					</div>
+
+					<div>
+						<label for="edit-statusGenerus" class="block font-semibold text-foreground mb-1">
+							Status Generus
+						</label>
+						<select
+							id="edit-statusGenerus"
+							name="statusGenerus"
+							bind:value={editAnggotaStatusGenerus}
+							class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-primary"
+						>
+							<option value="">-- Pilih Status Generus --</option>
+							<option value="Paud">Paud</option>
+							<option value="Caberawit">Caberawit</option>
+							<option value="Pra Remaja">Pra Remaja</option>
+							<option value="Remaja">Remaja</option>
+							<option value="Pra Nikah">Pra Nikah</option>
+							<option value="Usia Nikah">Usia Nikah</option>
+							<option value="Dewasa Menikah">Dewasa Menikah</option>
+							<option value="Lansia">Lansia</option>
+						</select>
+					</div>
+
+					<div>
+						<label for="edit-statusPernikahan" class="block font-semibold text-foreground mb-1">
+							Status Pernikahan
+						</label>
+						<select
+							id="edit-statusPernikahan"
+							name="statusPernikahan"
+							bind:value={editAnggotaStatusPernikahan}
+							class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-primary"
+						>
+							<option value="">-- Pilih Status Pernikahan --</option>
+							<option value="Belum Menikah">Belum Menikah</option>
+							<option value="Sudah Menikah">Sudah Menikah</option>
+							<option value="Duda">Duda</option>
+							<option value="Janda">Janda</option>
+						</select>
+					</div>
+
+					<div>
+						<label for="edit-noTelepon" class="block font-semibold text-foreground mb-1">
+							No. HP / WhatsApp
+						</label>
+						<input
+							type="tel"
+							id="edit-noTelepon"
+							name="noTelepon"
+							bind:value={editAnggotaNoTelepon}
+							placeholder="Contoh: 08123456789"
+							class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground font-mono focus:ring-1 focus:ring-primary"
+						/>
+					</div>
+
+					<div>
+						<label for="edit-profesi" class="block font-semibold text-foreground mb-1">
+							Profesi / Pekerjaan
+						</label>
+						<input
+							type="text"
+							id="edit-profesi"
+							name="profesi"
+							bind:value={editAnggotaProfesi}
+							placeholder="Pekerjaan / Mahasiswa / Wiraswasta"
+							class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-primary"
+						/>
+					</div>
+
+					<div>
+						<label for="edit-golonganDarah" class="block font-semibold text-foreground mb-1">
+							Golongan Darah
+						</label>
+						<select
+							id="edit-golonganDarah"
+							name="golonganDarah"
+							bind:value={editAnggotaGolonganDarah}
+							class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-primary"
+						>
+							<option value="">-- Pilih Gol. Darah --</option>
+							<option value="A">A</option>
+							<option value="B">B</option>
+							<option value="AB">AB</option>
+							<option value="O">O</option>
+							<option value="-">-</option>
+						</select>
+					</div>
+				</div>
+
+				<!-- Tombol Simpan -->
+				<div class="flex items-center justify-end gap-2 pt-3 border-t border-border">
+					<button
+						type="button"
+						onclick={closeEditAnggotaModal}
+						class="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-secondary font-semibold transition-colors cursor-pointer"
+					>
+						Batal
+					</button>
+					<button
+						type="submit"
+						disabled={isEditAnggotaSubmitting}
+						class="px-5 py-2 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-semibold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50"
+					>
+						{#if isEditAnggotaSubmitting}
+							<div class="w-3.5 h-3.5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin"></div>
+							<span>Menyimpan...</span>
+						{:else}
+							<CheckCircle2 class="w-3.5 h-3.5" />
+							<span>Simpan Perubahan Anggota</span>
+						{/if}
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- MODAL EDIT DATA KK & DOMISILI -->
+{#if editingKeluarga}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150"
+		role="dialog"
+		aria-modal="true"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) closeEditKeluargaModal();
+		}}
+	>
+		<div class="bg-card border border-border rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-2xl space-y-4">
+			<div class="flex items-center justify-between pb-3 border-b border-border">
+				<div>
+					<h3 class="text-sm font-bold text-foreground flex items-center gap-2">
+						<Home class="w-4 h-4 text-primary" />
+						<span>Ubah Info KK & Domisili</span>
+					</h3>
+					<p class="text-[11px] text-foreground/60 mt-0.5">
+						Perbarui nomor KK, alamat domisili, atau kelompok basis keluarga.
+					</p>
+				</div>
+				<button
+					type="button"
+					onclick={closeEditKeluargaModal}
+					class="p-1 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground cursor-pointer"
+				>
+					<X class="w-5 h-5" />
+				</button>
+			</div>
+
+			<form
+				method="POST"
+				action="?/updateKeluarga"
+				use:enhance={() => {
+					isEditKeluargaSubmitting = true;
+					return async ({ update }) => {
+						await update();
+						isEditKeluargaSubmitting = false;
+						closeEditKeluargaModal();
+					};
+				}}
+				class="space-y-3.5 text-xs"
+			>
+				<input type="hidden" name="keluargaId" value={editingKeluarga.id} />
+
+				{#if editingKeluarga.isKk}
+					<div>
+						<label for="edit-noKk" class="block font-semibold text-foreground mb-1">
+							Nomor Kartu Keluarga (16 Digit)
+						</label>
+						<input
+							type="text"
+							id="edit-noKk"
+							name="noKk"
+							bind:value={editKeluargaNoKk}
+							maxlength="16"
+							placeholder="Biarkan kosong jika tidak ingin ubah"
+							class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground font-mono focus:ring-1 focus:ring-primary"
+						/>
+						<p class="text-[10px] text-foreground/50 mt-0.5">
+							Nomor KK saat ini: {editingKeluarga.noKkMasked}
+						</p>
+					</div>
+				{/if}
+
+				<div>
+					<label for="edit-alamatLengkap" class="block font-semibold text-foreground mb-1">
+						Alamat Lengkap Domisili
+					</label>
+					<textarea
+						id="edit-alamatLengkap"
+						name="alamatLengkap"
+						bind:value={editKeluargaAlamat}
+						rows="3"
+						placeholder="Jl. Mawar No. 12, RT 01/RW 02..."
+						class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-primary"
+					></textarea>
+				</div>
+
+				<div>
+					<label for="edit-kelompokId" class="block font-semibold text-foreground mb-1">
+						Kelompok Basis Wilayah
+					</label>
+					<select
+						id="edit-kelompokId"
+						name="kelompokId"
+						bind:value={editKeluargaKelompokId}
+						class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-primary"
+					>
+						{#each (data.wilayahOptions.kelompokList || []) as k}
+							<option value={k.id}>
+								{k.nama} ({k.desaNama} - {k.daerahNama})
+							</option>
+						{/each}
+					</select>
+				</div>
+
+				<div class="flex items-center justify-end gap-2 pt-3 border-t border-border">
+					<button
+						type="button"
+						onclick={closeEditKeluargaModal}
+						class="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-secondary font-semibold transition-colors cursor-pointer"
+					>
+						Batal
+					</button>
+					<button
+						type="submit"
+						disabled={isEditKeluargaSubmitting}
+						class="px-5 py-2 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-semibold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50"
+					>
+						{#if isEditKeluargaSubmitting}
+							<div class="w-3.5 h-3.5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin"></div>
+							<span>Menyimpan...</span>
+						{:else}
+							<CheckCircle2 class="w-3.5 h-3.5" />
+							<span>Simpan Perubahan KK</span>
+						{/if}
+					</button>
+				</div>
+			</form>
 		</div>
 	</div>
 {/if}

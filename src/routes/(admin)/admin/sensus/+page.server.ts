@@ -1,9 +1,9 @@
 /**
  * @file src/routes/(admin)/admin/sensus/+page.server.ts
- * @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri/Perantau, metrik dashboard, serta form actions penambahan sensus, anggota, dan pembuatan akun mandiri (createMemberAccount)
+ * @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri/Perantau, metrik dashboard, serta form actions penambahan sensus, anggota, edit anggota/keluarga, dan pembuatan akun mandiri (createMemberAccount)
  * @usedBy src/routes/(admin)/admin/sensus/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/auth, src/lib/server/scope, src/lib/utils (normalizeDateToISO), drizzle-orm
- * @publicFunctions load, actions.createSensus, actions.addAnggotaKeluarga, actions.createMemberAccount
+ * @publicFunctions load, actions.createSensus, actions.addAnggotaKeluarga, actions.updateAnggota, actions.updateKeluarga, actions.createMemberAccount
  * @sideEffects Transaksi penulisan database tabel users, keluarga, anggota_keluarga; query join multi-tabel terindeks
  */
 
@@ -152,13 +152,19 @@ export const load: PageServerLoad = async ({ locals }) => {
 					tanggalLahir: a.tanggalLahir,
 					jenisKelamin: a.jenisKelamin,
 					tempatLahir: a.tempatLahir || '-',
+					tempatLahirRaw: a.tempatLahir || '',
 					profesi: a.profesi || '-',
+					profesiRaw: a.profesi || '',
 					noTelepon: a.noTelepon || '-',
+					noTeleponRaw: a.noTelepon || '',
 					statusGenerus: a.statusGenerus || '-',
+					statusGenerusRaw: a.statusGenerus || '',
 					statusPernikahan: a.statusPernikahan || '-',
+					statusPernikahanRaw: a.statusPernikahan || '',
 					statusJamaah: a.statusJamaah || 'Aktif',
 					isrun: a.isrun || 'Tidak',
-					golonganDarah: a.golonganDarah || '-'
+					golonganDarah: a.golonganDarah || '-',
+					golonganDarahRaw: a.golonganDarah || ''
 				};
 			});
 
@@ -167,6 +173,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 				isKk,
 				noKkMasked,
 				alamatLengkap: k.alamatLengkap || '-',
+				alamatLengkapRaw: k.alamatLengkap || '',
 				kepalaKeluargaId: k.kepalaKeluargaId,
 				kepalaKeluargaNama: k.kepalaKeluargaNama || 'Belum ditautkan',
 				kepalaKeluargaEmail: k.kepalaKeluargaEmail || '-',
@@ -605,6 +612,221 @@ export const actions: Actions = {
 			return fail(500, {
 				errorAccount: 'Terjadi kesalahan sistem saat membuat akun login.'
 			});
+		}
+	},
+
+	/**
+	 * Memperbarui data anggota keluarga secara manual versi admin (termasuk isrun, keaktifan, dll)
+	 */
+	updateAnggota: async ({ request, locals }) => {
+		if (!locals.user || !locals.isAdmin) {
+			return fail(403, { error: 'Akses ditolak.' });
+		}
+
+		const adminScope = getAdminScope(locals.roles);
+		const accessibleWilayah = getAccessibleWilayah(adminScope);
+
+		const formData = await request.formData();
+		const anggotaId = formData.get('anggotaId')?.toString() || '';
+		const namaLengkap = formData.get('namaLengkap')?.toString()?.trim() || '';
+		const nik = formData.get('nik')?.toString()?.trim() || '';
+		const statusHubungan = formData.get('statusHubungan')?.toString()?.trim() || '';
+		const tanggalLahir = formData.get('tanggalLahir')?.toString()?.trim() || '';
+		const jenisKelamin = formData.get('jenisKelamin')?.toString()?.trim() || '';
+		const tempatLahir = formData.get('tempatLahir')?.toString()?.trim() || '';
+		const profesi = formData.get('profesi')?.toString()?.trim() || '';
+		const noTelepon = formData.get('noTelepon')?.toString()?.trim() || '';
+		const statusGenerus = formData.get('statusGenerus')?.toString()?.trim() || '';
+		const statusPernikahan = formData.get('statusPernikahan')?.toString()?.trim() || '';
+		const statusJamaah = formData.get('statusJamaah')?.toString()?.trim() || 'Aktif';
+		const isrun = formData.get('isrun')?.toString()?.trim() || 'Tidak';
+		const golonganDarah = formData.get('golonganDarah')?.toString()?.trim() || '';
+
+		if (!anggotaId) {
+			return fail(400, { error: 'ID anggota keluarga tidak valid.' });
+		}
+
+		const existingAnggota = db
+			.select()
+			.from(anggotaKeluarga)
+			.where(eq(anggotaKeluarga.id, anggotaId))
+			.get();
+
+		if (!existingAnggota) {
+			return fail(404, { error: 'Data anggota keluarga tidak ditemukan.' });
+		}
+
+		const parentKeluarga = db
+			.select({
+				id: keluarga.id,
+				kelompokId: users.kelompokId,
+				kepalaKeluargaId: keluarga.kepalaKeluargaId
+			})
+			.from(keluarga)
+			.leftJoin(users, eq(keluarga.kepalaKeluargaId, users.id))
+			.where(eq(keluarga.id, existingAnggota.keluargaId))
+			.get();
+
+		if (
+			parentKeluarga?.kelompokId &&
+			!isKelompokAllowed(parentKeluarga.kelompokId, accessibleWilayah.allowedKelompokIdSet, adminScope.isPusat)
+		) {
+			return fail(403, {
+				error: 'Akses ditolak: Anggota keluarga berada di luar cakupan wewenang Anda.'
+			});
+		}
+
+		if (!namaLengkap || !statusHubungan || !tanggalLahir || !jenisKelamin) {
+			return fail(400, {
+				error: 'Nama lengkap, status hubungan, tanggal lahir, dan jenis kelamin wajib diisi.'
+			});
+		}
+
+		if (nik) {
+			if (nik.length !== 16 || !/^\d+$/.test(nik)) {
+				return fail(400, { error: 'NIK harus berupa 16 digit angka jika diisi.' });
+			}
+		}
+
+		try {
+			const updatePayload: Record<string, any> = {
+				namaLengkap,
+				statusHubungan,
+				tanggalLahir: normalizeDateToISO(tanggalLahir),
+				jenisKelamin,
+				tempatLahir: tempatLahir || null,
+				profesi: profesi || null,
+				noTelepon: noTelepon || null,
+				statusGenerus: statusGenerus || null,
+				statusPernikahan: statusPernikahan || null,
+				statusJamaah: statusJamaah === 'Aktif' ? 'Aktif' : 'Tidak Aktif',
+				isrun: isrun === 'Ya' ? 'Ya' : 'Tidak',
+				golonganDarah: golonganDarah || null
+			};
+
+			if (nik) {
+				updatePayload.nikEncrypted = encryptSensitive(nik);
+			}
+
+			db.update(anggotaKeluarga)
+				.set(updatePayload)
+				.where(eq(anggotaKeluarga.id, anggotaId))
+				.run();
+
+			if (existingAnggota.userId) {
+				db.update(users)
+					.set({
+						namaLengkap,
+						noTelepon: noTelepon || null
+					})
+					.where(eq(users.id, existingAnggota.userId))
+					.run();
+			} else if (parentKeluarga?.kepalaKeluargaId && existingAnggota.statusHubungan === 'Kepala Keluarga') {
+				db.update(users)
+					.set({
+						namaLengkap,
+						noTelepon: noTelepon || null
+					})
+					.where(eq(users.id, parentKeluarga.kepalaKeluargaId))
+					.run();
+			}
+
+			return {
+				success: `Data anggota "${namaLengkap}" berhasil diperbarui.`
+			};
+		} catch (err) {
+			console.error('Gagal memperbarui anggota keluarga:', err);
+			return fail(500, { error: 'Terjadi kesalahan sistem saat memperbarui data anggota.' });
+		}
+	},
+
+	/**
+	 * Memperbarui data Kartu Keluarga & domisili/kelompok basis
+	 */
+	updateKeluarga: async ({ request, locals }) => {
+		if (!locals.user || !locals.isAdmin) {
+			return fail(403, { error: 'Akses ditolak.' });
+		}
+
+		const adminScope = getAdminScope(locals.roles);
+		const accessibleWilayah = getAccessibleWilayah(adminScope);
+
+		const formData = await request.formData();
+		const keluargaId = formData.get('keluargaId')?.toString() || '';
+		const noKk = formData.get('noKk')?.toString()?.trim() || '';
+		const alamatLengkap = formData.get('alamatLengkap')?.toString()?.trim() || '';
+		const kelompokIdStr = formData.get('kelompokId')?.toString()?.trim() || '';
+
+		if (!keluargaId) {
+			return fail(400, { error: 'ID Kartu Keluarga tidak valid.' });
+		}
+
+		const targetKeluarga = db
+			.select({
+				id: keluarga.id,
+				isKk: keluarga.isKk,
+				kepalaKeluargaId: keluarga.kepalaKeluargaId,
+				kelompokId: users.kelompokId
+			})
+			.from(keluarga)
+			.leftJoin(users, eq(keluarga.kepalaKeluargaId, users.id))
+			.where(eq(keluarga.id, keluargaId))
+			.get();
+
+		if (!targetKeluarga) {
+			return fail(404, { error: 'Data keluarga tidak ditemukan.' });
+		}
+
+		if (
+			targetKeluarga.kelompokId &&
+			!isKelompokAllowed(targetKeluarga.kelompokId, accessibleWilayah.allowedKelompokIdSet, adminScope.isPusat)
+		) {
+			return fail(403, { error: 'Akses ditolak: Kartu Keluarga berada di luar cakupan wewenang Anda.' });
+		}
+
+		let newKelompokId: number | null = null;
+		if (kelompokIdStr) {
+			const parsed = parseInt(kelompokIdStr, 10);
+			if (!isNaN(parsed)) {
+				if (!isKelompokAllowed(parsed, accessibleWilayah.allowedKelompokIdSet, adminScope.isPusat)) {
+					return fail(403, { error: 'Kelompok tujuan berada di luar wewenang Anda.' });
+				}
+				newKelompokId = parsed;
+			}
+		}
+
+		if (noKk) {
+			if (noKk.length !== 16 || !/^\d+$/.test(noKk)) {
+				return fail(400, { error: 'Nomor KK harus berupa 16 digit angka jika diisi.' });
+			}
+		}
+
+		try {
+			const keluargaUpdatePayload: Record<string, any> = {
+				alamatLengkap: alamatLengkap || null
+			};
+			if (noKk) {
+				keluargaUpdatePayload.noKkEncrypted = encryptSensitive(noKk);
+			}
+
+			db.update(keluarga)
+				.set(keluargaUpdatePayload)
+				.where(eq(keluarga.id, keluargaId))
+				.run();
+
+			if (newKelompokId !== null && targetKeluarga.kepalaKeluargaId) {
+				db.update(users)
+					.set({ kelompokId: newKelompokId })
+					.where(eq(users.id, targetKeluarga.kepalaKeluargaId))
+					.run();
+			}
+
+			return {
+				success: 'Data Kartu Keluarga & domisili berhasil diperbarui.'
+			};
+		} catch (err) {
+			console.error('Gagal memperbarui Kartu Keluarga:', err);
+			return fail(500, { error: 'Terjadi kesalahan sistem saat memperbarui data keluarga.' });
 		}
 	}
 };
