@@ -457,9 +457,11 @@
 		<div>
 			<div class="flex items-center gap-2">
 				<h1 class="text-xl font-bold text-foreground tracking-tight">Rekapitulasi Sensus Kartu Keluarga</h1>
-				<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20">
-					Scope {data.adminScope.level}
-				</span>
+				{#if data.adminScope}
+					<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20">
+						Scope {data.adminScope?.level ?? ''}
+					</span>
+				{/if}
 			</div>
 			<p class="text-xs text-foreground/60 mt-0.5">
 				Kelola data kependudukan jamaah terenkripsi AES-256-GCM sesuai cakupan wewenang administratif Anda.
@@ -967,7 +969,7 @@
 					<!-- Kelompok Basis Scope Admin -->
 					<div>
 						<label for="kelompokId" class="block text-[11px] font-semibold text-foreground mb-1">
-							Kelompok Basis (Sesuai Scope Anda: {data.adminScope.level}) *
+							Kelompok Basis (Sesuai Scope Anda: {data.adminScope?.level ?? '-'}) *
 						</label>
 						<SearchableSelect
 							id="kelompokId"

@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(admin)/admin/wilayah/+page.svelte
-  @purpose Halaman manajemen Data Wilayah lengkap (Daerah, Desa, Kelompok, Sub-Kelompok), modal detail kelompok dengan Leaflet, kontrol RBAC visual berjenjang
+  @purpose Halaman manajemen Data Wilayah lengkap (Daerah, Desa, Kelompok, Sub-Kelompok), modal detail kelompok dengan Leaflet, kontrol RBAC visual berjenjang, safe navigation data, dan progressive enhancement form actions
   @usedBy Route admin '/admin/wilayah'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/LocationPicker.svelte
+  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/LocationPicker.svelte, $app/forms (enhance)
   @publicFunctions openAddDaerahModal, closeAddDaerahModal, openAddKelompokModal, closeAddKelompokModal, openAddDesaModal, closeAddDesaModal, openAddSubKelompokModal, closeAddSubKelompokModal, openKelompokDetail, closeKelompokDetail, resetFilter
-  @sideEffects Menampilkan data wilayah sesuai scope RBAC, menyaring data, mengelola lokasi kelompok dengan Leaflet, dan mengirim update ke server
+  @sideEffects Menampilkan data wilayah sesuai scope RBAC, menyaring data, mengelola lokasi kelompok dengan Leaflet, dan mengirim update ke server via enhance
 -->
 <script lang="ts">
 	import {
@@ -31,6 +31,7 @@
 	import type { ActionData, PageData } from './$types';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
 	import LocationPicker from '$lib/components/LocationPicker.svelte';
+	import { enhance } from '$app/forms';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -279,23 +280,25 @@
 
 		<div class="flex items-center gap-2 flex-wrap">
 			<!-- Badge Scope Wewenang Admin -->
-			<div
-				class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium bg-muted/40 text-foreground/80 border-border"
-			>
-				<ShieldCheck class="w-3.5 h-3.5 text-primary" />
-				<span>Scope: <strong class="text-foreground">{data.adminScope.level}</strong></span>
-				{#if data.adminScope.level === 'Desa' && data.desaList.length > 0}
-					<span class="text-foreground/50">({data.desaList.map((d) => d.nama).join(', ')})</span>
-				{:else if data.adminScope.level === 'Daerah' && data.daerahList.length > 0}
-					<span class="text-foreground/50">({data.daerahList.map((d) => d.nama).join(', ')})</span>
-				{:else if data.adminScope.level === 'Kelompok' && data.kelompokList.length > 0}
-					<span class="text-foreground/50">({data.kelompokList.map((k) => k.nama).join(', ')})</span>
-				{:else if data.adminScope.isPusat}
-					<span class="text-foreground/50">(Seluruh Wilayah)</span>
-				{/if}
-			</div>
+			{#if data.adminScope}
+				<div
+					class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium bg-muted/40 text-foreground/80 border-border"
+				>
+					<ShieldCheck class="w-3.5 h-3.5 text-primary" />
+					<span>Scope: <strong class="text-foreground">{data.adminScope?.level ?? '-'}</strong></span>
+					{#if data.adminScope?.level === 'Desa' && (data.desaList?.length ?? 0) > 0}
+						<span class="text-foreground/50">({data.desaList.map((d) => d.nama).join(', ')})</span>
+					{:else if data.adminScope?.level === 'Daerah' && (data.daerahList?.length ?? 0) > 0}
+						<span class="text-foreground/50">({data.daerahList.map((d) => d.nama).join(', ')})</span>
+					{:else if data.adminScope?.level === 'Kelompok' && (data.kelompokList?.length ?? 0) > 0}
+						<span class="text-foreground/50">({data.kelompokList.map((k) => k.nama).join(', ')})</span>
+					{:else if data.adminScope?.isPusat}
+						<span class="text-foreground/50">(Seluruh Wilayah)</span>
+					{/if}
+				</div>
+			{/if}
 
-			{#if data.permissions.canBatchInsert}
+			{#if data.permissions?.canBatchInsert}
 				<a
 					href="/admin/wilayah/batch"
 					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/40 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold transition-all shadow-xs"
@@ -305,7 +308,7 @@
 				</a>
 			{/if}
 
-			{#if data.permissions.canCreateDaerah}
+			{#if data.permissions?.canCreateDaerah}
 				<button
 					type="button"
 					onclick={() => (showAddDaerahModal = true)}
@@ -316,11 +319,11 @@
 				</button>
 			{/if}
 
-			{#if data.permissions.canCreateDesa}
+			{#if data.permissions?.canCreateDesa}
 				<button
 					type="button"
 					onclick={() => {
-						if (data.daerahList.length === 1) {
+						if ((data.daerahList?.length ?? 0) === 1) {
 							selectedDaerahId = data.daerahList[0].id;
 						}
 						showAddDesaModal = true;
@@ -332,11 +335,11 @@
 				</button>
 			{/if}
 
-			{#if data.permissions.canCreateKelompok}
+			{#if data.permissions?.canCreateKelompok}
 				<button
 					type="button"
 					onclick={() => {
-						if (data.desaList.length === 1) {
+						if ((data.desaList?.length ?? 0) === 1) {
 							selectedDesaId = data.desaList[0].id;
 						}
 						showAddKelompokModal = true;
@@ -348,11 +351,11 @@
 				</button>
 			{/if}
 
-			{#if data.permissions.canCreateSubKelompok}
+			{#if data.permissions?.canCreateSubKelompok}
 				<button
 					type="button"
 					onclick={() => {
-						if (data.kelompokList.length === 1) {
+						if ((data.kelompokList?.length ?? 0) === 1) {
 							selectedKelompokId = data.kelompokList[0].id;
 						}
 						showAddSubKelompokModal = true;
@@ -388,7 +391,7 @@
 		<div class="bg-card border border-border rounded-xl p-3.5 sm:p-4 shadow-xs flex items-center justify-between">
 			<div>
 				<p class="text-[11px] font-semibold text-foreground/60 uppercase tracking-wider">Daerah</p>
-				<p class="text-xl sm:text-2xl font-bold text-foreground mt-0.5">{data.daerahList.length}</p>
+				<p class="text-xl sm:text-2xl font-bold text-foreground mt-0.5">{data.daerahList?.length ?? 0}</p>
 				<p class="text-[10.5px] text-foreground/50 mt-0.5">Kota / Kabupaten</p>
 			</div>
 			<div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
@@ -400,7 +403,7 @@
 		<div class="bg-card border border-border rounded-xl p-3.5 sm:p-4 shadow-xs flex items-center justify-between">
 			<div>
 				<p class="text-[11px] font-semibold text-foreground/60 uppercase tracking-wider">Desa</p>
-				<p class="text-xl sm:text-2xl font-bold text-foreground mt-0.5">{data.desaList.length}</p>
+				<p class="text-xl sm:text-2xl font-bold text-foreground mt-0.5">{data.desaList?.length ?? 0}</p>
 				<p class="text-[10.5px] text-foreground/50 mt-0.5">Kecamatan</p>
 			</div>
 			<div class="w-10 h-10 rounded-xl bg-accent/20 text-accent flex items-center justify-center shrink-0">
@@ -412,7 +415,7 @@
 		<div class="bg-card border border-border rounded-xl p-3.5 sm:p-4 shadow-xs flex items-center justify-between">
 			<div>
 				<p class="text-[11px] font-semibold text-foreground/60 uppercase tracking-wider">Kelompok</p>
-				<p class="text-xl sm:text-2xl font-bold text-foreground mt-0.5">{data.kelompokList.length}</p>
+				<p class="text-xl sm:text-2xl font-bold text-foreground mt-0.5">{data.kelompokList?.length ?? 0}</p>
 				<p class="text-[10.5px] text-foreground/50 mt-0.5">Basis Jamaah</p>
 			</div>
 			<div class="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center text-foreground/70 shrink-0">
@@ -424,7 +427,7 @@
 		<div class="bg-card border border-border rounded-xl p-3.5 sm:p-4 shadow-xs flex items-center justify-between">
 			<div>
 				<p class="text-[11px] font-semibold text-foreground/60 uppercase tracking-wider">Sub-Kelompok</p>
-				<p class="text-xl sm:text-2xl font-bold text-foreground mt-0.5">{data.subKelompokList.length}</p>
+				<p class="text-xl sm:text-2xl font-bold text-foreground mt-0.5">{data.subKelompokList?.length ?? 0}</p>
 				<p class="text-[10.5px] text-foreground/50 mt-0.5">Rukun / Lingkungan</p>
 			</div>
 			<div class="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
@@ -492,7 +495,7 @@
 						class="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:bg-background transition-all"
 					>
 						<option value="">Semua Daerah</option>
-						{#each data.daerahList as d}
+						{#each (data.daerahList || []) as d}
 							<option value={d.id}>{d.nama}</option>
 						{/each}
 					</select>
@@ -538,7 +541,7 @@
 							class="w-full bg-card border border-border rounded-lg px-2.5 py-2 text-xs text-foreground focus:ring-1 focus:ring-primary"
 						>
 							<option value="">Semua Daerah</option>
-							{#each data.daerahList as d}
+							{#each (data.daerahList || []) as d}
 								<option value={d.id}>{d.nama}</option>
 							{/each}
 						</select>
@@ -783,7 +786,7 @@
 				</button>
 			</div>
 
-			<form method="POST" action="?/createDaerah" class="space-y-4">
+			<form method="POST" action="?/createDaerah" use:enhance class="space-y-4">
 				<div>
 					<label for="namaDaerah" class="block text-xs font-semibold text-foreground mb-1.5">
 						Nama Daerah *
@@ -873,7 +876,7 @@
 				</button>
 			</div>
 
-			<form method="POST" action="?/createKelompok" class="space-y-4">
+			<form method="POST" action="?/createKelompok" use:enhance class="space-y-4">
 				<div>
 					<label for="namaKelompok" class="block text-xs font-semibold text-foreground mb-1.5">
 						Nama Kelompok *
@@ -893,7 +896,7 @@
 					<label for="desaId" class="block text-xs font-semibold text-foreground mb-1.5">
 						Desa Induk *
 					</label>
-					{#if data.desaList.length === 1}
+					{#if (data.desaList?.length ?? 0) === 1}
 						<div
 							class="px-3 py-2 bg-secondary/40 border border-border rounded-lg text-xs font-semibold text-foreground flex items-center justify-between"
 						>
@@ -972,7 +975,7 @@
 				</button>
 			</div>
 
-			<form method="POST" action="?/createDesa" class="space-y-4">
+			<form method="POST" action="?/createDesa" use:enhance class="space-y-4">
 				<div>
 					<label for="namaDesa" class="block text-xs font-semibold text-foreground mb-1.5">
 						Nama Desa *
@@ -992,7 +995,7 @@
 					<label for="daerahId" class="block text-xs font-semibold text-foreground mb-1.5">
 						Daerah Induk *
 					</label>
-					{#if data.daerahList.length === 1}
+					{#if (data.daerahList?.length ?? 0) === 1}
 						<div
 							class="px-3 py-2 bg-secondary/40 border border-border rounded-lg text-xs font-semibold text-foreground flex items-center justify-between"
 						>
@@ -1071,7 +1074,7 @@
 				</button>
 			</div>
 
-			<form method="POST" action="?/createSubKelompok" class="space-y-4">
+			<form method="POST" action="?/createSubKelompok" use:enhance class="space-y-4">
 				<div>
 					<label for="namaSubKelompok" class="block text-xs font-semibold text-foreground mb-1.5">
 						Nama Sub-Kelompok *
@@ -1091,7 +1094,7 @@
 					<label for="subKelompokKelompokId" class="block text-xs font-semibold text-foreground mb-1.5">
 						Kelompok Induk *
 					</label>
-					{#if data.kelompokList.length === 1}
+					{#if (data.kelompokList?.length ?? 0) === 1}
 						<div
 							class="px-3 py-2 bg-secondary/40 border border-border rounded-lg text-xs font-semibold text-foreground flex items-center justify-between"
 						>
@@ -1239,7 +1242,7 @@
 						{/if}
 					</div>
 
-					<form method="POST" action="?/updateKelompokLocation" class="space-y-4">
+					<form method="POST" action="?/updateKelompokLocation" use:enhance class="space-y-4">
 						<input type="hidden" name="kelompokId" value={selectedKelompok.id} />
 						<input type="hidden" name="lokasiNama" value={editLokasiNama} />
 						<input type="hidden" name="latitude" value={editLatitude} />
