@@ -75,14 +75,13 @@
 	}
 
 	function createEmptyGroup(): DesaBatchGroup {
-		const firstDaerah = data.daerahList[0]?.nama || '';
 		return {
 			id: Math.random().toString(36).substring(2, 9),
-			daerahNama: firstDaerah,
+			daerahNama: '',
 			desaNama: '',
 			kecamatan: '',
-			kelompoks: [createEmptyKelompok('Kelompok 1')],
-			isManualInput: data.daerahList.length === 0
+			kelompoks: [createEmptyKelompok('')],
+			isManualInput: false
 		};
 	}
 
@@ -106,8 +105,7 @@
 	}
 
 	function addKelompokToGroup(group: DesaBatchGroup) {
-		const nextNum = group.kelompoks.length + 1;
-		group.kelompoks.push(createEmptyKelompok(`Kelompok ${nextNum}`));
+		group.kelompoks.push(createEmptyKelompok(''));
 	}
 
 	function removeKelompok(group: DesaBatchGroup, kIndex: number) {
@@ -201,12 +199,12 @@
 		}
 
 		if (parsedGroups.length > 0) {
-			if (
+			const isFirstGroupEmpty =
 				groups.length === 1 &&
-				!groups[0].desaNama &&
-				groups[0].kelompoks.length === 1 &&
-				!groups[0].kelompoks[0].nama
-			) {
+				!groups[0].desaNama.trim() &&
+				!groups[0].kelompoks.some((k) => k.nama.trim());
+
+			if (isFirstGroupEmpty || groups.every((g) => !g.desaNama.trim())) {
 				groups = parsedGroups;
 			} else {
 				groups = [...groups, ...parsedGroups];
@@ -223,9 +221,18 @@
 		new Set(groups.map((g) => g.daerahNama.trim()).filter(Boolean)).size
 	);
 	const totalDesaUnique = $derived(
-		new Set(groups.map((g) => `${g.daerahNama}:${g.desaNama}`.toLowerCase())).size
+		new Set(
+			groups
+				.filter((g) => g.desaNama.trim())
+				.map((g) => `${g.daerahNama}:${g.desaNama}`.toLowerCase())
+		).size
 	);
-	const totalKelompok = $derived(groups.reduce((acc, g) => acc + g.kelompoks.length, 0));
+	const totalKelompok = $derived(
+		groups.reduce(
+			(acc, g) => acc + g.kelompoks.filter((k) => k.nama.trim()).length,
+			0
+		)
+	);
 	const totalSubKelompok = $derived(
 		groups.reduce(
 			(acc, g) =>
@@ -389,7 +396,7 @@
 							</span>
 							<h2 class="text-sm font-bold text-foreground flex items-center gap-1.5">
 								<Building class="w-4 h-4 text-primary" />
-								<span>{group.desaNama ? `Desa ${group.desaNama}` : 'Grup Desa Baru'}</span>
+								<span>{group.desaNama ? `Desa ${group.desaNama}` : 'Grup Wilayah Baru'}</span>
 								{#if group.daerahNama}
 									<span class="text-foreground/50 font-normal">({group.daerahNama})</span>
 								{/if}
@@ -418,9 +425,6 @@
 										type="button"
 										onclick={() => {
 											group.isManualInput = false;
-											if (data.daerahList.length > 0 && !group.daerahNama) {
-												group.daerahNama = data.daerahList[0].nama;
-											}
 										}}
 										class="text-[10px] text-primary hover:underline font-medium"
 									>
@@ -659,7 +663,7 @@
 						<span>Menyimpan Batch Wilayah...</span>
 					{:else}
 						<Save class="w-4 h-4" />
-						<span>Simpan {totalKelompok} Kelompok ({groups.length} Grup Wilayah)</span>
+						<span>{totalKelompok > 0 ? `Simpan ${totalKelompok} Kelompok (${groups.length} Grup Wilayah)` : 'Simpan Data Wilayah'}</span>
 					{/if}
 				</button>
 			</div>
