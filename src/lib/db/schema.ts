@@ -1,9 +1,9 @@
 /**
  * @file src/lib/db/schema.ts
- * @purpose Definisi schema tabel Drizzle ORM untuk SQLite sesuai SCHEMA.md (termasuk No KK/NIK nullable, kontak no_telepon user, serta rincian lengkap anggota keluarga)
+ * @purpose Definisi schema tabel Drizzle ORM untuk SQLite sesuai SCHEMA.md (termasuk No KK/NIK nullable, kontak no_telepon user, sub-kelompok wilayah, serta rincian lengkap anggota keluarga)
  * @usedBy src/lib/db/index.ts, queries/actions di routes dan services
  * @dependencies drizzle-orm/sqlite-core, @paralleldrive/cuid2
- * @publicFunctions daerah, desa, kelompok, users, dapukan, userDapukan, keluarga, anggotaKeluarga, presensiJadwal, presensiKehadiran
+ * @publicFunctions daerah, desa, kelompok, subKelompok, users, dapukan, userDapukan, keluarga, anggotaKeluarga, presensiJadwal, presensiKehadiran
  * @sideEffects Mendefinisikan struktur tabel, relasi foreign key, dan indeks database SQLite
  */
 
@@ -45,6 +45,19 @@ export const kelompok = sqliteTable(
 		kelurahan: text('kelurahan')
 	},
 	(table) => [index('kelompok_desa_id_idx').on(table.desaId)]
+);
+
+export const subKelompok = sqliteTable(
+	'sub_kelompok',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		kelompokId: integer('kelompok_id')
+			.notNull()
+			.references(() => kelompok.id, { onDelete: 'cascade' }),
+		nama: text('nama').notNull(),
+		keterangan: text('keterangan')
+	},
+	(table) => [index('sub_kelompok_kelompok_id_idx').on(table.kelompokId)]
 );
 
 // ==========================================

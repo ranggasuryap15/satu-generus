@@ -4,7 +4,7 @@
  * @usedBy Backend server routes (+page.server.ts, +server.ts, hooks.server.ts, scripts migrasi/seed)
  * @dependencies better-sqlite3, drizzle-orm/better-sqlite3, src/lib/db/schema.ts
  * @publicFunctions db, sqlite
- * @sideEffects Membuka koneksi file database SQLite, mengaktifkan PRAGMA WAL & foreign_keys, auto-migrasi kolom skema (no_telepon di users, detail sensus di anggota_keluarga, dan relaksasi constraint nullable)
+ * @sideEffects Membuka koneksi file database SQLite, mengaktifkan PRAGMA WAL & foreign_keys, auto-migrasi kolom & tabel skema (sub_kelompok, no_telepon di users, detail sensus di anggota_keluarga)
  */
 
 import Database from 'better-sqlite3';
@@ -139,6 +139,17 @@ try {
 			sqlite.exec('CREATE INDEX IF NOT EXISTS users_no_telepon_idx ON users (no_telepon)');
 		}
 	}
+
+	// Auto-create tabel sub_kelompok jika belum ada
+	sqlite.exec(`
+		CREATE TABLE IF NOT EXISTS sub_kelompok (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			kelompok_id INTEGER NOT NULL REFERENCES kelompok(id) ON DELETE CASCADE,
+			nama TEXT NOT NULL,
+			keterangan TEXT
+		);
+		CREATE INDEX IF NOT EXISTS sub_kelompok_kelompok_id_idx ON sub_kelompok (kelompok_id);
+	`);
 } catch (migErr) {
 	console.error('[DB Auto-Migration] Gagal memeriksa atau memperbarui kolom skema SQLite:', migErr);
 }

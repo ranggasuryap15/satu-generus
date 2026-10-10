@@ -1,6 +1,6 @@
 <!--
   @file src/lib/components/navigation/AdminSidebar.svelte
-  @purpose Komponen Sidebar navigasi admin responsif dengan pengelompokan menu (Ikhtisar, Pusat Data, Pengajian, Sistem) dan penanda rute aktif
+  @purpose Komponen Sidebar navigasi admin responsif dengan pengelompokan menu (Ikhtisar, Pusat Data mencakup Sensus & Data Wilayah, Pengajian, Sistem) dan penanda rute aktif
   @usedBy src/routes/(admin)/+layout.svelte
   @dependencies $app/state (page), @lucide/svelte (LayoutDashboard, Users, FileSpreadsheet, CalendarCheck, MapPin, ShieldCheck, ExternalLink, X)
   @publicFunctions isItemActive
@@ -44,7 +44,8 @@
 			items: [
 				{ href: '/admin/sensus', label: 'Sensus & KK', icon: Users },
 				{ href: '/admin/sensus/batch', label: 'Batch Input Sensus', icon: FileSpreadsheet },
-				{ href: '/admin/wilayah', label: 'Hierarki Wilayah', icon: MapPin }
+				{ href: '/admin/wilayah', label: 'Data Wilayah', icon: MapPin },
+				{ href: '/admin/wilayah/batch', label: 'Batch Input Wilayah', icon: FileSpreadsheet }
 			]
 		},
 		{

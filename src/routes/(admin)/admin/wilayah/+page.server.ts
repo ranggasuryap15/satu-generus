@@ -1,16 +1,16 @@
 /**
  * @file src/routes/(admin)/admin/wilayah/+page.server.ts
- * @purpose Memuat hierarki wilayah administratif (Daerah, Desa, Kelompok) dan menangani penambahan wilayah baru
+ * @purpose Memuat data wilayah administratif (Daerah, Desa, Kelompok, Sub-Kelompok) dan menangani aksi pembuatan unit wilayah baru
  * @usedBy src/routes/(admin)/admin/wilayah/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm
- * @publicFunctions load, actions.createKelompok, actions.createDesa
- * @sideEffects Insert data desa/kelompok ke SQLite, query join hierarki dengan agregasi jamaah
+ * @publicFunctions load, actions.createDaerah, actions.createDesa, actions.createKelompok, actions.createSubKelompok
+ * @sideEffects Insert data daerah/desa/kelompok/sub_kelompok ke SQLite, query agregasi jumlah jamaah dan sub-kelompok
  */
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '$lib/db';
-import { daerah, desa, kelompok, users } from '$lib/db/schema';
+import { daerah, desa, kelompok, subKelompok } from '$lib/db/schema';
 import { eq, sql } from 'drizzle-orm';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -34,7 +34,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		.leftJoin(daerah, eq(desa.daerahId, daerah.id))
 		.all();
 
-	// 3. Ambil seluruh kelompok join desa dan daerah beserta jumlah jamaah (minimum I/O)
+	// 3. Ambil seluruh kelompok join desa dan daerah dengan agregasi terindeks (minimum I/O, no Cartesian product)
 	const kelompokList = db
 		.select({
 			id: kelompok.id,
@@ -43,49 +43,65 @@ export const load: PageServerLoad = async ({ locals }) => {
 			desaId: kelompok.desaId,
 			desaNama: desa.nama,
 			daerahNama: daerah.nama,
-			totalJamaah: sql<number>`count(${users.id})`
+			totalJamaah: sql<number>`(SELECT count(*) FROM users WHERE users.kelompok_id = ${kelompok.id})`,
+			totalSubKelompok: sql<number>`(SELECT count(*) FROM sub_kelompok WHERE sub_kelompok.kelompok_id = ${kelompok.id})`
 		})
 		.from(kelompok)
 		.leftJoin(desa, eq(kelompok.desaId, desa.id))
 		.leftJoin(daerah, eq(desa.daerahId, daerah.id))
-		.leftJoin(users, eq(users.kelompokId, kelompok.id))
-		.groupBy(kelompok.id)
+		.all();
+
+	// 4. Ambil seluruh sub-kelompok join kelompok, desa, daerah
+	const subKelompokList = db
+		.select({
+			id: subKelompok.id,
+			nama: subKelompok.nama,
+			keterangan: subKelompok.keterangan,
+			kelompokId: subKelompok.kelompokId,
+			kelompokNama: kelompok.nama,
+			desaNama: desa.nama,
+			daerahNama: daerah.nama
+		})
+		.from(subKelompok)
+		.leftJoin(kelompok, eq(subKelompok.kelompokId, kelompok.id))
+		.leftJoin(desa, eq(kelompok.desaId, desa.id))
+		.leftJoin(daerah, eq(desa.daerahId, daerah.id))
 		.all();
 
 	return {
 		daerahList,
 		desaList,
-		kelompokList
+		kelompokList,
+		subKelompokList
 	};
 };
 
 export const actions: Actions = {
-	createKelompok: async ({ request, locals }) => {
+	createDaerah: async ({ request, locals }) => {
 		if (!locals.user || !locals.isAdmin) {
 			return fail(403, { error: 'Akses ditolak.' });
 		}
 
 		const formData = await request.formData();
 		const nama = formData.get('nama')?.toString()?.trim() || '';
-		const kelurahan = formData.get('kelurahan')?.toString()?.trim() || '';
-		const desaIdStr = formData.get('desaId')?.toString() || '';
-		const desaId = parseInt(desaIdStr, 10);
+		const provinsi = formData.get('provinsi')?.toString()?.trim() || '';
+		const kotaKabupaten = formData.get('kotaKabupaten')?.toString()?.trim() || '';
 
-		if (!nama || isNaN(desaId)) {
-			return fail(400, { error: 'Nama kelompok dan Desa induk wajib diisi.' });
+		if (!nama || !provinsi || !kotaKabupaten) {
+			return fail(400, { error: 'Nama daerah, Provinsi, dan Kota/Kabupaten wajib diisi.' });
 		}
 
 		try {
-			db.insert(kelompok)
+			db.insert(daerah)
 				.values({
-					desaId,
 					nama,
-					kelurahan: kelurahan || null
+					provinsi,
+					kotaKabupaten
 				})
 				.run();
 		} catch (error) {
-			console.error('Gagal membuat kelompok:', error);
-			return fail(500, { error: 'Terjadi kesalahan sistem saat menyimpan kelompok.' });
+			console.error('Gagal membuat daerah:', error);
+			return fail(500, { error: 'Terjadi kesalahan sistem saat menyimpan daerah.' });
 		}
 
 		return { success: true };
@@ -120,6 +136,67 @@ export const actions: Actions = {
 		}
 
 		return { success: true };
+	},
+
+	createKelompok: async ({ request, locals }) => {
+		if (!locals.user || !locals.isAdmin) {
+			return fail(403, { error: 'Akses ditolak.' });
+		}
+
+		const formData = await request.formData();
+		const nama = formData.get('nama')?.toString()?.trim() || '';
+		const kelurahan = formData.get('kelurahan')?.toString()?.trim() || '';
+		const desaIdStr = formData.get('desaId')?.toString() || '';
+		const desaId = parseInt(desaIdStr, 10);
+
+		if (!nama || isNaN(desaId)) {
+			return fail(400, { error: 'Nama kelompok dan Desa induk wajib diisi.' });
+		}
+
+		try {
+			db.insert(kelompok)
+				.values({
+					desaId,
+					nama,
+					kelurahan: kelurahan || null
+				})
+				.run();
+		} catch (error) {
+			console.error('Gagal membuat kelompok:', error);
+			return fail(500, { error: 'Terjadi kesalahan sistem saat menyimpan kelompok.' });
+		}
+
+		return { success: true };
+	},
+
+	createSubKelompok: async ({ request, locals }) => {
+		if (!locals.user || !locals.isAdmin) {
+			return fail(403, { error: 'Akses ditolak.' });
+		}
+
+		const formData = await request.formData();
+		const nama = formData.get('nama')?.toString()?.trim() || '';
+		const keterangan = formData.get('keterangan')?.toString()?.trim() || '';
+		const kelompokIdStr = formData.get('kelompokId')?.toString() || '';
+		const kelompokId = parseInt(kelompokIdStr, 10);
+
+		if (!nama || isNaN(kelompokId)) {
+			return fail(400, { error: 'Nama sub-kelompok dan Kelompok induk wajib diisi.' });
+		}
+
+		try {
+			db.insert(subKelompok)
+				.values({
+					kelompokId,
+					nama,
+					keterangan: keterangan || null
+				})
+				.run();
+		} catch (error) {
+			console.error('Gagal membuat sub-kelompok:', error);
+			return fail(500, { error: 'Terjadi kesalahan sistem saat menyimpan sub-kelompok.' });
+		}
+
+		return { success: true };
 	}
 };
-
