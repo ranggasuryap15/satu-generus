@@ -1,10 +1,10 @@
 <!--
   @file src/lib/components/navigation/AdminSidebar.svelte
-  @purpose Komponen Sidebar navigasi admin responsif dengan pengelompokan menu (Ikhtisar, Pusat Data mencakup Sensus & Data Wilayah, Pengajian, Sistem) dan penanda rute aktif
+  @purpose Komponen Sidebar navigasi admin responsif dengan pengelompokan menu (Ikhtisar, Pusat Data, Pengajian, Sistem), penanda rute aktif, dan badge permohonan pending
   @usedBy src/routes/(admin)/+layout.svelte
-  @dependencies $app/state (page), @lucide/svelte (LayoutDashboard, Users, FileSpreadsheet, CalendarCheck, MapPin, ShieldCheck, ExternalLink, X)
+  @dependencies $app/state (page), @lucide/svelte
   @publicFunctions isItemActive
-  @sideEffects Menavigasikan admin ke modul-modul manajemen data, menandai menu aktif, dan menangani drawer mobile
+  @sideEffects Menavigasikan admin ke modul-modul manajemen data, menandai menu aktif, menampilkan badge approval presensi, dan menangani drawer mobile
 -->
 <script lang="ts">
 	import { page } from '$app/state';
@@ -34,6 +34,8 @@
 		isOpen?: boolean;
 		onClose?: () => void;
 	}>();
+
+	const totalPending = $derived(Number(page.data.totalPendingApprovals) || 0);
 
 	const menuGroups: NavGroup[] = [
 		{
@@ -129,13 +131,20 @@
 						<a
 							href={item.href}
 							onclick={onClose}
-							class="flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-colors group {active
+							class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors group {active
 								? 'bg-secondary text-foreground font-semibold shadow-xs'
 								: 'text-foreground/70 hover:bg-secondary/60 hover:text-foreground'}"
 							aria-current={active ? 'page' : undefined}
 						>
-							<item.icon class="w-4 h-4 transition-colors {active ? 'text-primary' : 'text-foreground/60 group-hover:text-primary'}" />
-							<span>{item.label}</span>
+							<div class="flex items-center gap-3 min-w-0">
+								<item.icon class="w-4 h-4 shrink-0 transition-colors {active ? 'text-primary' : 'text-foreground/60 group-hover:text-primary'}" />
+								<span class="truncate">{item.label}</span>
+							</div>
+							{#if item.href === '/admin/presensi' && totalPending > 0}
+								<span class="px-1.5 py-0.2 rounded-full bg-rose-500 text-white font-bold text-[9.5px] leading-tight shrink-0 shadow-xs">
+									{totalPending}
+								</span>
+							{/if}
 						</a>
 					{/each}
 				</div>

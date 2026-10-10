@@ -1,8 +1,8 @@
 <!--
   @file src/routes/(admin)/admin/presensi/[jadwalId]/+page.svelte
-  @purpose Halaman checklist absensi jamaah per jadwal: verifikasi presensi mandiri (offline GPS + foto kamera, online SS SDC) dan panel review approval izin/sakit jamaah
+  @purpose Halaman checklist absensi jamaah per jadwal: verifikasi presensi mandiri (offline GPS + foto kamera, online SS SDC) dan modal peninjauan approval izin/sakit jamaah
   @usedBy Route admin '/admin/presensi/[jadwalId]'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/utils (formatDateDDMMYYYY)
+  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/utils (formatDateDDMMYYYY), $app/state (page)
   @publicFunctions N/A (Svelte Component)
   @sideEffects Mengirim form update status, approve izin, dan reject izin ke server actions
 -->
@@ -26,6 +26,7 @@
 		XCircle
 	} from '@lucide/svelte';
 	import { formatDateDDMMYYYY } from '$lib/utils';
+	import { page } from '$app/state';
 	import type { PageData } from './$types';
 
 	let { data } = $props<{ data: PageData }>();
@@ -35,6 +36,16 @@
 	// State Modal Preview Foto Bukti
 	let selectedPreviewFoto = $state<string | null>(null);
 	let selectedPreviewTitle = $state<string>('');
+
+	// State Modal Dialog Approval Izin / Sakit
+	let isApprovalModalOpen = $state(false);
+
+	// Buka modal otomatis jika datang dari notifikasi (?review=1)
+	$effect(() => {
+		if (page.url.searchParams.get('review') === '1' && pendingIzinList.length > 0) {
+			isApprovalModalOpen = true;
+		}
+	});
 
 	type PesertaType = (typeof data.pesertaList)[number];
 
@@ -159,86 +170,31 @@
 	</div>
 
 	<!-- ============================================================== -->
-	<!-- PANEL APPROVAL PERMOHONAN IZIN (JIKA ADA PERMOHONAN PENDING) -->
+	<!-- ALERT COMPACT APPROVAL PERMOHONAN IZIN (JIKA ADA PENDING) -->
 	<!-- ============================================================== -->
 	{#if pendingIzinList.length > 0}
-		<div class="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 sm:p-5 space-y-3">
-			<div class="flex items-center gap-2 text-amber-900 dark:text-amber-200">
-				<ShieldAlert class="w-5 h-5 text-amber-600" />
-				<div>
-					<h3 class="text-sm font-bold">Permohonan Izin Menunggu Persetujuan ({pendingIzinList.length})</h3>
-					<p class="text-[11px] text-amber-800/80 dark:text-amber-300/80">
-						Jamaah di bawah ini mengajukan izin/sakit dan membutuhkan approval admin.
+		<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:px-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200">
+			<div class="flex items-center gap-2.5 min-w-0">
+				<div class="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+					<ShieldAlert class="w-4 h-4" />
+				</div>
+				<div class="min-w-0">
+					<p class="text-xs font-bold text-foreground">
+						Ada {pendingIzinList.length} Permohonan Izin / Sakit Menunggu Persetujuan
+					</p>
+					<p class="text-[11px] text-foreground/60 truncate">
+						Jamaah mengajukan izin/sakit mandiri yang memerlukan verifikasi pengurus.
 					</p>
 				</div>
 			</div>
-
-			<div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-				{#each pendingIzinList as p}
-					<div class="bg-card border border-border rounded-xl p-3.5 shadow-xs space-y-2.5">
-						<div class="flex items-start justify-between gap-2">
-							<div>
-								<span class="font-bold text-xs text-foreground block">{p.namaLengkap}</span>
-								<span class="text-[11px] text-foreground/60">{p.email || p.noTelepon || 'Jamaah'}</span>
-							</div>
-							<span
-								class="px-2 py-0.5 rounded-full text-[10.5px] font-bold {p.status === 'Sakit'
-									? 'bg-rose-500/10 text-rose-700 dark:text-rose-300'
-									: 'bg-amber-500/10 text-amber-700 dark:text-amber-300'}"
-							>
-								{p.status}
-							</span>
-						</div>
-
-						<!-- Alasan Izin -->
-						<div class="p-2.5 rounded-lg bg-secondary/40 text-xs text-foreground/80 space-y-1">
-							<span class="text-[10px] font-semibold text-foreground/60 block">Alasan / Keterangan:</span>
-							<p class="italic">{p.keteranganIzin || '-'}</p>
-						</div>
-
-						<div class="flex items-center justify-between gap-2 pt-1 border-t border-border/40">
-							{#if p.fotoUrl}
-								<button
-									type="button"
-									onclick={() => {
-										selectedPreviewFoto = p.fotoUrl;
-										selectedPreviewTitle = `Bukti Izin - ${p.namaLengkap}`;
-									}}
-									class="inline-flex items-center gap-1 text-[11px] text-primary hover:underline font-semibold cursor-pointer"
-								>
-									<Eye class="w-3.5 h-3.5" />
-									<span>Lihat Foto Bukti</span>
-								</button>
-							{:else}
-								<span class="text-[10.5px] text-foreground/40">Tanpa lampiran foto</span>
-							{/if}
-
-							<!-- Tombol Approval -->
-							<div class="flex items-center gap-1.5 ml-auto">
-								<form method="POST" action="?/rejectIzin">
-									<input type="hidden" name="userId" value={p.id} />
-									<button
-										type="submit"
-										class="px-2.5 py-1 rounded-lg border border-destructive/30 hover:bg-destructive/10 text-destructive text-[11px] font-semibold transition-colors cursor-pointer"
-									>
-										Tolak
-									</button>
-								</form>
-
-								<form method="POST" action="?/approveIzin">
-									<input type="hidden" name="userId" value={p.id} />
-									<button
-										type="submit"
-										class="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold transition-colors cursor-pointer shadow-xs"
-									>
-										Setujui (Approve)
-									</button>
-								</form>
-							</div>
-						</div>
-					</div>
-				{/each}
-			</div>
+			<button
+				type="button"
+				onclick={() => (isApprovalModalOpen = true)}
+				class="px-3.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shrink-0 cursor-pointer shadow-xs transition-colors flex items-center justify-center gap-1.5"
+			>
+				<span>Tinjau Permohonan</span>
+				<span class="px-1.5 py-0.2 rounded-full bg-black/20 text-[10px]">{pendingIzinList.length}</span>
+			</button>
 		</div>
 	{/if}
 
@@ -304,8 +260,16 @@
 												<AlertCircle class="w-3 h-3" />
 												<span>{peserta.status}</span>
 											</span>
-											{#if peserta.statusApproval}
-												<span class="block text-[9.5px] {peserta.statusApproval === 'Disetujui' ? 'text-emerald-600' : peserta.statusApproval === 'Ditolak' ? 'text-destructive' : 'text-amber-600'}">
+											{#if peserta.statusApproval === 'Menunggu Persetujuan'}
+												<button
+													type="button"
+													onclick={() => (isApprovalModalOpen = true)}
+													class="text-[9.5px] text-amber-600 dark:text-amber-400 hover:underline font-semibold block cursor-pointer"
+												>
+													(Perlu Approval &rarr;)
+												</button>
+											{:else if peserta.statusApproval}
+												<span class="block text-[9.5px] {peserta.statusApproval === 'Disetujui' ? 'text-emerald-600' : 'text-destructive'}">
 													({peserta.statusApproval})
 												</span>
 											{/if}
@@ -456,7 +420,7 @@
 <!-- Modal Preview Foto Bukti Presensi -->
 {#if selectedPreviewFoto}
 	<div
-		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
+		class="fixed inset-0 z-60 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
 		role="dialog"
 		aria-modal="true"
 		tabindex="-1"
@@ -501,6 +465,147 @@
 				<button
 					type="button"
 					onclick={() => (selectedPreviewFoto = null)}
+					class="px-4 py-1.5 rounded-lg bg-secondary text-foreground text-xs font-semibold hover:bg-secondary/80 cursor-pointer"
+				>
+					Tutup
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Modal Dialog Peninjauan Approval Permohonan Izin / Sakit -->
+{#if isApprovalModalOpen}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
+		role="dialog"
+		aria-modal="true"
+		tabindex="-1"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) isApprovalModalOpen = false;
+		}}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') isApprovalModalOpen = false;
+		}}
+	>
+		<div
+			class="bg-card border border-border rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+		>
+			<!-- Modal Header -->
+			<div class="px-5 py-4 border-b border-border flex items-center justify-between bg-secondary/30">
+				<div class="flex items-center gap-2.5">
+					<div class="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+						<ShieldAlert class="w-4 h-4" />
+					</div>
+					<div>
+						<h3 class="text-sm font-bold text-foreground">Persetujuan Permohonan Izin & Sakit</h3>
+						<p class="text-[11px] text-foreground/60">
+							{data.jadwal.namaKegiatan} &bull; {data.kelompokNama}
+						</p>
+					</div>
+				</div>
+
+				<button
+					type="button"
+					onclick={() => (isApprovalModalOpen = false)}
+					class="p-1.5 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground cursor-pointer transition-colors"
+					aria-label="Tutup dialog permohonan"
+				>
+					<X class="w-4 h-4" />
+				</button>
+			</div>
+
+			<!-- Modal Body (List Permohonan) -->
+			<div class="p-4 sm:p-5 overflow-y-auto space-y-4 divide-y divide-border/60">
+				{#if pendingIzinList.length === 0}
+					<div class="py-12 text-center space-y-2">
+						<div class="w-10 h-10 rounded-full bg-emerald-500/10 text-emerald-600 mx-auto flex items-center justify-center">
+							<ShieldCheck class="w-5 h-5" />
+						</div>
+						<p class="text-xs font-bold text-foreground">Semua Permohonan Telah Ditinjau</p>
+						<p class="text-[11px] text-foreground/60">
+							Tidak ada permohonan yang menunggu persetujuan pada jadwal kegiatan ini.
+						</p>
+					</div>
+				{:else}
+					{#each pendingIzinList as p}
+						<div class="pt-4 first:pt-0 space-y-3">
+							<div class="flex items-start justify-between gap-2">
+								<div class="flex items-center gap-2.5">
+									<div class="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-foreground/60 shrink-0">
+										<User class="w-4 h-4" />
+									</div>
+									<div>
+										<span class="font-bold text-xs text-foreground block">{p.namaLengkap}</span>
+										<span class="text-[11px] text-foreground/60">{p.email || p.noTelepon || 'Jamaah'}</span>
+									</div>
+								</div>
+
+								<span
+									class="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold {p.status === 'Sakit'
+										? 'bg-rose-500/10 text-rose-700 dark:text-rose-300'
+										: 'bg-amber-500/10 text-amber-700 dark:text-amber-300'}"
+								>
+									{p.status}
+								</span>
+							</div>
+
+							<!-- Alasan Izin -->
+							<div class="p-3 rounded-xl bg-secondary/40 text-xs text-foreground/80 space-y-1">
+								<span class="text-[10px] font-semibold text-foreground/60 block">Keterangan / Alasan:</span>
+								<p class="italic">{p.keteranganIzin || 'Tidak ada keterangan tambahan.'}</p>
+							</div>
+
+							<!-- Lampiran & Tombol Aksi -->
+							<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+								{#if p.fotoUrl}
+									<button
+										type="button"
+										onclick={() => {
+											selectedPreviewFoto = p.fotoUrl;
+											selectedPreviewTitle = `Bukti Izin - ${p.namaLengkap}`;
+										}}
+										class="inline-flex items-center gap-1.5 text-xs text-primary hover:underline font-semibold cursor-pointer"
+									>
+										<Eye class="w-3.5 h-3.5" />
+										<span>Lihat Foto Bukti Surat / Resep</span>
+									</button>
+								{:else}
+									<span class="text-[11px] text-foreground/40 italic">Tanpa lampiran foto bukti</span>
+								{/if}
+
+								<div class="flex items-center gap-2 self-end sm:self-auto">
+									<form method="POST" action="?/rejectIzin">
+										<input type="hidden" name="userId" value={p.id} />
+										<button
+											type="submit"
+											class="px-3 py-1.5 rounded-lg border border-destructive/30 hover:bg-destructive/10 text-destructive text-xs font-semibold transition-colors cursor-pointer"
+										>
+											Tolak
+										</button>
+									</form>
+
+									<form method="POST" action="?/approveIzin">
+										<input type="hidden" name="userId" value={p.id} />
+										<button
+											type="submit"
+											class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors cursor-pointer shadow-xs"
+										>
+											Setujui (Approve)
+										</button>
+									</form>
+								</div>
+							</div>
+						</div>
+					{/each}
+				{/if}
+			</div>
+
+			<!-- Modal Footer -->
+			<div class="px-5 py-3 border-t border-border bg-secondary/20 flex justify-end">
+				<button
+					type="button"
+					onclick={() => (isApprovalModalOpen = false)}
 					class="px-4 py-1.5 rounded-lg bg-secondary text-foreground text-xs font-semibold hover:bg-secondary/80 cursor-pointer"
 				>
 					Tutup
