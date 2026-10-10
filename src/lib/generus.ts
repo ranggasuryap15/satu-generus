@@ -97,6 +97,8 @@ export const DAFTAR_STATUS_KELUARGA = [
 	'Anak',
 	'Kepala Keluarga',
 	'Istri',
+	'Remaja Perantau',
+	'Mandiri',
 	'Famili Lain'
 ] as const;
 

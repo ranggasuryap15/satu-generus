@@ -37,6 +37,7 @@ export interface BatchRowInput {
 	statusJamaah?: 'Aktif' | 'Tidak Aktif';
 	isrun?: 'Ya' | 'Tidak';
 	golonganDarah?: string;
+	isPerantau?: boolean;
 	buatAkun?: boolean;
 	email?: string;
 	password?: string;
@@ -118,12 +119,16 @@ export const actions: Actions = {
 		const defaultPasswordHash = await hashPassword(defaultPassword);
 
 		// Kelompokkan data per keluarga berdasarkan nilai noKk
-		// Jika noKk kosong / mandiri, buat grup terpisah
+		// Jika perantau atau noKk kosong / mandiri, buat grup terpisah
 		const familyGroups = new Map<string, typeof validRows>();
 		let standaloneIndex = 0;
 
 		for (const r of validRows) {
-			const kkKey = r.noKk?.trim();
+			const isPerantau =
+				!!r.isPerantau ||
+				r.statusKeluarga.toLowerCase().includes('perantau') ||
+				r.statusKeluarga.toLowerCase() === 'mandiri';
+			const kkKey = isPerantau ? '' : r.noKk?.trim();
 			if (kkKey) {
 				const group = familyGroups.get(kkKey) || [];
 				group.push(r);

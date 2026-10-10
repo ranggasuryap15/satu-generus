@@ -1,38 +1,36 @@
 <!--
   @file src/routes/(admin)/admin/sensus/batch/+page.svelte
-  @purpose Antarmuka grid batch insert sensus massal dengan auto-kalkulasi generus, paste spreadsheet, dan opsi pembuatan akun
+  @purpose Antarmuka grid batch insert sensus massal dengan auto-kalkulasi generus, otomatisasi jenis kelamin, penanda perantau tanpa KK, paste spreadsheet, dan opsi pembuatan akun
   @usedBy Route admin '/admin/sensus/batch'
   @dependencies @lucide/svelte, $app/forms, $lib/generus (hitungUmur, hitungStatusGenerus, daftar konstanta), Svelte 5 Runes
-  @publicFunctions addRow, removeRow, clearRows, handlePasteSpreadsheet, updateRowCalculations, toggleAllBuatAkun
+  @publicFunctions addRow, removeRow, clearRows, onStatusKeluargaChange, onPerantauToggle, onTanggalLahirOrMenikahChange, processPastedSpreadsheet, toggleAllBuatAkun
   @sideEffects Mengirim payload JSON batchRowsData ke server action untuk eksekusi transaksi database
 -->
 <script lang="ts">
-	import {
-		ArrowLeft,
-		Plus,
-		Trash2,
-		Clipboard,
-		CheckCircle2,
-		AlertCircle,
-		Users,
-		Save,
-		HelpCircle,
-		Sparkles,
-		Shield,
-		KeyRound
-	} from '@lucide/svelte';
 	import { enhance } from '$app/forms';
-	import type { PageData, ActionData } from './$types';
 	import {
-		hitungUmur,
-		hitungStatusGenerus,
-		DAFTAR_STATUS_GENERUS,
-		DAFTAR_STATUS_PERNIKAHAN,
-		DAFTAR_STATUS_KELUARGA,
-		DAFTAR_GOLONGAN_DARAH,
-		DAFTAR_STATUS_JAMAAH,
-		DAFTAR_ISRUN
+	  DAFTAR_GOLONGAN_DARAH,
+	  DAFTAR_ISRUN,
+	  DAFTAR_STATUS_GENERUS,
+	  DAFTAR_STATUS_JAMAAH,
+	  DAFTAR_STATUS_KELUARGA,
+	  DAFTAR_STATUS_PERNIKAHAN,
+	  hitungStatusGenerus,
+	  hitungUmur
 	} from '$lib/generus';
+	import {
+	  AlertCircle,
+	  ArrowLeft,
+	  CheckCircle2,
+	  Clipboard,
+	  KeyRound,
+	  Plus,
+	  Save,
+	  Sparkles,
+	  Trash2,
+	  Users
+	} from '@lucide/svelte';
+	import type { ActionData, PageData } from './$types';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -55,6 +53,7 @@
 		statusJamaah: 'Aktif' | 'Tidak Aktif';
 		isrun: 'Ya' | 'Tidak';
 		golonganDarah: string;
+		isPerantau: boolean;
 		buatAkun: boolean;
 		email: string;
 		password: string;
@@ -80,6 +79,7 @@
 			statusJamaah: 'Aktif',
 			isrun: 'Tidak',
 			golonganDarah: '-',
+			isPerantau: false,
 			buatAkun: false,
 			email: '',
 			password: ''
@@ -126,6 +126,31 @@
 		row.statusGenerus = hitungStatusGenerus(row.umur, row.statusMenikah);
 	}
 
+	function onStatusKeluargaChange(row: RowData) {
+		// Otomatisasi jenis kelamin berdasarkan status keluarga
+		if (row.statusKeluarga === 'Bapak') {
+			row.jenisKelamin = 'L';
+			row.isPerantau = false;
+		} else if (row.statusKeluarga === 'Ibu' || row.statusKeluarga === 'Istri') {
+			row.jenisKelamin = 'P';
+			row.isPerantau = false;
+		} else if (row.statusKeluarga === 'Remaja Perantau' || row.statusKeluarga === 'Mandiri') {
+			row.isPerantau = true;
+			row.noKk = '';
+		}
+	}
+
+	function onPerantauToggle(row: RowData) {
+		if (row.isPerantau) {
+			row.noKk = '';
+			row.statusKeluarga = 'Remaja Perantau';
+		} else {
+			if (row.statusKeluarga === 'Remaja Perantau' || row.statusKeluarga === 'Mandiri') {
+				row.statusKeluarga = 'Anak';
+			}
+		}
+	}
+
 	// Parsing Text Clipboard dari Google Sheets / Excel
 	function processPastedSpreadsheet() {
 		if (!pasteText.trim()) return;
@@ -165,7 +190,8 @@
 			if (cols.length >= 14) {
 				// Format Lengkap Spreadsheet
 				rNama = cols[2] || '';
-				rJk = cols[3]?.toUpperCase() === 'P' ? 'P' : 'L';
+				const jkRaw = (cols[3] || '').trim().toUpperCase();
+				rJk = (jkRaw === 'P' || jkRaw.startsWith('PEREMPUAN') || jkRaw.startsWith('WANITA')) ? 'P' : 'L';
 				rTempat = cols[4] || '';
 				rTgl = cols[5] || '';
 				rAlamat = cols[7] || '';
@@ -181,7 +207,8 @@
 			} else if (cols.length >= 4) {
 				// Format Ringkas (Nama, JK, Tgl Lahir, No KK, dst)
 				rNama = cols[0] || '';
-				rJk = cols[1]?.toUpperCase() === 'P' ? 'P' : 'L';
+				const jkRaw = (cols[1] || '').trim().toUpperCase();
+				rJk = (jkRaw === 'P' || jkRaw.startsWith('PEREMPUAN') || jkRaw.startsWith('WANITA')) ? 'P' : 'L';
 				rTgl = cols[2] || '';
 				rKk = cols[3] || '';
 				if (cols[4]) rKeluarga = cols[4];
@@ -190,6 +217,19 @@
 			}
 
 			if (!rNama) continue;
+
+			// Otomatisasi jenis kelamin berdasarkan status keluarga jika terdeteksi Bapak / Ibu
+			if (rKeluarga.toLowerCase() === 'bapak') {
+				rJk = 'L';
+			} else if (rKeluarga.toLowerCase() === 'ibu' || rKeluarga.toLowerCase() === 'istri') {
+				rJk = 'P';
+			}
+
+			// Deteksi perantau
+			const isPerantauDetected =
+				rKeluarga.toLowerCase().includes('perantau') ||
+				rKeluarga.toLowerCase() === 'mandiri' ||
+				!rKk;
 
 			// Normalisasi tanggal lahir jika format DD-MM-YYYY atau YYYY-MM-DD
 			let umurCalc = hitungUmur(rTgl);
@@ -208,12 +248,13 @@
 				noTelepon: rTelp,
 				statusGenerus: finalGenerus,
 				statusMenikah: rMenikah,
-				statusKeluarga: rKeluarga,
-				noKk: rKk,
+				statusKeluarga: isPerantauDetected && (rKeluarga === 'Anak' || !rKeluarga) ? 'Remaja Perantau' : rKeluarga,
+				noKk: isPerantauDetected ? '' : rKk,
 				nik: '',
 				statusJamaah: rStatusJam,
 				isrun: rIsrun,
 				golonganDarah: rGoldar,
+				isPerantau: isPerantauDetected,
 				buatAkun: false,
 				email: '',
 				password: ''
@@ -234,8 +275,9 @@
 	}
 
 	const totalAkunDipilih = $derived(rows.filter((r) => r.buatAkun).length);
+	const totalPerantau = $derived(rows.filter((r) => r.isPerantau).length);
 	const estimasiKeluarga = $derived(
-		new Set(rows.map((r) => r.noKk?.trim() || r.id)).size
+		new Set(rows.filter((r) => !r.isPerantau && r.noKk?.trim()).map((r) => r.noKk.trim())).size
 	);
 </script>
 
@@ -341,6 +383,7 @@
 			<div class="text-[11px] text-foreground/70">
 				<span class="font-bold text-foreground">{rows.length}</span> jiwa •
 				<span class="font-bold text-foreground">{estimasiKeluarga}</span> KK •
+				<span class="font-bold text-blue-600 dark:text-blue-400">{totalPerantau}</span> perantau •
 				<span class="font-bold text-primary">{totalAkunDipilih}</span> akun baru
 			</div>
 		</div>
@@ -390,19 +433,20 @@
 		<!-- Table Container with Horizontal Scroll -->
 		<div class="border border-border rounded-xl bg-card overflow-hidden shadow-sm">
 			<div class="overflow-x-auto max-h-[68vh] relative">
-				<table class="w-full text-left text-xs border-collapse min-w-[1850px]">
+				<table class="w-full text-left text-xs border-collapse min-w-[1950px]">
 					<thead class="bg-secondary/80 backdrop-blur sticky top-0 z-10 border-b border-border text-[11px] text-foreground/80 font-bold uppercase tracking-wider">
 						<tr>
 							<th class="p-2 w-10 text-center">#</th>
+							<th class="p-2 w-24 text-center bg-blue-500/10 text-blue-700 dark:text-blue-300">Perantau?</th>
 							<th class="p-2 w-28">No. KK / Kode</th>
 							<th class="p-2 w-44">Nama Lengkap *</th>
-							<th class="p-2 w-16">L/P</th>
+							<th class="p-2 w-28">Jenis Kelamin</th>
 							<th class="p-2 w-28">Tempat Lahir</th>
 							<th class="p-2 w-32">Tgl Lahir *</th>
 							<th class="p-2 w-16 text-center">Umur</th>
 							<th class="p-2 w-36">Status Generus</th>
 							<th class="p-2 w-32">Status Nikah</th>
-							<th class="p-2 w-32">Hub. Keluarga</th>
+							<th class="p-2 w-36">Hub. Keluarga</th>
 							<th class="p-2 w-32">No. HP / WA</th>
 							<th class="p-2 w-32">Profesi</th>
 							<th class="p-2 w-44">Alamat Domisili</th>
@@ -422,13 +466,27 @@
 									{idx + 1}
 								</td>
 
+								<!-- Perantau Checklist -->
+								<td class="p-1.5 text-center bg-blue-500/5">
+									<label class="inline-flex items-center justify-center cursor-pointer">
+										<input
+											type="checkbox"
+											bind:checked={row.isPerantau}
+											onchange={() => onPerantauToggle(row)}
+											class="w-4 h-4 rounded border-border text-blue-600 focus:ring-blue-500"
+											title="Centang jika Remaja Perantauan (tanpa KK)"
+										/>
+									</label>
+								</td>
+
 								<!-- No KK / Kode KK -->
 								<td class="p-1.5">
 									<input
 										type="text"
 										bind:value={row.noKk}
-										placeholder="TB1-01 / No KK"
-										class="w-full bg-background border border-border rounded px-2 py-1 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary"
+										disabled={row.isPerantau}
+										placeholder={row.isPerantau ? 'Tanpa KK' : 'No KK'}
+										class="w-full bg-background border border-border rounded px-2 py-1 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary disabled:opacity-50 disabled:bg-secondary/40"
 									/>
 								</td>
 
@@ -449,8 +507,8 @@
 										bind:value={row.jenisKelamin}
 										class="w-full bg-background border border-border rounded px-1.5 py-1 text-xs text-foreground focus:ring-1 focus:ring-primary"
 									>
-										<option value="L">L</option>
-										<option value="P">P</option>
+										<option value="L">L (Laki-laki)</option>
+										<option value="P">P (Perempuan)</option>
 									</select>
 								</td>
 
@@ -512,6 +570,7 @@
 								<td class="p-1.5">
 									<select
 										bind:value={row.statusKeluarga}
+										onchange={() => onStatusKeluargaChange(row)}
 										class="w-full bg-background border border-border rounded px-1.5 py-1 text-xs text-foreground focus:ring-1 focus:ring-primary"
 									>
 										{#each DAFTAR_STATUS_KELUARGA as sk}
