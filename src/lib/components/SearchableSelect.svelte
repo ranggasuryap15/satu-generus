@@ -1,7 +1,7 @@
 <!--
   @file src/lib/components/SearchableSelect.svelte
   @purpose Komponen dropdown pilihan dengan fitur pencarian real-time (searchable select) untuk dataset berjumlah besar serta opsi input custom/baru
-  @usedBy Halaman admin dapukan, wilayah, presensi, batch insert wilayah, dan form penugasan/relasi
+  @usedBy Halaman admin dapukan, wilayah, presensi, batch insert sensus, batch insert wilayah, dan form penugasan/relasi
   @dependencies lucide-svelte (Search, ChevronDown, Check, X, Plus), Svelte 5 Runes ($state, $derived, $props, $bindable, $effect)
   @publicFunctions selectOption, selectCustom, toggleDropdown, clearSearch, handleKeyDown
   @sideEffects Mengontrol input form tersembunyi (name & value) untuk interoperabilitas native form POST
@@ -156,7 +156,7 @@
 
 <svelte:document onclick={handleDocumentClick} />
 
-<div bind:this={containerRef} class="relative w-full text-xs {className}">
+<div bind:this={containerRef} class="relative w-full text-xs {className} {isOpen ? 'z-30' : ''}">
 	<!-- Input Tersembunyi untuk Native Form Submission & Validasi -->
 	<input
 		type="text"
