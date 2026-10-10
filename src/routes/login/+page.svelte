@@ -1,14 +1,15 @@
 <!--
   @file src/routes/login/+page.svelte
-  @purpose Halaman autentikasi login pengguna Satu Generus (Jamaah & Admin)
+  @purpose Halaman autentikasi login pengguna Satu Generus (Jamaah & Admin) dengan footer identitas pembuat
   @usedBy Route '/login'
-  @dependencies lucide-svelte (Lock, Mail, ArrowRight, ShieldCheck, AlertCircle), src/lib/components/ThemeToggle.svelte, $app/forms (enhance)
+  @dependencies lucide-svelte, src/lib/components/ThemeToggle.svelte, src/lib/components/AppFooter.svelte, $app/forms (enhance)
   @publicFunctions N/A (Svelte Component)
   @sideEffects Mengirim formulir login kredensial pengguna dan menampilkan pesan validasi
 -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import AppFooter from '$lib/components/AppFooter.svelte';
 	import { AlertCircle, ArrowRight, Lock, Mail, ShieldCheck } from '@lucide/svelte';
 	import type { ActionData } from './$types';
 
@@ -132,5 +133,7 @@
 				← Kembali ke Beranda Jamaah
 			</a>
 		</div>
+
+		<AppFooter class="pt-8" />
 	</div>
 </div>
