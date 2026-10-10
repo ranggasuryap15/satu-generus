@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(admin)/admin/sensus/batch/+page.svelte
-  @purpose Antarmuka grid batch insert sensus massal dengan auto-kalkulasi generus, validasi hubungan keluarga berbasis gender, penanda perantau di kolom kanan, paste spreadsheet, dan opsi pembuatan akun
+  @purpose Antarmuka batch insert sensus massal responsif dengan auto-kalkulasi generus, validasi hubungan keluarga berbasis gender, layout kartu form dinamis yang otomatis wrap di desktop & mobile, paste spreadsheet, dan opsi pembuatan akun
   @usedBy Route admin '/admin/sensus/batch'
   @dependencies @lucide/svelte, $app/forms, $lib/generus (hitungUmur, hitungStatusGenerus, getDaftarStatusKeluargaByGender, daftar konstanta), Svelte 5 Runes
   @publicFunctions addRow, removeRow, clearRows, onJenisKelaminChange, onStatusKeluargaChange, onPerantauToggle, onTanggalLahirOrMenikahChange, processPastedSpreadsheet, toggleAllBuatAkun
@@ -474,260 +474,310 @@
 		<input type="hidden" name="defaultPassword" value={defaultPassword} />
 		<input type="hidden" name="defaultKelompokId" value={String(defaultKelompokId)} />
 
-		<!-- Table Container with Horizontal Scroll -->
-		<div class="border border-border rounded-xl bg-card overflow-hidden shadow-sm">
-			<div class="overflow-x-auto max-h-[68vh] relative">
-				<table class="w-full text-left text-xs border-collapse min-w-[1400px]">
-					<thead class="bg-secondary/80 backdrop-blur sticky top-0 z-10 border-b border-border text-[10.5px] text-foreground/80 font-bold uppercase tracking-tight">
-						<tr>
-							<th class="p-1.5 w-8 text-center">#</th>
-							<th class="p-1.5 w-24">No. KK /<br />Kode</th>
-							<th class="p-1.5 w-36">Nama Lengkap *</th>
-							<th class="p-1.5 w-24">Jenis<br />Kelamin</th>
-							<th class="p-1.5 w-32 bg-amber-500/10 text-amber-900 dark:text-amber-200">Hubungan<br />Keluarga *</th>
-							<th class="p-1.5 w-24">Tempat<br />Lahir</th>
-							<th class="p-1.5 w-28">Tgl Lahir *<br /><span class="text-[9px] font-normal lowercase">(YYYY-MM-DD)</span></th>
-							<th class="p-1.5 w-12 text-center">Umur</th>
-							<th class="p-1.5 w-28">Status<br />Generus</th>
-							<th class="p-1.5 w-24">Status<br />Nikah</th>
-							<th class="p-1.5 w-28">No. HP / WA</th>
-							<th class="p-1.5 w-24">Profesi</th>
-							<th class="p-1.5 w-32">Alamat Domisili</th>
-							<th class="p-1.5 w-14 text-center">Gol.<br />Darah</th>
-							<th class="p-1.5 w-16 text-center bg-blue-500/10 text-blue-700 dark:text-blue-300">Mandiri /<br />Perantau?</th>
-							<th class="p-1.5 w-24 bg-primary/5">Status<br />Jamaah</th>
-							<th class="p-1.5 w-16 text-center bg-primary/5">Isrun</th>
-							<th class="p-1.5 w-16 text-center bg-amber-500/5">Buat<br />Akun</th>
-							<th class="p-1.5 w-32 bg-amber-500/5">Email Login</th>
-							<th class="p-1.5 w-10 text-center">Aksi</th>
-						</tr>
-					</thead>
-					<tbody class="divide-y divide-border/60">
-						{#each rows as row, idx (row.id)}
-							<tr class="hover:bg-secondary/20 transition-colors">
-								<!-- # Index -->
-								<td class="p-1.5 text-center text-foreground/50 font-mono text-[11px]">
-									{idx + 1}
-								</td>
+		<!-- List Kartu Input Sensus (Responsif: Wrap ke Bawah Menyesuaikan Lebar Layar & Mobile) -->
+		<div class="space-y-4">
+			{#each rows as row, idx (row.id)}
+				<div class="p-3.5 sm:p-4 rounded-xl border border-border bg-card shadow-sm hover:border-primary/40 transition-all space-y-3">
+					<!-- Header Kartu: Nomor Urut, Status Ringkas, & Toggle Cepat -->
+					<div class="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-border/60">
+						<div class="flex flex-wrap items-center gap-2">
+							<span class="inline-flex items-center justify-center px-2 py-0.5 rounded bg-secondary font-mono font-bold text-xs text-foreground">
+								#{idx + 1}
+							</span>
+							<span class="text-xs font-bold text-foreground">
+								{row.namaLengkap || 'Data Jiwa Baru'}
+							</span>
+							{#if row.umur > 0}
+								<span class="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-primary/10 text-primary">
+									{row.umur} Thn • {row.statusGenerus}
+								</span>
+							{/if}
+							{#if row.isPerantau}
+								<span class="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-blue-500/10 text-blue-700 dark:text-blue-300">
+									Mandiri / Perantau
+								</span>
+							{/if}
+						</div>
 
-								<!-- No KK / Kode KK -->
-								<td class="p-1.5">
-									<input
-										type="text"
-										bind:value={row.noKk}
-										disabled={row.isPerantau}
-										placeholder={row.isPerantau ? 'Tanpa KK' : 'No KK'}
-										class="w-full bg-background border border-border rounded px-2 py-1 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary disabled:opacity-50 disabled:bg-secondary/40"
-									/>
-								</td>
+						<div class="flex flex-wrap items-center gap-2 sm:gap-3 ml-auto">
+							<!-- Checklist Mandiri / Perantau -->
+							<label class="inline-flex items-center gap-1.5 cursor-pointer text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-500/10 px-2.5 py-1 rounded-lg hover:bg-blue-500/20 transition-colors select-none">
+								<input
+									type="checkbox"
+									bind:checked={row.isPerantau}
+									onchange={() => onPerantauToggle(row)}
+									class="w-3.5 h-3.5 rounded border-border text-blue-600 focus:ring-blue-500"
+								/>
+								<span>Mandiri / Perantau (Tanpa KK)</span>
+							</label>
 
-								<!-- Nama Lengkap -->
-								<td class="p-1.5">
-									<input
-										type="text"
-										required
-										bind:value={row.namaLengkap}
-										placeholder="Nama Lengkap"
-										class="w-full bg-background border border-border rounded px-2 py-1 text-xs text-foreground font-medium focus:ring-1 focus:ring-primary"
-									/>
-								</td>
+							<!-- Toggle Buat Akun -->
+							<label class="inline-flex items-center gap-1.5 cursor-pointer text-xs font-medium text-amber-700 dark:text-amber-300 bg-amber-500/10 px-2.5 py-1 rounded-lg hover:bg-amber-500/20 transition-colors select-none">
+								<input
+									type="checkbox"
+									bind:checked={row.buatAkun}
+									class="w-3.5 h-3.5 rounded border-border text-primary focus:ring-primary accent-primary"
+								/>
+								<span>Buatkan Akun</span>
+							</label>
 
-								<!-- Jenis Kelamin -->
-								<td class="p-1.5">
-									<select
-										bind:value={row.jenisKelamin}
-										onchange={() => onJenisKelaminChange(row)}
-										class="w-full bg-background border border-border rounded px-1.5 py-1 text-xs text-foreground focus:ring-1 focus:ring-primary"
-									>
-										<option value="L">L (Laki-laki)</option>
-										<option value="P">P (Perempuan)</option>
-									</select>
-								</td>
+							<!-- Tombol Hapus Baris -->
+							<button
+								type="button"
+								onclick={() => removeRow(idx)}
+								class="p-1.5 text-foreground/50 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+								title="Hapus Baris Ini"
+							>
+								<Trash2 class="w-4 h-4" />
+							</button>
+						</div>
+					</div>
 
-								<!-- Hubungan Keluarga (Disesuaikan Jenis Kelamin, Wajib Dipilih) -->
-								<td class="p-1.5 bg-amber-500/5">
-									<select
-										required
-										bind:value={row.statusKeluarga}
-										onchange={() => onStatusKeluargaChange(row)}
-										class="w-full bg-background border {row.statusKeluarga ? 'border-border font-medium' : 'border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-semibold ring-1 ring-amber-500/40'} rounded px-1.5 py-1 text-xs text-foreground focus:ring-1 focus:ring-primary"
-									>
-										<option value="" disabled selected>-- Pilih Hubungan --</option>
-										{#each getDaftarStatusKeluargaByGender(row.jenisKelamin) as sk}
-											<option value={sk}>{sk}</option>
-										{/each}
-									</select>
-								</td>
+					<!-- Form Fields: Flex Wrap Dinamis Menyesuaikan Layar Desktop & Mobile -->
+					<div class="flex flex-wrap items-end gap-2.5 sm:gap-3">
+						<!-- No KK / Kode KK -->
+						<div class="w-full sm:w-36 shrink-0">
+							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1">
+								No. KK / Kode
+							</label>
+							<input
+								type="text"
+								bind:value={row.noKk}
+								disabled={row.isPerantau}
+								placeholder={row.isPerantau ? 'Tanpa KK' : 'No. KK / Kode'}
+								class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary disabled:opacity-50 disabled:bg-secondary/40"
+							/>
+						</div>
 
-								<!-- Tempat Lahir -->
-								<td class="p-1.5">
-									<input
-										type="text"
-										bind:value={row.tempatLahir}
-										placeholder="Contoh: Bekasi"
-										class="w-full bg-background border border-border rounded px-2 py-1 text-xs text-foreground focus:ring-1 focus:ring-primary"
-									/>
-								</td>
+						<!-- Nama Lengkap * -->
+						<div class="w-full sm:w-56 flex-1 min-w-[180px]">
+							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1">
+								Nama Lengkap <span class="text-destructive">*</span>
+							</label>
+							<input
+								type="text"
+								required
+								bind:value={row.namaLengkap}
+								placeholder="Nama lengkap jamaah"
+								class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs font-medium text-foreground focus:ring-1 focus:ring-primary"
+							/>
+						</div>
 
-								<!-- Tanggal Lahir -->
-								<td class="p-1.5">
-									<input
-										type="text"
-										required
-										bind:value={row.tanggalLahir}
-										onblur={() => onTanggalLahirOrMenikahChange(row)}
-										placeholder="YYYY-MM-DD"
-										class="w-full bg-background border border-border rounded px-2 py-1 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary"
-									/>
-								</td>
+						<!-- Jenis Kelamin -->
+						<div class="w-[calc(50%-5px)] sm:w-32 shrink-0">
+							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1">
+								Jenis Kelamin
+							</label>
+							<select
+								bind:value={row.jenisKelamin}
+								onchange={() => onJenisKelaminChange(row)}
+								class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
+							>
+								<option value="L">L (Laki-laki)</option>
+								<option value="P">P (Perempuan)</option>
+							</select>
+						</div>
 
-								<!-- Umur (Calculated) -->
-								<td class="p-1.5 text-center">
-									<span class="inline-block px-2 py-0.5 rounded font-mono font-bold text-xs bg-secondary text-foreground">
-										{row.umur || 0}
-									</span>
-								</td>
+						<!-- Hubungan Keluarga * (Disesuaikan Jenis Kelamin) -->
+						<div class="w-[calc(50%-5px)] sm:w-44 flex-1 min-w-[160px]">
+							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1">
+								Hub. Keluarga <span class="text-destructive">*</span>
+							</label>
+							<select
+								required
+								bind:value={row.statusKeluarga}
+								onchange={() => onStatusKeluargaChange(row)}
+								class="w-full bg-background border {row.statusKeluarga ? 'border-border font-medium' : 'border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-semibold ring-1 ring-amber-500/40'} rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
+							>
+								<option value="" disabled selected>-- Pilih Hubungan --</option>
+								{#each getDaftarStatusKeluargaByGender(row.jenisKelamin) as sk}
+									<option value={sk}>{sk}</option>
+								{/each}
+							</select>
+						</div>
 
-								<!-- Status Generus (Auto & Selectable) -->
-								<td class="p-1.5">
-									<select
-										bind:value={row.statusGenerus}
-										class="w-full bg-background border border-border rounded px-2 py-1 text-xs font-semibold text-primary focus:ring-1 focus:ring-primary"
-									>
-										{#each DAFTAR_STATUS_GENERUS as g}
-											<option value={g}>{g}</option>
-										{/each}
-									</select>
-								</td>
+						<!-- Tempat Lahir -->
+						<div class="w-[calc(50%-5px)] sm:w-36 shrink-0">
+							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1">
+								Tempat Lahir
+							</label>
+							<input
+								type="text"
+								bind:value={row.tempatLahir}
+								placeholder="Contoh: Bekasi"
+								class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
+							/>
+						</div>
 
-								<!-- Status Menikah -->
-								<td class="p-1.5">
-									<select
-										bind:value={row.statusMenikah}
-										onchange={() => onTanggalLahirOrMenikahChange(row)}
-										class="w-full bg-background border border-border rounded px-1.5 py-1 text-xs text-foreground focus:ring-1 focus:ring-primary"
-									>
-										{#each DAFTAR_STATUS_PERNIKAHAN as sm}
-											<option value={sm}>{sm}</option>
-										{/each}
-									</select>
-								</td>
+						<!-- Tanggal Lahir * -->
+						<div class="w-[calc(50%-5px)] sm:w-36 shrink-0">
+							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1">
+								Tgl Lahir <span class="text-destructive">*</span>
+							</label>
+							<input
+								type="text"
+								required
+								bind:value={row.tanggalLahir}
+								onblur={() => onTanggalLahirOrMenikahChange(row)}
+								placeholder="YYYY-MM-DD"
+								class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary"
+							/>
+						</div>
 
-								<!-- No Telepon -->
-								<td class="p-1.5">
-									<input
-										type="text"
-										bind:value={row.noTelepon}
-										placeholder="0812xxxx"
-										class="w-full bg-background border border-border rounded px-2 py-1 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary"
-									/>
-								</td>
+						<!-- Umur (Calculated) -->
+						<div class="w-16 shrink-0 text-center">
+							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1">
+								Umur
+							</label>
+							<div class="w-full py-1.5 bg-secondary text-foreground rounded-lg font-mono font-bold text-xs flex items-center justify-center border border-border/50">
+								{row.umur || 0}
+							</div>
+						</div>
 
-								<!-- Profesi -->
-								<td class="p-1.5">
-									<input
-										type="text"
-										bind:value={row.profesi}
-										placeholder="Contoh: Karyawan"
-										class="w-full bg-background border border-border rounded px-2 py-1 text-xs text-foreground focus:ring-1 focus:ring-primary"
-									/>
-								</td>
+						<!-- Status Generus (Auto & Editable) -->
+						<div class="w-[calc(50%-5px)] sm:w-36 shrink-0">
+							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1">
+								Status Generus
+							</label>
+							<select
+								bind:value={row.statusGenerus}
+								class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs font-semibold text-primary focus:ring-1 focus:ring-primary"
+							>
+								{#each DAFTAR_STATUS_GENERUS as g}
+									<option value={g}>{g}</option>
+								{/each}
+							</select>
+						</div>
 
-								<!-- Alamat -->
-								<td class="p-1.5">
-									<input
-										type="text"
-										bind:value={row.alamat}
-										placeholder="Alamat domisili"
-										class="w-full bg-background border border-border rounded px-2 py-1 text-xs text-foreground focus:ring-1 focus:ring-primary"
-									/>
-								</td>
+						<!-- Status Pernikahan -->
+						<div class="w-[calc(50%-5px)] sm:w-36 shrink-0">
+							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1">
+								Status Nikah
+							</label>
+							<select
+								bind:value={row.statusMenikah}
+								onchange={() => onTanggalLahirOrMenikahChange(row)}
+								class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
+							>
+								{#each DAFTAR_STATUS_PERNIKAHAN as sm}
+									<option value={sm}>{sm}</option>
+								{/each}
+							</select>
+						</div>
 
-								<!-- Golongan Darah -->
-								<td class="p-1.5 text-center">
-									<select
-										bind:value={row.golonganDarah}
-										class="w-full bg-background border border-border rounded px-1 py-1 text-xs text-foreground focus:ring-1 focus:ring-primary text-center"
-									>
-										{#each DAFTAR_GOLONGAN_DARAH as gd}
-											<option value={gd}>{gd}</option>
-										{/each}
-									</select>
-								</td>
+						<!-- No HP / WA -->
+						<div class="w-[calc(50%-5px)] sm:w-36 shrink-0">
+							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1">
+								No. HP / WA
+							</label>
+							<input
+								type="text"
+								bind:value={row.noTelepon}
+								placeholder="0812xxxx"
+								class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary"
+							/>
+						</div>
 
-								<!-- Perantau Checklist (Kolom Kanan) -->
-								<td class="p-1.5 text-center bg-blue-500/5">
-									<label class="inline-flex items-center justify-center cursor-pointer">
-										<input
-											type="checkbox"
-											bind:checked={row.isPerantau}
-											onchange={() => onPerantauToggle(row)}
-											class="w-4 h-4 rounded border-border text-blue-600 focus:ring-blue-500"
-											title="Centang jika Jamaah Mandiri / Perantau (tanpa KK)"
-										/>
-									</label>
-								</td>
+						<!-- Profesi -->
+						<div class="w-[calc(50%-5px)] sm:w-36 shrink-0">
+							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1">
+								Profesi
+							</label>
+							<input
+								type="text"
+								bind:value={row.profesi}
+								placeholder="Contoh: Karyawan"
+								class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
+							/>
+						</div>
 
-								<!-- Status Jamaah (Admin Only) -->
-								<td class="p-1.5 bg-primary/5">
-									<select
-										bind:value={row.statusJamaah}
-										class="w-full bg-background border border-border rounded px-1.5 py-1 text-xs text-foreground focus:ring-1 focus:ring-primary"
-									>
-										{#each DAFTAR_STATUS_JAMAAH as sj}
-											<option value={sj}>{sj}</option>
-										{/each}
-									</select>
-								</td>
+						<!-- Alamat Domisili -->
+						<div class="w-full sm:w-60 flex-1 min-w-[200px]">
+							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1">
+								Alamat Domisili
+							</label>
+							<input
+								type="text"
+								bind:value={row.alamat}
+								placeholder="Alamat domisili"
+								class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
+							/>
+						</div>
 
-								<!-- Isrun (Admin Only) -->
-								<td class="p-1.5 bg-primary/5">
-									<select
-										bind:value={row.isrun}
-										class="w-full bg-background border border-border rounded px-1.5 py-1 text-xs text-foreground focus:ring-1 focus:ring-primary"
-									>
-										{#each DAFTAR_ISRUN as isr}
-											<option value={isr}>{isr}</option>
-										{/each}
-									</select>
-								</td>
+						<!-- Golongan Darah -->
+						<div class="w-20 shrink-0">
+							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1 text-center">
+								Gol. Darah
+							</label>
+							<select
+								bind:value={row.golonganDarah}
+								class="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary text-center"
+							>
+								{#each DAFTAR_GOLONGAN_DARAH as gd}
+									<option value={gd}>{gd}</option>
+								{/each}
+							</select>
+						</div>
 
-								<!-- Buat Akun? -->
-								<td class="p-1.5 text-center bg-amber-500/5">
-									<input
-										type="checkbox"
-										bind:checked={row.buatAkun}
-										class="w-4 h-4 rounded border-border text-primary focus:ring-primary accent-primary"
-									/>
-								</td>
+						<!-- Status Jamaah (Admin Only) -->
+						<div class="w-[calc(50%-5px)] sm:w-28 shrink-0">
+							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1">
+								Status Jamaah
+							</label>
+							<select
+								bind:value={row.statusJamaah}
+								class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
+							>
+								{#each DAFTAR_STATUS_JAMAAH as sj}
+									<option value={sj}>{sj}</option>
+								{/each}
+							</select>
+						</div>
 
-								<!-- Email Login (Opsional) -->
-								<td class="p-1.5 bg-amber-500/5">
-									<input
-										type="email"
-										disabled={!row.buatAkun}
-										bind:value={row.email}
-										placeholder={row.buatAkun ? 'Email (opsional)' : '-'}
-										class="w-full bg-background border border-border rounded px-2 py-1 text-xs text-foreground focus:ring-1 focus:ring-primary disabled:opacity-40"
-									/>
-								</td>
+						<!-- Isrun (Admin Only) -->
+						<div class="w-[calc(50%-5px)] sm:w-20 shrink-0">
+							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1">
+								Isrun
+							</label>
+							<select
+								bind:value={row.isrun}
+								class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
+							>
+								{#each DAFTAR_ISRUN as isr}
+									<option value={isr}>{isr}</option>
+								{/each}
+							</select>
+						</div>
 
-								<!-- Hapus Baris -->
-								<td class="p-1.5 text-center">
-									<button
-										type="button"
-										onclick={() => removeRow(idx)}
-										class="p-1 text-foreground/40 hover:text-destructive hover:bg-destructive/10 rounded transition-colors"
-										title="Hapus Baris Ini"
-									>
-										<Trash2 class="w-3.5 h-3.5" />
-									</button>
-								</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-			</div>
+						<!-- Email Login (Muncul jika Buat Akun aktif) -->
+						{#if row.buatAkun}
+							<div class="w-full sm:w-60 shrink-0 bg-amber-500/10 p-1.5 rounded-lg border border-amber-500/20">
+								<label class="block text-[10.5px] font-semibold text-amber-900 dark:text-amber-200 mb-1">
+									Email Akun Login (Opsional)
+								</label>
+								<input
+									type="email"
+									bind:value={row.email}
+									placeholder="nama@email.com"
+									class="w-full bg-background border border-border rounded-md px-2 py-1 text-xs text-foreground focus:ring-1 focus:ring-primary"
+								/>
+							</div>
+						{/if}
+					</div>
+				</div>
+			{/each}
+		</div>
+
+		<!-- Tombol Tambah Baris Cepat di Bawah List -->
+		<div class="flex justify-center pt-2 pb-1">
+			<button
+				type="button"
+				onclick={addRow}
+				class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-dashed border-border bg-card/60 hover:bg-card hover:border-primary text-xs font-semibold text-foreground/80 hover:text-primary transition-all shadow-sm"
+			>
+				<Plus class="w-4 h-4 text-primary" />
+				<span>Tambah Baris Jiwa Baru</span>
+			</button>
 		</div>
 
 		<!-- Submit Action Floating Bar -->
