@@ -10,12 +10,20 @@
 import { clearSession } from "$lib/server/auth";
 import { redirect, type RequestHandler } from "@sveltejs/kit";
 
-export const GET: RequestHandler = ({ cookies }) => {
+export const GET: RequestHandler = ({ cookies, setHeaders }) => {
   clearSession(cookies);
+  setHeaders({
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    Pragma: "no-cache",
+  });
   throw redirect(303, "/login");
 };
 
-export const POST: RequestHandler = ({ cookies }) => {
+export const POST: RequestHandler = ({ cookies, setHeaders }) => {
   clearSession(cookies);
+  setHeaders({
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    Pragma: "no-cache",
+  });
   throw redirect(303, "/login");
 };

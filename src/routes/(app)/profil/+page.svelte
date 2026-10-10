@@ -250,6 +250,7 @@
 	<section class="pt-2">
 		<a
 			href="/logout"
+			data-sveltekit-reload
 			class="w-full py-3 px-4 rounded-xl border border-destructive/20 bg-destructive/5 hover:bg-destructive/10 text-destructive font-semibold text-xs flex items-center justify-center gap-2 transition-colors"
 		>
 			<LogOut class="w-4 h-4" />

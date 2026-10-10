@@ -123,6 +123,7 @@
 					<div class="py-1">
 						<a
 							href="/logout"
+							data-sveltekit-reload
 							onclick={closeDropdown}
 							class="flex items-center gap-2.5 px-4 py-2 text-xs text-destructive hover:bg-destructive/10 transition-colors font-medium"
 						>

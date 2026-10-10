@@ -46,8 +46,20 @@ export function createSession(cookies: Cookies, userId: string): void {
  * Menghapus cookie session (logout)
  */
 export function clearSession(cookies: Cookies): void {
+	// Hapus cookie dengan opsi yang identik saat dibuat (termasuk Secure di production)
 	cookies.delete(COOKIE_NAME, {
-		path: '/'
+		path: '/',
+		httpOnly: true,
+		sameSite: 'lax',
+		secure: process.env.NODE_ENV === 'production'
+	});
+
+	// Hapus juga varian non-secure sebagai fallback kompatibilitas server proxy/HTTP
+	cookies.delete(COOKIE_NAME, {
+		path: '/',
+		httpOnly: true,
+		sameSite: 'lax',
+		secure: false
 	});
 }
 
