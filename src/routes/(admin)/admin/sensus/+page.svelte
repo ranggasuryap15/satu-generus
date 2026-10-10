@@ -416,60 +416,76 @@
 		</div>
 	{/if}
 
-	<!-- 1. DASHBOARD STATISTIK SINGKAT DI BAGIAN ATAS -->
-	<div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-		<!-- Total KK -->
-		<div class="bg-card border border-border rounded-xl p-4 shadow-sm flex items-center gap-3">
-			<div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-				<Home class="w-5 h-5" />
+	<!-- 1. DASHBOARD STATISTIK DI BAGIAN ATAS -->
+	<div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+		<!-- Total Kartu Keluarga -->
+		<div class="bg-card border border-border rounded-xl p-3.5 sm:p-4 shadow-xs flex items-start gap-2.5 sm:gap-3">
+			<div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
+				<Home class="w-4 h-4 sm:w-5 sm:h-5" />
 			</div>
-			<div>
-				<p class="text-[11px] font-medium text-foreground/60">Total Kartu Keluarga</p>
-				<div class="flex items-baseline gap-1.5 mt-0.5">
-					<p class="text-xl font-bold text-foreground">{data.dashboardStats.totalKeluarga}</p>
+			<div class="min-w-0 flex-1">
+				<p class="text-[10px] sm:text-[11px] font-medium text-foreground/60 leading-tight">Total Kartu Keluarga</p>
+				<p class="text-lg sm:text-2xl font-bold text-foreground mt-0.5 tracking-tight">
+					{data.dashboardStats.totalKeluarga}
+					<span class="text-[11px] sm:text-xs font-normal text-muted-foreground">KK</span>
+				</p>
+				<p class="text-[10px] text-muted-foreground/80 mt-0.5 leading-tight truncate">
 					{#if data.dashboardStats.totalMandiri > 0}
-						<span class="text-[10px] text-foreground/60 font-medium">
-							(+{data.dashboardStats.totalMandiri} Perantau)
-						</span>
+						+{data.dashboardStats.totalMandiri} Jiwa Mandiri
+					{:else}
+						Terdata di sensus
 					{/if}
-				</div>
+				</p>
 			</div>
 		</div>
 
-		<!-- Total Jiwa / Jamaah -->
-		<div class="bg-card border border-border rounded-xl p-4 shadow-sm flex items-center gap-3">
-			<div class="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
-				<Users class="w-5 h-5" />
+		<!-- Total Jiwa / Anggota -->
+		<div class="bg-card border border-border rounded-xl p-3.5 sm:p-4 shadow-xs flex items-start gap-2.5 sm:gap-3">
+			<div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0 mt-0.5">
+				<Users class="w-4 h-4 sm:w-5 sm:h-5" />
 			</div>
-			<div>
-				<p class="text-[11px] font-medium text-foreground/60">Total Jiwa / Anggota</p>
-				<p class="text-xl font-bold text-foreground mt-0.5">{data.dashboardStats.totalJiwa}</p>
+			<div class="min-w-0 flex-1">
+				<p class="text-[10px] sm:text-[11px] font-medium text-foreground/60 leading-tight">Total Jiwa / Anggota</p>
+				<p class="text-lg sm:text-2xl font-bold text-foreground mt-0.5 tracking-tight">
+					{data.dashboardStats.totalJiwa}
+					<span class="text-[11px] sm:text-xs font-normal text-muted-foreground">Jiwa</span>
+				</p>
+				<p class="text-[10px] text-muted-foreground/80 mt-0.5 leading-tight truncate">
+					{data.dashboardStats.totalKeluarga > 0 ? `~${Math.round(data.dashboardStats.totalJiwa / data.dashboardStats.totalKeluarga)} jiwa per KK` : 'Seluruh anggota keluarga'}
+				</p>
 			</div>
 		</div>
 
-		<!-- Total Pengurus & 4S -->
-		<div class="bg-card border border-border rounded-xl p-4 shadow-sm flex items-center gap-3">
-			<div class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
-				<ShieldCheck class="w-5 h-5" />
+		<!-- Pengurus & 4S -->
+		<div class="bg-card border border-border rounded-xl p-3.5 sm:p-4 shadow-xs flex items-start gap-2.5 sm:gap-3">
+			<div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0 mt-0.5">
+				<ShieldCheck class="w-4 h-4 sm:w-5 sm:h-5" />
 			</div>
-			<div>
-				<p class="text-[11px] font-medium text-foreground/60">Pengurus & 4S</p>
-				<p class="text-xl font-bold text-foreground mt-0.5">
+			<div class="min-w-0 flex-1">
+				<p class="text-[10px] sm:text-[11px] font-medium text-foreground/60 leading-tight">Pengurus & 4S</p>
+				<p class="text-lg sm:text-2xl font-bold text-foreground mt-0.5 tracking-tight">
 					{data.dashboardStats.totalPengurus}
-					<span class="text-xs font-normal text-foreground/60">({data.dashboardStats.totalPengurus4S} 4S)</span>
+					<span class="text-[11px] sm:text-xs font-normal text-muted-foreground">Orang</span>
+				</p>
+				<p class="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5 leading-tight truncate font-medium">
+					{data.dashboardStats.totalPengurus4S} Pejabat 4S
 				</p>
 			</div>
 		</div>
 
 		<!-- Cakupan Wilayah -->
-		<div class="bg-card border border-border rounded-xl p-4 shadow-sm flex items-center gap-3">
-			<div class="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-500 flex items-center justify-center shrink-0">
-				<MapPin class="w-5 h-5" />
+		<div class="bg-card border border-border rounded-xl p-3.5 sm:p-4 shadow-xs flex items-start gap-2.5 sm:gap-3">
+			<div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-purple-500/10 text-purple-500 flex items-center justify-center shrink-0 mt-0.5">
+				<MapPin class="w-4 h-4 sm:w-5 sm:h-5" />
 			</div>
-			<div>
-				<p class="text-[11px] font-medium text-foreground/60">Cakupan Wilayah</p>
-				<p class="text-xs font-bold text-foreground mt-0.5 truncate">
-					{data.dashboardStats.totalDaerah} Daerah • {data.dashboardStats.totalDesa} Desa • {data.dashboardStats.totalKelompok} Kel.
+			<div class="min-w-0 flex-1">
+				<p class="text-[10px] sm:text-[11px] font-medium text-foreground/60 leading-tight">Cakupan Wilayah</p>
+				<p class="text-lg sm:text-2xl font-bold text-foreground mt-0.5 tracking-tight">
+					{data.dashboardStats.totalKelompok}
+					<span class="text-[11px] sm:text-xs font-normal text-muted-foreground">Kelompok</span>
+				</p>
+				<p class="text-[10px] text-muted-foreground/80 mt-0.5 leading-tight truncate" title={`${data.dashboardStats.totalDaerah} Daerah • ${data.dashboardStats.totalDesa} Desa`}>
+					{data.dashboardStats.totalDaerah} Daerah • {data.dashboardStats.totalDesa} Desa
 				</p>
 			</div>
 		</div>

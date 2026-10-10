@@ -93,11 +93,6 @@
 							class="w-full bg-secondary/50 border border-border rounded-lg pl-9 pr-3 py-2 text-xs text-foreground placeholder:text-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
 						/>
 					</div>
-					<div>
-						<a href="#lupa-password" class="text-[11px] font-medium text-primary hover:underline">
-							Lupa sandi?
-						</a>
-					</div>
 				</div>
 
 				<div class="flex items-center justify-between">
@@ -109,6 +104,9 @@
 						/>
 						<span class="text-xs text-foreground/70">Ingat saya di perangkat ini</span>
 					</label>
+					<a href="#lupa-password" class="text-[11px] font-medium text-primary hover:underline">
+						Lupa sandi?
+					</a>
 				</div>
 
 				<div>
