@@ -21,3 +21,9 @@
 ## 4. Keamanan dan Pembagian Lingkungan
 
 - Jangan pernah memuat kode yang berhubungan dengan _database_ (Drizzle) atau _crypto_ (Enkripsi) di dalam komponen `.svelte` atau file `.js` sisi _client_. Wajib letakkan di `+page.server.js` atau folder `src/lib/server/`.
+
+## 5. Eksekusi Perintah Terminal (PENTING)
+
+- DILARANG KERAS menjalankan `npm run build` atau `npm run check` selama proses penulisan kode atau development lokal, kecuali diminta secara eksplisit.
+- Proses development hanya menggunakan `npm run dev` (Vite HMR).
+- Evaluasi kode cukup dilakukan dengan melihat perubahan langsung di browser atau melalui linter bawaan IDE, bukan dengan memicu proses kompilasi penuh.

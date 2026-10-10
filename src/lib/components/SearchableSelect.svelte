@@ -1,13 +1,13 @@
 <!--
   @file src/lib/components/SearchableSelect.svelte
-  @purpose Komponen dropdown pilihan dengan fitur pencarian real-time (searchable select) untuk dataset berjumlah besar
-  @usedBy Halaman admin dapukan, wilayah, presensi, dan form penugasan/relasi
-  @dependencies lucide-svelte (Search, ChevronDown, Check, X), Svelte 5 Runes ($state, $derived, $props, $bindable, $effect)
-  @publicFunctions selectOption, toggleDropdown, clearSearch, handleKeyDown
+  @purpose Komponen dropdown pilihan dengan fitur pencarian real-time (searchable select) untuk dataset berjumlah besar serta opsi input custom/baru
+  @usedBy Halaman admin dapukan, wilayah, presensi, batch insert wilayah, dan form penugasan/relasi
+  @dependencies lucide-svelte (Search, ChevronDown, Check, X, Plus), Svelte 5 Runes ($state, $derived, $props, $bindable, $effect)
+  @publicFunctions selectOption, selectCustom, toggleDropdown, clearSearch, handleKeyDown
   @sideEffects Mengontrol input form tersembunyi (name & value) untuk interoperabilitas native form POST
 -->
 <script lang="ts">
-	import { Search, ChevronDown, Check, X } from '@lucide/svelte';
+	import { Search, ChevronDown, Check, X, Plus } from '@lucide/svelte';
 	import { tick } from 'svelte';
 
 	export interface SearchableSelectOption {
@@ -27,6 +27,8 @@
 		disabled?: boolean;
 		class?: string;
 		onchange?: (val: string | number) => void;
+		allowCustom?: boolean;
+		customLabel?: string;
 	}
 
 	let {
@@ -39,7 +41,9 @@
 		required = false,
 		disabled = false,
 		class: className = '',
-		onchange
+		onchange,
+		allowCustom = false,
+		customLabel = 'Item Baru'
 	}: Props = $props();
 
 	let isOpen = $state(false);
@@ -83,6 +87,18 @@
 		isOpen = false;
 	}
 
+	const hasExactMatch = $derived(
+		options.some(
+			(opt) => opt.label.trim().toLowerCase() === searchQuery.trim().toLowerCase()
+		)
+	);
+
+	function selectCustom(customVal: string) {
+		value = customVal;
+		closeDropdown();
+		onchange?.(customVal);
+	}
+
 	function selectOption(opt: SearchableSelectOption) {
 		value = opt.value;
 		closeDropdown();
@@ -114,6 +130,8 @@
 			e.preventDefault();
 			if (filteredOptions.length > 0 && filteredOptions[highlightedIndex]) {
 				selectOption(filteredOptions[highlightedIndex]);
+			} else if (allowCustom && searchQuery.trim()) {
+				selectCustom(searchQuery.trim());
 			}
 		} else if (e.key === 'Escape' || e.key === 'Tab') {
 			closeDropdown();
@@ -171,6 +189,11 @@
 				{#if selectedOption.sublabel}
 					<span class="text-[11px] text-foreground/50 truncate font-normal">({selectedOption.sublabel})</span>
 				{/if}
+			{:else if value}
+				<span class="font-medium text-foreground truncate">{value}</span>
+				{#if allowCustom}
+					<span class="text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded font-normal shrink-0">({customLabel})</span>
+				{/if}
 			{:else}
 				<span class="text-foreground/40 truncate">{placeholder}</span>
 			{/if}
@@ -218,13 +241,26 @@
 				bind:this={listContainerRef}
 				class="max-h-56 overflow-y-auto p-1 space-y-0.5 overscroll-contain"
 			>
+				{#if allowCustom && searchQuery.trim() && !hasExactMatch}
+					<button
+						type="button"
+						onclick={() => selectCustom(searchQuery.trim())}
+						class="w-full px-2.5 py-2 mb-1 rounded-lg text-xs text-left flex items-center gap-2 bg-primary/10 hover:bg-primary/20 text-primary font-semibold transition-colors cursor-pointer border border-primary/20"
+					>
+						<Plus class="w-3.5 h-3.5 shrink-0" />
+						<span class="truncate">Gunakan "<strong>{searchQuery.trim()}</strong>" ({customLabel})</span>
+					</button>
+				{/if}
+
 				{#if filteredOptions.length === 0}
-					<div class="py-6 px-3 text-center text-xs text-foreground/50 flex flex-col items-center justify-center gap-1">
-						<span>Tidak ada hasil yang cocok</span>
-						{#if searchQuery}
-							<span class="text-[10px] text-foreground/40">"{searchQuery}"</span>
-						{/if}
-					</div>
+					{#if !allowCustom || !searchQuery.trim()}
+						<div class="py-6 px-3 text-center text-xs text-foreground/50 flex flex-col items-center justify-center gap-1">
+							<span>Tidak ada hasil yang cocok</span>
+							{#if searchQuery}
+								<span class="text-[10px] text-foreground/40">"{searchQuery}"</span>
+							{/if}
+						</div>
+					{/if}
 				{:else}
 					{#each filteredOptions as opt, idx}
 						{@const isSelected = String(opt.value) === String(value)}

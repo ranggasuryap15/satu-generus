@@ -1,8 +1,8 @@
 <!--
   @file src/routes/(admin)/admin/wilayah/batch/+page.svelte
-  @purpose Antarmuka batch insert data wilayah hierarkis (Daerah -> Desa -> Kelompok -> Sub-Kelompok) dengan paste spreadsheet, dynamic group cards, dan transaksi database atomik
+  @purpose Antarmuka batch insert data wilayah hierarkis (Daerah -> Desa -> Kelompok -> Sub-Kelompok) dengan dropdown search daerah, paste spreadsheet, dynamic group cards, dan transaksi database atomik
   @usedBy Route admin '/admin/wilayah/batch'
-  @dependencies @lucide/svelte, $app/forms, Svelte 5 Runes
+  @dependencies @lucide/svelte, $app/forms, Svelte 5 Runes, $lib/components/SearchableSelect.svelte
   @publicFunctions addGroup, removeGroup, addKelompokToGroup, removeKelompok, addSubKelompok, removeSubKelompok, clearGroups, processPastedSpreadsheet
   @sideEffects Mengirim payload JSON batchData ke server action untuk dieksekusi dalam transaksi SQLite atomik
 -->
@@ -23,6 +23,7 @@
 		Trash2
 	} from '@lucide/svelte';
 	import type { ActionData, PageData } from './$types';
+	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -45,7 +46,16 @@
 		desaNama: string;
 		kecamatan: string;
 		kelompoks: KelompokRow[];
+		isManualInput?: boolean;
 	}
+
+	const daerahOptions = $derived(
+		(data.daerahList || []).map((d: (typeof data.daerahList)[number]) => ({
+			value: d.nama,
+			label: d.nama,
+			sublabel: d.kotaKabupaten ? `Kota/Kab. ${d.kotaKabupaten}` : undefined
+		}))
+	);
 
 	function createEmptySubKelompok(): SubKelompokRow {
 		return {
@@ -71,7 +81,8 @@
 			daerahNama: firstDaerah,
 			desaNama: '',
 			kecamatan: '',
-			kelompoks: [createEmptyKelompok('Kelompok 1')]
+			kelompoks: [createEmptyKelompok('Kelompok 1')],
+			isManualInput: data.daerahList.length === 0
 		};
 	}
 
@@ -398,18 +409,60 @@
 					<!-- Input Induk Daerah & Desa -->
 					<div class="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-secondary/20 rounded-xl border border-border/50 text-xs">
 						<div>
-							<label for="daerah-{group.id}" class="block text-[11px] font-semibold text-foreground/80 mb-1">
-								Nama Daerah *
-							</label>
-							<input
-								id="daerah-{group.id}"
-								type="text"
-								required
-								bind:value={group.daerahNama}
-								placeholder="Contoh: Jakarta Selatan"
-								list="daerahSuggestions"
-								class="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
-							/>
+							<div class="flex items-center justify-between mb-1">
+								<label for="daerah-{group.id}" class="block text-[11px] font-semibold text-foreground/80">
+									Nama Daerah *
+								</label>
+								{#if group.isManualInput}
+									<button
+										type="button"
+										onclick={() => {
+											group.isManualInput = false;
+											if (data.daerahList.length > 0 && !group.daerahNama) {
+												group.daerahNama = data.daerahList[0].nama;
+											}
+										}}
+										class="text-[10px] text-primary hover:underline font-medium"
+									>
+										Pilih Daerah yang Ada
+									</button>
+								{:else}
+									<button
+										type="button"
+										onclick={() => {
+											group.isManualInput = true;
+										}}
+										class="text-[10px] text-foreground/60 hover:text-primary hover:underline font-medium inline-flex items-center gap-0.5"
+										title="Beralih ke ketik nama daerah baru"
+									>
+										<Plus class="w-3 h-3" />
+										<span>Ketik Daerah Baru</span>
+									</button>
+								{/if}
+							</div>
+
+							{#if group.isManualInput}
+								<input
+									id="daerah-{group.id}"
+									type="text"
+									required
+									bind:value={group.daerahNama}
+									placeholder="Ketik nama daerah baru..."
+									class="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
+								/>
+							{:else}
+								<SearchableSelect
+									id="daerah-{group.id}"
+									name="daerahSelect-{group.id}"
+									options={daerahOptions}
+									bind:value={group.daerahNama}
+									placeholder="-- Cari / Pilih Daerah --"
+									searchPlaceholder="Cari nama daerah atau kota..."
+									allowCustom={true}
+									customLabel="Daerah Baru"
+									required
+								/>
+							{/if}
 						</div>
 
 						<div>
@@ -614,12 +667,6 @@
 	</form>
 </div>
 
-<!-- Datalist Autocomplete Daerah -->
-<datalist id="daerahSuggestions">
-	{#each data.daerahList as d}
-		<option value={d.nama}>{d.kotaKabupaten}</option>
-	{/each}
-</datalist>
 
 <!-- Modal Paste Spreadsheet -->
 {#if showPasteModal}
