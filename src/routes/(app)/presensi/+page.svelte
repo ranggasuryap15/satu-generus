@@ -1,9 +1,9 @@
 <!--
   @file src/routes/(app)/presensi/+page.svelte
-  @purpose Halaman presensi mandiri jamaah (Hadir Offline dengan GPS, verifikasi radius venue & foto kamera wajib, Hadir Online dengan foto/SS SDC, dan permohonan Izin/Sakit yang membutuhkan approval admin)
+  @purpose Halaman presensi mandiri jamaah (Hadir Offline dengan GPS, verifikasi radius venue & foto kamera wajib, Hadir Online dengan foto/SS SDC, permohonan Izin/Sakit yang membutuhkan approval admin, dan modal popup foto bukti presensi)
   @usedBy Route client '/presensi'
   @dependencies qrcode, @lucide/svelte, $app/forms, $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
-  @publicFunctions captureLocation, calculateDistanceMeters, handleFotoChange, resetPresensiForm
+  @publicFunctions captureLocation, calculateDistanceMeters, handleFotoChange, resetPresensiForm, openPreviewFoto, closePreviewFoto
   @sideEffects Mengakses HTML5 Geolocation API, input kamera/galeri, generate QR code personal, dan mengirim form presensi mandiri ke server action
 -->
 <script lang="ts">
@@ -102,6 +102,20 @@
 	// State Bukti Foto
 	let fotoDataUrl = $state<string>('');
 	let fotoFileName = $state<string>('');
+
+	// State Modal Popup Preview Foto Bukti Presensi
+	let previewFotoUrl = $state<string | null>(null);
+	let previewFotoTitle = $state<string>('');
+
+	function openPreviewFoto(url: string, title: string) {
+		previewFotoUrl = url;
+		previewFotoTitle = title;
+	}
+
+	function closePreviewFoto() {
+		previewFotoUrl = null;
+		previewFotoTitle = '';
+	}
 
 	// State Pengajuan Izin
 	let izinJadwalId = $state<number | string>(data.jadwalList[0]?.id || '');
@@ -866,14 +880,13 @@
 									</div>
 
 									{#if item.fotoUrl}
-										<a
-											href={item.fotoUrl}
-											target="_blank"
-											rel="noopener noreferrer"
-											class="px-2 py-1 rounded bg-secondary text-foreground hover:bg-secondary/80 text-[10.5px] font-medium shrink-0"
+										<button
+											type="button"
+											onclick={() => openPreviewFoto(item.fotoUrl || '', `${item.namaKegiatan} (${formatDateDDMMYYYY(item.tanggal)})`)}
+											class="px-2.5 py-1 rounded-lg bg-secondary text-foreground hover:bg-secondary/80 text-[10.5px] font-semibold shrink-0 cursor-pointer border border-border/50 transition-colors"
 										>
 											Lihat Foto
-										</a>
+										</button>
 									{/if}
 								</div>
 							{/if}
@@ -911,3 +924,54 @@
 		</div>
 	{/if}
 </div>
+
+<!-- Modal Pop-up Preview Foto Bukti Presensi -->
+{#if previewFotoUrl}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
+		role="dialog"
+		aria-modal="true"
+		tabindex="-1"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) closePreviewFoto();
+		}}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') closePreviewFoto();
+		}}
+	>
+		<div class="bg-card border border-border rounded-2xl max-w-lg w-full p-4 shadow-2xl space-y-3">
+			<div class="flex items-center justify-between pb-2 border-b border-border">
+				<h3 class="text-xs font-bold text-foreground truncate mr-2">
+					{previewFotoTitle || 'Foto Bukti Presensi'}
+				</h3>
+				<button
+					type="button"
+					onclick={closePreviewFoto}
+					class="p-1 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground cursor-pointer transition-colors"
+					aria-label="Tutup foto"
+				>
+					<X class="w-4 h-4" />
+				</button>
+			</div>
+
+			<div class="rounded-xl overflow-hidden bg-black/10 flex items-center justify-center max-h-[70vh]">
+				<img
+					src={previewFotoUrl}
+					alt="Bukti Kehadiran"
+					class="max-w-full max-h-[70vh] object-contain rounded-xl"
+				/>
+			</div>
+
+			<div class="flex items-center justify-between pt-1">
+				<span class="text-[10.5px] text-foreground/50">Klik di luar gambar atau tombol Tutup untuk menutup</span>
+				<button
+					type="button"
+					onclick={closePreviewFoto}
+					class="px-4 py-1.5 rounded-lg bg-secondary text-foreground text-xs font-semibold hover:bg-secondary/80 cursor-pointer transition-colors"
+				>
+					Tutup
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}

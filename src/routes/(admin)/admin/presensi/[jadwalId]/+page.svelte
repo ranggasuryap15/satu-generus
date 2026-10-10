@@ -459,6 +459,13 @@
 		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
 		role="dialog"
 		aria-modal="true"
+		tabindex="-1"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) selectedPreviewFoto = null;
+		}}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') selectedPreviewFoto = null;
+		}}
 	>
 		<div class="bg-card border border-border rounded-2xl max-w-lg w-full p-4 shadow-2xl space-y-3">
 			<div class="flex items-center justify-between pb-2 border-b border-border">
