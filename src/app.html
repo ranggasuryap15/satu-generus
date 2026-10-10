@@ -1,8 +1,8 @@
 <!--
   @file src/app.html
-  @purpose HTML root template SvelteKit, load Poppins font dan inisialisasi dark mode class
+  @purpose HTML root template SvelteKit, konfigurasi meta tags PWA, webmanifest, icon, load Poppins font, dan inisialisasi dark mode class
   @usedBy SvelteKit runtime saat render halaman
-  @dependencies Google Fonts (Poppins), localStorage & matchMedia untuk deteksi tema
+  @dependencies Google Fonts (Poppins), manifest.webmanifest, localStorage & matchMedia untuk deteksi tema
   @publicFunctions N/A (HTML template)
   @sideEffects Menambahkan class 'dark' pada documentElement jika preferensi tema gelap
 -->
@@ -10,8 +10,25 @@
 <html lang="id">
 	<head>
 		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 		<meta name="text-scale" content="scale" />
+
+		<!-- PWA Primary Meta Tags -->
+		<title>Satu Generus</title>
+		<meta name="description" content="Sistem Informasi Manajemen Jamaah & Generasi Penerus Terpadu" />
+		<meta name="theme-color" content="#059669" />
+		<meta name="mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+		<meta name="apple-mobile-web-app-title" content="Satu Generus" />
+		<meta name="application-name" content="Satu Generus" />
+
+		<!-- Icons & Web Manifest -->
+		<link rel="icon" type="image/png" href="/favicon.png" />
+		<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+		<link rel="manifest" href="/manifest.webmanifest" />
+
+		<!-- Fonts -->
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />

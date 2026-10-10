@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(app)/profil/+page.svelte
-  @purpose Halaman profil pengguna dengan fitur update nama, email, ganti kata sandi, pengaturan tema, dan logout dengan proteksi draf modal
+  @purpose Halaman profil pengguna dengan fitur update nama, email, ganti kata sandi, pengaturan tema, tombol instalasi aplikasi PWA (Chrome/Safari/Desktop), panduan instalasi, dan logout dengan proteksi draf modal
   @usedBy Route client '/profil'
-  @dependencies @lucide/svelte (User, ShieldCheck, MapPin, Mail, LogOut, ArrowRight, Moon, KeyRound, CheckCircle, AlertCircle, Pencil), ThemeToggle, $app/forms (enhance)
+  @dependencies @lucide/svelte, ThemeToggle, PwaInstallGuideModal, $lib/pwa.svelte, $app/forms (enhance)
   @publicFunctions closeProfileModal, closePasswordModal, resetProfileDraft, resetPasswordDraft, isProfileDirty, isPasswordDirty
-  @sideEffects Mengirim form updateProfile dan updatePassword ke server actions
+  @sideEffects Mengirim form updateProfile dan updatePassword ke server actions, memicu instalasi PWA native
 -->
 <script lang="ts">
 	import {
@@ -17,16 +17,23 @@
 		Moon,
 		KeyRound,
 		CheckCircle,
+		CheckCircle2,
 		AlertCircle,
-		Pencil
+		Pencil,
+		Download,
+		Smartphone,
+		HelpCircle
 	} from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import PwaInstallGuideModal from '$lib/components/PwaInstallGuideModal.svelte';
+	import { pwaState } from '$lib/pwa.svelte';
 	import { enhance } from '$app/forms';
 	import type { PageData, ActionData } from './$types';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
 	let activeModal = $state<'none' | 'profile' | 'password'>('none');
+	let showPwaGuide = $state(false);
 	let isSubmitting = $state(false);
 
 	let inputNama = $state(data.user.namaLengkap);
@@ -243,6 +250,55 @@
 					<p class="text-[11px] text-foreground/50">{data.kelompokNama}</p>
 				</div>
 			</div>
+		</div>
+	</section>
+
+	<!-- Section PWA: Pasang / Jadikan Aplikasi -->
+	<section class="bg-card border border-border rounded-xl p-4 shadow-sm space-y-3 text-xs">
+		<div class="flex items-start justify-between gap-3">
+			<div class="flex items-start gap-3">
+				<div class="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
+					<Smartphone class="w-5 h-5" />
+				</div>
+				<div class="space-y-0.5">
+					<div class="flex items-center gap-2 flex-wrap">
+						<p class="font-bold text-foreground text-xs">Jadikan Aplikasi</p>
+						{#if pwaState.isInstalled}
+							<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+								<CheckCircle2 class="w-3 h-3" />
+								<span>Sudah Terpasang</span>
+							</span>
+						{/if}
+					</div>
+					<p class="text-[11px] text-foreground/60 leading-relaxed">
+						{pwaState.isInstalled
+							? 'Aplikasi telah terpasang di perangkat Anda. Anda dapat membukanya langsung dari layar utama kapan saja.'
+							: 'Pasang ke layar utama ponsel atau komputer untuk akses cepat 1-klik, tampilan layar penuh tanpa browser, dan hemat kuota.'}
+					</p>
+				</div>
+			</div>
+		</div>
+
+		<div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-border/60">
+			{#if !pwaState.isInstalled && pwaState.isInstallable}
+				<button
+					type="button"
+					onclick={() => pwaState.install()}
+					class="w-full py-2.5 px-3 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
+				>
+					<Download class="w-3.5 h-3.5" />
+					<span>Install Sekarang</span>
+				</button>
+			{/if}
+
+			<button
+				type="button"
+				onclick={() => (showPwaGuide = true)}
+				class="w-full py-2.5 px-3 rounded-lg border border-border bg-secondary/60 hover:bg-secondary text-foreground font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer {pwaState.isInstalled || !pwaState.isInstallable ? 'sm:col-span-2' : ''}"
+			>
+				<HelpCircle class="w-3.5 h-3.5 text-primary" />
+				<span>{pwaState.isInstalled ? 'Lihat Panduan & Fitur Aplikasi' : 'Panduan Cara Pasang (Safari / Chrome)'}</span>
+			</button>
 		</div>
 	</section>
 
@@ -476,4 +532,5 @@
 	</div>
 {/if}
 
-
+<!-- Modal Panduan Instalasi PWA (Chrome, Safari, Desktop) -->
+<PwaInstallGuideModal bind:open={showPwaGuide} />
