@@ -48,9 +48,22 @@ class PwaState {
 				});
 		}
 
-		// 4. Tangkap event beforeinstallprompt (didukung Chromium: Chrome, Edge, Samsung Internet)
+		// 4. Sinkronkan event beforeinstallprompt (pre-captured atau runtime)
+		if ((window as any).__pwaInstallPrompt) {
+			this.deferredPrompt = (window as any).__pwaInstallPrompt;
+			this.isInstallable = true;
+		}
+
+		window.addEventListener('pwa-prompt-ready', () => {
+			if ((window as any).__pwaInstallPrompt) {
+				this.deferredPrompt = (window as any).__pwaInstallPrompt;
+				this.isInstallable = true;
+			}
+		});
+
 		window.addEventListener('beforeinstallprompt', (e: Event) => {
 			e.preventDefault();
+			(window as any).__pwaInstallPrompt = e;
 			this.deferredPrompt = e;
 			this.isInstallable = true;
 		});
@@ -58,6 +71,7 @@ class PwaState {
 		// 5. Tangkap saat aplikasi berhasil diinstall
 		window.addEventListener('appinstalled', () => {
 			this.deferredPrompt = null;
+			if (typeof window !== 'undefined') (window as any).__pwaInstallPrompt = null;
 			this.isInstallable = false;
 			this.isInstalled = true;
 		});
@@ -84,6 +98,11 @@ class PwaState {
 	}
 
 	async install(): Promise<boolean> {
+		if (!this.deferredPrompt && typeof window !== 'undefined' && (window as any).__pwaInstallPrompt) {
+			this.deferredPrompt = (window as any).__pwaInstallPrompt;
+			this.isInstallable = true;
+		}
+
 		if (!this.deferredPrompt) {
 			return false;
 		}
@@ -91,10 +110,11 @@ class PwaState {
 		try {
 			await this.deferredPrompt.prompt();
 			const choiceResult = await this.deferredPrompt.userChoice;
-			if (choiceResult.outcome === 'accepted') {
+			if (choiceResult && choiceResult.outcome === 'accepted') {
 				this.isInstalled = true;
 				this.isInstallable = false;
 				this.deferredPrompt = null;
+				if (typeof window !== 'undefined') (window as any).__pwaInstallPrompt = null;
 				return true;
 			}
 		} catch (err) {

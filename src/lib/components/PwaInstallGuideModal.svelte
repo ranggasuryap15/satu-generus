@@ -1,6 +1,6 @@
 <!--
   @file src/lib/components/PwaInstallGuideModal.svelte
-  @purpose Modal panduan instalasi web app Satu Generus (PWA) langkah demi langkah untuk Google Chrome (Android/Desktop) dan Safari (iPhone/iPad iOS)
+  @purpose Modal panduan instalasi web app Satu Generus (PWA) dengan tombol Quick Install langsung serta panduan langkah demi langkah peramban (Chrome, Safari iOS, Desktop)
   @usedBy src/routes/(app)/profil/+page.svelte
   @dependencies @lucide/svelte, $lib/pwa.svelte, Svelte 5 Runes ($state, $props)
   @publicFunctions handleDirectInstall, selectTab
@@ -74,7 +74,7 @@
 					</div>
 					<div>
 						<h3 class="text-sm font-bold text-foreground">Pasang Satu Generus</h3>
-						<p class="text-[11px] text-foreground/60">Panduan instalasi aplikasi di perangkat Anda</p>
+						<p class="text-[11px] text-foreground/60">Panduan & Opsi Instalasi Aplikasi</p>
 					</div>
 				</div>
 				<button
@@ -93,10 +93,10 @@
 					<div class="space-y-0.5 min-w-0">
 						<p class="font-bold text-foreground text-xs flex items-center gap-1.5 text-primary">
 							<Sparkles class="w-3.5 h-3.5" />
-							<span>Dukungan Instalasi Langsung</span>
+							<span>Quick Install Otomatis</span>
 						</p>
 						<p class="text-[11px] text-foreground/60 leading-tight">
-							Browser Anda mendukung pemasangan otomatis dalam 1 klik.
+							Pasang aplikasi langsung dalam 1 klik tanpa panduan manual.
 						</p>
 					</div>
 					<button
@@ -110,7 +110,7 @@
 							<span>Terpasang!</span>
 						{:else}
 							<Download class="w-3.5 h-3.5" />
-							<span>{isInstalling ? 'Memasang...' : 'Pasang Sekarang'}</span>
+							<span>{isInstalling ? 'Memasang...' : 'Quick Install'}</span>
 						{/if}
 					</button>
 				</div>

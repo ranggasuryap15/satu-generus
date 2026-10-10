@@ -1,10 +1,10 @@
 <!--
   @file src/app.html
-  @purpose HTML root template SvelteKit, konfigurasi meta tags PWA, webmanifest, icon, load Poppins font, dan inisialisasi dark mode class
+  @purpose HTML root template SvelteKit, konfigurasi meta tags PWA, webmanifest, icon, pre-capture prompt PWA, load Poppins font, dan inisialisasi dark mode class
   @usedBy SvelteKit runtime saat render halaman
-  @dependencies Google Fonts (Poppins), manifest.webmanifest, localStorage & matchMedia untuk deteksi tema
+  @dependencies Google Fonts (Poppins), manifest.webmanifest, localStorage & matchMedia untuk deteksi tema, beforeinstallprompt event
   @publicFunctions N/A (HTML template)
-  @sideEffects Menambahkan class 'dark' pada documentElement jika preferensi tema gelap
+  @sideEffects Menambahkan class 'dark' pada documentElement jika preferensi tema gelap, menyimpan prompt PWA global pada window.__pwaInstallPrompt
 -->
 <!doctype html>
 <html lang="id">
@@ -33,6 +33,14 @@
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
 		<script>
+			// Pre-capture event beforeinstallprompt sedini mungkin agar quick install siap pakai
+			window.__pwaInstallPrompt = null;
+			window.addEventListener('beforeinstallprompt', function(e) {
+				e.preventDefault();
+				window.__pwaInstallPrompt = e;
+				window.dispatchEvent(new CustomEvent('pwa-prompt-ready'));
+			});
+
 			// Deteksi preferensi tema (system default & localStorage) sebelum render untuk hindari flash
 			try {
 				const storedTheme = localStorage.getItem('theme');

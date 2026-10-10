@@ -1,9 +1,9 @@
 <!--
   @file src/routes/(app)/profil/+page.svelte
-  @purpose Halaman profil pengguna dengan fitur update nama, email, ganti kata sandi, pengaturan tema, tombol instalasi aplikasi PWA (Chrome/Safari/Desktop), panduan instalasi, dan logout dengan proteksi draf modal
+  @purpose Halaman profil pengguna dengan fitur update nama, email, ganti kata sandi, pengaturan tema, tombol Quick Install PWA Satu Generus, panduan manual instalasi, dan logout dengan proteksi draf modal
   @usedBy Route client '/profil'
   @dependencies @lucide/svelte, ThemeToggle, PwaInstallGuideModal, $lib/pwa.svelte, $app/forms (enhance)
-  @publicFunctions closeProfileModal, closePasswordModal, resetProfileDraft, resetPasswordDraft, isProfileDirty, isPasswordDirty
+  @publicFunctions closeProfileModal, closePasswordModal, resetProfileDraft, resetPasswordDraft, isProfileDirty, isPasswordDirty, handleQuickInstall
   @sideEffects Mengirim form updateProfile dan updatePassword ke server actions, memicu instalasi PWA native
 -->
 <script lang="ts">
@@ -22,7 +22,8 @@
 		Pencil,
 		Download,
 		Smartphone,
-		HelpCircle
+		HelpCircle,
+		X
 	} from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import PwaInstallGuideModal from '$lib/components/PwaInstallGuideModal.svelte';
@@ -35,6 +36,34 @@
 	let activeModal = $state<'none' | 'profile' | 'password'>('none');
 	let showPwaGuide = $state(false);
 	let isSubmitting = $state(false);
+	let isInstallingPwa = $state(false);
+	let pwaMessage = $state<string | null>(null);
+
+	async function handleQuickInstall() {
+		if (pwaState.isInstalled) return;
+
+		isInstallingPwa = true;
+		pwaMessage = null;
+
+		try {
+			const success = await pwaState.install();
+			if (success) {
+				pwaMessage = 'Aplikasi Satu Generus berhasil dipasang!';
+				isInstallingPwa = false;
+				return;
+			}
+
+			if (pwaState.platform === 'ios') {
+				pwaMessage = 'Safari iOS: Ketuk tombol Bagikan (Share ⎋) di bawah layar, lalu pilih "Tambahkan ke Layar Utama (+)".';
+			} else if (!pwaState.isInstallable) {
+				pwaMessage = 'Buka menu titik tiga (⋮) di browser Anda, lalu pilih "Pasang Satu Generus" atau "Tambahkan ke Layar Utama".';
+			}
+		} catch (err) {
+			console.error('Error saat quick install:', err);
+		} finally {
+			isInstallingPwa = false;
+		}
+	}
 
 	let inputNama = $state(data.user.namaLengkap);
 	let inputEmail = $state(data.user.email || '');
@@ -253,7 +282,7 @@
 		</div>
 	</section>
 
-	<!-- Section PWA: Pasang / Jadikan Aplikasi -->
+	<!-- Section PWA: Pasang Satu Generus (Quick Install) -->
 	<section class="bg-card border border-border rounded-xl p-4 shadow-sm space-y-3 text-xs">
 		<div class="flex items-start justify-between gap-3">
 			<div class="flex items-start gap-3">
@@ -262,7 +291,7 @@
 				</div>
 				<div class="space-y-0.5">
 					<div class="flex items-center gap-2 flex-wrap">
-						<p class="font-bold text-foreground text-xs">Jadikan Aplikasi</p>
+						<p class="font-bold text-foreground text-xs">Pasang Satu Generus</p>
 						{#if pwaState.isInstalled}
 							<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
 								<CheckCircle2 class="w-3 h-3" />
@@ -273,32 +302,61 @@
 					<p class="text-[11px] text-foreground/60 leading-relaxed">
 						{pwaState.isInstalled
 							? 'Aplikasi telah terpasang di perangkat Anda. Anda dapat membukanya langsung dari layar utama kapan saja.'
-							: 'Pasang ke layar utama ponsel atau komputer untuk akses cepat 1-klik, tampilan layar penuh tanpa browser, dan hemat kuota.'}
+							: 'Pasang ke layar utama untuk akses cepat 1-klik, tampilan layar penuh tanpa browser, dan hemat kuota.'}
 					</p>
 				</div>
 			</div>
 		</div>
 
-		<div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-border/60">
-			{#if !pwaState.isInstalled && pwaState.isInstallable}
+		{#if pwaMessage}
+			<div class="p-2.5 rounded-lg bg-primary/10 border border-primary/20 text-primary text-[11px] flex items-start justify-between gap-2">
+				<div class="flex items-start gap-2">
+					<CheckCircle2 class="w-3.5 h-3.5 shrink-0 mt-0.5" />
+					<span class="leading-relaxed">{pwaMessage}</span>
+				</div>
+				<button type="button" onclick={() => (pwaMessage = null)} class="text-primary/70 hover:text-primary cursor-pointer shrink-0">
+					<X class="w-3.5 h-3.5" />
+				</button>
+			</div>
+		{/if}
+
+		<div class="pt-1 border-t border-border/60">
+			{#if !pwaState.isInstalled}
+				<div class="flex flex-col sm:flex-row gap-2">
+					<button
+						type="button"
+						onclick={handleQuickInstall}
+						disabled={isInstallingPwa}
+						class="w-full py-2.5 px-4 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer disabled:opacity-50"
+					>
+						{#if isInstallingPwa}
+							<div class="w-3.5 h-3.5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin"></div>
+							<span>Memproses Pemasangan...</span>
+						{:else}
+							<Download class="w-3.5 h-3.5" />
+							<span>Pasang Satu Generus (Quick Install)</span>
+						{/if}
+					</button>
+
+					<button
+						type="button"
+						onclick={() => (showPwaGuide = true)}
+						class="w-full sm:w-auto shrink-0 py-2.5 px-3 rounded-lg border border-border bg-secondary/60 hover:bg-secondary text-foreground/70 hover:text-foreground font-medium text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+					>
+						<HelpCircle class="w-3.5 h-3.5 text-foreground/50" />
+						<span>Panduan Manual</span>
+					</button>
+				</div>
+			{:else}
 				<button
 					type="button"
-					onclick={() => pwaState.install()}
-					class="w-full py-2.5 px-3 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
+					onclick={() => (showPwaGuide = true)}
+					class="w-full py-2.5 px-3 rounded-lg border border-border bg-secondary/60 hover:bg-secondary text-foreground font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
 				>
-					<Download class="w-3.5 h-3.5" />
-					<span>Install Sekarang</span>
+					<HelpCircle class="w-3.5 h-3.5 text-primary" />
+					<span>Panduan & Info Aplikasi</span>
 				</button>
 			{/if}
-
-			<button
-				type="button"
-				onclick={() => (showPwaGuide = true)}
-				class="w-full py-2.5 px-3 rounded-lg border border-border bg-secondary/60 hover:bg-secondary text-foreground font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer {pwaState.isInstalled || !pwaState.isInstallable ? 'sm:col-span-2' : ''}"
-			>
-				<HelpCircle class="w-3.5 h-3.5 text-primary" />
-				<span>{pwaState.isInstalled ? 'Lihat Panduan & Fitur Aplikasi' : 'Panduan Cara Pasang (Safari / Chrome)'}</span>
-			</button>
 		</div>
 	</section>
 
