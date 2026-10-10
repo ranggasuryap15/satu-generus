@@ -1,14 +1,14 @@
 <!--
   @file src/lib/components/navigation/BottomNavbar.svelte
-  @purpose Komponen navigasi bawah (Bottom Navbar) dengan penanda rute aktif untuk tampilan mobile client/jamaah
+  @purpose Komponen navigasi bawah (Bottom Navbar) ringkas dengan Quick Action Presensi dan penanda rute aktif untuk mobile client
   @usedBy src/routes/(app)/+layout.svelte
-  @dependencies $app/state (page), @lucide/svelte (Home, Users, Plus, CalendarCheck, User)
+  @dependencies $app/state (page), @lucide/svelte (Home, Users, QrCode, User)
   @publicFunctions isItemActive
   @sideEffects Navigasi halaman client melalui tag link dengan penanda visual rute aktif
 -->
 <script lang="ts">
 	import { page } from '$app/state';
-	import { Home, Users, Plus, CalendarCheck, User } from '@lucide/svelte';
+	import { Home, QrCode, User, Users } from '@lucide/svelte';
 
 	interface NavItem {
 		href: string;
@@ -19,9 +19,8 @@
 
 	const navItems: NavItem[] = [
 		{ href: '/', label: 'Beranda', icon: Home },
-		{ href: '/sensus', label: 'Sensus', icon: Users },
-		{ href: '/sensus/tambah', label: 'Tambah', icon: Plus, isFab: true },
-		{ href: '/presensi', label: 'Presensi', icon: CalendarCheck },
+		{ href: '/sensus', label: 'Keluarga', icon: Users },
+		{ href: '/presensi', label: 'Presensi', icon: QrCode, isFab: true },
 		{ href: '/profil', label: 'Profil', icon: User }
 	];
 
@@ -30,7 +29,10 @@
 			return page.url.pathname === '/';
 		}
 		if (item.href === '/sensus') {
-			return page.url.pathname === '/sensus';
+			return page.url.pathname === '/sensus' || page.url.pathname.startsWith('/sensus');
+		}
+		if (item.href === '/presensi') {
+			return page.url.pathname === '/presensi' || page.url.pathname.startsWith('/presensi');
 		}
 		return page.url.pathname === item.href || page.url.pathname.startsWith(`${item.href}/`);
 	}
