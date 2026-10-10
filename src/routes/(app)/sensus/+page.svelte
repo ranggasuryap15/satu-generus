@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(app)/sensus/+page.svelte
-  @purpose Tampilan status dan rincian Kartu Keluarga serta Jamaah Mandiri/Perantau dengan fitur unmasking, ubah data domisili, NIK, dan data anggota dengan proteksi draf input
+  @purpose Tampilan status dan rincian Kartu Keluarga serta Jamaah Mandiri/Perantau dengan fitur unmasking, ubah data domisili, NIK (opsional), dan data anggota dengan proteksi draf input
   @usedBy Route client '/sensus'
   @dependencies @lucide/svelte, $app/forms (enhance), $lib/components/DateInput.svelte, $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
   @publicFunctions toggleKk, copyKk, toggleNik, copyNik, openEditKk, closeEditKkModal, openEditAnggota, closeEditAnggotaModal, openTambahAnggota, closeTambahAnggotaModal
@@ -370,23 +370,25 @@
 									{isKkRevealed && plainNoKk ? plainNoKk : data.keluarga.noKkMasked}
 								</h3>
 
-								<!-- Tombol Lihat / Sembunyikan Nomor KK -->
-								<button
-									type="button"
-									onclick={toggleKk}
-									disabled={isKkLoading}
-									class="p-1.5 rounded-lg text-foreground/60 hover:text-foreground hover:bg-secondary transition-colors inline-flex items-center justify-center"
-									title={isKkRevealed ? "Sembunyikan Nomor KK" : "Lihat Nomor KK Asli"}
-									aria-label={isKkRevealed ? "Sembunyikan Nomor KK" : "Lihat Nomor KK Asli"}
-								>
-									{#if isKkLoading}
-										<span class="inline-block w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>
-									{:else if isKkRevealed}
-										<EyeOff class="w-4 h-4 text-primary" />
-									{:else}
-										<Eye class="w-4 h-4" />
-									{/if}
-								</button>
+								{#if data.keluarga.noKkMasked !== 'Belum Ada No. KK'}
+									<!-- Tombol Lihat / Sembunyikan Nomor KK -->
+									<button
+										type="button"
+										onclick={toggleKk}
+										disabled={isKkLoading}
+										class="p-1.5 rounded-lg text-foreground/60 hover:text-foreground hover:bg-secondary transition-colors inline-flex items-center justify-center"
+										title={isKkRevealed ? "Sembunyikan Nomor KK" : "Lihat Nomor KK Asli"}
+										aria-label={isKkRevealed ? "Sembunyikan Nomor KK" : "Lihat Nomor KK Asli"}
+									>
+										{#if isKkLoading}
+											<span class="inline-block w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>
+										{:else if isKkRevealed}
+											<EyeOff class="w-4 h-4 text-primary" />
+										{:else}
+											<Eye class="w-4 h-4" />
+										{/if}
+									</button>
+								{/if}
 
 								<!-- Tombol Salin jika nomor KK sedang tampil -->
 								{#if isKkRevealed && plainNoKk}
@@ -478,23 +480,25 @@
 											NIK: {revealedNiks[anggota.id] || anggota.nikMasked}
 										</p>
 
-										<!-- Tombol Lihat / Sembunyikan NIK -->
-										<button
-											type="button"
-											onclick={() => toggleNik(anggota.id)}
-											disabled={loadingNiks[anggota.id]}
-											class="p-1 rounded text-foreground/50 hover:text-foreground hover:bg-secondary transition-colors inline-flex items-center justify-center"
-											title={revealedNiks[anggota.id] ? "Sembunyikan NIK" : "Lihat NIK Asli"}
-											aria-label={revealedNiks[anggota.id] ? "Sembunyikan NIK" : "Lihat NIK Asli"}
-										>
-											{#if loadingNiks[anggota.id]}
-												<span class="inline-block w-3 h-3 border border-primary border-t-transparent rounded-full animate-spin"></span>
-											{:else if revealedNiks[anggota.id]}
-												<EyeOff class="w-3.5 h-3.5 text-primary" />
-											{:else}
-												<Eye class="w-3.5 h-3.5" />
-											{/if}
-										</button>
+										{#if anggota.hasNik}
+											<!-- Tombol Lihat / Sembunyikan NIK -->
+											<button
+												type="button"
+												onclick={() => toggleNik(anggota.id)}
+												disabled={loadingNiks[anggota.id]}
+												class="p-1 rounded text-foreground/50 hover:text-foreground hover:bg-secondary transition-colors inline-flex items-center justify-center"
+												title={revealedNiks[anggota.id] ? "Sembunyikan NIK" : "Lihat NIK Asli"}
+												aria-label={revealedNiks[anggota.id] ? "Sembunyikan NIK" : "Lihat NIK Asli"}
+											>
+												{#if loadingNiks[anggota.id]}
+													<span class="inline-block w-3 h-3 border border-primary border-t-transparent rounded-full animate-spin"></span>
+												{:else if revealedNiks[anggota.id]}
+													<EyeOff class="w-3.5 h-3.5 text-primary" />
+												{:else}
+													<Eye class="w-3.5 h-3.5" />
+												{/if}
+											</button>
+										{/if}
 
 										<!-- Tombol Salin NIK jika sedang tampil -->
 										{#if revealedNiks[anggota.id]}
@@ -843,16 +847,15 @@
 
 				<div>
 					<label for="newNik" class="block font-medium text-foreground/80 mb-1.5">
-						NIK (Nomor Induk Kependudukan)
+						NIK (Nomor Induk Kependudukan) <span class="text-foreground/50 text-[11px] font-normal">(16 Digit, Opsional)</span>
 					</label>
 					<input
 						id="newNik"
 						name="nik"
 						type="text"
-						required
 						maxlength="16"
 						bind:value={newAnggotaNik}
-						placeholder="16 digit angka"
+						placeholder="16 digit angka (opsional)"
 						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
 					/>
 				</div>

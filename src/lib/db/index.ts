@@ -4,7 +4,7 @@
  * @usedBy Backend server routes (+page.server.ts, +server.ts, hooks.server.ts, scripts migrasi/seed)
  * @dependencies better-sqlite3, drizzle-orm/better-sqlite3, src/lib/db/schema.ts
  * @publicFunctions db, sqlite
- * @sideEffects Membuka koneksi file database SQLite, mengaktifkan PRAGMA WAL & foreign_keys, dan auto-migrasi kolom skema yang belum ada
+ * @sideEffects Membuka koneksi file database SQLite, mengaktifkan PRAGMA WAL & foreign_keys, auto-migrasi kolom skema dan relaksasi constraint nullable (no_kk_encrypted, nik_encrypted)
  */
 
 import Database from 'better-sqlite3';
@@ -35,12 +35,33 @@ try {
 		.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='keluarga'")
 		.get();
 	if (tableKeluarga) {
-		const keluargaCols = (
-			sqlite.prepare('PRAGMA table_info(keluarga)').all() as Array<{ name: string }>
-		).map((c) => c.name);
+		const rawKeluargaInfo = sqlite.prepare('PRAGMA table_info(keluarga)').all() as Array<{ name: string; notnull: number }>;
+		const keluargaCols = rawKeluargaInfo.map((c) => c.name);
 		if (!keluargaCols.includes('is_kk')) {
 			sqlite.exec('ALTER TABLE keluarga ADD COLUMN is_kk INTEGER NOT NULL DEFAULT 1');
 			sqlite.exec('CREATE INDEX IF NOT EXISTS keluarga_is_kk_idx ON keluarga (is_kk)');
+		}
+
+		// Jika kolom no_kk_encrypted masih NOT NULL, ubah menjadi nullable
+		const noKkCol = rawKeluargaInfo.find((c) => c.name === 'no_kk_encrypted');
+		if (noKkCol && noKkCol.notnull === 1) {
+			sqlite.exec('PRAGMA foreign_keys=OFF;');
+			sqlite.exec(`
+				CREATE TABLE keluarga_temp (
+					id TEXT PRIMARY KEY NOT NULL,
+					is_kk INTEGER NOT NULL DEFAULT 1,
+					no_kk_encrypted TEXT,
+					kepala_keluarga_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+					alamat_lengkap TEXT
+				);
+				INSERT INTO keluarga_temp (id, is_kk, no_kk_encrypted, kepala_keluarga_id, alamat_lengkap)
+				SELECT id, COALESCE(is_kk, 1), no_kk_encrypted, kepala_keluarga_id, alamat_lengkap FROM keluarga;
+				DROP TABLE keluarga;
+				ALTER TABLE keluarga_temp RENAME TO keluarga;
+				CREATE INDEX IF NOT EXISTS keluarga_kepala_keluarga_id_idx ON keluarga (kepala_keluarga_id);
+				CREATE INDEX IF NOT EXISTS keluarga_is_kk_idx ON keluarga (is_kk);
+			`);
+			sqlite.pragma('foreign_keys = ON');
 		}
 	}
 
@@ -48,11 +69,35 @@ try {
 		.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='anggota_keluarga'")
 		.get();
 	if (tableAnggota) {
-		const anggotaCols = (
-			sqlite.prepare('PRAGMA table_info(anggota_keluarga)').all() as Array<{ name: string }>
-		).map((c) => c.name);
+		const rawAnggotaInfo = sqlite.prepare('PRAGMA table_info(anggota_keluarga)').all() as Array<{ name: string; notnull: number }>;
+		const anggotaCols = rawAnggotaInfo.map((c) => c.name);
 		if (!anggotaCols.includes('nama_lengkap')) {
 			sqlite.exec('ALTER TABLE anggota_keluarga ADD COLUMN nama_lengkap TEXT');
+		}
+
+		// Jika kolom nik_encrypted masih NOT NULL, ubah menjadi nullable
+		const nikCol = rawAnggotaInfo.find((c) => c.name === 'nik_encrypted');
+		if (nikCol && nikCol.notnull === 1) {
+			sqlite.exec('PRAGMA foreign_keys=OFF;');
+			sqlite.exec(`
+				CREATE TABLE anggota_keluarga_temp (
+					id TEXT PRIMARY KEY NOT NULL,
+					keluarga_id TEXT NOT NULL REFERENCES keluarga(id) ON DELETE CASCADE,
+					user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+					nama_lengkap TEXT,
+					nik_encrypted TEXT,
+					status_hubungan TEXT NOT NULL,
+					tanggal_lahir TEXT NOT NULL,
+					jenis_kelamin TEXT NOT NULL
+				);
+				INSERT INTO anggota_keluarga_temp (id, keluarga_id, user_id, nama_lengkap, nik_encrypted, status_hubungan, tanggal_lahir, jenis_kelamin)
+				SELECT id, keluarga_id, user_id, (CASE WHEN nama_lengkap IS NOT NULL THEN nama_lengkap ELSE NULL END), nik_encrypted, status_hubungan, tanggal_lahir, jenis_kelamin FROM anggota_keluarga;
+				DROP TABLE anggota_keluarga;
+				ALTER TABLE anggota_keluarga_temp RENAME TO anggota_keluarga;
+				CREATE INDEX IF NOT EXISTS anggota_keluarga_keluarga_id_idx ON anggota_keluarga (keluarga_id);
+				CREATE INDEX IF NOT EXISTS anggota_keluarga_user_id_idx ON anggota_keluarga (user_id);
+			`);
+			sqlite.pragma('foreign_keys = ON');
 		}
 	}
 } catch (migErr) {

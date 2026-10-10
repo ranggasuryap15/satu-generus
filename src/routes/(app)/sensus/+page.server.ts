@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(app)/sensus/+page.server.ts
- * @purpose Menampilkan status sensus keluarga/mandiri dan memproses server actions untuk edit data kependudukan dan anggota
+ * @purpose Menampilkan status sensus keluarga/mandiri dan memproses server actions untuk edit data kependudukan dan anggota (No KK dan NIK opsional/nullable)
  * @usedBy src/routes/(app)/sensus/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/utils (normalizeDateToISO), drizzle-orm
  * @publicFunctions load, actions.updateKeluarga, actions.updateAnggota, actions.tambahAnggota, actions.hapusAnggota
@@ -40,11 +40,15 @@ export const load: PageServerLoad = async ({ locals }) => {
 	// Dekripsi nomor KK untuk dimasking di tampilan
 	let noKkMasked = 'Tanpa KK (Perantau)';
 	if (isKk) {
-		try {
-			const decryptedKk = decryptSensitive(keluargaRecord.noKkEncrypted);
-			noKkMasked = maskSensitive(decryptedKk);
-		} catch (_) {
-			noKkMasked = '****';
+		if (keluargaRecord.noKkEncrypted) {
+			try {
+				const decryptedKk = decryptSensitive(keluargaRecord.noKkEncrypted);
+				noKkMasked = maskSensitive(decryptedKk);
+			} catch (_) {
+				noKkMasked = '****';
+			}
+		} else {
+			noKkMasked = 'Belum Ada No. KK';
 		}
 	}
 
@@ -56,11 +60,16 @@ export const load: PageServerLoad = async ({ locals }) => {
 		.all();
 
 	const anggotaList = rawAnggota.map((a) => {
-		let nikMasked = '****';
-		try {
-			const decNik = decryptSensitive(a.nikEncrypted);
-			nikMasked = maskSensitive(decNik);
-		} catch (_) {}
+		let nikMasked = 'Belum Ada NIK';
+		const hasNik = !!a.nikEncrypted;
+		if (hasNik) {
+			try {
+				const decNik = decryptSensitive(a.nikEncrypted!);
+				nikMasked = maskSensitive(decNik);
+			} catch (_) {
+				nikMasked = '****';
+			}
+		}
 
 		return {
 			id: a.id,
@@ -68,6 +77,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 				a.namaLengkap ||
 				(a.statusHubungan === 'Kepala Keluarga' ? (locals.user?.namaLengkap || 'Kepala Keluarga') : a.statusHubungan),
 			nikMasked,
+			hasNik,
 			statusHubungan: a.statusHubungan,
 			tanggalLahir: a.tanggalLahir,
 			jenisKelamin: a.jenisKelamin
@@ -116,18 +126,20 @@ export const actions: Actions = {
 			return fail(400, { errorKeluarga: 'Alamat lengkap wajib diisi.' });
 		}
 
-		const updatePayload: { alamatLengkap: string; noKkEncrypted?: string } = {
+		const updatePayload: { alamatLengkap: string; noKkEncrypted?: string | null } = {
 			alamatLengkap
 		};
 
-		// Jika input noKk diisi baru, validasi 16 digit dan enkripsi
+		// Jika input noKk diisi baru, validasi 16 digit dan enkripsi, jika dikosongkan set null
 		if (noKk) {
 			if (noKk.length !== 16 || !/^\d+$/.test(noKk)) {
 				return fail(400, {
-					errorKeluarga: 'Nomor Kartu Keluarga wajib 16 digit angka.'
+					errorKeluarga: 'Nomor Kartu Keluarga harus 16 digit angka jika diisi.'
 				});
 			}
 			updatePayload.noKkEncrypted = encryptSensitive(noKk);
+		} else {
+			updatePayload.noKkEncrypted = null;
 		}
 
 		try {
@@ -181,7 +193,7 @@ export const actions: Actions = {
 			statusHubungan: string;
 			tanggalLahir: string;
 			jenisKelamin: string;
-			nikEncrypted?: string;
+			nikEncrypted?: string | null;
 		} = {
 			statusHubungan,
 			tanggalLahir: normalizeDateToISO(tanggalLahir),
@@ -192,12 +204,14 @@ export const actions: Actions = {
 			updatePayload.namaLengkap = namaLengkap;
 		}
 
-		// Jika NIK diubah, validasi 16 digit angka dan enkripsi
+		// Jika NIK diisi, validasi 16 digit angka dan enkripsi, jika dikosongkan set null
 		if (nik) {
 			if (nik.length !== 16 || !/^\d+$/.test(nik)) {
-				return fail(400, { errorAnggota: 'NIK wajib 16 digit angka.' });
+				return fail(400, { errorAnggota: 'NIK harus 16 digit angka jika diisi.' });
 			}
 			updatePayload.nikEncrypted = encryptSensitive(nik);
+		} else {
+			updatePayload.nikEncrypted = null;
 		}
 
 		try {
@@ -245,12 +259,14 @@ export const actions: Actions = {
 			return fail(400, { errorTambahAnggota: 'Nama lengkap wajib diisi.' });
 		}
 
-		if (!nik || nik.length !== 16 || !/^\d+$/.test(nik)) {
-			return fail(400, { errorTambahAnggota: 'NIK wajib 16 digit angka.' });
+		if (nik) {
+			if (nik.length !== 16 || !/^\d+$/.test(nik)) {
+				return fail(400, { errorTambahAnggota: 'NIK harus 16 digit angka jika diisi.' });
+			}
 		}
 
 		if (!statusHubungan || !tanggalLahir || !jenisKelamin) {
-			return fail(400, { errorTambahAnggota: 'Semua kolom data anggota wajib diisi.' });
+			return fail(400, { errorTambahAnggota: 'Status hubungan, tanggal lahir, dan jenis kelamin wajib diisi.' });
 		}
 
 		try {
@@ -258,7 +274,7 @@ export const actions: Actions = {
 				.values({
 					keluargaId,
 					namaLengkap,
-					nikEncrypted: encryptSensitive(nik),
+					nikEncrypted: nik ? encryptSensitive(nik) : null,
 					statusHubungan,
 					tanggalLahir: normalizeDateToISO(tanggalLahir),
 					jenisKelamin

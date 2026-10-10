@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(app)/sensus/tambah/+page.server.ts
- * @purpose Form action pemrosesan pendaftaran sensus KK dan anggota keluarga dengan enkripsi AES-256-GCM
+ * @purpose Form action pemrosesan pendaftaran sensus KK dan anggota keluarga dengan enkripsi AES-256-GCM (No KK dan NIK opsional/nullable)
  * @usedBy Wizard form sensus pada src/routes/(app)/sensus/tambah/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/utils (normalizeDateToISO)
  * @publicFunctions load, actions.default
@@ -34,18 +34,20 @@ export const actions: Actions = {
 		const alamatLengkap = formData.get('alamatLengkap')?.toString()?.trim() || '';
 		const anggotaJson = formData.get('anggotaData')?.toString() || '[]';
 
-		// Validasi Nomor KK
-		if (!noKk || noKk.length !== 16 || !/^\d+$/.test(noKk)) {
-			return fail(400, {
-				error: 'Nomor Kartu Keluarga wajib 16 digit angka.',
-				noKk,
-				alamatLengkap
-			});
+		// Validasi Nomor KK (opsional, jika diisi wajib 16 digit angka)
+		if (noKk) {
+			if (noKk.length !== 16 || !/^\d+$/.test(noKk)) {
+				return fail(400, {
+					error: 'Nomor Kartu Keluarga harus 16 digit angka.',
+					noKk,
+					alamatLengkap
+				});
+			}
 		}
 
 		let anggotaList: Array<{
 			namaLengkap?: string;
-			nik: string;
+			nik?: string;
 			statusHubungan: string;
 			tanggalLahir: string;
 			jenisKelamin: string;
@@ -72,12 +74,15 @@ export const actions: Actions = {
 		// Validasi setiap anggota
 		for (let i = 0; i < anggotaList.length; i++) {
 			const a = anggotaList[i];
-			if (!a.nik || a.nik.length !== 16 || !/^\d+$/.test(a.nik)) {
-				return fail(400, {
-					error: `NIK anggota ke-${i + 1} wajib 16 digit angka.`,
-					noKk,
-					alamatLengkap
-				});
+			const nikVal = a.nik ? a.nik.trim() : '';
+			if (nikVal) {
+				if (nikVal.length !== 16 || !/^\d+$/.test(nikVal)) {
+					return fail(400, {
+						error: `NIK anggota ke-${i + 1} harus 16 digit angka.`,
+						noKk,
+						alamatLengkap
+					});
+				}
 			}
 			if (!a.statusHubungan || !a.tanggalLahir || !a.jenisKelamin) {
 				return fail(400, {
@@ -89,7 +94,7 @@ export const actions: Actions = {
 		}
 
 		// Eksekusi enkripsi data sensitif (Zero Plaintext di DB)
-		const noKkEncrypted = encryptSensitive(noKk);
+		const noKkEncrypted = noKk ? encryptSensitive(noKk) : null;
 
 		// Transaksi database: Minimum Lock & Atomicity
 		try {
@@ -105,11 +110,12 @@ export const actions: Actions = {
 					.all();
 
 				for (const a of anggotaList) {
+					const nikVal = a.nik ? a.nik.trim() : '';
 					tx.insert(anggotaKeluarga)
 						.values({
 							keluargaId: newKeluarga.id,
 							namaLengkap: a.namaLengkap?.trim() || locals.user?.namaLengkap || 'Anggota',
-							nikEncrypted: encryptSensitive(a.nik),
+							nikEncrypted: nikVal ? encryptSensitive(nikVal) : null,
 							statusHubungan: a.statusHubungan,
 							tanggalLahir: normalizeDateToISO(a.tanggalLahir),
 							jenisKelamin: a.jenisKelamin

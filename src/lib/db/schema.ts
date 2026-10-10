@@ -1,6 +1,6 @@
 /**
  * @file src/lib/db/schema.ts
- * @purpose Definisi schema tabel Drizzle ORM untuk SQLite sesuai SCHEMA.md
+ * @purpose Definisi schema tabel Drizzle ORM untuk SQLite sesuai SCHEMA.md (termasuk No KK dan NIK opsional/nullable)
  * @usedBy src/lib/db/index.ts, queries/actions di routes dan services
  * @dependencies drizzle-orm/sqlite-core, @paralleldrive/cuid2
  * @publicFunctions daerah, desa, kelompok, users, dapukan, userDapukan, keluarga, anggotaKeluarga, presensiJadwal, presensiKehadiran
@@ -111,7 +111,7 @@ export const keluarga = sqliteTable(
 			.primaryKey()
 			.$defaultFn(() => createId()),
 		isKk: integer('is_kk', { mode: 'boolean' }).notNull().default(true),
-		noKkEncrypted: text('no_kk_encrypted').notNull(),
+		noKkEncrypted: text('no_kk_encrypted'),
 		kepalaKeluargaId: text('kepala_keluarga_id').references(() => users.id, {
 			onDelete: 'set null'
 		}),
@@ -134,7 +134,7 @@ export const anggotaKeluarga = sqliteTable(
 			.references(() => keluarga.id, { onDelete: 'cascade' }),
 		userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
 		namaLengkap: text('nama_lengkap'),
-		nikEncrypted: text('nik_encrypted').notNull(),
+		nikEncrypted: text('nik_encrypted'),
 		statusHubungan: text('status_hubungan').notNull(), // 'Suami' | 'Istri' | 'Anak' | dll
 		tanggalLahir: text('tanggal_lahir').notNull(), // ISO8601 YYYY-MM-DD
 		jenisKelamin: text('jenis_kelamin').notNull() // 'L' | 'P'

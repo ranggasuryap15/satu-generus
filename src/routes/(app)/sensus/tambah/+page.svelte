@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(app)/sensus/tambah/+page.svelte
-  @purpose Form wizard interaktif 3-langkah pendaftaran sensus keluarga jamaah
+  @purpose Form wizard interaktif 3-langkah pendaftaran sensus keluarga jamaah (No KK dan NIK opsional/nullable)
   @usedBy Route client '/sensus/tambah'
   @dependencies @lucide/svelte, $lib/components/DateInput.svelte, $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
   @publicFunctions nextStep, prevStep, addAnggota, removeAnggota
@@ -61,9 +61,11 @@
 
 	function validateStep1(): boolean {
 		errors.noKk = undefined;
-		if (!noKk || noKk.trim().length !== 16 || !/^\d+$/.test(noKk.trim())) {
-			errors.noKk = 'Nomor KK harus 16 digit angka.';
-			return false;
+		if (noKk && noKk.trim()) {
+			if (noKk.trim().length !== 16 || !/^\d+$/.test(noKk.trim())) {
+				errors.noKk = 'Nomor KK harus 16 digit angka.';
+				return false;
+			}
 		}
 		return true;
 	}
@@ -76,9 +78,11 @@
 				errors.anggota = `Nama lengkap anggota ke-${i + 1} wajib diisi.`;
 				return false;
 			}
-			if (!a.nik || a.nik.trim().length !== 16 || !/^\d+$/.test(a.nik.trim())) {
-				errors.anggota = `NIK anggota ke-${i + 1} harus 16 digit angka.`;
-				return false;
+			if (a.nik && a.nik.trim()) {
+				if (a.nik.trim().length !== 16 || !/^\d+$/.test(a.nik.trim())) {
+					errors.anggota = `NIK anggota ke-${i + 1} harus 16 digit angka.`;
+					return false;
+				}
 			}
 			if (!a.tanggalLahir) {
 				errors.anggota = `Tanggal lahir anggota ke-${i + 1} wajib diisi.`;
@@ -173,13 +177,13 @@
 
 				<div>
 					<label for="noKk" class="block text-xs font-semibold text-foreground mb-1.5">
-						Nomor Kartu Keluarga (16 Digit) *
+						Nomor Kartu Keluarga (16 Digit, Opsional)
 					</label>
 					<input
 						id="noKk"
 						type="text"
 						maxlength="16"
-						placeholder="Contoh: 3216012345670001"
+						placeholder="Contoh: 3216012345670001 (opsional)"
 						bind:value={noKk}
 						class="w-full bg-secondary/50 border {errors.noKk
 							? 'border-destructive'
@@ -256,13 +260,13 @@
 
 							<div>
 								<label for={`nik-${idx}`} class="block text-[11px] font-medium text-foreground/70 mb-1">
-									NIK (16 Digit) *
+									NIK (16 Digit, Opsional)
 								</label>
 								<input
 									id={`nik-${idx}`}
 									type="text"
 									maxlength="16"
-									placeholder="3216012345670002"
+									placeholder="16 digit angka (opsional)"
 									bind:value={anggota.nik}
 									class="w-full bg-background border border-border rounded-lg px-3 py-1.5 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary"
 								/>
@@ -327,7 +331,7 @@
 
 				<div class="border border-border rounded-xl p-3.5 space-y-2 bg-secondary/20">
 					<p class="text-[11px] text-foreground/50 font-medium">Nomor KK:</p>
-					<p class="text-xs font-mono font-bold text-foreground">{noKk}</p>
+					<p class="text-xs font-mono font-bold text-foreground">{noKk || 'Belum diisi'}</p>
 					<p class="text-[11px] text-foreground/50 font-medium pt-1">Alamat:</p>
 					<p class="text-xs text-foreground/80">{alamatLengkap || '-'}</p>
 				</div>
@@ -340,7 +344,7 @@
 								<span class="font-bold text-foreground">{a.namaLengkap}</span>
 								<div class="flex items-center gap-1.5 mt-0.5">
 									<span class="text-[10px] text-primary font-semibold">{a.statusHubungan}</span>
-									<span class="text-[11px] text-foreground/60 font-mono">• NIK: {a.nik}</span>
+									<span class="text-[11px] text-foreground/60 font-mono">• NIK: {a.nik || 'Belum diisi'}</span>
 								</div>
 							</div>
 							<span class="text-[10px] bg-secondary px-2 py-0.5 rounded text-foreground/70">

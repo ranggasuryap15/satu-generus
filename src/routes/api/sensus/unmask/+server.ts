@@ -1,6 +1,6 @@
 /**
  * @file src/routes/api/sensus/unmask/+server.ts
- * @purpose Endpoint API untuk mendekripsi data sensitif (Unmask NIK / No. KK) bagi Admin 4S atau Pemilik KK
+ * @purpose Endpoint API untuk mendekripsi data sensitif (Unmask NIK / No. KK) bagi Admin 4S atau Pemilik KK (mendukung penanganan data kosong/null)
  * @usedBy Modal verifikasi admin dan halaman sensus jamaah (src/routes/(app)/sensus/+page.svelte)
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto
  * @publicFunctions POST
@@ -37,6 +37,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			);
 		}
 
+		if (!k.noKkEncrypted) {
+			return json({ type: 'KK', id: keluargaId, original: 'Belum diisi' });
+		}
+
 		try {
 			const plainNoKk = decryptSensitive(k.noKkEncrypted);
 			return json({ type: 'KK', id: keluargaId, original: plainNoKk });
@@ -59,6 +63,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				{ error: 'Akses ditolak: Anda bukan pemilik kartu keluarga ini dan tidak memiliki hak akses admin.' },
 				{ status: 403 }
 			);
+		}
+
+		if (!a.nikEncrypted) {
+			return json({ type: 'NIK', id: anggotaId, original: 'Belum diisi' });
 		}
 
 		try {

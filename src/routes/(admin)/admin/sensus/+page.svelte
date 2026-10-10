@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(admin)/admin/sensus/+page.svelte
-  @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri/Perantau, dashboard statistik, filter bertingkat (collapsible di mobile), dan form modal pendaftaran sensus KK/Mandiri dengan proteksi draft input
+  @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri/Perantau, dashboard statistik, filter bertingkat (collapsible di mobile), dan form modal pendaftaran sensus KK/Mandiri (No KK dan NIK opsional/nullable) dengan proteksi draft input
   @usedBy Route admin '/admin/sensus'
   @dependencies @lucide/svelte (Search, Eye, ShieldCheck, Users, Download, X, Home, UserCheck, MapPin, Plus, CheckCircle2, AlertCircle, Filter, RotateCcw, UserPlus, Trash2, ChevronDown, ChevronUp), Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/utils (formatDateDDMMYYYY)
   @publicFunctions requestUnmask, openCreateModal, closeCreateModal, openAddMemberModal, closeAddMemberModal, resetFilters, toggleMobileFilter
@@ -661,14 +661,16 @@
 												KK
 											</span>
 											<span>{k.noKkMasked}</span>
-											<button
-												type="button"
-												onclick={() => requestUnmask({ keluargaId: k.id, label: `No. KK (${k.kepalaKeluargaNama})` })}
-												class="text-primary hover:text-primary/80 p-1 rounded hover:bg-primary/10 transition-colors"
-												title="Buka Enkripsi No. KK"
-											>
-												<Eye class="w-3.5 h-3.5" />
-											</button>
+											{#if k.noKkMasked !== 'Belum Ada No. KK'}
+												<button
+													type="button"
+													onclick={() => requestUnmask({ keluargaId: k.id, label: `No. KK (${k.kepalaKeluargaNama})` })}
+													class="text-primary hover:text-primary/80 p-1 rounded hover:bg-primary/10 transition-colors"
+													title="Buka Enkripsi No. KK"
+												>
+													<Eye class="w-3.5 h-3.5" />
+												</button>
+											{/if}
 										{:else}
 											<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
 												Perorangan / Perantau
@@ -901,7 +903,7 @@
 						<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
 							<div>
 								<label for="noKk" class="block text-[11px] font-semibold text-foreground mb-1">
-									Nomor Kartu Keluarga (16 Digit) *
+									Nomor Kartu Keluarga (16 Digit, Opsional)
 								</label>
 								<input
 									id="noKk"
@@ -909,9 +911,8 @@
 									type="text"
 									maxlength="16"
 									pattern="[0-9]{16}"
-									required
 									bind:value={newNoKk}
-									placeholder="3216xxxxxxxxxxxx"
+									placeholder="3216xxxxxxxxxxxx (opsional)"
 									class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 								/>
 							</div>
@@ -1012,16 +1013,15 @@
 										<!-- Baris 2: NIK, Tgl Lahir, Jenis Kelamin -->
 										<div class="sm:col-span-5">
 											<label for={`new-nik-${idx}`} class="block text-[11px] font-semibold text-foreground mb-1">
-												NIK (16 Digit) *
+												NIK (16 Digit, Opsional)
 											</label>
 											<input
 												id={`new-nik-${idx}`}
 												type="text"
 												maxlength="16"
 												pattern="[0-9]{16}"
-												required
 												bind:value={anggota.nik}
-												placeholder="3216xxxxxxxxxxxx"
+												placeholder="3216xxxxxxxxxxxx (opsional)"
 												class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 											/>
 										</div>
@@ -1097,7 +1097,7 @@
 						<div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
 							<div>
 								<label for="nikMandiri" class="block text-[11px] font-semibold text-foreground mb-1">
-									NIK (16 Digit) *
+									NIK (16 Digit, Opsional)
 								</label>
 								<input
 									id="nikMandiri"
@@ -1105,9 +1105,8 @@
 									type="text"
 									maxlength="16"
 									pattern="[0-9]{16}"
-									required
 									bind:value={newNikMandiri}
-									placeholder="3216xxxxxxxxxxxx"
+									placeholder="3216xxxxxxxxxxxx (opsional)"
 									class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 								/>
 							</div>
@@ -1252,7 +1251,7 @@
 
 				<div>
 					<label for="memberNik" class="block font-semibold text-foreground mb-1">
-						NIK (16 Digit Angka) *
+						NIK (16 Digit Angka, Opsional)
 					</label>
 					<input
 						id="memberNik"
@@ -1260,9 +1259,8 @@
 						type="text"
 						maxlength="16"
 						pattern="[0-9]{16}"
-						required
 						bind:value={memberNik}
-						placeholder="3216xxxxxxxxxxxx"
+						placeholder="3216xxxxxxxxxxxx (opsional)"
 						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 					/>
 				</div>
@@ -1365,14 +1363,16 @@
 							</div>
 							<div class="flex items-center gap-2 mt-1">
 								<span class="font-mono text-[11px] text-foreground/70">NIK: {a.nikMasked}</span>
-								<button
-									type="button"
-									onclick={() => requestUnmask({ anggotaId: a.id, label: `NIK (${a.namaLengkap} - ${a.statusHubungan})` })}
-									class="text-primary hover:text-primary/80 p-0.5 rounded hover:bg-primary/10 transition-colors"
-									title="Buka Enkripsi NIK"
-								>
-									<Eye class="w-3.5 h-3.5" />
-								</button>
+								{#if a.hasNik}
+									<button
+										type="button"
+										onclick={() => requestUnmask({ anggotaId: a.id, label: `NIK (${a.namaLengkap} - ${a.statusHubungan})` })}
+										class="text-primary hover:text-primary/80 p-0.5 rounded hover:bg-primary/10 transition-colors"
+										title="Buka Enkripsi NIK"
+									>
+										<Eye class="w-3.5 h-3.5" />
+									</button>
+								{/if}
 							</div>
 							<p class="text-[10px] text-foreground/50 mt-0.5">Tgl Lahir: {formatDateDDMMYYYY(a.tanggalLahir)}</p>
 						</div>
