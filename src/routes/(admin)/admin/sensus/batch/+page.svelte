@@ -143,7 +143,11 @@
 		} else if (row.statusKeluarga === 'Ibu' || row.statusKeluarga === 'Istri') {
 			row.jenisKelamin = 'P';
 			row.isPerantau = false;
-		} else if (row.statusKeluarga === 'Remaja Perantau' || row.statusKeluarga === 'Mandiri') {
+		} else if (
+			row.statusKeluarga === 'Mandiri / Perantau' ||
+			row.statusKeluarga === 'Remaja Perantau' ||
+			row.statusKeluarga === 'Mandiri'
+		) {
 			row.isPerantau = true;
 			row.noKk = '';
 		}
@@ -152,9 +156,13 @@
 	function onPerantauToggle(row: RowData) {
 		if (row.isPerantau) {
 			row.noKk = '';
-			row.statusKeluarga = 'Remaja Perantau';
+			row.statusKeluarga = 'Mandiri / Perantau';
 		} else {
-			if (row.statusKeluarga === 'Remaja Perantau' || row.statusKeluarga === 'Mandiri') {
+			if (
+				row.statusKeluarga === 'Mandiri / Perantau' ||
+				row.statusKeluarga === 'Remaja Perantau' ||
+				row.statusKeluarga === 'Mandiri'
+			) {
 				row.statusKeluarga = '';
 			}
 		}
@@ -242,14 +250,14 @@
 				finalKeluarga = matched;
 			}
 
-			// Deteksi perantau
+			// Deteksi perantau / mandiri
 			const isPerantauDetected =
 				rKeluarga.toLowerCase().includes('perantau') ||
-				rKeluarga.toLowerCase() === 'mandiri' ||
+				rKeluarga.toLowerCase().includes('mandiri') ||
 				!rKk;
 
 			if (isPerantauDetected && !finalKeluarga) {
-				finalKeluarga = 'Remaja Perantau';
+				finalKeluarga = 'Mandiri / Perantau';
 			}
 
 			// Normalisasi tanggal lahir jika format DD-MM-YYYY atau YYYY-MM-DD
@@ -404,7 +412,7 @@
 			<div class="text-[11px] text-foreground/70">
 				<span class="font-bold text-foreground">{rows.length}</span> jiwa •
 				<span class="font-bold text-foreground">{estimasiKeluarga}</span> KK •
-				<span class="font-bold text-blue-600 dark:text-blue-400">{totalPerantau}</span> perantau •
+				<span class="font-bold text-blue-600 dark:text-blue-400">{totalPerantau}</span> mandiri/perantau •
 				<span class="font-bold text-primary">{totalAkunDipilih}</span> akun baru
 			</div>
 		</div>
@@ -486,7 +494,7 @@
 							<th class="p-1.5 w-24">Profesi</th>
 							<th class="p-1.5 w-32">Alamat Domisili</th>
 							<th class="p-1.5 w-14 text-center">Gol.<br />Darah</th>
-							<th class="p-1.5 w-16 text-center bg-blue-500/10 text-blue-700 dark:text-blue-300">Perantau?</th>
+							<th class="p-1.5 w-16 text-center bg-blue-500/10 text-blue-700 dark:text-blue-300">Mandiri /<br />Perantau?</th>
 							<th class="p-1.5 w-24 bg-primary/5">Status<br />Jamaah</th>
 							<th class="p-1.5 w-16 text-center bg-primary/5">Isrun</th>
 							<th class="p-1.5 w-16 text-center bg-amber-500/5">Buat<br />Akun</th>
@@ -655,7 +663,7 @@
 											bind:checked={row.isPerantau}
 											onchange={() => onPerantauToggle(row)}
 											class="w-4 h-4 rounded border-border text-blue-600 focus:ring-blue-500"
-											title="Centang jika Remaja Perantauan (tanpa KK)"
+											title="Centang jika Jamaah Mandiri / Perantau (tanpa KK)"
 										/>
 									</label>
 								</td>

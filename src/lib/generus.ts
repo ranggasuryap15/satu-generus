@@ -97,8 +97,7 @@ export const DAFTAR_STATUS_KELUARGA = [
 	'Ibu',
 	'Istri',
 	'Anak',
-	'Remaja Perantau',
-	'Mandiri',
+	'Mandiri / Perantau',
 	'Famili Lain'
 ] as const;
 
@@ -106,8 +105,7 @@ export const DAFTAR_STATUS_KELUARGA_LAKI = [
 	'Kepala Keluarga',
 	'Bapak',
 	'Anak',
-	'Remaja Perantau',
-	'Mandiri',
+	'Mandiri / Perantau',
 	'Famili Lain'
 ] as const;
 
@@ -115,8 +113,7 @@ export const DAFTAR_STATUS_KELUARGA_PEREMPUAN = [
 	'Ibu',
 	'Istri',
 	'Anak',
-	'Remaja Perantau',
-	'Mandiri',
+	'Mandiri / Perantau',
 	'Famili Lain'
 ] as const;
 
