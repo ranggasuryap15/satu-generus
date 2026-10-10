@@ -1,43 +1,43 @@
 <!--
   @file src/routes/(admin)/admin/sensus/batch/+page.svelte
-  @purpose Antarmuka batch insert sensus massal responsif dengan auto-kalkulasi generus, validasi hubungan keluarga berbasis gender, layout kartu form dinamis yang otomatis wrap di desktop & mobile, paste spreadsheet, dan opsi pembuatan akun
+  @purpose Antarmuka batch insert sensus massal terstruktur berbasis grouping keluarga hierarkis (Kepala Keluarga & Anggota otomatis terikat ke KK yang sama dengan atau tanpa No KK), auto-kalkulasi generus, layout form dinamis yang otomatis wrap di desktop & mobile, paste spreadsheet otomatis grouping, dan opsi pembuatan akun
   @usedBy Route admin '/admin/sensus/batch'
   @dependencies @lucide/svelte, $app/forms, $lib/generus (hitungUmur, hitungStatusGenerus, getDaftarStatusKeluargaByGender, daftar konstanta), Svelte 5 Runes
-  @publicFunctions addRow, removeRow, clearRows, onJenisKelaminChange, onStatusKeluargaChange, onPerantauToggle, onTanggalLahirOrMenikahChange, processPastedSpreadsheet, toggleAllBuatAkun
-  @sideEffects Mengirim payload JSON batchRowsData ke server action untuk eksekusi transaksi database
+  @publicFunctions addFamily, addPerantauFamily, removeFamily, addMemberToFamily, removeMember, clearFamilies, onJenisKelaminChange, onStatusKeluargaChange, onTanggalLahirOrMenikahChange, processPastedSpreadsheet, toggleAllBuatAkun
+  @sideEffects Mengirim payload JSON batchData (FamilyBatchGroup[]) ke server action untuk transaksi database atomik
 -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import {
-	  DAFTAR_GOLONGAN_DARAH,
-	  DAFTAR_ISRUN,
-	  DAFTAR_STATUS_GENERUS,
-	  DAFTAR_STATUS_JAMAAH,
-	  DAFTAR_STATUS_KELUARGA,
-	  DAFTAR_STATUS_PERNIKAHAN,
-	  getDaftarStatusKeluargaByGender,
-	  hitungStatusGenerus,
-	  hitungUmur
+		DAFTAR_GOLONGAN_DARAH,
+		DAFTAR_ISRUN,
+		DAFTAR_STATUS_GENERUS,
+		DAFTAR_STATUS_JAMAAH,
+		DAFTAR_STATUS_PERNIKAHAN,
+		getDaftarStatusKeluargaByGender,
+		hitungStatusGenerus,
+		hitungUmur
 	} from '$lib/generus';
 	import {
-	  AlertCircle,
-	  ArrowLeft,
-	  CheckCircle2,
-	  Clipboard,
-	  KeyRound,
-	  Plus,
-	  Save,
-	  Sparkles,
-	  Trash2,
-	  Users
+		AlertCircle,
+		ArrowLeft,
+		CheckCircle2,
+		Clipboard,
+		Home,
+		KeyRound,
+		Plus,
+		Save,
+		Sparkles,
+		Trash2,
+		UserPlus,
+		Users
 	} from '@lucide/svelte';
 	import type { ActionData, PageData } from './$types';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
-	interface RowData {
+	export interface MemberRowData {
 		id: string;
-		kelompokId: number | string;
 		namaLengkap: string;
 		jenisKelamin: 'L' | 'P';
 		tempatLahir: string;
@@ -49,45 +49,24 @@
 		statusGenerus: string;
 		statusMenikah: 'Belum Menikah' | 'Sudah Menikah';
 		statusKeluarga: string;
-		noKk: string;
 		nik: string;
 		statusJamaah: 'Aktif' | 'Tidak Aktif';
 		isrun: 'Ya' | 'Tidak';
 		golonganDarah: string;
-		isPerantau: boolean;
 		buatAkun: boolean;
 		email: string;
 		password: string;
 	}
 
-	function createEmptyRow(): RowData {
-		return {
-			id: Math.random().toString(36).substring(2, 9),
-			kelompokId: data.wilayahOptions.kelompokList[0]?.id || '',
-			namaLengkap: '',
-			jenisKelamin: 'L',
-			tempatLahir: '',
-			tanggalLahir: '',
-			umur: 0,
-			alamat: '',
-			profesi: '',
-			noTelepon: '',
-			statusGenerus: 'Usia Nikah',
-			statusMenikah: 'Belum Menikah',
-			statusKeluarga: '',
-			noKk: '',
-			nik: '',
-			statusJamaah: 'Aktif',
-			isrun: 'Tidak',
-			golonganDarah: '-',
-			isPerantau: false,
-			buatAkun: false,
-			email: '',
-			password: ''
-		};
+	export interface FamilyGroupData {
+		id: string;
+		noKk: string;
+		alamat: string;
+		isPerantau: boolean;
+		kelompokId: number | string;
+		members: MemberRowData[];
 	}
 
-	let rows = $state<RowData[]>([createEmptyRow()]);
 	let defaultPassword = $state('jokam354');
 	let defaultKelompokId = $state<number | string>(data.wilayahOptions.kelompokList[0]?.id || '');
 	let isSubmitting = $state(false);
@@ -96,84 +75,156 @@
 	let showPasteModal = $state(false);
 	let pasteText = $state('');
 
-	function addRow() {
-		const newRow = createEmptyRow();
-		newRow.kelompokId = defaultKelompokId;
-		rows.push(newRow);
+	function createEmptyMember(
+		statusKeluargaDefault = 'Kepala Keluarga',
+		jenisKelaminDefault: 'L' | 'P' = 'L'
+	): MemberRowData {
+		return {
+			id: Math.random().toString(36).substring(2, 9),
+			namaLengkap: '',
+			jenisKelamin: jenisKelaminDefault,
+			tempatLahir: '',
+			tanggalLahir: '',
+			umur: 0,
+			alamat: '',
+			profesi: '',
+			noTelepon: '',
+			statusGenerus: 'Usia Nikah',
+			statusMenikah: 'Belum Menikah',
+			statusKeluarga: statusKeluargaDefault,
+			nik: '',
+			statusJamaah: 'Aktif',
+			isrun: 'Tidak',
+			golonganDarah: '-',
+			buatAkun: false,
+			email: '',
+			password: ''
+		};
 	}
 
-	function removeRow(index: number) {
-		if (rows.length === 1) {
-			rows = [createEmptyRow()];
+	function createEmptyFamily(isPerantau = false): FamilyGroupData {
+		const status = isPerantau ? 'Mandiri / Perantau' : 'Kepala Keluarga';
+		const jk: 'L' | 'P' = 'L';
+		return {
+			id: Math.random().toString(36).substring(2, 9),
+			noKk: '',
+			alamat: '',
+			isPerantau,
+			kelompokId: defaultKelompokId,
+			members: [createEmptyMember(status, jk)]
+		};
+	}
+
+	let families = $state<FamilyGroupData[]>([createEmptyFamily(false)]);
+
+	function addFamily() {
+		families.push(createEmptyFamily(false));
+	}
+
+	function addPerantauFamily() {
+		families.push(createEmptyFamily(true));
+	}
+
+	function removeFamily(index: number) {
+		if (families.length === 1) {
+			families = [createEmptyFamily(false)];
 			return;
 		}
-		rows.splice(index, 1);
+		families.splice(index, 1);
 	}
 
-	function clearRows() {
-		if (confirm('Apakah Anda yakin ingin mengosongkan seluruh baris data?')) {
-			rows = [createEmptyRow()];
+	function addMemberToFamily(family: FamilyGroupData) {
+		// Tentukan default status hubungan berdasarkan struktur anggota yang sudah ada
+		let defaultStatus = 'Anak';
+		let defaultJk: 'L' | 'P' = 'L';
+
+		const hasIstri = family.members.some(
+			(m) => m.statusKeluarga === 'Istri' || m.statusKeluarga === 'Ibu'
+		);
+		if (!hasIstri && family.members.length === 1 && !family.isPerantau) {
+			defaultStatus = 'Istri';
+			defaultJk = 'P';
+		} else if (family.isPerantau) {
+			defaultStatus = 'Mandiri / Perantau';
+		}
+
+		const newMember = createEmptyMember(defaultStatus, defaultJk);
+		// Wariskan alamat keluarga jika sudah diisi
+		if (family.alamat.trim()) {
+			newMember.alamat = family.alamat.trim();
+		}
+
+		family.members.push(newMember);
+	}
+
+	function removeMember(family: FamilyGroupData, memberIndex: number) {
+		if (family.members.length === 1) {
+			if (confirm('Keluarga ini hanya memiliki 1 anggota. Hapus seluruh kartu keluarga ini?')) {
+				const famIdx = families.indexOf(family);
+				if (famIdx !== -1) {
+					removeFamily(famIdx);
+				}
+			}
+			return;
+		}
+		family.members.splice(memberIndex, 1);
+	}
+
+	function clearFamilies() {
+		if (confirm('Apakah Anda yakin ingin mengosongkan seluruh data keluarga & sensus?')) {
+			families = [createEmptyFamily(false)];
 		}
 	}
 
 	function toggleAllBuatAkun(checked: boolean) {
-		for (const r of rows) {
-			r.buatAkun = checked;
-		}
-	}
-
-	function onTanggalLahirOrMenikahChange(row: RowData) {
-		row.umur = hitungUmur(row.tanggalLahir);
-		row.statusGenerus = hitungStatusGenerus(row.umur, row.statusMenikah);
-	}
-
-	function onJenisKelaminChange(row: RowData) {
-		const allowed = getDaftarStatusKeluargaByGender(row.jenisKelamin);
-		// Jika status saat ini tidak cocok dengan gender yang baru dipilih, reset agar user memilih kembali
-		if (row.statusKeluarga && !allowed.includes(row.statusKeluarga as any)) {
-			row.statusKeluarga = '';
-		}
-	}
-
-	function onStatusKeluargaChange(row: RowData) {
-		// Otomatisasi jenis kelamin berdasarkan status keluarga
-		if (row.statusKeluarga === 'Bapak' || row.statusKeluarga === 'Kepala Keluarga') {
-			row.jenisKelamin = 'L';
-			row.isPerantau = false;
-		} else if (row.statusKeluarga === 'Ibu' || row.statusKeluarga === 'Istri') {
-			row.jenisKelamin = 'P';
-			row.isPerantau = false;
-		} else if (
-			row.statusKeluarga === 'Mandiri / Perantau' ||
-			row.statusKeluarga === 'Remaja Perantau' ||
-			row.statusKeluarga === 'Mandiri'
-		) {
-			row.isPerantau = true;
-			row.noKk = '';
-		}
-	}
-
-	function onPerantauToggle(row: RowData) {
-		if (row.isPerantau) {
-			row.noKk = '';
-			row.statusKeluarga = 'Mandiri / Perantau';
-		} else {
-			if (
-				row.statusKeluarga === 'Mandiri / Perantau' ||
-				row.statusKeluarga === 'Remaja Perantau' ||
-				row.statusKeluarga === 'Mandiri'
-			) {
-				row.statusKeluarga = '';
+		for (const fam of families) {
+			for (const m of fam.members) {
+				m.buatAkun = checked;
 			}
 		}
 	}
 
-	// Parsing Text Clipboard dari Google Sheets / Excel
+	function onTanggalLahirOrMenikahChange(member: MemberRowData) {
+		member.umur = hitungUmur(member.tanggalLahir);
+		member.statusGenerus = hitungStatusGenerus(member.umur, member.statusMenikah);
+	}
+
+	function onJenisKelaminChange(member: MemberRowData) {
+		const allowed = getDaftarStatusKeluargaByGender(member.jenisKelamin);
+		if (member.statusKeluarga && !allowed.includes(member.statusKeluarga as any)) {
+			member.statusKeluarga = '';
+		}
+	}
+
+	function onStatusKeluargaChange(member: MemberRowData) {
+		if (member.statusKeluarga === 'Bapak' || member.statusKeluarga === 'Kepala Keluarga') {
+			member.jenisKelamin = 'L';
+		} else if (member.statusKeluarga === 'Ibu' || member.statusKeluarga === 'Istri') {
+			member.jenisKelamin = 'P';
+		}
+	}
+
+	function onFamilyPerantauToggle(family: FamilyGroupData) {
+		if (family.isPerantau) {
+			family.noKk = '';
+			for (const m of family.members) {
+				m.statusKeluarga = 'Mandiri / Perantau';
+			}
+		} else {
+			if (family.members[0] && family.members[0].statusKeluarga === 'Mandiri / Perantau') {
+				family.members[0].statusKeluarga = 'Kepala Keluarga';
+			}
+		}
+	}
+
+	// Parsing Text Clipboard dari Google Sheets / Excel dengan grouping keluarga otomatis
 	function processPastedSpreadsheet() {
 		if (!pasteText.trim()) return;
 
 		const lines = pasteText.trim().split(/\r?\n/);
-		const newParsedRows: RowData[] = [];
+		const parsedFamilies: FamilyGroupData[] = [];
+		let currentFamily: FamilyGroupData | null = null;
+		const kkMap = new Map<string, FamilyGroupData>();
 
 		for (let i = 0; i < lines.length; i++) {
 			const line = lines[i];
@@ -184,11 +235,6 @@
 				continue;
 			}
 
-			// Deteksi layout spreadsheet sesuai screenshot pengguna
-			// Layout A (17 kolom):
-			// 0: No, 1: Kelompok, 2: Nama Lengkap, 3: Jenis Kelamin, 4: Tempat Lahir, 5: Tanggal Lahir,
-			// 6: Umur, 7: Alamat, 8: Profesi, 9: No Telepon, 10: Status Generus, 11: Status Menikah,
-			// 12: Status Keluarga, 13: KK (No KK), 14: Status Jama'ah, 15: Isrun, 16: Gol. Darah
 			let rNama = '';
 			let rJk: 'L' | 'P' = 'L';
 			let rTempat = '';
@@ -198,7 +244,7 @@
 			let rTelp = '';
 			let rGenerus = '';
 			let rMenikah: 'Belum Menikah' | 'Sudah Menikah' = 'Belum Menikah';
-			let rKeluarga = 'Anak';
+			let rKeluarga = '';
 			let rKk = '';
 			let rStatusJam: 'Aktif' | 'Tidak Aktif' = 'Aktif';
 			let rIsrun: 'Ya' | 'Tidak' = 'Tidak';
@@ -208,7 +254,7 @@
 				// Format Lengkap Spreadsheet
 				rNama = cols[2] || '';
 				const jkRaw = (cols[3] || '').trim().toUpperCase();
-				rJk = (jkRaw === 'P' || jkRaw.startsWith('PEREMPUAN') || jkRaw.startsWith('WANITA')) ? 'P' : 'L';
+				rJk = jkRaw === 'P' || jkRaw.startsWith('PEREMPUAN') || jkRaw.startsWith('WANITA') ? 'P' : 'L';
 				rTempat = cols[4] || '';
 				rTgl = cols[5] || '';
 				rAlamat = cols[7] || '';
@@ -225,7 +271,7 @@
 				// Format Ringkas (Nama, JK, Tgl Lahir, No KK, dst)
 				rNama = cols[0] || '';
 				const jkRaw = (cols[1] || '').trim().toUpperCase();
-				rJk = (jkRaw === 'P' || jkRaw.startsWith('PEREMPUAN') || jkRaw.startsWith('WANITA')) ? 'P' : 'L';
+				rJk = jkRaw === 'P' || jkRaw.startsWith('PEREMPUAN') || jkRaw.startsWith('WANITA') ? 'P' : 'L';
 				rTgl = cols[2] || '';
 				rKk = cols[3] || '';
 				if (cols[4]) rKeluarga = cols[4].trim();
@@ -235,38 +281,35 @@
 
 			if (!rNama) continue;
 
-			// Otomatisasi jenis kelamin jika status keluarga eksplisit Bapak / Ibu / Istri
+			// Normalisasi hubungan keluarga & jenis kelamin
 			if (rKeluarga.toLowerCase() === 'bapak' || rKeluarga.toLowerCase() === 'kepala keluarga') {
 				rJk = 'L';
 			} else if (rKeluarga.toLowerCase() === 'ibu' || rKeluarga.toLowerCase() === 'istri') {
 				rJk = 'P';
 			}
 
-			// Validasi kecocokan rKeluarga dengan gender rJk
 			const allowedStatuses = getDaftarStatusKeluargaByGender(rJk);
 			let finalKeluarga = '';
 			const matched = allowedStatuses.find((s) => s.toLowerCase() === rKeluarga.toLowerCase());
 			if (matched) {
 				finalKeluarga = matched;
+			} else {
+				finalKeluarga = rKeluarga || (rJk === 'L' ? 'Anak' : 'Anak');
 			}
 
-			// Deteksi perantau / mandiri
 			const isPerantauDetected =
 				rKeluarga.toLowerCase().includes('perantau') ||
-				rKeluarga.toLowerCase().includes('mandiri') ||
-				!rKk;
+				rKeluarga.toLowerCase().includes('mandiri');
 
-			if (isPerantauDetected && !finalKeluarga) {
+			if (isPerantauDetected) {
 				finalKeluarga = 'Mandiri / Perantau';
 			}
 
-			// Normalisasi tanggal lahir jika format DD-MM-YYYY atau YYYY-MM-DD
-			let umurCalc = hitungUmur(rTgl);
-			let finalGenerus = rGenerus || hitungStatusGenerus(umurCalc, rMenikah);
+			const umurCalc = hitungUmur(rTgl);
+			const finalGenerus = rGenerus || hitungStatusGenerus(umurCalc, rMenikah);
 
-			newParsedRows.push({
+			const newMemberData: MemberRowData = {
 				id: Math.random().toString(36).substring(2, 9),
-				kelompokId: defaultKelompokId,
 				namaLengkap: rNama,
 				jenisKelamin: rJk,
 				tempatLahir: rTempat,
@@ -278,45 +321,108 @@
 				statusGenerus: finalGenerus,
 				statusMenikah: rMenikah,
 				statusKeluarga: finalKeluarga,
-				noKk: isPerantauDetected ? '' : rKk,
 				nik: '',
 				statusJamaah: rStatusJam,
 				isrun: rIsrun,
 				golonganDarah: rGoldar,
-				isPerantau: isPerantauDetected,
 				buatAkun: false,
 				email: '',
 				password: ''
-			});
+			};
+
+			// Grouping ke dalam keluarga:
+			if (isPerantauDetected) {
+				// Perantau / Mandiri dibuatkan kartu terpisah
+				const perantauFam: FamilyGroupData = {
+					id: Math.random().toString(36).substring(2, 9),
+					noKk: '',
+					alamat: rAlamat,
+					isPerantau: true,
+					kelompokId: defaultKelompokId,
+					members: [newMemberData]
+				};
+				parsedFamilies.push(perantauFam);
+				currentFamily = null;
+			} else if (rKk && rKk.trim()) {
+				// Ada No KK: gabungkan baris dengan No KK yang sama
+				const cleanKk = rKk.trim();
+				let existingFam = kkMap.get(cleanKk);
+				if (!existingFam) {
+					existingFam = {
+						id: Math.random().toString(36).substring(2, 9),
+						noKk: cleanKk,
+						alamat: rAlamat,
+						isPerantau: false,
+						kelompokId: defaultKelompokId,
+						members: []
+					};
+					kkMap.set(cleanKk, existingFam);
+					parsedFamilies.push(existingFam);
+				}
+				existingFam.members.push(newMemberData);
+				currentFamily = existingFam;
+			} else {
+				// Tidak ada No KK:
+				// Jika status adalah Kepala Keluarga / Bapak, atau belum ada currentFamily
+				if (
+					!currentFamily ||
+					currentFamily.isPerantau ||
+					finalKeluarga === 'Kepala Keluarga' ||
+					finalKeluarga === 'Bapak'
+				) {
+					currentFamily = {
+						id: Math.random().toString(36).substring(2, 9),
+						noKk: '',
+						alamat: rAlamat,
+						isPerantau: false,
+						kelompokId: defaultKelompokId,
+						members: [newMemberData]
+					};
+					parsedFamilies.push(currentFamily);
+				} else {
+					// Anggota di bawah kepala keluarga otomatis masuk ke KK yang sedang aktif
+					currentFamily.members.push(newMemberData);
+				}
+			}
 		}
 
-		if (newParsedRows.length > 0) {
-			if (rows.length === 1 && !rows[0].namaLengkap) {
-				rows = newParsedRows;
+		if (parsedFamilies.length > 0) {
+			if (
+				families.length === 1 &&
+				families[0].members.length === 1 &&
+				!families[0].members[0].namaLengkap
+			) {
+				families = parsedFamilies;
 			} else {
-				rows = [...rows, ...newParsedRows];
+				families = [...families, ...parsedFamilies];
 			}
 			pasteText = '';
 			showPasteModal = false;
 		} else {
-			alert('Tidak ada data baris yang berhasil dikenali. Pastikan Anda menyalin kolom dari Excel / Google Sheets.');
+			alert(
+				'Tidak ada data baris yang berhasil dikenali. Pastikan Anda menyalin kolom dari Excel / Google Sheets.'
+			);
 		}
 	}
 
-	const totalAkunDipilih = $derived(rows.filter((r) => r.buatAkun).length);
-	const totalPerantau = $derived(rows.filter((r) => r.isPerantau).length);
-	const estimasiKeluarga = $derived(
-		new Set(rows.filter((r) => !r.isPerantau && r.noKk?.trim()).map((r) => r.noKk.trim())).size
+	// Metrik Ringkasan Terhitung Real-time
+	const totalJiwa = $derived(families.reduce((acc, f) => acc + f.members.length, 0));
+	const totalKeluargaKK = $derived(families.filter((f) => !f.isPerantau).length);
+	const totalMandiriPerantau = $derived(families.filter((f) => f.isPerantau).length);
+	const totalAkunDipilih = $derived(
+		families.reduce((acc, f) => acc + f.members.filter((m) => m.buatAkun).length, 0)
 	);
 </script>
 
 <svelte:head>
-	<title>Batch Insert Sensus - Satu Generus</title>
+	<title>Batch Insert Sensus Jamaah - Satu Generus</title>
 </svelte:head>
 
 <div class="space-y-4 max-w-[100vw] overflow-x-hidden p-2 sm:p-4">
 	<!-- Top Navigation & Action Header -->
-	<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card border border-border p-4 rounded-xl shadow-sm">
+	<div
+		class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card border border-border p-4 rounded-xl shadow-sm"
+	>
 		<div class="flex items-center gap-3">
 			<a
 				href="/admin/sensus"
@@ -328,10 +434,11 @@
 			<div>
 				<h1 class="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
 					<Users class="w-5 h-5 text-primary" />
-					<span>Batch Insert Sensus Jamaah</span>
+					<span>Batch Insert Sensus Terikat Keluarga</span>
 				</h1>
 				<p class="text-xs text-foreground/60">
-					Impor atau input data sensus massal lengkap dengan kalkulasi otomatis generus dan pembuatan akun.
+					Kelompokkan jamaah dalam satu Kartu Keluarga (KK). Anggota di bawah Kepala Keluarga otomatis
+					terikat ke KK yang sama, dengan atau tanpa No. KK.
 				</p>
 			</div>
 		</div>
@@ -348,16 +455,25 @@
 
 			<button
 				type="button"
-				onclick={addRow}
-				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-secondary/50 hover:bg-secondary text-foreground text-xs font-semibold transition-colors"
+				onclick={addFamily}
+				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold transition-colors shadow-sm"
 			>
 				<Plus class="w-3.5 h-3.5" />
-				<span>Tambah Baris</span>
+				<span>+ Tambah KK Baru</span>
 			</button>
 
 			<button
 				type="button"
-				onclick={clearRows}
+				onclick={addPerantauFamily}
+				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-secondary/50 hover:bg-secondary text-foreground text-xs font-semibold transition-colors"
+			>
+				<Users class="w-3.5 h-3.5 text-blue-500" />
+				<span>+ Mandiri / Perantau</span>
+			</button>
+
+			<button
+				type="button"
+				onclick={clearFamilies}
 				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-destructive/30 hover:bg-destructive/10 text-destructive text-xs font-medium transition-colors"
 			>
 				<Trash2 class="w-3.5 h-3.5" />
@@ -366,8 +482,10 @@
 		</div>
 	</div>
 
-	<!-- Global Batch Defaults Bar -->
-	<div class="grid grid-cols-1 md:grid-cols-4 gap-3 bg-secondary/30 border border-border p-3.5 rounded-xl text-xs">
+	<!-- Global Batch Defaults Bar & Live Stats -->
+	<div
+		class="grid grid-cols-1 md:grid-cols-4 gap-3 bg-secondary/30 border border-border p-3.5 rounded-xl text-xs"
+	>
 		<div>
 			<label for="defaultKelompokSelect" class="block font-semibold text-foreground/80 mb-1">
 				Kelompok Default
@@ -384,7 +502,10 @@
 		</div>
 
 		<div>
-			<label for="defaultPasswordInput" class="block font-semibold text-foreground/80 mb-1 flex items-center gap-1">
+			<label
+				for="defaultPasswordInput"
+				class="block font-semibold text-foreground/80 mb-1 flex items-center gap-1"
+			>
 				<KeyRound class="w-3.5 h-3.5 text-primary" />
 				<span>Password Default Akun</span>
 			</label>
@@ -397,41 +518,49 @@
 			/>
 		</div>
 
-		<div class="flex items-center gap-2 pt-4">
-			<label class="inline-flex items-center gap-2 cursor-pointer font-medium text-foreground select-none">
+		<div class="flex items-center gap-2 pt-2 md:pt-4">
+			<label
+				class="inline-flex items-center gap-2 cursor-pointer font-medium text-foreground select-none"
+			>
 				<input
-					type="checkbox"
-					onchange={(e) => toggleAllBuatAkun(e.currentTarget.checked)}
-					class="w-4 h-4 rounded border-border text-primary focus:ring-primary accent-primary"
-				/>
-				<span>Buatkan Akun Semua Baris</span>
+				type="checkbox"
+				onchange={(e) => toggleAllBuatAkun(e.currentTarget.checked)}
+				class="w-4 h-4 rounded border-border text-primary focus:ring-primary accent-primary"
+			/>
+				<span>Buatkan Akun Semua Jiwa</span>
 			</label>
 		</div>
 
 		<div class="flex items-center justify-end gap-3 text-right pt-2 md:pt-4">
 			<div class="text-[11px] text-foreground/70">
-				<span class="font-bold text-foreground">{rows.length}</span> jiwa •
-				<span class="font-bold text-foreground">{estimasiKeluarga}</span> KK •
-				<span class="font-bold text-blue-600 dark:text-blue-400">{totalPerantau}</span> mandiri/perantau •
-				<span class="font-bold text-primary">{totalAkunDipilih}</span> akun baru
+				<span class="font-bold text-foreground text-xs">{totalJiwa}</span> jiwa •
+				<span class="font-bold text-foreground text-xs">{totalKeluargaKK}</span> KK •
+				<span class="font-bold text-blue-600 dark:text-blue-400 text-xs">{totalMandiriPerantau}</span> mandiri •
+				<span class="font-bold text-primary text-xs">{totalAkunDipilih}</span> akun
 			</div>
 		</div>
 	</div>
 
 	<!-- Notifikasi Feedback Server -->
 	{#if form?.error}
-		<div class="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 text-destructive text-xs rounded-xl">
+		<div
+			class="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 text-destructive text-xs rounded-xl"
+		>
 			<AlertCircle class="w-4 h-4 shrink-0" />
 			<span>{form.error}</span>
 		</div>
 	{/if}
 
 	{#if form?.success}
-		<div class="flex items-center justify-between p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs rounded-xl">
+		<div
+			class="flex items-center justify-between p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs rounded-xl"
+		>
 			<div class="flex items-center gap-2">
 				<CheckCircle2 class="w-4 h-4 shrink-0" />
 				<span>
-					Berhasil menyimpan <strong>{form.summary?.totalJiwa}</strong> jiwa ke dalam <strong>{form.summary?.totalKeluarga}</strong> keluarga (dan <strong>{form.summary?.totalAkun}</strong> akun login)!
+					Berhasil menyimpan <strong>{form.summary?.totalJiwa}</strong> jiwa ke dalam
+					<strong>{form.summary?.totalKeluarga}</strong> keluarga (dan
+					<strong>{form.summary?.totalAkun}</strong> akun login)!
 				</span>
 			</div>
 			<a
@@ -443,370 +572,571 @@
 		</div>
 	{/if}
 
-	<!-- Spreadsheet Grid Form -->
+	<!-- Form Batch Groups Sensus -->
 	<form
 		method="POST"
 		use:enhance={({ cancel }) => {
-			for (let i = 0; i < rows.length; i++) {
-				const r = rows[i];
-				if (!r.namaLengkap.trim()) {
-					alert(`Baris ke-${i + 1}: Nama lengkap wajib diisi!`);
+			if (families.length === 0) {
+				alert('Silakan tambahkan minimal 1 keluarga atau jamaah.');
+				cancel();
+				return;
+			}
+
+			let totalValidMember = 0;
+			for (let fIdx = 0; fIdx < families.length; fIdx++) {
+				const fam = families[fIdx];
+				if (!fam.members || fam.members.length === 0) {
+					alert(`Keluarga #${fIdx + 1} tidak memiliki anggota. Silakan tambahkan minimal 1 anggota atau hapus kartu keluarga tersebut.`);
 					cancel();
 					return;
 				}
-				if (!r.statusKeluarga?.trim()) {
-					alert(
-						`Baris ke-${i + 1} (${r.namaLengkap}): Kolom Hubungan Keluarga wajib dipilih!`
-					);
-					cancel();
-					return;
+
+				for (let mIdx = 0; mIdx < fam.members.length; mIdx++) {
+					const m = fam.members[mIdx];
+					if (!m.namaLengkap.trim()) {
+						alert(`Keluarga #${fIdx + 1}, Anggota #${mIdx + 1}: Nama lengkap wajib diisi!`);
+						cancel();
+						return;
+					}
+					if (!m.tanggalLahir.trim()) {
+						alert(`Keluarga #${fIdx + 1} (${m.namaLengkap}): Tanggal lahir wajib diisi (YYYY-MM-DD)!`);
+						cancel();
+						return;
+					}
+					if (!m.statusKeluarga.trim()) {
+						alert(`Keluarga #${fIdx + 1} (${m.namaLengkap}): Hubungan keluarga wajib dipilih!`);
+						cancel();
+						return;
+					}
+					totalValidMember++;
 				}
 			}
+
+			if (totalValidMember === 0) {
+				alert('Tidak ada data anggota yang dapat disimpan.');
+				cancel();
+				return;
+			}
+
 			isSubmitting = true;
 			return async ({ update }) => {
 				isSubmitting = false;
 				await update();
 			};
 		}}
-		class="space-y-4"
+		class="space-y-5"
 	>
-		<input type="hidden" name="batchData" value={JSON.stringify(rows)} />
+		<!-- Hidden payload mengirim seluruh hierarki families -->
+		<input type="hidden" name="batchData" value={JSON.stringify(families)} />
 		<input type="hidden" name="defaultPassword" value={defaultPassword} />
 		<input type="hidden" name="defaultKelompokId" value={String(defaultKelompokId)} />
 
-		<!-- List Kartu Input Sensus (Responsif: Wrap ke Bawah Menyesuaikan Lebar Layar & Mobile) -->
-		<div class="space-y-4">
-			{#each rows as row, idx (row.id)}
-				<div class="p-3.5 sm:p-4 rounded-xl border border-border bg-card shadow-sm hover:border-primary/40 transition-all space-y-3">
-					<!-- Header Kartu: Nomor Urut, Status Ringkas, & Toggle Cepat -->
-					<div class="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-border/60">
-						<div class="flex flex-wrap items-center gap-2">
-							<span class="inline-flex items-center justify-center px-2 py-0.5 rounded bg-secondary font-mono font-bold text-xs text-foreground">
-								#{idx + 1}
-							</span>
-							<span class="text-xs font-bold text-foreground">
-								{row.namaLengkap || 'Data Jiwa Baru'}
-							</span>
-							{#if row.umur > 0}
-								<span class="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-primary/10 text-primary">
-									{row.umur} Thn • {row.statusGenerus}
-								</span>
-							{/if}
-							{#if row.isPerantau}
-								<span class="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-blue-500/10 text-blue-700 dark:text-blue-300">
-									Mandiri / Perantau
-								</span>
-							{/if}
+		<!-- Daftar Kartu Keluarga (Hierarkis) -->
+		<div class="space-y-5">
+			{#each families as fam, fIdx (fam.id)}
+				<div
+					class="rounded-2xl border {fam.isPerantau
+						? 'border-blue-500/30 bg-blue-500/[0.02]'
+						: 'border-border bg-card'} p-4 sm:p-5 shadow-sm space-y-4 transition-all"
+				>
+					<!-- Header Kartu Keluarga -->
+					<div
+						class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/70"
+					>
+						<div class="flex flex-wrap items-center gap-2 sm:gap-3">
+							<div
+								class="p-2 rounded-xl {fam.isPerantau
+									? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+									: 'bg-primary/10 text-primary'}"
+							>
+								{#if fam.isPerantau}
+									<Users class="w-4 h-4" />
+								{:else}
+									<Home class="w-4 h-4" />
+								{/if}
+							</div>
+							<div>
+								<div class="flex items-center gap-2">
+									<h2 class="text-sm font-bold text-foreground">
+										{#if fam.isPerantau}
+											Jamaah Mandiri / Perantau #{fIdx + 1}
+										{:else}
+											Kartu Keluarga #{fIdx + 1}
+										{/if}
+									</h2>
+									<span
+										class="px-2 py-0.5 rounded-full text-[10.5px] font-bold {fam.isPerantau
+											? 'bg-blue-500/10 text-blue-700 dark:text-blue-300'
+											: 'bg-primary/10 text-primary'}"
+									>
+										{fam.members.length} Jiwa
+									</span>
+								</div>
+								<p class="text-[11px] text-foreground/60">
+									{#if fam.isPerantau}
+										Data jamaah tanpa keterikatan KK (tinggal mandiri, santri, atau mahasiswa perantauan)
+									{:else}
+										Semua anggota di bawah ini otomatis terikat ke satu KK yang sama.
+									{/if}
+								</p>
+							</div>
 						</div>
 
-						<div class="flex flex-wrap items-center gap-2 sm:gap-3 ml-auto">
-							<!-- Checklist Mandiri / Perantau -->
-							<label class="inline-flex items-center gap-1.5 cursor-pointer text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-500/10 px-2.5 py-1 rounded-lg hover:bg-blue-500/20 transition-colors select-none">
+						<div class="flex items-center gap-2 sm:gap-3">
+							<!-- Checklist Toggle Mandiri / Perantau -->
+							<label
+								class="inline-flex items-center gap-1.5 cursor-pointer text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-500/10 px-2.5 py-1.5 rounded-lg hover:bg-blue-500/20 transition-colors select-none"
+							>
 								<input
 									type="checkbox"
-									bind:checked={row.isPerantau}
-									onchange={() => onPerantauToggle(row)}
+									bind:checked={fam.isPerantau}
+									onchange={() => onFamilyPerantauToggle(fam)}
 									class="w-3.5 h-3.5 rounded border-border text-blue-600 focus:ring-blue-500"
 								/>
-								<span>Mandiri / Perantau (Tanpa KK)</span>
+								<span>Mandiri / Perantau</span>
 							</label>
 
-							<!-- Toggle Buat Akun -->
-							<label class="inline-flex items-center gap-1.5 cursor-pointer text-xs font-medium text-amber-700 dark:text-amber-300 bg-amber-500/10 px-2.5 py-1 rounded-lg hover:bg-amber-500/20 transition-colors select-none">
-								<input
-									type="checkbox"
-									bind:checked={row.buatAkun}
-									class="w-3.5 h-3.5 rounded border-border text-primary focus:ring-primary accent-primary"
-								/>
-								<span>Buatkan Akun</span>
-							</label>
-
-							<!-- Tombol Hapus Baris -->
+							<!-- Tombol Hapus Seluruh Keluarga -->
 							<button
 								type="button"
-								onclick={() => removeRow(idx)}
+								onclick={() => removeFamily(fIdx)}
 								class="p-1.5 text-foreground/50 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
-								title="Hapus Baris Ini"
+								title="Hapus Kartu Keluarga Ini"
 							>
 								<Trash2 class="w-4 h-4" />
 							</button>
 						</div>
 					</div>
 
-					<!-- Form Fields: Flex Wrap Dinamis Menyesuaikan Layar Desktop & Mobile -->
-					<div class="flex flex-wrap items-end gap-2.5 sm:gap-3">
-						<!-- No KK / Kode KK -->
-						<div class="w-full sm:w-36 shrink-0">
-							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1">
-								No. KK / Kode
+					<!-- Atribut Identitas Kartu Keluarga (No KK, Alamat Domisili, Kelompok) -->
+					<div
+						class="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-secondary/20 rounded-xl border border-border/50 text-xs"
+					>
+						<!-- Nomor KK (Opsional / Boleh Kosong) -->
+						<div>
+							<label for="noKk-{fam.id}" class="block text-[11px] font-semibold text-foreground/80 mb-1">
+								No. KK <span class="text-foreground/50 font-normal">(Boleh kosong / tanpa KK)</span>
 							</label>
 							<input
+								id="noKk-{fam.id}"
 								type="text"
-								bind:value={row.noKk}
-								disabled={row.isPerantau}
-								placeholder={row.isPerantau ? 'Tanpa KK' : 'No. KK / Kode'}
-								class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary disabled:opacity-50 disabled:bg-secondary/40"
+								bind:value={fam.noKk}
+								disabled={fam.isPerantau}
+								placeholder={fam.isPerantau ? 'Tanpa KK' : 'Nomor KK (Opsional)'}
+								class="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary disabled:opacity-50 disabled:bg-secondary/40"
 							/>
 						</div>
 
-						<!-- Nama Lengkap * -->
-						<div class="w-full sm:w-56 flex-1 min-w-[180px]">
-							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1">
-								Nama Lengkap <span class="text-destructive">*</span>
+						<!-- Alamat Domisili Keluarga Bersama -->
+						<div>
+							<label for="alamat-{fam.id}" class="block text-[11px] font-semibold text-foreground/80 mb-1">
+								Alamat Domisili Keluarga
 							</label>
 							<input
+								id="alamat-{fam.id}"
 								type="text"
-								required
-								bind:value={row.namaLengkap}
-								placeholder="Nama lengkap jamaah"
-								class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs font-medium text-foreground focus:ring-1 focus:ring-primary"
+								bind:value={fam.alamat}
+								placeholder="Contoh: Jl. Melati No. 12 RT 01/RW 02"
+								class="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
 							/>
 						</div>
 
-						<!-- Jenis Kelamin -->
-						<div class="w-[calc(50%-5px)] sm:w-32 shrink-0">
-							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1">
-								Jenis Kelamin
+						<!-- Kelompok Wilayah Keluarga -->
+						<div>
+							<label for="kelompok-{fam.id}" class="block text-[11px] font-semibold text-foreground/80 mb-1">
+								Kelompok
 							</label>
 							<select
-								bind:value={row.jenisKelamin}
-								onchange={() => onJenisKelaminChange(row)}
-								class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
+								id="kelompok-{fam.id}"
+								bind:value={fam.kelompokId}
+								class="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
 							>
-								<option value="L">L (Laki-laki)</option>
-								<option value="P">P (Perempuan)</option>
-							</select>
-						</div>
-
-						<!-- Hubungan Keluarga * (Disesuaikan Jenis Kelamin) -->
-						<div class="w-[calc(50%-5px)] sm:w-44 flex-1 min-w-[160px]">
-							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1">
-								Hub. Keluarga <span class="text-destructive">*</span>
-							</label>
-							<select
-								required
-								bind:value={row.statusKeluarga}
-								onchange={() => onStatusKeluargaChange(row)}
-								class="w-full bg-background border {row.statusKeluarga ? 'border-border font-medium' : 'border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-semibold ring-1 ring-amber-500/40'} rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
-							>
-								<option value="" disabled selected>-- Pilih Hubungan --</option>
-								{#each getDaftarStatusKeluargaByGender(row.jenisKelamin) as sk}
-									<option value={sk}>{sk}</option>
+								{#each data.wilayahOptions.kelompokList as k}
+									<option value={k.id}>{k.nama} (Desa {k.desaNama || '-'})</option>
 								{/each}
 							</select>
 						</div>
+					</div>
 
-						<!-- Tempat Lahir -->
-						<div class="w-[calc(50%-5px)] sm:w-36 shrink-0">
-							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1">
-								Tempat Lahir
-							</label>
-							<input
-								type="text"
-								bind:value={row.tempatLahir}
-								placeholder="Contoh: Bekasi"
-								class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
-							/>
+					<!-- Bagian Anggota Keluarga di Bawah Kepala Keluarga -->
+					<div class="space-y-3 pt-1">
+						<div class="flex items-center justify-between">
+							<span class="text-xs font-bold text-foreground/80 flex items-center gap-1.5">
+								<span>Daftar Anggota dalam KK Ini</span>
+								<span class="text-[11px] text-foreground/50 font-normal">
+									(Anggota di bawah otomatis terikat ke KK orang ini)
+								</span>
+							</span>
 						</div>
 
-						<!-- Tanggal Lahir * -->
-						<div class="w-[calc(50%-5px)] sm:w-36 shrink-0">
-							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1">
-								Tgl Lahir <span class="text-destructive">*</span>
-							</label>
-							<input
-								type="text"
-								required
-								bind:value={row.tanggalLahir}
-								onblur={() => onTanggalLahirOrMenikahChange(row)}
-								placeholder="YYYY-MM-DD"
-								class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary"
-							/>
+						<!-- Loop Anggota Keluarga -->
+						<div class="space-y-3">
+							{#each fam.members as row, mIdx (row.id)}
+								<div
+									class="p-3 sm:p-3.5 rounded-xl border border-border/80 bg-background shadow-xs hover:border-primary/40 transition-all space-y-2.5"
+								>
+									<!-- Header Kecil Baris Anggota -->
+									<div
+										class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-border/40"
+									>
+										<div class="flex flex-wrap items-center gap-2">
+											<span
+												class="inline-flex items-center justify-center px-2 py-0.5 rounded {mIdx === 0
+													? 'bg-primary/20 text-primary font-bold'
+													: 'bg-secondary text-foreground/80'} font-mono text-[11px]"
+											>
+												#{mIdx + 1}
+											</span>
+											<span class="text-xs font-bold text-foreground">
+												{row.namaLengkap || (mIdx === 0 ? 'Kepala Keluarga / Jamaah Utama' : 'Anggota Keluarga Baru')}
+											</span>
+											{#if mIdx === 0 && !fam.isPerantau}
+												<span
+													class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/10 text-amber-800 dark:text-amber-200"
+												>
+													Kepala Keluarga
+												</span>
+											{/if}
+											{#if row.umur > 0}
+												<span
+													class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary"
+												>
+													{row.umur} Thn • {row.statusGenerus}
+												</span>
+											{/if}
+										</div>
+
+										<div class="flex items-center gap-2 ml-auto">
+											<!-- Toggle Buatkan Akun -->
+											<label
+												class="inline-flex items-center gap-1.5 cursor-pointer text-[11px] font-medium text-amber-700 dark:text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-md hover:bg-amber-500/20 transition-colors select-none"
+											>
+												<input
+													type="checkbox"
+													bind:checked={row.buatAkun}
+													class="w-3.5 h-3.5 rounded border-border text-primary focus:ring-primary accent-primary"
+												/>
+												<span>Buatkan Akun</span>
+											</label>
+
+											<!-- Tombol Hapus Anggota -->
+											<button
+												type="button"
+												onclick={() => removeMember(fam, mIdx)}
+												class="p-1 text-foreground/40 hover:text-destructive hover:bg-destructive/10 rounded transition-colors"
+												title="Hapus Anggota Ini"
+											>
+												<Trash2 class="w-3.5 h-3.5" />
+											</button>
+										</div>
+									</div>
+
+									<!-- Input Fields Anggota (Wrap Responsif Menyesuaikan Layar Desktop & Mobile) -->
+									<div class="flex flex-wrap items-end gap-2 sm:gap-2.5">
+										<!-- Nama Lengkap * -->
+										<div class="w-full sm:w-56 flex-1 min-w-[170px]">
+											<label for="nama-{row.id}" class="block text-[10px] font-semibold text-foreground/75 mb-1">
+												Nama Lengkap <span class="text-destructive">*</span>
+											</label>
+											<input
+												id="nama-{row.id}"
+												type="text"
+												required
+												bind:value={row.namaLengkap}
+												placeholder="Nama lengkap jamaah"
+												class="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-xs font-medium text-foreground focus:ring-1 focus:ring-primary"
+											/>
+										</div>
+
+										<!-- Jenis Kelamin -->
+										<div class="w-[calc(50%-4px)] sm:w-28 shrink-0">
+											<label for="jk-{row.id}" class="block text-[10px] font-semibold text-foreground/75 mb-1">
+												Jenis Kelamin
+											</label>
+											<select
+												id="jk-{row.id}"
+												bind:value={row.jenisKelamin}
+												onchange={() => onJenisKelaminChange(row)}
+												class="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
+											>
+												<option value="L">L (Laki-laki)</option>
+												<option value="P">P (Perempuan)</option>
+											</select>
+										</div>
+
+										<!-- Hubungan Keluarga * (Disesuaikan Jenis Kelamin) -->
+										<div class="w-[calc(50%-4px)] sm:w-44 flex-1 min-w-[150px]">
+											<label for="hub-{row.id}" class="block text-[10px] font-semibold text-foreground/75 mb-1">
+												Hub. Keluarga <span class="text-destructive">*</span>
+											</label>
+											<select
+												id="hub-{row.id}"
+												required
+												bind:value={row.statusKeluarga}
+												onchange={() => onStatusKeluargaChange(row)}
+												class="w-full bg-card border {row.statusKeluarga
+													? 'border-border font-medium'
+													: 'border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-semibold ring-1 ring-amber-500/40'} rounded-lg px-2 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
+											>
+												<option value="" disabled selected>-- Pilih Hubungan --</option>
+												{#each getDaftarStatusKeluargaByGender(row.jenisKelamin) as sk}
+													<option value={sk}>{sk}</option>
+												{/each}
+											</select>
+										</div>
+
+										<!-- Tempat Lahir -->
+										<div class="w-[calc(50%-4px)] sm:w-32 shrink-0">
+											<label for="tempat-{row.id}" class="block text-[10px] font-semibold text-foreground/75 mb-1">
+												Tempat Lahir
+											</label>
+											<input
+												id="tempat-{row.id}"
+												type="text"
+												bind:value={row.tempatLahir}
+												placeholder="Kota lahir"
+												class="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
+											/>
+										</div>
+
+										<!-- Tanggal Lahir * -->
+										<div class="w-[calc(50%-4px)] sm:w-32 shrink-0">
+											<label for="tgl-{row.id}" class="block text-[10px] font-semibold text-foreground/75 mb-1">
+												Tgl Lahir <span class="text-destructive">*</span>
+											</label>
+											<input
+												id="tgl-{row.id}"
+												type="text"
+												required
+												bind:value={row.tanggalLahir}
+												onblur={() => onTanggalLahirOrMenikahChange(row)}
+												placeholder="YYYY-MM-DD"
+												class="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary"
+											/>
+										</div>
+
+										<!-- Umur (Calculated) -->
+										<div class="w-14 shrink-0 text-center">
+											<span class="block text-[10px] font-semibold text-foreground/75 mb-1">Umur</span>
+											<div
+												class="w-full py-1.5 bg-secondary/80 text-foreground rounded-lg font-mono font-bold text-xs flex items-center justify-center border border-border/50"
+											>
+												{row.umur || 0}
+											</div>
+										</div>
+
+										<!-- Status Generus (Auto & Editable) -->
+										<div class="w-[calc(50%-4px)] sm:w-32 shrink-0">
+											<label for="generus-{row.id}" class="block text-[10px] font-semibold text-foreground/75 mb-1">
+												Status Generus
+											</label>
+											<select
+												id="generus-{row.id}"
+												bind:value={row.statusGenerus}
+												class="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-xs font-semibold text-primary focus:ring-1 focus:ring-primary"
+											>
+												{#each DAFTAR_STATUS_GENERUS as g}
+													<option value={g}>{g}</option>
+												{/each}
+											</select>
+										</div>
+
+										<!-- Status Pernikahan -->
+										<div class="w-[calc(50%-4px)] sm:w-32 shrink-0">
+											<label for="nikah-{row.id}" class="block text-[10px] font-semibold text-foreground/75 mb-1">
+												Status Nikah
+											</label>
+											<select
+												id="nikah-{row.id}"
+												bind:value={row.statusMenikah}
+												onchange={() => onTanggalLahirOrMenikahChange(row)}
+												class="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
+											>
+												{#each DAFTAR_STATUS_PERNIKAHAN as sm}
+													<option value={sm}>{sm}</option>
+												{/each}
+											</select>
+										</div>
+
+										<!-- No HP / WA -->
+										<div class="w-[calc(50%-4px)] sm:w-32 shrink-0">
+											<label for="telp-{row.id}" class="block text-[10px] font-semibold text-foreground/75 mb-1">
+												No. HP / WA
+											</label>
+											<input
+												id="telp-{row.id}"
+												type="text"
+												bind:value={row.noTelepon}
+												placeholder="0812xxxx"
+												class="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary"
+											/>
+										</div>
+
+										<!-- Profesi -->
+										<div class="w-[calc(50%-4px)] sm:w-32 shrink-0">
+											<label for="profesi-{row.id}" class="block text-[10px] font-semibold text-foreground/75 mb-1">
+												Profesi
+											</label>
+											<input
+												id="profesi-{row.id}"
+												type="text"
+												bind:value={row.profesi}
+												placeholder="Pekerjaan"
+												class="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
+											/>
+										</div>
+
+										<!-- Alamat Spesifik (Jika beda dari domisili keluarga) -->
+										<div class="w-full sm:w-48 flex-1 min-w-[150px]">
+											<label for="alamat-anggota-{row.id}" class="block text-[10px] font-semibold text-foreground/75 mb-1">
+												Alamat Anggota (Opsional)
+											</label>
+											<input
+												id="alamat-anggota-{row.id}"
+												type="text"
+												bind:value={row.alamat}
+												placeholder={fam.alamat ? 'Sama dgn alamat keluarga' : 'Alamat jika berbeda'}
+												class="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
+											/>
+										</div>
+
+										<!-- Golongan Darah -->
+										<div class="w-16 shrink-0">
+											<label for="goldar-{row.id}" class="block text-[10px] font-semibold text-foreground/75 mb-1 text-center">
+												Gol. Darah
+											</label>
+											<select
+												id="goldar-{row.id}"
+												bind:value={row.golonganDarah}
+												class="w-full bg-card border border-border rounded-lg px-1.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary text-center"
+											>
+												{#each DAFTAR_GOLONGAN_DARAH as gd}
+													<option value={gd}>{gd}</option>
+												{/each}
+											</select>
+										</div>
+
+										<!-- Status Jamaah (Admin Only) -->
+										<div class="w-[calc(50%-4px)] sm:w-24 shrink-0">
+											<label for="statusjam-{row.id}" class="block text-[10px] font-semibold text-foreground/75 mb-1">
+												Status
+											</label>
+											<select
+												id="statusjam-{row.id}"
+												bind:value={row.statusJamaah}
+												class="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
+											>
+												{#each DAFTAR_STATUS_JAMAAH as sj}
+													<option value={sj}>{sj}</option>
+												{/each}
+											</select>
+										</div>
+
+										<!-- Isrun (Admin Only) -->
+										<div class="w-[calc(50%-4px)] sm:w-20 shrink-0">
+											<label for="isrun-{row.id}" class="block text-[10px] font-semibold text-foreground/75 mb-1">
+												Isrun
+											</label>
+											<select
+												id="isrun-{row.id}"
+												bind:value={row.isrun}
+												class="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
+											>
+												{#each DAFTAR_ISRUN as isr}
+													<option value={isr}>{isr}</option>
+												{/each}
+											</select>
+										</div>
+
+										<!-- Email Login (Muncul jika Buat Akun aktif) -->
+										{#if row.buatAkun}
+											<div class="w-full sm:w-56 shrink-0 bg-amber-500/10 p-1.5 rounded-lg border border-amber-500/20">
+												<label for="email-{row.id}" class="block text-[10px] font-semibold text-amber-900 dark:text-amber-200 mb-1">
+													Email Login (Opsional)
+												</label>
+												<input
+													id="email-{row.id}"
+													type="email"
+													bind:value={row.email}
+													placeholder="nama@email.com"
+													class="w-full bg-card border border-border rounded-md px-2 py-1 text-xs text-foreground focus:ring-1 focus:ring-primary"
+												/>
+											</div>
+										{/if}
+									</div>
+								</div>
+							{/each}
 						</div>
 
-						<!-- Umur (Calculated) -->
-						<div class="w-16 shrink-0 text-center">
-							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1">
-								Umur
-							</label>
-							<div class="w-full py-1.5 bg-secondary text-foreground rounded-lg font-mono font-bold text-xs flex items-center justify-center border border-border/50">
-								{row.umur || 0}
-							</div>
-						</div>
-
-						<!-- Status Generus (Auto & Editable) -->
-						<div class="w-[calc(50%-5px)] sm:w-36 shrink-0">
-							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1">
-								Status Generus
-							</label>
-							<select
-								bind:value={row.statusGenerus}
-								class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs font-semibold text-primary focus:ring-1 focus:ring-primary"
+						<!-- Tombol Khusus: Tambah Anggota ke Keluarga Ini -->
+						<div class="pt-1">
+							<button
+								type="button"
+								onclick={() => addMemberToFamily(fam)}
+								class="w-full py-2.5 px-3 rounded-xl border border-dashed border-primary/40 bg-primary/[0.04] hover:bg-primary/[0.08] text-primary text-xs font-semibold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer"
 							>
-								{#each DAFTAR_STATUS_GENERUS as g}
-									<option value={g}>{g}</option>
-								{/each}
-							</select>
+								<UserPlus class="w-4 h-4" />
+								<span>+ Tambah Anggota ke KK Ini (Otomatis Menjadi Bagian dari KK Ini)</span>
+							</button>
 						</div>
-
-						<!-- Status Pernikahan -->
-						<div class="w-[calc(50%-5px)] sm:w-36 shrink-0">
-							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1">
-								Status Nikah
-							</label>
-							<select
-								bind:value={row.statusMenikah}
-								onchange={() => onTanggalLahirOrMenikahChange(row)}
-								class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
-							>
-								{#each DAFTAR_STATUS_PERNIKAHAN as sm}
-									<option value={sm}>{sm}</option>
-								{/each}
-							</select>
-						</div>
-
-						<!-- No HP / WA -->
-						<div class="w-[calc(50%-5px)] sm:w-36 shrink-0">
-							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1">
-								No. HP / WA
-							</label>
-							<input
-								type="text"
-								bind:value={row.noTelepon}
-								placeholder="0812xxxx"
-								class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary"
-							/>
-						</div>
-
-						<!-- Profesi -->
-						<div class="w-[calc(50%-5px)] sm:w-36 shrink-0">
-							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1">
-								Profesi
-							</label>
-							<input
-								type="text"
-								bind:value={row.profesi}
-								placeholder="Contoh: Karyawan"
-								class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
-							/>
-						</div>
-
-						<!-- Alamat Domisili -->
-						<div class="w-full sm:w-60 flex-1 min-w-[200px]">
-							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1">
-								Alamat Domisili
-							</label>
-							<input
-								type="text"
-								bind:value={row.alamat}
-								placeholder="Alamat domisili"
-								class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
-							/>
-						</div>
-
-						<!-- Golongan Darah -->
-						<div class="w-20 shrink-0">
-							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1 text-center">
-								Gol. Darah
-							</label>
-							<select
-								bind:value={row.golonganDarah}
-								class="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary text-center"
-							>
-								{#each DAFTAR_GOLONGAN_DARAH as gd}
-									<option value={gd}>{gd}</option>
-								{/each}
-							</select>
-						</div>
-
-						<!-- Status Jamaah (Admin Only) -->
-						<div class="w-[calc(50%-5px)] sm:w-28 shrink-0">
-							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1">
-								Status Jamaah
-							</label>
-							<select
-								bind:value={row.statusJamaah}
-								class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
-							>
-								{#each DAFTAR_STATUS_JAMAAH as sj}
-									<option value={sj}>{sj}</option>
-								{/each}
-							</select>
-						</div>
-
-						<!-- Isrun (Admin Only) -->
-						<div class="w-[calc(50%-5px)] sm:w-20 shrink-0">
-							<label class="block text-[10.5px] font-semibold text-foreground/75 mb-1">
-								Isrun
-							</label>
-							<select
-								bind:value={row.isrun}
-								class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
-							>
-								{#each DAFTAR_ISRUN as isr}
-									<option value={isr}>{isr}</option>
-								{/each}
-							</select>
-						</div>
-
-						<!-- Email Login (Muncul jika Buat Akun aktif) -->
-						{#if row.buatAkun}
-							<div class="w-full sm:w-60 shrink-0 bg-amber-500/10 p-1.5 rounded-lg border border-amber-500/20">
-								<label class="block text-[10.5px] font-semibold text-amber-900 dark:text-amber-200 mb-1">
-									Email Akun Login (Opsional)
-								</label>
-								<input
-									type="email"
-									bind:value={row.email}
-									placeholder="nama@email.com"
-									class="w-full bg-background border border-border rounded-md px-2 py-1 text-xs text-foreground focus:ring-1 focus:ring-primary"
-								/>
-							</div>
-						{/if}
 					</div>
 				</div>
 			{/each}
 		</div>
 
-		<!-- Tombol Tambah Baris Cepat di Bawah List -->
-		<div class="flex justify-center pt-2 pb-1">
+		<!-- Tombol Tambah KK Baru di Bawah Seluruh List -->
+		<div class="flex flex-wrap items-center justify-center gap-3 pt-3 pb-2">
 			<button
 				type="button"
-				onclick={addRow}
-				class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-dashed border-border bg-card/60 hover:bg-card hover:border-primary text-xs font-semibold text-foreground/80 hover:text-primary transition-all shadow-sm"
+				onclick={addFamily}
+				class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-primary/40 bg-card hover:bg-secondary text-xs font-bold text-primary transition-all shadow-sm hover:shadow"
 			>
-				<Plus class="w-4 h-4 text-primary" />
-				<span>Tambah Baris Jiwa Baru</span>
+				<Home class="w-4 h-4" />
+				<span>+ Tambah Kartu Keluarga Baru</span>
+			</button>
+
+			<button
+				type="button"
+				onclick={addPerantauFamily}
+				class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-border bg-card hover:bg-secondary text-xs font-semibold text-foreground/80 hover:text-foreground transition-all shadow-sm"
+			>
+				<Users class="w-4 h-4 text-blue-500" />
+				<span>+ Tambah Jamaah Mandiri / Perantau</span>
 			</button>
 		</div>
 
-		<!-- Submit Action Floating Bar -->
-		<div class="flex items-center justify-between p-4 bg-card border border-border rounded-xl shadow-lg">
-			<div class="flex items-center gap-2 text-xs text-foreground/70">
-				<Sparkles class="w-4 h-4 text-primary" />
+		<!-- Floating / Sticky Action Bar Simpan Batch -->
+		<div
+			class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-card border border-border rounded-2xl shadow-lg sticky bottom-2 z-20 backdrop-blur-md"
+		>
+			<div class="flex items-center gap-2 text-xs text-foreground/75">
+				<Sparkles class="w-4 h-4 text-primary shrink-0" />
 				<span>
-					Pastikan data tanggal lahir terisi dengan format YYYY-MM-DD agar status generus terhitung akurat.
+					Format tanggal lahir: <strong>YYYY-MM-DD</strong>. Status generus terhitung otomatis
+					berdasarkan umur.
 				</span>
 			</div>
 
-			<div class="flex items-center gap-2">
+			<div class="flex items-center gap-2.5 justify-end">
 				<a
 					href="/admin/sensus"
-					class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary transition-colors"
+					class="px-4 py-2 rounded-xl border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary transition-colors"
 				>
 					Batal
 				</a>
 				<button
 					type="submit"
 					disabled={isSubmitting}
-					class="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold transition-all shadow-md active:scale-95 disabled:opacity-50"
+					class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold transition-all shadow-md active:scale-95 disabled:opacity-50"
 				>
 					{#if isSubmitting}
-						<span class="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-						<span>Menyimpan Batch...</span>
+						<span
+							class="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"
+						></span>
+						<span>Menyimpan Batch Transaksi...</span>
 					{:else}
 						<Save class="w-4 h-4" />
-						<span>Simpan {rows.length} Baris Sensus</span>
+						<span>Simpan {totalJiwa} Jiwa ({families.length} Keluarga)</span>
 					{/if}
 				</button>
 			</div>
@@ -821,7 +1151,9 @@
 		role="dialog"
 		aria-modal="true"
 	>
-		<div class="bg-card border border-border rounded-2xl max-w-2xl w-full p-5 shadow-2xl space-y-4">
+		<div
+			class="bg-card border border-border rounded-2xl max-w-2xl w-full p-5 shadow-2xl space-y-4"
+		>
 			<div class="flex items-center justify-between border-b border-border pb-3">
 				<div>
 					<h3 class="text-sm font-bold text-foreground flex items-center gap-2">
@@ -835,17 +1167,22 @@
 				<button
 					type="button"
 					onclick={() => (showPasteModal = false)}
-					class="text-foreground/50 hover:text-foreground text-sm font-semibold"
+					class="text-foreground/50 hover:text-foreground text-sm font-semibold p-1"
 				>
 					✕
 				</button>
 			</div>
 
 			<div class="space-y-2">
-				<div class="text-[11px] text-foreground/70 bg-secondary/50 p-2.5 rounded-lg border border-border space-y-1">
+				<div
+					class="text-[11px] text-foreground/70 bg-secondary/50 p-2.5 rounded-lg border border-border space-y-1"
+				>
 					<p class="font-semibold text-foreground">💡 Tips Urutan Kolom Sesuai Spreadsheet:</p>
 					<p class="font-mono text-[10px] text-foreground/60 overflow-x-auto">
 						No | Kelompok | Nama Lengkap | JK | Tempat Lahir | Tgl Lahir | Umur | Alamat | Profesi | No HP | Status Generus | Status Menikah | Status Keluarga | No KK | Status Jamaah | Isrun | Gol. Darah
+					</p>
+					<p class="text-[10.5px] text-primary pt-0.5">
+						Baris anggota di bawah Kepala Keluarga otomatis masuk ke KK yang sama walau No KK tidak diisi ulang.
 					</p>
 				</div>
 
@@ -870,10 +1207,9 @@
 					onclick={processPastedSpreadsheet}
 					class="px-5 py-2 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold transition-all shadow-sm"
 				>
-					Proses & Masukkan ke Tabel
+					Proses & Kelompokkan ke KK
 				</button>
 			</div>
 		</div>
 	</div>
 {/if}
-

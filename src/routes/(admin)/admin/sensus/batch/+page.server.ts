@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(admin)/admin/sensus/batch/+page.server.ts
- * @purpose Server load & action untuk batch insert sensus keluarga, kalkulasi otomatis generus, dan pembuatan akun login
+ * @purpose Server load & action untuk batch insert hierarki keluarga, mengikat anggota ke kartu keluarga yang sama (dengan atau tanpa No KK), kalkulasi otomatis generus, dan pembuatan akun login
  * @usedBy src/routes/(admin)/admin/sensus/batch/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/auth, src/lib/server/scope, src/lib/generus, src/lib/utils, drizzle-orm
  * @publicFunctions load, actions.default
@@ -16,7 +16,6 @@ import { hashPassword } from '$lib/server/auth';
 import { getAdminScope, getAccessibleWilayah, isKelompokAllowed } from '$lib/server/scope';
 import { normalizeDateToISO } from '$lib/utils';
 import { hitungStatusGenerus, hitungUmur } from '$lib/generus';
-import { eq } from 'drizzle-orm';
 
 export interface BatchRowInput {
 	id?: string;
@@ -31,16 +30,24 @@ export interface BatchRowInput {
 	noTelepon?: string;
 	statusGenerus?: string;
 	statusMenikah: 'Belum Menikah' | 'Sudah Menikah';
-	statusKeluarga: string; // 'Bapak', 'Ibu', 'Anak', dll
-	noKk?: string; // e.g. TB1-01 atau nomor KK
+	statusKeluarga: string;
+	noKk?: string;
 	nik?: string;
 	statusJamaah?: 'Aktif' | 'Tidak Aktif';
 	isrun?: 'Ya' | 'Tidak';
 	golonganDarah?: string;
-	isPerantau?: boolean;
 	buatAkun?: boolean;
 	email?: string;
 	password?: string;
+}
+
+export interface FamilyBatchGroup {
+	id?: string;
+	noKk?: string;
+	alamat?: string;
+	isPerantau?: boolean;
+	kelompokId?: number | string;
+	members: BatchRowInput[];
 }
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -75,74 +82,95 @@ export const actions: Actions = {
 		const defaultKelompokIdRaw = formData.get('defaultKelompokId')?.toString() || '';
 		const defaultKelompokId = defaultKelompokIdRaw ? parseInt(defaultKelompokIdRaw, 10) : null;
 
-		let rows: BatchRowInput[] = [];
+		let parsedData: any;
 		try {
-			rows = JSON.parse(rawBatchData);
+			parsedData = JSON.parse(rawBatchData);
 		} catch (_) {
 			return fail(400, { error: 'Format data batch tidak valid.' });
 		}
 
-		if (!Array.isArray(rows) || rows.length === 0) {
-			return fail(400, { error: 'Belum ada data baris yang diisi untuk diproses.' });
+		if (!Array.isArray(parsedData) || parsedData.length === 0) {
+			return fail(400, { error: 'Belum ada data keluarga yang diisi untuk diproses.' });
+		}
+
+		// Normalisasi ke format FamilyBatchGroup[]
+		let familyGroups: FamilyBatchGroup[] = [];
+		if ('members' in parsedData[0] && Array.isArray(parsedData[0].members)) {
+			familyGroups = parsedData as FamilyBatchGroup[];
+		} else {
+			// Fallback jika format flat list legacy
+			const flatRows = parsedData as BatchRowInput[];
+			let standaloneIdx = 0;
+			const tempMap = new Map<string, BatchRowInput[]>();
+			for (const r of flatRows) {
+				const isP =
+					r.statusKeluarga?.toLowerCase().includes('perantau') ||
+					r.statusKeluarga?.toLowerCase() === 'mandiri';
+				const key = isP || !r.noKk?.trim() ? `__AUTO_${++standaloneIdx}__` : r.noKk.trim();
+				const arr = tempMap.get(key) || [];
+				arr.push(r);
+				tempMap.set(key, arr);
+			}
+			for (const [key, mems] of tempMap.entries()) {
+				const isP = key.startsWith('__AUTO_');
+				familyGroups.push({
+					id: key,
+					noKk: isP ? '' : key,
+					isPerantau: isP,
+					members: mems
+				});
+			}
 		}
 
 		const adminScope = getAdminScope(locals.roles);
 		const accessibleWilayah = getAccessibleWilayah(adminScope);
 
-		// Validasi dasar tiap baris
-		const validRows: Array<BatchRowInput & { finalKelompokId: number | null }> = [];
-		for (let i = 0; i < rows.length; i++) {
-			const r = rows[i];
-			const nama = r.namaLengkap?.trim();
-			if (!nama) {
-				return fail(400, { error: `Baris ke-${i + 1}: Nama lengkap wajib diisi.` });
-			}
-			if (!r.tanggalLahir?.trim()) {
-				return fail(400, { error: `Baris ke-${i + 1} (${nama}): Tanggal lahir wajib diisi.` });
-			}
-			if (!r.statusKeluarga?.trim()) {
-				return fail(400, {
-					error: `Baris ke-${i + 1} (${nama}): Hubungan keluarga wajib dipilih (tidak boleh kosong).`
-				});
-			}
+		// Validasi dasar tiap anggota di dalam setiap keluarga
+		let totalJiwa = 0;
+		for (let fIdx = 0; fIdx < familyGroups.length; fIdx++) {
+			const fam = familyGroups[fIdx];
+			if (!fam.members || fam.members.length === 0) continue;
 
-			let kId = r.kelompokId ? parseInt(String(r.kelompokId), 10) : defaultKelompokId;
-			if (kId && !isKelompokAllowed(kId, accessibleWilayah.allowedKelompokIdSet, adminScope.isPusat)) {
-				return fail(403, {
-					error: `Baris ke-${i + 1} (${nama}): Anda tidak memiliki wewenang untuk kelompok ID ${kId}.`
-				});
-			}
+			for (let mIdx = 0; mIdx < fam.members.length; mIdx++) {
+				const m = fam.members[mIdx];
+				const nama = m.namaLengkap?.trim();
+				if (!nama) {
+					return fail(400, {
+						error: `Keluarga #${fIdx + 1}, Anggota #${mIdx + 1}: Nama lengkap wajib diisi.`
+					});
+				}
+				if (!m.tanggalLahir?.trim()) {
+					return fail(400, {
+						error: `Keluarga #${fIdx + 1} (${nama}): Tanggal lahir wajib diisi.`
+					});
+				}
+				if (!m.statusKeluarga?.trim()) {
+					return fail(400, {
+						error: `Keluarga #${fIdx + 1} (${nama}): Hubungan keluarga wajib dipilih (tidak boleh kosong).`
+					});
+				}
 
-			validRows.push({
-				...r,
-				namaLengkap: nama,
-				finalKelompokId: kId || null
-			});
+				let kId = m.kelompokId
+					? parseInt(String(m.kelompokId), 10)
+					: fam.kelompokId
+						? parseInt(String(fam.kelompokId), 10)
+						: defaultKelompokId;
+
+				if (kId && !isKelompokAllowed(kId, accessibleWilayah.allowedKelompokIdSet, adminScope.isPusat)) {
+					return fail(403, {
+						error: `Keluarga #${fIdx + 1} (${nama}): Anda tidak memiliki wewenang untuk kelompok ID ${kId}.`
+					});
+				}
+				totalJiwa++;
+			}
+		}
+
+		if (totalJiwa === 0) {
+			return fail(400, { error: 'Belum ada data anggota keluarga yang diisi untuk diproses.' });
 		}
 
 		// Optimasi CPU: Pre-hash default password sekali saja
 		const defaultPasswordHash = await hashPassword(defaultPassword);
-
-		// Kelompokkan data per keluarga berdasarkan nilai noKk
-		// Jika perantau atau noKk kosong / mandiri, buat grup terpisah
-		const familyGroups = new Map<string, typeof validRows>();
-		let standaloneIndex = 0;
-
-		for (const r of validRows) {
-			const isPerantau =
-				!!r.isPerantau ||
-				r.statusKeluarga.toLowerCase().includes('perantau') ||
-				r.statusKeluarga.toLowerCase() === 'mandiri';
-			const kkKey = isPerantau ? '' : r.noKk?.trim();
-			if (kkKey) {
-				const group = familyGroups.get(kkKey) || [];
-				group.push(r);
-				familyGroups.set(kkKey, group);
-			} else {
-				standaloneIndex++;
-				familyGroups.set(`__STANDALONE_${standaloneIndex}__`, [r]);
-			}
-		}
 
 		// Persiapan data existing users untuk mencegah crash unik email
 		const existingUserEmails = new Set(
@@ -160,54 +188,55 @@ export const actions: Actions = {
 
 		try {
 			db.transaction((tx) => {
-				for (const [kkKey, members] of familyGroups.entries()) {
-					const isActualKk = !kkKey.startsWith('__STANDALONE_');
-					const noKkEncrypted = isActualKk ? encryptSensitive(kkKey) : null;
+				for (const fam of familyGroups) {
+					if (!fam.members || fam.members.length === 0) continue;
 
-					// Cari kepala keluarga: anggota dengan status 'Bapak' atau 'Kepala Keluarga'
-					let headIndex = members.findIndex(
+					const isActualKk = !fam.isPerantau;
+					const noKkEncrypted =
+						isActualKk && fam.noKk?.trim() ? encryptSensitive(fam.noKk.trim()) : null;
+
+					// Cari kepala keluarga: cari member 'Kepala Keluarga' atau 'Bapak'
+					let headIndex = fam.members.findIndex(
 						(m) =>
-							m.statusKeluarga.toLowerCase() === 'bapak' ||
-							m.statusKeluarga.toLowerCase() === 'kepala keluarga'
+							m.statusKeluarga.toLowerCase() === 'kepala keluarga' ||
+							m.statusKeluarga.toLowerCase() === 'bapak'
 					);
 					if (headIndex === -1) {
-						headIndex = 0; // Default ke baris pertama
+						headIndex = 0;
 					}
 
 					let kepalaKeluargaUserId: string | null = null;
-					const headMember = members[headIndex];
-
-					// Tentukan alamat keluarga dari kepala atau default
 					const familyAlamat =
-						members.find((m) => m.alamat && m.alamat.trim())?.alamat?.trim() || '-';
+						fam.alamat?.trim() ||
+						fam.members.find((m) => m.alamat && m.alamat.trim())?.alamat?.trim() ||
+						'-';
 
-					// Map untuk menyimpan userId yang sudah dibuat per member
-					const memberUserIds: Array<string | null> = new Array(members.length).fill(null);
+					const memberUserIds: Array<string | null> = new Array(fam.members.length).fill(null);
 
-					// Proses pembuatan akun user jika diminta
-					for (let i = 0; i < members.length; i++) {
-						const m = members[i];
+					// 1. Proses pembuatan akun user jika diminta
+					for (let i = 0; i < fam.members.length; i++) {
+						const m = fam.members[i];
 						if (m.buatAkun) {
 							let userEmail = m.email?.trim()?.toLowerCase() || null;
 							if (userEmail && existingUserEmails.has(userEmail)) {
-								// Hindari error email ganda
 								userEmail = null;
 							}
 							if (userEmail) existingUserEmails.add(userEmail);
 
-							const customHash =
-								m.password && m.password !== defaultPassword
-									? null // jika custom, nanti di-hash terpisah jika diperlukan
-									: defaultPasswordHash;
+							const kId = m.kelompokId
+								? parseInt(String(m.kelompokId), 10)
+								: fam.kelompokId
+									? parseInt(String(fam.kelompokId), 10)
+									: defaultKelompokId;
 
 							const [createdUser] = tx
 								.insert(users)
 								.values({
-									kelompokId: m.finalKelompokId,
-									namaLengkap: m.namaLengkap,
+									kelompokId: kId,
+									namaLengkap: m.namaLengkap.trim(),
 									email: userEmail,
 									noTelepon: m.noTelepon?.trim() || null,
-									passwordHash: customHash || defaultPasswordHash
+									passwordHash: defaultPasswordHash
 								})
 								.returning()
 								.all();
@@ -221,7 +250,7 @@ export const actions: Actions = {
 						}
 					}
 
-					// Buat record keluarga
+					// 2. Buat record keluarga (1 KK atau 1 Mandiri/Perantau)
 					const [newKeluarga] = tx
 						.insert(keluarga)
 						.values({
@@ -235,9 +264,9 @@ export const actions: Actions = {
 
 					totalKeluargaCreated++;
 
-					// Simpan seluruh anggota keluarga ke dalam keluarga ini
-					for (let i = 0; i < members.length; i++) {
-						const m = members[i];
+					// 3. Simpan seluruh anggota keluarga ke dalam record keluarga ini
+					for (let i = 0; i < fam.members.length; i++) {
+						const m = fam.members[i];
 						const umurCalc = hitungUmur(m.tanggalLahir);
 						const statusGenerusFinal =
 							m.statusGenerus || hitungStatusGenerus(umurCalc, m.statusMenikah);
@@ -248,9 +277,9 @@ export const actions: Actions = {
 							.values({
 								keluargaId: newKeluarga.id,
 								userId: memberUserIds[i] || null,
-								namaLengkap: m.namaLengkap,
+								namaLengkap: m.namaLengkap.trim(),
 								nikEncrypted,
-								statusHubungan: m.statusKeluarga || 'Anak',
+								statusHubungan: m.statusKeluarga || (i === 0 ? 'Kepala Keluarga' : 'Anak'),
 								tanggalLahir: normalizeDateToISO(m.tanggalLahir),
 								jenisKelamin: m.jenisKelamin === 'P' ? 'P' : 'L',
 								tempatLahir: m.tempatLahir?.trim() || null,
