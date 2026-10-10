@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(admin)/admin/wilayah/+page.svelte
-  @purpose Halaman manajemen Data Wilayah lengkap (Daerah, Desa, Kelompok, Sub-Kelompok), modal detail kelompok dengan pinpoint/pencarian lokasi peta Leaflet & Quick Access Google Maps
+  @purpose Halaman manajemen Data Wilayah lengkap (Daerah, Desa, Kelompok, Sub-Kelompok), modal detail kelompok dengan Leaflet, kontrol RBAC visual berjenjang
   @usedBy Route admin '/admin/wilayah'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/LocationPicker.svelte
   @publicFunctions openAddDaerahModal, closeAddDaerahModal, openAddKelompokModal, closeAddKelompokModal, openAddDesaModal, closeAddDesaModal, openAddSubKelompokModal, closeAddSubKelompokModal, openKelompokDetail, closeKelompokDetail, resetFilter
-  @sideEffects Menampilkan data wilayah, menyaring tampilan, mengelola lokasi kelompok dengan Leaflet, dan mengirim update ke server
+  @sideEffects Menampilkan data wilayah sesuai scope RBAC, menyaring data, mengelola lokasi kelompok dengan Leaflet, dan mengirim update ke server
 -->
 <script lang="ts">
 	import {
@@ -19,6 +19,7 @@
 		Plus,
 		RotateCcw,
 		Search,
+		ShieldCheck,
 		SlidersHorizontal,
 		Users,
 		X,
@@ -277,49 +278,91 @@
 		</div>
 
 		<div class="flex items-center gap-2 flex-wrap">
-			<a
-				href="/admin/wilayah/batch"
-				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/40 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold transition-all shadow-xs"
+			<!-- Badge Scope Wewenang Admin -->
+			<div
+				class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium bg-muted/40 text-foreground/80 border-border"
 			>
-				<FileSpreadsheet class="w-3.5 h-3.5" />
-				<span>Batch Insert Wilayah</span>
-			</a>
+				<ShieldCheck class="w-3.5 h-3.5 text-primary" />
+				<span>Scope: <strong class="text-foreground">{data.adminScope.level}</strong></span>
+				{#if data.adminScope.level === 'Desa' && data.desaList.length > 0}
+					<span class="text-foreground/50">({data.desaList.map((d) => d.nama).join(', ')})</span>
+				{:else if data.adminScope.level === 'Daerah' && data.daerahList.length > 0}
+					<span class="text-foreground/50">({data.daerahList.map((d) => d.nama).join(', ')})</span>
+				{:else if data.adminScope.level === 'Kelompok' && data.kelompokList.length > 0}
+					<span class="text-foreground/50">({data.kelompokList.map((k) => k.nama).join(', ')})</span>
+				{:else if data.adminScope.isPusat}
+					<span class="text-foreground/50">(Seluruh Wilayah)</span>
+				{/if}
+			</div>
 
-			<button
-				type="button"
-				onclick={() => (showAddDaerahModal = true)}
-				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold transition-all shadow-xs"
-			>
-				<MapPin class="w-3.5 h-3.5" />
-				<span>+ Daerah</span>
-			</button>
+			{#if data.permissions.canBatchInsert}
+				<a
+					href="/admin/wilayah/batch"
+					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/40 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold transition-all shadow-xs"
+				>
+					<FileSpreadsheet class="w-3.5 h-3.5" />
+					<span>Batch Insert Wilayah</span>
+				</a>
+			{/if}
 
-			<button
-				type="button"
-				onclick={() => (showAddDesaModal = true)}
-				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-secondary/50 hover:bg-secondary text-foreground text-xs font-semibold transition-colors"
-			>
-				<Building class="w-3.5 h-3.5 text-primary" />
-				<span>+ Desa</span>
-			</button>
+			{#if data.permissions.canCreateDaerah}
+				<button
+					type="button"
+					onclick={() => (showAddDaerahModal = true)}
+					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold transition-all shadow-xs"
+				>
+					<MapPin class="w-3.5 h-3.5" />
+					<span>+ Daerah</span>
+				</button>
+			{/if}
 
-			<button
-				type="button"
-				onclick={() => (showAddKelompokModal = true)}
-				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-secondary/50 hover:bg-secondary text-foreground text-xs font-semibold transition-colors"
-			>
-				<Home class="w-3.5 h-3.5 text-primary" />
-				<span>+ Kelompok</span>
-			</button>
+			{#if data.permissions.canCreateDesa}
+				<button
+					type="button"
+					onclick={() => {
+						if (data.daerahList.length === 1) {
+							selectedDaerahId = data.daerahList[0].id;
+						}
+						showAddDesaModal = true;
+					}}
+					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-secondary/50 hover:bg-secondary text-foreground text-xs font-semibold transition-colors"
+				>
+					<Building class="w-3.5 h-3.5 text-primary" />
+					<span>+ Desa</span>
+				</button>
+			{/if}
 
-			<button
-				type="button"
-				onclick={() => (showAddSubKelompokModal = true)}
-				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-secondary/50 hover:bg-secondary text-foreground text-xs font-semibold transition-colors"
-			>
-				<Layers class="w-3.5 h-3.5 text-blue-500" />
-				<span>+ Sub-Kelompok</span>
-			</button>
+			{#if data.permissions.canCreateKelompok}
+				<button
+					type="button"
+					onclick={() => {
+						if (data.desaList.length === 1) {
+							selectedDesaId = data.desaList[0].id;
+						}
+						showAddKelompokModal = true;
+					}}
+					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-secondary/50 hover:bg-secondary text-foreground text-xs font-semibold transition-colors"
+				>
+					<Home class="w-3.5 h-3.5 text-primary" />
+					<span>+ Kelompok</span>
+				</button>
+			{/if}
+
+			{#if data.permissions.canCreateSubKelompok}
+				<button
+					type="button"
+					onclick={() => {
+						if (data.kelompokList.length === 1) {
+							selectedKelompokId = data.kelompokList[0].id;
+						}
+						showAddSubKelompokModal = true;
+					}}
+					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-secondary/50 hover:bg-secondary text-foreground text-xs font-semibold transition-colors"
+				>
+					<Layers class="w-3.5 h-3.5 text-blue-500" />
+					<span>+ Sub-Kelompok</span>
+				</button>
+			{/if}
 		</div>
 	</div>
 
@@ -850,15 +893,25 @@
 					<label for="desaId" class="block text-xs font-semibold text-foreground mb-1.5">
 						Desa Induk *
 					</label>
-					<SearchableSelect
-						id="desaId"
-						name="desaId"
-						options={desaOptions}
-						bind:value={selectedDesaId}
-						required
-						placeholder="-- Pilih Desa Induk --"
-						searchPlaceholder="Cari nama desa..."
-					/>
+					{#if data.desaList.length === 1}
+						<div
+							class="px-3 py-2 bg-secondary/40 border border-border rounded-lg text-xs font-semibold text-foreground flex items-center justify-between"
+						>
+							<span>{data.desaList[0].nama}</span>
+							<span class="text-[10.5px] text-foreground/50 font-normal">Wilayah Binaan Anda</span>
+						</div>
+						<input type="hidden" name="desaId" value={data.desaList[0].id} />
+					{:else}
+						<SearchableSelect
+							id="desaId"
+							name="desaId"
+							options={desaOptions}
+							bind:value={selectedDesaId}
+							required
+							placeholder="-- Pilih Desa Induk --"
+							searchPlaceholder="Cari nama desa..."
+						/>
+					{/if}
 				</div>
 
 				<div>
@@ -939,15 +992,25 @@
 					<label for="daerahId" class="block text-xs font-semibold text-foreground mb-1.5">
 						Daerah Induk *
 					</label>
-					<SearchableSelect
-						id="daerahId"
-						name="daerahId"
-						options={daerahOptions}
-						bind:value={selectedDaerahId}
-						required
-						placeholder="-- Pilih Daerah Induk --"
-						searchPlaceholder="Cari nama daerah atau kabupaten..."
-					/>
+					{#if data.daerahList.length === 1}
+						<div
+							class="px-3 py-2 bg-secondary/40 border border-border rounded-lg text-xs font-semibold text-foreground flex items-center justify-between"
+						>
+							<span>{data.daerahList[0].nama}</span>
+							<span class="text-[10.5px] text-foreground/50 font-normal">Daerah Binaan Anda</span>
+						</div>
+						<input type="hidden" name="daerahId" value={data.daerahList[0].id} />
+					{:else}
+						<SearchableSelect
+							id="daerahId"
+							name="daerahId"
+							options={daerahOptions}
+							bind:value={selectedDaerahId}
+							required
+							placeholder="-- Pilih Daerah Induk --"
+							searchPlaceholder="Cari nama daerah atau kabupaten..."
+						/>
+					{/if}
 				</div>
 
 				<div>
@@ -1028,15 +1091,25 @@
 					<label for="subKelompokKelompokId" class="block text-xs font-semibold text-foreground mb-1.5">
 						Kelompok Induk *
 					</label>
-					<SearchableSelect
-						id="subKelompokKelompokId"
-						name="kelompokId"
-						options={kelompokOptions}
-						bind:value={selectedKelompokId}
-						required
-						placeholder="-- Pilih Kelompok Induk --"
-						searchPlaceholder="Cari nama kelompok..."
-					/>
+					{#if data.kelompokList.length === 1}
+						<div
+							class="px-3 py-2 bg-secondary/40 border border-border rounded-lg text-xs font-semibold text-foreground flex items-center justify-between"
+						>
+							<span>{data.kelompokList[0].nama}</span>
+							<span class="text-[10.5px] text-foreground/50 font-normal">Kelompok Binaan Anda</span>
+						</div>
+						<input type="hidden" name="kelompokId" value={data.kelompokList[0].id} />
+					{:else}
+						<SearchableSelect
+							id="subKelompokKelompokId"
+							name="kelompokId"
+							options={kelompokOptions}
+							bind:value={selectedKelompokId}
+							required
+							placeholder="-- Pilih Kelompok Induk --"
+							searchPlaceholder="Cari nama kelompok..."
+						/>
+					{/if}
 				</div>
 
 				<div>

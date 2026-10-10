@@ -1,10 +1,10 @@
 /**
  * @file src/routes/(admin)/admin/wilayah/+page.server.ts
- * @purpose Memuat data wilayah administratif (Daerah, Desa, Kelompok, Sub-Kelompok) dan menangani aksi pembuatan unit wilayah baru
+ * @purpose Memuat data wilayah administratif berjenjang sesuai scope admin (Pusat, Daerah, Desa, Kelompok) dan otorisasi ketat aksi CRUD unit wilayah
  * @usedBy src/routes/(admin)/admin/wilayah/+page.svelte
- * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm
+ * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm
  * @publicFunctions load, actions.createDaerah, actions.createDesa, actions.createKelompok, actions.createSubKelompok, actions.updateKelompokLocation
- * @sideEffects Insert data daerah/desa/kelompok/sub_kelompok dan update lokasi kelompok ke SQLite, query agregasi jumlah jamaah dan sub-kelompok
+ * @sideEffects Insert data daerah/desa/kelompok/sub_kelompok dan update lokasi kelompok ke SQLite, verifikasi hierarki RBAC
  */
 
 import { fail, redirect } from '@sveltejs/kit';
@@ -12,30 +12,24 @@ import type { Actions, PageServerLoad } from './$types';
 import { db } from '$lib/db';
 import { daerah, desa, kelompok, subKelompok } from '$lib/db/schema';
 import { eq, sql } from 'drizzle-orm';
+import { getAdminScope, getAccessibleWilayah, isKelompokAllowed } from '$lib/server/scope';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user || !locals.isAdmin) {
 		throw redirect(303, '/login');
 	}
 
-	// 1. Ambil seluruh data daerah
-	const daerahList = db.select().from(daerah).all();
+	const adminScope = getAdminScope(locals.roles);
+	const accessibleWilayah = getAccessibleWilayah(adminScope);
 
-	// 2. Ambil seluruh data desa join nama daerah
-	const desaList = db
-		.select({
-			id: desa.id,
-			nama: desa.nama,
-			kecamatan: desa.kecamatan,
-			daerahId: desa.daerahId,
-			daerahNama: daerah.nama
-		})
-		.from(desa)
-		.leftJoin(daerah, eq(desa.daerahId, daerah.id))
-		.all();
+	// 1. Ambil seluruh data daerah yang diizinkan dalam scope admin
+	const daerahList = accessibleWilayah.daerahList;
 
-	// 3. Ambil seluruh kelompok join desa dan daerah dengan agregasi terindeks (minimum I/O, no Cartesian product)
-	const kelompokList = db
+	// 2. Ambil seluruh data desa yang diizinkan dalam scope admin
+	const desaList = accessibleWilayah.desaList;
+
+	// 3. Ambil seluruh kelompok yang diizinkan join desa dan daerah dengan agregasi terindeks
+	const rawKelompokList = db
 		.select({
 			id: kelompok.id,
 			nama: kelompok.nama,
@@ -56,8 +50,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 		.leftJoin(daerah, eq(desa.daerahId, daerah.id))
 		.all();
 
-	// 4. Ambil seluruh sub-kelompok join kelompok, desa, daerah
-	const subKelompokList = db
+	const kelompokList = adminScope.isPusat
+		? rawKelompokList
+		: rawKelompokList.filter((k) => accessibleWilayah.allowedKelompokIdSet.has(k.id));
+
+	// 4. Ambil seluruh sub-kelompok yang diizinkan
+	const rawSubKelompokList = db
 		.select({
 			id: subKelompok.id,
 			nama: subKelompok.nama,
@@ -73,7 +71,23 @@ export const load: PageServerLoad = async ({ locals }) => {
 		.leftJoin(daerah, eq(desa.daerahId, daerah.id))
 		.all();
 
+	const subKelompokList = adminScope.isPusat
+		? rawSubKelompokList
+		: rawSubKelompokList.filter((sk) => accessibleWilayah.allowedKelompokIdSet.has(sk.kelompokId));
+
+	// Hak izin CRUD administratif sesuai aturan RBAC
+	const permissions = {
+		canCreateDaerah: adminScope.isPusat,
+		canCreateDesa: adminScope.isPusat || adminScope.level === 'Daerah',
+		canCreateKelompok: adminScope.isPusat || adminScope.level === 'Daerah' || adminScope.level === 'Desa',
+		canCreateSubKelompok: true,
+		canBatchInsert: adminScope.isPusat || adminScope.level === 'Daerah',
+		scopeLevel: adminScope.level
+	};
+
 	return {
+		adminScope,
+		permissions,
 		daerahList,
 		desaList,
 		kelompokList,
@@ -85,6 +99,13 @@ export const actions: Actions = {
 	createDaerah: async ({ request, locals }) => {
 		if (!locals.user || !locals.isAdmin) {
 			return fail(403, { error: 'Akses ditolak.' });
+		}
+
+		const adminScope = getAdminScope(locals.roles);
+		if (!adminScope.isPusat) {
+			return fail(403, {
+				error: 'Akses ditolak: Hanya Pengurus Tingkat Pusat yang memiliki wewenang menambahkan Daerah.'
+			});
 		}
 
 		const formData = await request.formData();
@@ -117,6 +138,13 @@ export const actions: Actions = {
 			return fail(403, { error: 'Akses ditolak.' });
 		}
 
+		const adminScope = getAdminScope(locals.roles);
+		if (!adminScope.isPusat && adminScope.level !== 'Daerah') {
+			return fail(403, {
+				error: 'Akses ditolak: Hanya Pengurus Tingkat Pusat atau Daerah yang memiliki wewenang menambahkan Desa.'
+			});
+		}
+
 		const formData = await request.formData();
 		const nama = formData.get('nama')?.toString()?.trim() || '';
 		const kecamatan = formData.get('kecamatan')?.toString()?.trim() || '';
@@ -125,6 +153,12 @@ export const actions: Actions = {
 
 		if (!nama || isNaN(daerahId)) {
 			return fail(400, { error: 'Nama desa dan Daerah induk wajib diisi.' });
+		}
+
+		if (!adminScope.isPusat && !adminScope.daerahIds.includes(daerahId)) {
+			return fail(403, {
+				error: 'Akses ditolak: Anda tidak memiliki wewenang untuk menambahkan Desa di luar Daerah binaan Anda.'
+			});
 		}
 
 		try {
@@ -148,6 +182,13 @@ export const actions: Actions = {
 			return fail(403, { error: 'Akses ditolak.' });
 		}
 
+		const adminScope = getAdminScope(locals.roles);
+		if (adminScope.level === 'Kelompok') {
+			return fail(403, {
+				error: 'Akses ditolak: Admin tingkat Kelompok tidak memiliki wewenang membuat Kelompok baru.'
+			});
+		}
+
 		const formData = await request.formData();
 		const nama = formData.get('nama')?.toString()?.trim() || '';
 		const kelurahan = formData.get('kelurahan')?.toString()?.trim() || '';
@@ -156,6 +197,16 @@ export const actions: Actions = {
 
 		if (!nama || isNaN(desaId)) {
 			return fail(400, { error: 'Nama kelompok dan Desa induk wajib diisi.' });
+		}
+
+		if (!adminScope.isPusat) {
+			const accessibleWilayah = getAccessibleWilayah(adminScope);
+			const allowedDesaIds = new Set(accessibleWilayah.desaList.map((d) => d.id));
+			if (!allowedDesaIds.has(desaId)) {
+				return fail(403, {
+					error: 'Akses ditolak: Anda tidak memiliki wewenang membuat kelompok di luar Desa binaan Anda.'
+				});
+			}
 		}
 
 		try {
@@ -179,6 +230,7 @@ export const actions: Actions = {
 			return fail(403, { error: 'Akses ditolak.' });
 		}
 
+		const adminScope = getAdminScope(locals.roles);
 		const formData = await request.formData();
 		const nama = formData.get('nama')?.toString()?.trim() || '';
 		const keterangan = formData.get('keterangan')?.toString()?.trim() || '';
@@ -187,6 +239,15 @@ export const actions: Actions = {
 
 		if (!nama || isNaN(kelompokId)) {
 			return fail(400, { error: 'Nama sub-kelompok dan Kelompok induk wajib diisi.' });
+		}
+
+		if (!adminScope.isPusat) {
+			const accessibleWilayah = getAccessibleWilayah(adminScope);
+			if (!accessibleWilayah.allowedKelompokIdSet.has(kelompokId)) {
+				return fail(403, {
+					error: 'Akses ditolak: Anda tidak memiliki wewenang membuat Sub-Kelompok di luar Kelompok binaan Anda.'
+				});
+			}
 		}
 
 		try {
@@ -210,6 +271,7 @@ export const actions: Actions = {
 			return fail(403, { error: 'Akses ditolak.' });
 		}
 
+		const adminScope = getAdminScope(locals.roles);
 		const formData = await request.formData();
 		const kelompokId = parseInt(formData.get('kelompokId')?.toString() || '0', 10);
 		const lokasiNama = formData.get('lokasiNama')?.toString()?.trim() || null;
@@ -221,6 +283,15 @@ export const actions: Actions = {
 
 		if (!kelompokId) {
 			return fail(400, { error: 'ID Kelompok tidak valid.' });
+		}
+
+		if (!adminScope.isPusat) {
+			const accessibleWilayah = getAccessibleWilayah(adminScope);
+			if (!accessibleWilayah.allowedKelompokIdSet.has(kelompokId)) {
+				return fail(403, {
+					error: 'Akses ditolak: Anda tidak memiliki wewenang mengelola lokasi kelompok ini.'
+				});
+			}
 		}
 
 		try {

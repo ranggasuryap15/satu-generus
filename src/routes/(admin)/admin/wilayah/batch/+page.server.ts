@@ -1,10 +1,10 @@
 /**
  * @file src/routes/(admin)/admin/wilayah/batch/+page.server.ts
- * @purpose Server load & action untuk batch insert data wilayah (Daerah, Desa, Kelompok, Sub-Kelompok) secara atomik dalam satu transaksi SQLite
+ * @purpose Server load & action untuk batch insert data wilayah (Daerah, Desa, Kelompok, Sub-Kelompok) dengan validasi scope administratif (Pusat & Daerah saja)
  * @usedBy src/routes/(admin)/admin/wilayah/batch/+page.svelte
- * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm
+ * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm
  * @publicFunctions load, actions.default
- * @sideEffects Menulis data massal ke tabel daerah, desa, kelompok, dan sub_kelompok dalam transaksi SQLite terisolasi
+ * @sideEffects Menulis data massal wilayah ke SQLite dalam transaksi atomik dengan verifikasi wewenang RBAC
  */
 
 import { fail, redirect } from '@sveltejs/kit';
@@ -12,6 +12,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { db } from '$lib/db';
 import { daerah, desa, kelompok, subKelompok } from '$lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { getAdminScope, getAccessibleWilayah } from '$lib/server/scope';
 
 export interface BatchSubKelompokInput {
 	id?: string;
@@ -41,21 +42,17 @@ export const load: PageServerLoad = async ({ locals }) => {
 		throw redirect(303, '/login');
 	}
 
-	const daerahList = db.select().from(daerah).all();
-	const desaList = db
-		.select({
-			id: desa.id,
-			nama: desa.nama,
-			daerahId: desa.daerahId,
-			daerahNama: daerah.nama
-		})
-		.from(desa)
-		.leftJoin(daerah, eq(desa.daerahId, daerah.id))
-		.all();
+	const adminScope = getAdminScope(locals.roles);
+	if (adminScope.level === 'Kelompok' || adminScope.level === 'Desa') {
+		throw redirect(303, '/admin/wilayah');
+	}
+
+	const accessibleWilayah = getAccessibleWilayah(adminScope);
 
 	return {
-		daerahList,
-		desaList
+		adminScope,
+		daerahList: accessibleWilayah.daerahList,
+		desaList: accessibleWilayah.desaList
 	};
 };
 
@@ -63,6 +60,13 @@ export const actions: Actions = {
 	default: async ({ request, locals }) => {
 		if (!locals.user || !locals.isAdmin) {
 			throw redirect(303, '/login');
+		}
+
+		const adminScope = getAdminScope(locals.roles);
+		if (adminScope.level === 'Kelompok' || adminScope.level === 'Desa') {
+			return fail(403, {
+				error: 'Akses ditolak: Batch insert wilayah hanya dapat diakses oleh Admin Tingkat Pusat atau Daerah.'
+			});
 		}
 
 		const formData = await request.formData();
@@ -79,15 +83,29 @@ export const actions: Actions = {
 			return fail(400, { error: 'Belum ada data wilayah yang diisi untuk diproses.' });
 		}
 
+		const accessibleWilayah = getAccessibleWilayah(adminScope);
+		const allowedDaerahNames = new Set(accessibleWilayah.daerahList.map((d) => d.nama.toLowerCase().trim()));
+
 		// Validasi dasar
 		let totalKelompokCount = 0;
 		for (let i = 0; i < parsedData.length; i++) {
 			const group = parsedData[i] as BatchDesaGroup;
-			if (!group.daerahNama?.trim()) {
+			const cleanDaerahNama = group.daerahNama?.trim() || '';
+			if (!cleanDaerahNama) {
 				return fail(400, { error: `Grup #${i + 1}: Nama Daerah wajib diisi.` });
 			}
+
+			// Validasi scope: Admin Daerah tidak boleh menginput data untuk daerah lain
+			if (!adminScope.isPusat) {
+				if (!allowedDaerahNames.has(cleanDaerahNama.toLowerCase())) {
+					return fail(403, {
+						error: `Akses ditolak: Daerah "${cleanDaerahNama}" berada di luar wewenang daerah binaan Anda.`
+					});
+				}
+			}
+
 			if (!group.desaNama?.trim()) {
-				return fail(400, { error: `Grup #${i + 1} (${group.daerahNama}): Nama Desa wajib diisi.` });
+				return fail(400, { error: `Grup #${i + 1} (${cleanDaerahNama}): Nama Desa wajib diisi.` });
 			}
 			if (!group.kelompoks || group.kelompoks.length === 0) {
 				return fail(400, {
@@ -142,6 +160,11 @@ export const actions: Actions = {
 
 					let daerahId = existingDaerahMap.get(daerahKey);
 					if (!daerahId) {
+						if (!adminScope.isPusat) {
+							throw new Error(
+								`Akses ditolak: Admin tingkat Daerah tidak memiliki wewenang membuat Daerah baru ("${cleanDaerahNama}").`
+							);
+						}
 						const [newDaerah] = tx
 							.insert(daerah)
 							.values({

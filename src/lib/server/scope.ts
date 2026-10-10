@@ -1,7 +1,7 @@
 /**
  * @file src/lib/server/scope.ts
  * @purpose Evaluasi wewenang administratif berjenjang (Pusat, Daerah, Desa, Kelompok) dan filter wilayah RBAC
- * @usedBy src/routes/(admin)/admin/sensus/+page.server.ts, rute admin lainnya yang memerlukan validasi scope
+ * @usedBy src/routes/(admin)/admin/sensus/+page.server.ts, src/routes/(admin)/admin/wilayah/+page.server.ts, src/routes/(admin)/admin/wilayah/batch/+page.server.ts
  * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm
  * @publicFunctions getAdminScope, getAccessibleWilayah, isKelompokAllowed
  * @sideEffects Membaca data relasi master daerah, desa, dan kelompok dari SQLite
@@ -34,7 +34,7 @@ export function getAdminScope(roles: App.UserRole[]): AdminScope {
 	const hasPusat = roles.some(
 		(r) => r.tingkatScope === 'Pusat' || r.namaDapukan === 'Superadmin'
 	);
-	if (hasPusat || roles.length === 0) {
+	if (hasPusat) {
 		return {
 			level: 'Pusat',
 			isPusat: true,
