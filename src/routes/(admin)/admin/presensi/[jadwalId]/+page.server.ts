@@ -1,13 +1,13 @@
 /**
  * @file src/routes/(admin)/admin/presensi/[jadwalId]/+page.server.ts
- * @purpose Memuat daftar checklist absensi jamaah per jadwal dan menangani update status kehadiran manual
+ * @purpose Memuat daftar checklist absensi jamaah per jadwal, verifikasi bukti foto/lokasi, menangani approval izin/sakit, dan update status manual
  * @usedBy src/routes/(admin)/admin/presensi/[jadwalId]/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm
- * @publicFunctions load, actions.updateStatus
- * @sideEffects Query detail jadwal, jamaah kelompok, dan upsert record presensi_kehadiran ke SQLite
+ * @publicFunctions load, actions.updateStatus, actions.approveIzin, actions.rejectIzin
+ * @sideEffects Query detail jadwal & kehadiran, serta update record presensi_kehadiran ke SQLite
  */
 
-import { error, redirect } from '@sveltejs/kit';
+import { error, redirect, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '$lib/db';
 import { presensiJadwal, presensiKehadiran, users, kelompok } from '$lib/db/schema';
@@ -35,7 +35,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		.select({
 			id: users.id,
 			namaLengkap: users.namaLengkap,
-			email: users.email
+			email: users.email,
+			noTelepon: users.noTelepon
 		})
 		.from(users)
 		.where(eq(users.kelompokId, jadwal.kelompokId))
@@ -48,17 +49,24 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		.where(eq(presensiKehadiran.jadwalId, jadwalId))
 		.all();
 
-	const statusMap = new Map<string, { status: string; waktuScan: number | null }>();
+	const recordMap = new Map<string, (typeof kehadiranList)[number]>();
 	kehadiranList.forEach((k) => {
-		statusMap.set(k.userId, { status: k.status, waktuScan: k.waktuScan });
+		recordMap.set(k.userId, k);
 	});
 
 	const pesertaWithStatus = jamaahList.map((j) => {
-		const record = statusMap.get(j.id);
+		const rec = recordMap.get(j.id);
 		return {
 			...j,
-			status: record?.status || 'Belum Terdata',
-			waktuScan: record?.waktuScan || null
+			status: rec?.status || 'Belum Terdata',
+			metodeKehadiran: rec?.metodeKehadiran || null,
+			fotoUrl: rec?.fotoUrl || null,
+			latitude: rec?.latitude || null,
+			longitude: rec?.longitude || null,
+			keteranganIzin: rec?.keteranganIzin || null,
+			statusApproval: rec?.statusApproval || (rec ? 'Disetujui' : null),
+			catatanAdmin: rec?.catatanAdmin || null,
+			waktuScan: rec?.waktuScan || null
 		};
 	});
 
@@ -81,10 +89,60 @@ export const actions: Actions = {
 		const status = formData.get('status')?.toString() || 'Hadir';
 
 		if (!userId || !status) {
-			return { success: false, error: 'Data tidak lengkap' };
+			return fail(400, { error: 'Data tidak lengkap' });
 		}
 
-		// Cek apakah record sudah ada untuk jadwalId dan userId ini
+		const existing = db
+			.select()
+			.from(presensiKehadiran)
+			.where(
+				and(
+					eq(presensiKehadiran.jadwalId, jadwalId),
+					eq(presensiKehadiran.userId, userId)
+				)
+			)
+			.get();
+
+		const nowUnix = Math.floor(Date.now() / 1000);
+
+		if (existing) {
+			db.update(presensiKehadiran)
+				.set({
+					status,
+					statusApproval: 'Disetujui',
+					waktuScan: status === 'Hadir' ? nowUnix : existing.waktuScan
+				})
+				.where(eq(presensiKehadiran.id, existing.id))
+				.run();
+		} else {
+			db.insert(presensiKehadiran)
+				.values({
+					jadwalId,
+					userId,
+					status,
+					statusApproval: 'Disetujui',
+					waktuScan: status === 'Hadir' ? nowUnix : null
+				})
+				.run();
+		}
+
+		return { success: true };
+	},
+
+	approveIzin: async ({ request, params, locals }) => {
+		if (!locals.user || !locals.isAdmin) {
+			throw error(403, 'Akses ditolak');
+		}
+
+		const jadwalId = parseInt(params.jadwalId || '0', 10);
+		const formData = await request.formData();
+		const userId = formData.get('userId')?.toString() || '';
+		const catatan = formData.get('catatanAdmin')?.toString()?.trim() || null;
+
+		if (!userId) {
+			return fail(400, { error: 'User ID wajib disertakan.' });
+		}
+
 		const existing = db
 			.select()
 			.from(presensiKehadiran)
@@ -99,22 +157,52 @@ export const actions: Actions = {
 		if (existing) {
 			db.update(presensiKehadiran)
 				.set({
-					status,
-					waktuScan: status === 'Hadir' ? Math.floor(Date.now() / 1000) : null
+					statusApproval: 'Disetujui',
+					catatanAdmin: catatan
 				})
 				.where(eq(presensiKehadiran.id, existing.id))
 				.run();
-		} else {
-			db.insert(presensiKehadiran)
-				.values({
-					jadwalId,
-					userId,
-					status,
-					waktuScan: status === 'Hadir' ? Math.floor(Date.now() / 1000) : null
+		}
+
+		return { success: true, message: 'Permohonan izin berhasil disetujui.' };
+	},
+
+	rejectIzin: async ({ request, params, locals }) => {
+		if (!locals.user || !locals.isAdmin) {
+			throw error(403, 'Akses ditolak');
+		}
+
+		const jadwalId = parseInt(params.jadwalId || '0', 10);
+		const formData = await request.formData();
+		const userId = formData.get('userId')?.toString() || '';
+		const catatan = formData.get('catatanAdmin')?.toString()?.trim() || 'Permohonan izin tidak disetujui';
+
+		if (!userId) {
+			return fail(400, { error: 'User ID wajib disertakan.' });
+		}
+
+		const existing = db
+			.select()
+			.from(presensiKehadiran)
+			.where(
+				and(
+					eq(presensiKehadiran.jadwalId, jadwalId),
+					eq(presensiKehadiran.userId, userId)
+				)
+			)
+			.get();
+
+		if (existing) {
+			db.update(presensiKehadiran)
+				.set({
+					status: 'Alpa',
+					statusApproval: 'Ditolak',
+					catatanAdmin: catatan
 				})
+				.where(eq(presensiKehadiran.id, existing.id))
 				.run();
 		}
 
-		return { success: true };
+		return { success: true, message: 'Permohonan izin telah ditolak (status diubah ke Alpa).' };
 	}
 };

@@ -150,6 +150,31 @@ try {
 		);
 		CREATE INDEX IF NOT EXISTS sub_kelompok_kelompok_id_idx ON sub_kelompok (kelompok_id);
 	`);
+
+	// Auto-heal / migrasi kolom presensi_kehadiran untuk geolocation, foto bukti, dan approval izin
+	const tableKehadiran = sqlite
+		.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='presensi_kehadiran'")
+		.get();
+	if (tableKehadiran) {
+		const rawKehadiranInfo = sqlite.prepare('PRAGMA table_info(presensi_kehadiran)').all() as Array<{ name: string }>;
+		const kehadiranCols = rawKehadiranInfo.map((c) => c.name);
+		const newKehadiranCols: Record<string, string> = {
+			metode_kehadiran: 'TEXT',
+			foto_url: 'TEXT',
+			latitude: 'TEXT',
+			longitude: 'TEXT',
+			alamat_lokasi: 'TEXT',
+			keterangan_izin: 'TEXT',
+			status_approval: "TEXT DEFAULT 'Disetujui'",
+			catatan_admin: 'TEXT'
+		};
+		for (const [colName, colDef] of Object.entries(newKehadiranCols)) {
+			if (!kehadiranCols.includes(colName)) {
+				sqlite.exec(`ALTER TABLE presensi_kehadiran ADD COLUMN ${colName} ${colDef}`);
+			}
+		}
+		sqlite.exec('CREATE INDEX IF NOT EXISTS presensi_kehadiran_status_approval_idx ON presensi_kehadiran (status_approval)');
+	}
 } catch (migErr) {
 	console.error('[DB Auto-Migration] Gagal memeriksa atau memperbarui kolom skema SQLite:', migErr);
 }

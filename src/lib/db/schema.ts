@@ -204,11 +204,20 @@ export const presensiKehadiran = sqliteTable(
 			.notNull()
 			.references(() => users.id, { onDelete: 'cascade' }),
 		status: text('status').notNull(), // 'Hadir' | 'Izin' | 'Sakit' | 'Alpa'
+		metodeKehadiran: text('metode_kehadiran'), // 'offline' | 'online' | 'izin'
+		fotoUrl: text('foto_url'),
+		latitude: text('latitude'),
+		longitude: text('longitude'),
+		alamatLokasi: text('alamat_lokasi'),
+		keteranganIzin: text('keterangan_izin'),
+		statusApproval: text('status_approval').default('Disetujui'), // 'Disetujui' | 'Menunggu Persetujuan' | 'Ditolak'
+		catatanAdmin: text('catatan_admin'),
 		waktuScan: integer('waktu_scan') // Timestamp unix
 	},
 	(table) => [
 		index('presensi_kehadiran_jadwal_id_idx').on(table.jadwalId),
 		index('presensi_kehadiran_user_id_idx').on(table.userId),
+		index('presensi_kehadiran_status_approval_idx').on(table.statusApproval),
 		uniqueIndex('presensi_kehadiran_jadwal_user_uniq').on(table.jadwalId, table.userId)
 	]
 );
