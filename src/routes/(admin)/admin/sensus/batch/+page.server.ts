@@ -80,7 +80,10 @@ export const actions: Actions = {
 		const rawBatchData = formData.get('batchData')?.toString() || '[]';
 		const defaultPassword = formData.get('defaultPassword')?.toString() || '12345678';
 		const defaultKelompokIdRaw = formData.get('defaultKelompokId')?.toString() || '';
-		const defaultKelompokId = defaultKelompokIdRaw ? parseInt(defaultKelompokIdRaw, 10) : null;
+		const defaultKelompokId =
+			defaultKelompokIdRaw && defaultKelompokIdRaw !== 'ALL' && !isNaN(Number(defaultKelompokIdRaw))
+				? parseInt(defaultKelompokIdRaw, 10)
+				: null;
 
 		let parsedData: any;
 		try {
@@ -156,7 +159,13 @@ export const actions: Actions = {
 						? parseInt(String(fam.kelompokId), 10)
 						: defaultKelompokId;
 
-				if (kId && !isKelompokAllowed(kId, accessibleWilayah.allowedKelompokIdSet, adminScope.isPusat)) {
+				if (!kId) {
+					return fail(400, {
+						error: `Keluarga #${fIdx + 1} (${nama}): Kelompok belum dipilih.`
+					});
+				}
+
+				if (!isKelompokAllowed(kId, accessibleWilayah.allowedKelompokIdSet, adminScope.isPusat)) {
 					return fail(403, {
 						error: `Keluarga #${fIdx + 1} (${nama}): Anda tidak memiliki wewenang untuk kelompok ID ${kId}.`
 					});

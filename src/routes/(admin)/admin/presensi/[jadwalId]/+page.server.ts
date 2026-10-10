@@ -28,19 +28,23 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		throw error(404, 'Jadwal pengajian tidak ditemukan');
 	}
 
-	const kelompokData = db.select().from(kelompok).where(eq(kelompok.id, jadwal.kelompokId)).get();
+	const kelompokData = jadwal.kelompokId
+		? db.select().from(kelompok).where(eq(kelompok.id, jadwal.kelompokId)).get()
+		: null;
 
 	// Ambil semua jamaah di kelompok ini
-	const jamaahList = db
-		.select({
-			id: users.id,
-			namaLengkap: users.namaLengkap,
-			email: users.email,
-			noTelepon: users.noTelepon
-		})
-		.from(users)
-		.where(eq(users.kelompokId, jadwal.kelompokId))
-		.all();
+	const jamaahList = jadwal.kelompokId
+		? db
+				.select({
+					id: users.id,
+					namaLengkap: users.namaLengkap,
+					email: users.email,
+					noTelepon: users.noTelepon
+				})
+				.from(users)
+				.where(eq(users.kelompokId, jadwal.kelompokId))
+				.all()
+		: [];
 
 	// Ambil status kehadiran yang sudah tercatat
 	const kehadiranList = db

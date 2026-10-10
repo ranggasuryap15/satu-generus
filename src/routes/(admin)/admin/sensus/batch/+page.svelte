@@ -1,13 +1,14 @@
 <!--
   @file src/routes/(admin)/admin/sensus/batch/+page.svelte
-  @purpose Antarmuka batch insert sensus massal terstruktur: grouping keluarga hierarkis untuk KK (Kepala Keluarga & Anggota otomatis terikat ke KK yang sama) dan kartu baris tunggal datar untuk Jamaah Mandiri/Perantau (tanpa grouping), auto-kalkulasi generus, layout form responsif desktop & mobile, paste spreadsheet otomatis, dan opsi pembuatan akun
+  @purpose Antarmuka batch insert sensus massal terstruktur: grouping keluarga hierarkis untuk KK (Kepala Keluarga & Anggota otomatis terikat ke KK yang sama) dan kartu baris tunggal datar untuk Jamaah Mandiri/Perantau (tanpa grouping), auto-kalkulasi generus, layout form responsif desktop & mobile, paste spreadsheet otomatis, pemilihan kelompok fleksibel (global single-kelompok terkunci vs mode 'ALL' beda-beda per keluarga dengan SearchableSelect), dan opsi pembuatan akun
   @usedBy Route admin '/admin/sensus/batch'
-  @dependencies @lucide/svelte, $app/forms, $lib/generus (hitungUmur, hitungStatusGenerus, getDaftarStatusKeluargaByGender, daftar konstanta), Svelte 5 Runes
-  @publicFunctions addFamily, addPerantauFamily, removeFamily, addMemberToFamily, removeMember, clearFamilies, convertToPerantau, convertToFamily, onJenisKelaminChange, onStatusKeluargaChange, onTanggalLahirOrMenikahChange, processPastedSpreadsheet, toggleAllBuatAkun
+  @dependencies @lucide/svelte, $app/forms, $lib/components/SearchableSelect.svelte, $lib/generus (hitungUmur, hitungStatusGenerus, getDaftarStatusKeluargaByGender, daftar konstanta), Svelte 5 Runes
+  @publicFunctions addFamily, addPerantauFamily, removeFamily, addMemberToFamily, removeMember, clearFamilies, convertToPerantau, convertToFamily, onGlobalKelompokChange, onJenisKelaminChange, onStatusKeluargaChange, onTanggalLahirOrMenikahChange, processPastedSpreadsheet, toggleAllBuatAkun
   @sideEffects Mengirim payload JSON batchData (FamilyBatchGroup[]) ke server action untuk transaksi database atomik
 -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
 	import {
 		DAFTAR_GOLONGAN_DARAH,
 		DAFTAR_ISRUN,
@@ -69,8 +70,61 @@
 	}
 
 	let defaultPassword = $state('jokam354');
-	let defaultKelompokId = $state<number | string>(data.wilayahOptions.kelompokList[0]?.id || '');
+	let defaultKelompokId = $state<number | string>(
+		data.wilayahOptions.kelompokList[0]?.id || 'ALL'
+	);
 	let isSubmitting = $state(false);
+
+	interface KelompokOptionItem {
+		id: number;
+		nama: string;
+		desaNama?: string | null;
+		daerahNama?: string | null;
+	}
+
+	const globalKelompokOptions = $derived([
+		{
+			value: 'ALL',
+			label: '🌐 Semua Kelompok (Beda-beda per Keluarga)',
+			sublabel: 'Pilih manual kelompok di masing-masing KK / Mandiri'
+		},
+		...(data.wilayahOptions?.kelompokList || []).map((k: KelompokOptionItem) => ({
+			value: k.id,
+			label: `${k.nama} (Desa ${k.desaNama || '-'})`,
+			sublabel: k.daerahNama ? `Daerah ${k.daerahNama}` : undefined
+		}))
+	]);
+
+	const perKeluargaKelompokOptions = $derived(
+		(data.wilayahOptions?.kelompokList || []).map((k: KelompokOptionItem) => ({
+			value: k.id,
+			label: `${k.nama} (Desa ${k.desaNama || '-'})`,
+			sublabel: k.daerahNama ? `Daerah ${k.daerahNama}` : undefined
+		}))
+	);
+
+	const selectedGlobalKelompokLabel = $derived.by(() => {
+		const k = (data.wilayahOptions?.kelompokList || []).find(
+			(item: KelompokOptionItem) => String(item.id) === String(defaultKelompokId)
+		);
+		return k ? `${k.nama} (Desa ${k.desaNama || '-'})` : '-';
+	});
+
+	function onGlobalKelompokChange(val: string | number) {
+		defaultKelompokId = val;
+		if (val !== 'ALL' && val !== '') {
+			for (const fam of families) {
+				fam.kelompokId = val;
+			}
+		}
+	}
+
+	function getInitialFamilyKelompokId(): number | string {
+		if (defaultKelompokId !== 'ALL' && defaultKelompokId !== '') {
+			return defaultKelompokId;
+		}
+		return data.wilayahOptions.kelompokList[0]?.id || '';
+	}
 
 	// Modal Paste Spreadsheet
 	let showPasteModal = $state(false);
@@ -111,7 +165,7 @@
 			noKk: '',
 			alamat: '',
 			isPerantau,
-			kelompokId: defaultKelompokId,
+			kelompokId: getInitialFamilyKelompokId(),
 			members: [createEmptyMember(status, jk)]
 		};
 	}
@@ -339,7 +393,7 @@
 					noKk: '',
 					alamat: rAlamat,
 					isPerantau: true,
-					kelompokId: defaultKelompokId,
+					kelompokId: getInitialFamilyKelompokId(),
 					members: [newMemberData]
 				};
 				parsedFamilies.push(perantauFam);
@@ -353,7 +407,7 @@
 						noKk: cleanKk,
 						alamat: rAlamat,
 						isPerantau: false,
-						kelompokId: defaultKelompokId,
+						kelompokId: getInitialFamilyKelompokId(),
 						members: []
 					};
 					kkMap.set(cleanKk, existingFam);
@@ -373,7 +427,7 @@
 						noKk: '',
 						alamat: rAlamat,
 						isPerantau: false,
-						kelompokId: defaultKelompokId,
+						kelompokId: getInitialFamilyKelompokId(),
 						members: [newMemberData]
 					};
 					parsedFamilies.push(currentFamily);
@@ -486,15 +540,15 @@
 			<label for="defaultKelompokSelect" class="block font-semibold text-foreground/80 mb-1">
 				Kelompok Default
 			</label>
-			<select
+			<SearchableSelect
 				id="defaultKelompokSelect"
+				name="defaultKelompokSelect"
+				options={globalKelompokOptions}
 				bind:value={defaultKelompokId}
-				class="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
-			>
-				{#each data.wilayahOptions.kelompokList as k}
-					<option value={k.id}>{k.nama} (Desa {k.desaNama || '-'})</option>
-				{/each}
-			</select>
+				onchange={onGlobalKelompokChange}
+				placeholder="-- Pilih Kelompok / Semua --"
+				searchPlaceholder="Cari kelompok..."
+			/>
 		</div>
 
 		<div>
@@ -733,23 +787,38 @@
 							</div>
 
 							<!-- Kelompok -->
-							<div class="w-[calc(50%-4px)] sm:w-36 shrink-0">
-								<label
-									for="kelompok-mandiri-{row.id}"
-									class="block text-[10px] font-semibold text-foreground/75 mb-1"
-								>
-									Kelompok
-								</label>
-								<select
-									id="kelompok-mandiri-{row.id}"
-									bind:value={fam.kelompokId}
-									class="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
-								>
-									{#each data.wilayahOptions.kelompokList as k}
-										<option value={k.id}>{k.nama}</option>
-									{/each}
-								</select>
-							</div>
+							{#if defaultKelompokId === 'ALL'}
+								<div class="w-full sm:w-52 shrink-0">
+									<label
+										for="kelompok-mandiri-{row.id}"
+										class="block text-[10px] font-semibold text-foreground/75 mb-1"
+									>
+										Kelompok <span class="text-destructive">*</span>
+									</label>
+									<SearchableSelect
+										id="kelompok-mandiri-{row.id}"
+										name="kelompok-mandiri-{row.id}"
+										options={perKeluargaKelompokOptions}
+										bind:value={fam.kelompokId}
+										placeholder="-- Pilih Kelompok --"
+										searchPlaceholder="Cari kelompok..."
+										required
+									/>
+								</div>
+							{:else}
+								<div class="w-[calc(50%-4px)] sm:w-44 shrink-0">
+									<span class="block text-[10px] font-semibold text-foreground/75 mb-1">
+										Kelompok
+									</span>
+									<div
+										class="w-full bg-secondary/50 border border-border/80 rounded-lg px-2.5 py-2 text-xs text-foreground font-medium flex items-center justify-between"
+										title="Terkunci mengikuti pengaturan kelompok di bagian atas"
+									>
+										<span class="truncate">{selectedGlobalKelompokLabel}</span>
+										<span class="text-[9.5px] text-foreground/50 shrink-0 ml-1">Terkunci</span>
+									</div>
+								</div>
+							{/if}
 
 							<!-- Jenis Kelamin -->
 							<div class="w-[calc(50%-4px)] sm:w-28 shrink-0">
@@ -1099,20 +1168,35 @@
 							</div>
 
 							<!-- Kelompok Wilayah Keluarga -->
-							<div>
-								<label for="kelompok-{fam.id}" class="block text-[11px] font-semibold text-foreground/80 mb-1">
-									Kelompok
-								</label>
-								<select
-									id="kelompok-{fam.id}"
-									bind:value={fam.kelompokId}
-									class="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
-								>
-									{#each data.wilayahOptions.kelompokList as k}
-										<option value={k.id}>{k.nama} (Desa {k.desaNama || '-'})</option>
-									{/each}
-								</select>
-							</div>
+							{#if defaultKelompokId === 'ALL'}
+								<div>
+									<label for="kelompok-{fam.id}" class="block text-[11px] font-semibold text-foreground/80 mb-1">
+										Kelompok <span class="text-destructive">*</span>
+									</label>
+									<SearchableSelect
+										id="kelompok-{fam.id}"
+										name="kelompok-{fam.id}"
+										options={perKeluargaKelompokOptions}
+										bind:value={fam.kelompokId}
+										placeholder="-- Pilih Kelompok --"
+										searchPlaceholder="Cari nama kelompok..."
+										required
+									/>
+								</div>
+							{:else}
+								<div>
+									<span class="block text-[11px] font-semibold text-foreground/80 mb-1">
+										Kelompok
+									</span>
+									<div
+										class="w-full bg-secondary/50 border border-border/80 rounded-lg px-2.5 py-2 text-xs text-foreground font-medium flex items-center justify-between"
+										title="Terkunci mengikuti pengaturan kelompok di bagian atas"
+									>
+										<span class="truncate">{selectedGlobalKelompokLabel}</span>
+										<span class="text-[10px] text-foreground/50 font-normal shrink-0 ml-1.5">Terkunci</span>
+									</div>
+								</div>
+							{/if}
 						</div>
 
 						<!-- Bagian Anggota Keluarga di Bawah Kepala Keluarga -->

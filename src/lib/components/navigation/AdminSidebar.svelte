@@ -10,6 +10,7 @@
 	import { page } from '$app/state';
 	import {
 		CalendarCheck,
+		CalendarDays,
 		ExternalLink,
 		FileSpreadsheet,
 		LayoutDashboard,
@@ -53,6 +54,7 @@
 		{
 			title: 'Pengajian & Presensi',
 			items: [
+				{ href: '/admin/jadwal', label: 'Jadwal Pengajian', icon: CalendarDays },
 				{ href: '/admin/presensi', label: 'Presensi Pengajian', icon: CalendarCheck }
 			]
 		},

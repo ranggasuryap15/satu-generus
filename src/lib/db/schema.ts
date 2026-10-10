@@ -3,7 +3,7 @@
  * @purpose Definisi schema tabel Drizzle ORM untuk SQLite sesuai SCHEMA.md (termasuk No KK/NIK nullable, kontak no_telepon user, sub-kelompok wilayah, serta rincian lengkap anggota keluarga)
  * @usedBy src/lib/db/index.ts, queries/actions di routes dan services
  * @dependencies drizzle-orm/sqlite-core, @paralleldrive/cuid2
- * @publicFunctions daerah, desa, kelompok, subKelompok, users, dapukan, userDapukan, keluarga, anggotaKeluarga, presensiJadwal, presensiKehadiran
+ * @publicFunctions daerah, desa, kelompok, subKelompok, users, dapukan, userDapukan, keluarga, anggotaKeluarga, jadwalPengajianTemplate, presensiJadwal, presensiKehadiran
  * @sideEffects Mendefinisikan struktur tabel, relasi foreign key, dan indeks database SQLite
  */
 
@@ -177,18 +177,54 @@ export const anggotaKeluarga = sqliteTable(
 );
 
 // ==========================================
-// 4. MODUL PRESENSI PENGAJIAN
 // ==========================================
+// 4. MODUL JADWAL & PRESENSI PENGAJIAN
+// ==========================================
+
+export const jadwalPengajianTemplate = sqliteTable(
+	'jadwal_pengajian_template',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		tingkatScope: text('tingkat_scope').notNull(), // 'Desa' | 'Kelompok'
+		desaId: integer('desa_id').references(() => desa.id, { onDelete: 'cascade' }),
+		kelompokId: integer('kelompok_id').references(() => kelompok.id, { onDelete: 'cascade' }),
+		tipePola: text('tipe_pola').notNull(), // 'mingguan_ke' (Desa: minggu 1..5) | 'hari_rutin' (Kelompok: hari tertentu)
+		mingguKe: integer('minggu_ke'), // 1..5 untuk Desa
+		hari: integer('hari').notNull(), // 0 (Ahad) .. 6 (Sabtu)
+		jamMulai: text('jam_mulai').notNull(), // HH:mm (Wajib)
+		jamSelesai: text('jam_selesai'), // HH:mm
+		namaKegiatan: text('nama_kegiatan').notNull(),
+		detailMateri: text('detail_materi'),
+		isLibur: integer('is_libur', { mode: 'boolean' }).notNull().default(false),
+		lokasiNama: text('lokasi_nama'),
+		latitude: text('latitude'),
+		longitude: text('longitude'),
+		radiusMeter: integer('radius_meter').default(100),
+		gmapsUrl: text('gmaps_url'),
+		isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true)
+	},
+	(table) => [
+		index('jadwal_template_scope_idx').on(table.tingkatScope),
+		index('jadwal_template_desa_idx').on(table.desaId),
+		index('jadwal_template_kelompok_idx').on(table.kelompokId)
+	]
+);
 
 export const presensiJadwal = sqliteTable(
 	'presensi_jadwal',
 	{
 		id: integer('id').primaryKey({ autoIncrement: true }),
-		kelompokId: integer('kelompok_id')
-			.notNull()
-			.references(() => kelompok.id, { onDelete: 'cascade' }),
+		tingkatScope: text('tingkat_scope').notNull().default('Kelompok'), // 'Desa' | 'Kelompok'
+		desaId: integer('desa_id').references(() => desa.id, { onDelete: 'cascade' }),
+		kelompokId: integer('kelompok_id').references(() => kelompok.id, { onDelete: 'cascade' }),
+		templateId: integer('template_id').references(() => jadwalPengajianTemplate.id, { onDelete: 'set null' }),
 		tanggal: text('tanggal').notNull(), // ISO8601 YYYY-MM-DD
+		jamMulai: text('jam_mulai').notNull().default('08:00'), // HH:mm (Wajib diisi)
+		jamSelesai: text('jam_selesai'), // HH:mm
 		namaKegiatan: text('nama_kegiatan').notNull(),
+		detailMateri: text('detail_materi'),
+		isOverride: integer('is_override', { mode: 'boolean' }).notNull().default(false),
+		status: text('status').notNull().default('aktif'), // 'aktif' | 'libur' | 'dibatalkan'
 		lokasiNama: text('lokasi_nama'),
 		latitude: text('latitude'),
 		longitude: text('longitude'),
@@ -197,7 +233,9 @@ export const presensiJadwal = sqliteTable(
 	},
 	(table) => [
 		index('presensi_jadwal_kelompok_id_idx').on(table.kelompokId),
-		index('presensi_jadwal_tanggal_idx').on(table.tanggal)
+		index('presensi_jadwal_desa_id_idx').on(table.desaId),
+		index('presensi_jadwal_tanggal_idx').on(table.tanggal),
+		index('presensi_jadwal_scope_idx').on(table.tingkatScope)
 	]
 );
 

@@ -4,7 +4,7 @@
  * @usedBy Backend server routes (+page.server.ts, +server.ts, hooks.server.ts, scripts migrasi/seed)
  * @dependencies better-sqlite3, drizzle-orm/better-sqlite3, src/lib/db/schema.ts
  * @publicFunctions db, sqlite
- * @sideEffects Membuka koneksi file database SQLite, mengaktifkan PRAGMA WAL & foreign_keys, auto-migrasi kolom & tabel skema (sub_kelompok, no_telepon di users, detail sensus di anggota_keluarga, lokasi presensi_jadwal, presensi_kehadiran, dan kelompok)
+ * @sideEffects Membuka koneksi file database SQLite, mengaktifkan PRAGMA WAL & foreign_keys, auto-migrasi kolom & tabel skema (sub_kelompok, users, anggota_keluarga, jadwal_pengajian_template, presensi_jadwal, presensi_kehadiran, dan kelompok)
  */
 
 import Database from 'better-sqlite3';
@@ -176,14 +176,49 @@ try {
 		sqlite.exec('CREATE INDEX IF NOT EXISTS presensi_kehadiran_status_approval_idx ON presensi_kehadiran (status_approval)');
 	}
 
-	// Auto-heal / migrasi kolom presensi_jadwal untuk lokasi kegiatan, koordinat GPS, radius, dan link GMaps
+	// Auto-heal / migrasi tabel jadwal_pengajian_template
+	sqlite.exec(`
+		CREATE TABLE IF NOT EXISTS jadwal_pengajian_template (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			tingkat_scope TEXT NOT NULL,
+			desa_id INTEGER REFERENCES desa(id) ON DELETE CASCADE,
+			kelompok_id INTEGER REFERENCES kelompok(id) ON DELETE CASCADE,
+			tipe_pola TEXT NOT NULL,
+			minggu_ke INTEGER,
+			hari INTEGER NOT NULL,
+			jam_mulai TEXT NOT NULL,
+			jam_selesai TEXT,
+			nama_kegiatan TEXT NOT NULL,
+			detail_materi TEXT,
+			is_libur INTEGER NOT NULL DEFAULT 0,
+			lokasi_nama TEXT,
+			latitude TEXT,
+			longitude TEXT,
+			radius_meter INTEGER DEFAULT 100,
+			gmaps_url TEXT,
+			is_active INTEGER NOT NULL DEFAULT 1
+		);
+		CREATE INDEX IF NOT EXISTS jadwal_template_scope_idx ON jadwal_pengajian_template (tingkat_scope);
+		CREATE INDEX IF NOT EXISTS jadwal_template_desa_idx ON jadwal_pengajian_template (desa_id);
+		CREATE INDEX IF NOT EXISTS jadwal_template_kelompok_idx ON jadwal_pengajian_template (kelompok_id);
+	`);
+
+	// Auto-heal / migrasi kolom presensi_jadwal untuk cakupan scope, jam wajib, detail materi, override, dan status
 	const tableJadwal = sqlite
 		.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='presensi_jadwal'")
 		.get();
 	if (tableJadwal) {
-		const rawJadwalInfo = sqlite.prepare('PRAGMA table_info(presensi_jadwal)').all() as Array<{ name: string }>;
+		const rawJadwalInfo = sqlite.prepare('PRAGMA table_info(presensi_jadwal)').all() as Array<{ name: string; notnull: number }>;
 		const jadwalCols = rawJadwalInfo.map((c) => c.name);
 		const newJadwalCols: Record<string, string> = {
+			tingkat_scope: "TEXT NOT NULL DEFAULT 'Kelompok'",
+			desa_id: 'INTEGER REFERENCES desa(id) ON DELETE CASCADE',
+			template_id: 'INTEGER REFERENCES jadwal_pengajian_template(id) ON DELETE SET NULL',
+			jam_mulai: "TEXT NOT NULL DEFAULT '08:00'",
+			jam_selesai: 'TEXT',
+			detail_materi: 'TEXT',
+			is_override: 'INTEGER NOT NULL DEFAULT 0',
+			status: "TEXT NOT NULL DEFAULT 'aktif'",
 			lokasi_nama: 'TEXT',
 			latitude: 'TEXT',
 			longitude: 'TEXT',
@@ -194,6 +229,65 @@ try {
 			if (!jadwalCols.includes(colName)) {
 				sqlite.exec(`ALTER TABLE presensi_jadwal ADD COLUMN ${colName} ${colDef}`);
 			}
+		}
+
+		// Jika kolom kelompok_id masih NOT NULL, ubah menjadi nullable agar pengajian tingkat Desa dapat tersimpan
+		const kelompokCol = rawJadwalInfo.find((c) => c.name === 'kelompok_id');
+		if (kelompokCol && kelompokCol.notnull === 1) {
+			sqlite.exec('PRAGMA foreign_keys=OFF;');
+			sqlite.exec(`
+				CREATE TABLE presensi_jadwal_temp (
+					id INTEGER PRIMARY KEY AUTOINCREMENT,
+					tingkat_scope TEXT NOT NULL DEFAULT 'Kelompok',
+					desa_id INTEGER REFERENCES desa(id) ON DELETE CASCADE,
+					kelompok_id INTEGER REFERENCES kelompok(id) ON DELETE CASCADE,
+					template_id INTEGER REFERENCES jadwal_pengajian_template(id) ON DELETE SET NULL,
+					tanggal TEXT NOT NULL,
+					jam_mulai TEXT NOT NULL DEFAULT '08:00',
+					jam_selesai TEXT,
+					nama_kegiatan TEXT NOT NULL,
+					detail_materi TEXT,
+					is_override INTEGER NOT NULL DEFAULT 0,
+					status TEXT NOT NULL DEFAULT 'aktif',
+					lokasi_nama TEXT,
+					latitude TEXT,
+					longitude TEXT,
+					radius_meter INTEGER DEFAULT 100,
+					gmaps_url TEXT
+				);
+				INSERT INTO presensi_jadwal_temp (
+					id, tingkat_scope, desa_id, kelompok_id, template_id, tanggal, jam_mulai, jam_selesai, nama_kegiatan, detail_materi, is_override, status, lokasi_nama, latitude, longitude, radius_meter, gmaps_url
+				)
+				SELECT
+					id,
+					COALESCE(tingkat_scope, 'Kelompok'),
+					desa_id,
+					kelompok_id,
+					template_id,
+					tanggal,
+					COALESCE(jam_mulai, '08:00'),
+					jam_selesai,
+					nama_kegiatan,
+					detail_materi,
+					COALESCE(is_override, 0),
+					COALESCE(status, 'aktif'),
+					lokasi_nama,
+					latitude,
+					longitude,
+					radius_meter,
+					gmaps_url
+				FROM presensi_jadwal;
+				DROP TABLE presensi_jadwal;
+				ALTER TABLE presensi_jadwal_temp RENAME TO presensi_jadwal;
+				CREATE INDEX IF NOT EXISTS presensi_jadwal_kelompok_id_idx ON presensi_jadwal (kelompok_id);
+				CREATE INDEX IF NOT EXISTS presensi_jadwal_desa_id_idx ON presensi_jadwal (desa_id);
+				CREATE INDEX IF NOT EXISTS presensi_jadwal_tanggal_idx ON presensi_jadwal (tanggal);
+				CREATE INDEX IF NOT EXISTS presensi_jadwal_scope_idx ON presensi_jadwal (tingkat_scope);
+				PRAGMA foreign_keys=ON;
+			`);
+		} else {
+			sqlite.exec('CREATE INDEX IF NOT EXISTS presensi_jadwal_desa_id_idx ON presensi_jadwal (desa_id);');
+			sqlite.exec('CREATE INDEX IF NOT EXISTS presensi_jadwal_scope_idx ON presensi_jadwal (tingkat_scope);');
 		}
 	}
 

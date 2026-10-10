@@ -1,17 +1,17 @@
 /**
  * @file src/routes/(admin)/admin/wilayah/+page.server.ts
- * @purpose Memuat data wilayah administratif berjenjang sesuai scope admin (Pusat, Daerah, Desa, Kelompok) dan otorisasi ketat aksi CRUD unit wilayah
+ * @purpose Memuat data wilayah administratif berjenjang sesuai scope admin (Pusat, Daerah, Desa, Kelompok) dan otorisasi ketat aksi CRUD unit wilayah (termasuk hapus single & batch untuk Pusat, Daerah, Desa)
  * @usedBy src/routes/(admin)/admin/wilayah/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm
- * @publicFunctions load, actions.createDaerah, actions.createDesa, actions.createKelompok, actions.createSubKelompok, actions.updateKelompokLocation
- * @sideEffects Insert data daerah/desa/kelompok/sub_kelompok dan update lokasi kelompok ke SQLite, verifikasi hierarki RBAC
+ * @publicFunctions load, actions.createDaerah, actions.createDesa, actions.createKelompok, actions.createSubKelompok, actions.updateKelompokLocation, actions.deleteKelompok, actions.batchDeleteKelompok, actions.deleteSubKelompok, actions.batchDeleteSubKelompok
+ * @sideEffects Insert/Update/Delete data daerah/desa/kelompok/sub_kelompok ke SQLite dalam transaksi atomik, verifikasi hierarki RBAC
  */
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '$lib/db';
 import { daerah, desa, kelompok, subKelompok } from '$lib/db/schema';
-import { eq, sql } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { getAdminScope, getAccessibleWilayah, isKelompokAllowed } from '$lib/server/scope';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -75,13 +75,17 @@ export const load: PageServerLoad = async ({ locals }) => {
 		? rawSubKelompokList
 		: rawSubKelompokList.filter((sk) => accessibleWilayah.allowedKelompokIdSet.has(sk.kelompokId));
 
-	// Hak izin CRUD administratif sesuai aturan RBAC
+	// Hak izin CRUD administratif sesuai aturan RBAC (Hanya Pusat, Daerah, Desa yang boleh menghapus)
+	const canDeleteWilayah = adminScope.isPusat || adminScope.level === 'Daerah' || adminScope.level === 'Desa';
+
 	const permissions = {
 		canCreateDaerah: adminScope.isPusat,
 		canCreateDesa: adminScope.isPusat || adminScope.level === 'Daerah',
 		canCreateKelompok: adminScope.isPusat || adminScope.level === 'Daerah' || adminScope.level === 'Desa',
 		canCreateSubKelompok: true,
 		canBatchInsert: adminScope.isPusat || adminScope.level === 'Daerah',
+		canDeleteKelompok: canDeleteWilayah,
+		canDeleteSubKelompok: canDeleteWilayah,
 		scopeLevel: adminScope.level
 	};
 
@@ -310,6 +314,165 @@ export const actions: Actions = {
 		} catch (error: any) {
 			console.error('Gagal memperbarui lokasi kelompok:', error);
 			return fail(500, { error: `Terjadi kesalahan sistem: ${error.message}` });
+		}
+	},
+
+	deleteKelompok: async ({ request, locals }) => {
+		if (!locals.user || !locals.isAdmin) {
+			return fail(403, { error: 'Akses ditolak.' });
+		}
+
+		const adminScope = getAdminScope(locals.roles);
+		if (!adminScope.isPusat && adminScope.level !== 'Daerah' && adminScope.level !== 'Desa') {
+			return fail(403, {
+				error: 'Akses ditolak: Hanya Admin Tingkat Pusat, Daerah, dan Desa yang memiliki wewenang menghapus kelompok.'
+			});
+		}
+
+		const formData = await request.formData();
+		const kelompokId = parseInt(formData.get('kelompokId')?.toString() || '0', 10);
+
+		if (!kelompokId) {
+			return fail(400, { error: 'ID Kelompok tidak valid.' });
+		}
+
+		if (!adminScope.isPusat) {
+			const accessibleWilayah = getAccessibleWilayah(adminScope);
+			if (!accessibleWilayah.allowedKelompokIdSet.has(kelompokId)) {
+				return fail(403, {
+					error: 'Akses ditolak: Kelompok ini berada di luar wewenang cakupan wilayah Anda.'
+				});
+			}
+		}
+
+		try {
+			db.transaction((tx) => {
+				tx.delete(kelompok).where(eq(kelompok.id, kelompokId)).run();
+			});
+
+			return { success: true, message: 'Kelompok berhasil dihapus dari sistem.' };
+		} catch (error: any) {
+			console.error('Gagal menghapus kelompok:', error);
+			return fail(500, { error: `Terjadi kesalahan sistem saat menghapus kelompok: ${error.message}` });
+		}
+	},
+
+	batchDeleteKelompok: async ({ request, locals }) => {
+		if (!locals.user || !locals.isAdmin) {
+			return fail(403, { error: 'Akses ditolak.' });
+		}
+
+		const adminScope = getAdminScope(locals.roles);
+		if (!adminScope.isPusat && adminScope.level !== 'Daerah' && adminScope.level !== 'Desa') {
+			return fail(403, {
+				error: 'Akses ditolak: Hanya Admin Tingkat Pusat, Daerah, dan Desa yang memiliki wewenang menghapus kelompok.'
+			});
+		}
+
+		const formData = await request.formData();
+		const kelompokIdsRaw = formData.get('kelompokIds')?.toString() || '';
+		let parsedIds: number[] = [];
+		try {
+			parsedIds = JSON.parse(kelompokIdsRaw);
+		} catch {
+			parsedIds = kelompokIdsRaw
+				.split(',')
+				.map((id) => parseInt(id.trim(), 10))
+				.filter((id) => !isNaN(id));
+		}
+
+		if (!Array.isArray(parsedIds) || parsedIds.length === 0) {
+			return fail(400, { error: 'Pilih minimal satu kelompok untuk dihapus.' });
+		}
+
+		let validIds = parsedIds;
+		if (!adminScope.isPusat) {
+			const accessibleWilayah = getAccessibleWilayah(adminScope);
+			validIds = parsedIds.filter((id) => accessibleWilayah.allowedKelompokIdSet.has(id));
+			if (validIds.length === 0) {
+				return fail(403, {
+					error: 'Akses ditolak: Seluruh kelompok terpilih berada di luar cakupan wewenang wilayah Anda.'
+				});
+			}
+		}
+
+		try {
+			db.transaction((tx) => {
+				tx.delete(kelompok).where(inArray(kelompok.id, validIds)).run();
+			});
+
+			return { success: true, message: `${validIds.length} kelompok berhasil dihapus dari sistem.` };
+		} catch (error: any) {
+			console.error('Gagal menghapus batch kelompok:', error);
+			return fail(500, { error: `Terjadi kesalahan sistem saat menghapus batch kelompok: ${error.message}` });
+		}
+	},
+
+	deleteSubKelompok: async ({ request, locals }) => {
+		if (!locals.user || !locals.isAdmin) {
+			return fail(403, { error: 'Akses ditolak.' });
+		}
+
+		const adminScope = getAdminScope(locals.roles);
+		if (!adminScope.isPusat && adminScope.level !== 'Daerah' && adminScope.level !== 'Desa') {
+			return fail(403, {
+				error: 'Akses ditolak: Hanya Admin Tingkat Pusat, Daerah, dan Desa yang memiliki wewenang menghapus sub-kelompok.'
+			});
+		}
+
+		const formData = await request.formData();
+		const subKelompokId = parseInt(formData.get('subKelompokId')?.toString() || '0', 10);
+
+		if (!subKelompokId) {
+			return fail(400, { error: 'ID Sub-Kelompok tidak valid.' });
+		}
+
+		try {
+			db.delete(subKelompok).where(eq(subKelompok.id, subKelompokId)).run();
+			return { success: true, message: 'Sub-kelompok berhasil dihapus.' };
+		} catch (error: any) {
+			console.error('Gagal menghapus sub-kelompok:', error);
+			return fail(500, { error: `Terjadi kesalahan sistem saat menghapus sub-kelompok: ${error.message}` });
+		}
+	},
+
+	batchDeleteSubKelompok: async ({ request, locals }) => {
+		if (!locals.user || !locals.isAdmin) {
+			return fail(403, { error: 'Akses ditolak.' });
+		}
+
+		const adminScope = getAdminScope(locals.roles);
+		if (!adminScope.isPusat && adminScope.level !== 'Daerah' && adminScope.level !== 'Desa') {
+			return fail(403, {
+				error: 'Akses ditolak: Hanya Admin Tingkat Pusat, Daerah, dan Desa yang memiliki wewenang menghapus sub-kelompok.'
+			});
+		}
+
+		const formData = await request.formData();
+		const subKelompokIdsRaw = formData.get('subKelompokIds')?.toString() || '';
+		let parsedIds: number[] = [];
+		try {
+			parsedIds = JSON.parse(subKelompokIdsRaw);
+		} catch {
+			parsedIds = subKelompokIdsRaw
+				.split(',')
+				.map((id) => parseInt(id.trim(), 10))
+				.filter((id) => !isNaN(id));
+		}
+
+		if (!Array.isArray(parsedIds) || parsedIds.length === 0) {
+			return fail(400, { error: 'Pilih minimal satu sub-kelompok untuk dihapus.' });
+		}
+
+		try {
+			db.transaction((tx) => {
+				tx.delete(subKelompok).where(inArray(subKelompok.id, parsedIds)).run();
+			});
+
+			return { success: true, message: `${parsedIds.length} sub-kelompok berhasil dihapus.` };
+		} catch (error: any) {
+			console.error('Gagal menghapus batch sub-kelompok:', error);
+			return fail(500, { error: `Terjadi kesalahan sistem saat menghapus batch sub-kelompok: ${error.message}` });
 		}
 	}
 };

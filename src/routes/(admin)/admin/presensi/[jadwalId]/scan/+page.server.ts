@@ -28,7 +28,9 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		throw error(404, 'Jadwal pengajian tidak ditemukan');
 	}
 
-	const kelompokData = db.select().from(kelompok).where(eq(kelompok.id, jadwal.kelompokId)).get();
+	const kelompokData = jadwal.kelompokId
+		? db.select().from(kelompok).where(eq(kelompok.id, jadwal.kelompokId)).get()
+		: null;
 
 	return {
 		jadwal,

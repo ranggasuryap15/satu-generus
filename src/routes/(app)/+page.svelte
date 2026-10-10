@@ -1,19 +1,22 @@
 <!--
   @file src/routes/(app)/+page.svelte
-  @purpose Halaman beranda client/jamaah (Mobile-First) dengan launcher Quick Access aplikasi (Presensi, Data Keluarga, Menuju Haramain, SI-PPG, dll), jadwal kegiatan terdekat, dan modal ekosistem aplikasi
+  @purpose Halaman beranda client/jamaah (Mobile-First) dengan launcher Quick Access aplikasi, jadwal pengajian bertingkat (Kelompok & Desa) lengkap dengan jam wajib dan detail materi, dan modal ekosistem aplikasi
   @usedBy Route utama client '/'
-  @dependencies @lucide/svelte, $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
+  @dependencies @lucide/svelte, $lib/utils (formatDateDDMMYYYY), $lib/jadwal (formatDateIndoFull), Svelte 5 Runes
   @publicFunctions openAppDetail, closeModals
   @sideEffects Menavigasikan jamaah ke layanan utama atau membuka modal rincian aplikasi ekosistem
 -->
 <script lang="ts">
 	import {
+		AlertCircle,
 		Calendar,
 		ChevronRight,
+		Clock,
 		Compass,
 		ExternalLink,
 		GraduationCap,
 		LayoutGrid,
+		MapPin,
 		QrCode,
 		Sparkles,
 		Users,
@@ -21,11 +24,17 @@
 	} from '@lucide/svelte';
 	import type { PageData } from './$types';
 	import { formatDateDDMMYYYY } from '$lib/utils';
+	import { formatDateIndoFull } from '$lib/jadwal';
 
 	let { data } = $props<{ data: PageData }>();
 
 	let showAppsModal = $state(false);
 	let selectedAppModal = $state<'haramain' | 'ppg' | null>(null);
+	let jadwalTab = $state<'kelompok' | 'desa'>('kelompok');
+
+	const currentJadwalList = $derived(
+		jadwalTab === 'kelompok' ? data.upcomingJadwalKelompok : data.upcomingJadwalDesa
+	);
 
 	function openAppDetail(appId: 'haramain' | 'ppg') {
 		selectedAppModal = appId;
@@ -150,33 +159,89 @@
 		</div>
 	</section>
 
-	<!-- Jadwal Kegiatan Terdekat -->
-	<section class="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-3">
+	<!-- Jadwal Kegiatan Terdekat (Kelompok & Desa) -->
+	<section class="bg-card border border-border rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
 		<div class="flex items-center justify-between">
 			<div class="flex items-center gap-2">
 				<Calendar class="w-4 h-4 text-primary" />
 				<h3 class="text-xs font-bold text-foreground">Jadwal Pengajian Terdekat</h3>
 			</div>
 			<a href="/presensi" class="text-[11px] font-semibold text-primary hover:underline flex items-center">
-				Lihat Semua <ChevronRight class="w-3 h-3 ml-0.5" />
+				Presensi Mandiri <ChevronRight class="w-3 h-3 ml-0.5" />
 			</a>
 		</div>
 
-		<div class="border-t border-border/60 pt-3 space-y-2.5">
-			{#if data.upcomingJadwal.length === 0}
-				<p class="text-xs text-foreground/50 py-3 text-center">
-					Belum ada jadwal kegiatan pengajian baru untuk kelompok Anda.
+		<!-- Switcher Tab: Kelompok vs Desa -->
+		<div class="flex items-center gap-2 border-b border-border/70 pb-2 text-xs">
+			<button
+				type="button"
+				onclick={() => (jadwalTab = 'kelompok')}
+				class="px-3 py-1 rounded-lg font-bold transition-all {jadwalTab === 'kelompok'
+					? 'bg-primary/10 text-primary border border-primary/20'
+					: 'text-foreground/60 hover:text-foreground'}"
+			>
+				Kelompok ({data.kelompokNama})
+			</button>
+			<button
+				type="button"
+				onclick={() => (jadwalTab = 'desa')}
+				class="px-3 py-1 rounded-lg font-bold transition-all {jadwalTab === 'desa'
+					? 'bg-primary/10 text-primary border border-primary/20'
+					: 'text-foreground/60 hover:text-foreground'}"
+			>
+				Desa ({data.desaNama})
+			</button>
+		</div>
+
+		<!-- Daftar Jadwal Terdekat -->
+		<div class="space-y-2.5 pt-1">
+			{#if currentJadwalList.length === 0}
+				<p class="text-xs text-foreground/50 py-4 text-center">
+					Belum ada jadwal pengajian {jadwalTab === 'kelompok' ? 'kelompok' : 'desa'} terdekat saat ini.
 				</p>
 			{:else}
-				{#each data.upcomingJadwal as jadwal}
-					<div class="flex items-start justify-between p-2 rounded-lg hover:bg-secondary/40 transition-colors">
-						<div>
-							<h4 class="text-xs font-semibold text-foreground">{jadwal.namaKegiatan}</h4>
-							<p class="text-[11px] text-foreground/60 font-mono mt-0.5">{formatDateDDMMYYYY(jadwal.tanggal)}</p>
+				{#each currentJadwalList as jadwal}
+					<div class="p-3 rounded-xl border border-border/80 bg-background/50 hover:border-primary/40 transition-all space-y-1.5 {jadwal.isOverride ? 'border-amber-500/30 bg-amber-500/5' : ''}">
+						<div class="flex items-center justify-between gap-2">
+							<div class="flex items-center gap-2">
+								<span class="text-xs font-bold text-foreground">
+									{formatDateIndoFull(jadwal.tanggal)}
+								</span>
+								{#if jadwal.status === 'libur'}
+									<span class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400">
+										Libur
+									</span>
+								{/if}
+								{#if jadwal.isOverride}
+									<span class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300">
+										Perubahan Khusus
+									</span>
+								{/if}
+							</div>
+
+							<!-- Jam Pelaksanaan (Wajib diisi & jelas) -->
+							<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-primary/10 text-primary font-mono">
+								<Clock class="w-3 h-3" />
+								<span>{jadwal.jamMulai}{jadwal.jamSelesai ? ` - ${jadwal.jamSelesai}` : ''} WIB</span>
+							</span>
 						</div>
-						<span class="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
-							{data.kelompokNama}
-						</span>
+
+						<h4 class="text-xs font-bold text-foreground/90">
+							{jadwal.namaKegiatan}
+						</h4>
+
+						{#if jadwal.detailMateri}
+							<p class="text-[11px] text-foreground/75 bg-secondary/30 p-2 rounded-lg leading-relaxed whitespace-pre-line">
+								{jadwal.detailMateri}
+							</p>
+						{/if}
+
+						{#if jadwal.lokasiNama}
+							<div class="flex items-center gap-1 text-[10.5px] text-foreground/60 pt-0.5">
+								<MapPin class="w-3 h-3 text-foreground/40 shrink-0" />
+								<span class="truncate">{jadwal.lokasiNama}</span>
+							</div>
+						{/if}
 					</div>
 				{/each}
 			{/if}

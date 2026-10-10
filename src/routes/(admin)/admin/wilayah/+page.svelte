@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(admin)/admin/wilayah/+page.svelte
-  @purpose Halaman manajemen Data Wilayah lengkap (Daerah, Desa, Kelompok, Sub-Kelompok), modal detail kelompok dengan Leaflet, kontrol RBAC visual berjenjang, safe navigation data, dan progressive enhancement form actions
+  @purpose Halaman manajemen Data Wilayah lengkap (Daerah, Desa, Kelompok, Sub-Kelompok), modal detail kelompok dengan Leaflet, kontrol RBAC visual berjenjang, checklist hapus massal & single delete untuk admin Daerah, Desa, dan Superadmin
   @usedBy Route admin '/admin/wilayah'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/LocationPicker.svelte, $app/forms (enhance)
-  @publicFunctions openAddDaerahModal, closeAddDaerahModal, openAddKelompokModal, closeAddKelompokModal, openAddDesaModal, closeAddDesaModal, openAddSubKelompokModal, closeAddSubKelompokModal, openKelompokDetail, closeKelompokDetail, resetFilter
-  @sideEffects Menampilkan data wilayah sesuai scope RBAC, menyaring data, mengelola lokasi kelompok dengan Leaflet, dan mengirim update ke server via enhance
+  @publicFunctions openAddDaerahModal, closeAddDaerahModal, openAddKelompokModal, closeAddKelompokModal, openAddDesaModal, closeAddDesaModal, openAddSubKelompokModal, closeAddSubKelompokModal, openKelompokDetail, closeKelompokDetail, resetFilter, toggleSelectKelompok, toggleSelectAllKelompok, openDeleteSingleKelompok, openDeleteBatchKelompok, closeDeleteModal
+  @sideEffects Menampilkan data wilayah sesuai scope RBAC, menyaring data, mengelola lokasi kelompok dengan Leaflet, dan mengirim update/delete ke server via enhance
 -->
 <script lang="ts">
 	import {
@@ -26,7 +26,10 @@
 		ExternalLink,
 		Compass,
 		CheckCircle2,
-		Navigation
+		Navigation,
+		Trash2,
+		AlertTriangle,
+		CheckSquare
 	} from '@lucide/svelte';
 	import type { ActionData, PageData } from './$types';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
@@ -245,6 +248,114 @@
 		showAddSubKelompokModal = false;
 	}
 
+	// State Checklist Seleksi Hapus Kelompok & Sub-Kelompok
+	let selectedKelompokIds = $state<number[]>([]);
+	let selectedSubKelompokIds = $state<number[]>([]);
+
+	// State Modal Konfirmasi Hapus
+	let showDeleteConfirmModal = $state(false);
+	let deleteTarget = $state<{
+		type: 'singleKelompok' | 'batchKelompok' | 'singleSubKelompok' | 'batchSubKelompok';
+		id?: number;
+		nama?: string;
+		count?: number;
+		totalJamaah?: number;
+	} | null>(null);
+
+	function toggleSelectKelompok(id: number) {
+		if (selectedKelompokIds.includes(id)) {
+			selectedKelompokIds = selectedKelompokIds.filter((kId) => kId !== id);
+		} else {
+			selectedKelompokIds = [...selectedKelompokIds, id];
+		}
+	}
+
+	function toggleSelectAllKelompok() {
+		const visibleIds = filteredKelompok.map((k) => k.id);
+		const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedKelompokIds.includes(id));
+		if (allSelected) {
+			selectedKelompokIds = selectedKelompokIds.filter((id) => !visibleIds.includes(id));
+		} else {
+			selectedKelompokIds = Array.from(new Set([...selectedKelompokIds, ...visibleIds]));
+		}
+	}
+
+	const isAllKelompokSelected = $derived(
+		filteredKelompok.length > 0 && filteredKelompok.every((k) => selectedKelompokIds.includes(k.id))
+	);
+
+	const isSomeKelompokSelected = $derived(
+		filteredKelompok.some((k) => selectedKelompokIds.includes(k.id)) && !isAllKelompokSelected
+	);
+
+	function openDeleteSingleKelompok(k: (typeof data.kelompokList)[number]) {
+		deleteTarget = {
+			type: 'singleKelompok',
+			id: k.id,
+			nama: k.nama,
+			totalJamaah: k.totalJamaah
+		};
+		showDeleteConfirmModal = true;
+	}
+
+	function openDeleteBatchKelompok() {
+		if (selectedKelompokIds.length === 0) return;
+		deleteTarget = {
+			type: 'batchKelompok',
+			count: selectedKelompokIds.length
+		};
+		showDeleteConfirmModal = true;
+	}
+
+	function toggleSelectSubKelompok(id: number) {
+		if (selectedSubKelompokIds.includes(id)) {
+			selectedSubKelompokIds = selectedSubKelompokIds.filter((skId) => skId !== id);
+		} else {
+			selectedSubKelompokIds = [...selectedSubKelompokIds, id];
+		}
+	}
+
+	function toggleSelectAllSubKelompok() {
+		const visibleIds = filteredSubKelompok.map((sk) => sk.id);
+		const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedSubKelompokIds.includes(id));
+		if (allSelected) {
+			selectedSubKelompokIds = selectedSubKelompokIds.filter((id) => !visibleIds.includes(id));
+		} else {
+			selectedSubKelompokIds = Array.from(new Set([...selectedSubKelompokIds, ...visibleIds]));
+		}
+	}
+
+	const isAllSubKelompokSelected = $derived(
+		filteredSubKelompok.length > 0 && filteredSubKelompok.every((sk) => selectedSubKelompokIds.includes(sk.id))
+	);
+
+	const isSomeSubKelompokSelected = $derived(
+		filteredSubKelompok.some((sk) => selectedSubKelompokIds.includes(sk.id)) && !isAllSubKelompokSelected
+	);
+
+	function openDeleteSingleSubKelompok(sk: (typeof data.subKelompokList)[number]) {
+		deleteTarget = {
+			type: 'singleSubKelompok',
+			id: sk.id,
+			nama: sk.nama
+		};
+		showDeleteConfirmModal = true;
+	}
+
+	function openDeleteBatchSubKelompok() {
+		if (selectedSubKelompokIds.length === 0) return;
+		deleteTarget = {
+			type: 'batchSubKelompok',
+			count: selectedSubKelompokIds.length
+		};
+		showDeleteConfirmModal = true;
+	}
+
+	function closeDeleteModal() {
+		showDeleteConfirmModal = false;
+		deleteTarget = null;
+	}
+
 	$effect(() => {
 		if (form?.success) {
 			resetAddDaerahForm();
@@ -255,6 +366,11 @@
 			showAddKelompokModal = false;
 			showAddDesaModal = false;
 			showAddSubKelompokModal = false;
+			showDeleteConfirmModal = false;
+			deleteTarget = null;
+			selectedKelompokIds = [];
+			selectedSubKelompokIds = [];
+			showKelompokDetailModal = false;
 		}
 	});
 </script>
@@ -616,12 +732,53 @@
 	<!-- TABEL DATA: TAB KELOMPOK ATAU TAB SUB-KELOMPOK -->
 	<!-- ============================================================== -->
 	{#if activeTab === 'kelompok'}
+		<!-- Toolbar Aksi Massal Hapus Kelompok -->
+		{#if data.permissions?.canDeleteKelompok && selectedKelompokIds.length > 0}
+			<div
+				class="p-3 bg-destructive/10 border border-destructive/20 rounded-xl flex items-center justify-between gap-3 animate-in fade-in duration-150 shadow-xs"
+			>
+				<div class="flex items-center gap-2 text-xs font-semibold text-destructive">
+					<CheckSquare class="w-4 h-4 shrink-0" />
+					<span><strong>{selectedKelompokIds.length}</strong> kelompok dipilih untuk aksi massal</span>
+				</div>
+				<div class="flex items-center gap-2">
+					<button
+						type="button"
+						onclick={() => (selectedKelompokIds = [])}
+						class="px-3 py-1.5 rounded-lg border border-border text-xs font-semibold text-foreground/70 hover:bg-secondary cursor-pointer transition-colors"
+					>
+						Batal Pilih
+					</button>
+					<button
+						type="button"
+						onclick={openDeleteBatchKelompok}
+						class="px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground text-xs font-bold hover:bg-destructive/90 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+					>
+						<Trash2 class="w-3.5 h-3.5" />
+						<span>Hapus Terpilih ({selectedKelompokIds.length})</span>
+					</button>
+				</div>
+			</div>
+		{/if}
+
 		<!-- Tabel Kelompok -->
 		<div class="bg-card border border-border rounded-xl overflow-hidden shadow-xs">
 			<div class="overflow-x-auto">
 				<table class="w-full text-left text-xs">
 					<thead class="bg-secondary/60 text-foreground/70 uppercase text-[10px] tracking-wider border-b border-border">
 						<tr>
+							{#if data.permissions?.canDeleteKelompok}
+								<th class="py-3 px-3 w-10 text-center">
+									<input
+										type="checkbox"
+										checked={isAllKelompokSelected}
+										indeterminate={isSomeKelompokSelected}
+										onchange={toggleSelectAllKelompok}
+										class="w-4 h-4 rounded border-border text-primary focus:ring-primary cursor-pointer accent-primary"
+										title="Pilih Semua Kelompok"
+									/>
+								</th>
+							{/if}
 							<th class="py-3 px-4 font-semibold">Nama Kelompok</th>
 							<th class="py-3 px-4 font-semibold">Lokasi Basis</th>
 							<th class="py-3 px-4 font-semibold">Sub-Kelompok</th>
@@ -635,7 +792,7 @@
 					<tbody class="divide-y divide-border">
 						{#if filteredKelompok.length === 0}
 							<tr>
-								<td colspan="8" class="py-12 text-center text-foreground/50">
+								<td colspan={data.permissions?.canDeleteKelompok ? 9 : 8} class="py-12 text-center text-foreground/50">
 									Belum ada unit kelompok yang cocok dengan filter atau pencarian.
 								</td>
 							</tr>
@@ -643,8 +800,19 @@
 							{#each filteredKelompok as k}
 								<tr
 									onclick={() => openKelompokDetail(k)}
-									class="hover:bg-secondary/40 transition-colors cursor-pointer group"
+									class="hover:bg-secondary/40 transition-colors cursor-pointer group {selectedKelompokIds.includes(k.id) ? 'bg-destructive/5' : ''}"
 								>
+									{#if data.permissions?.canDeleteKelompok}
+										<td class="py-3.5 px-3 text-center" onclick={(e) => e.stopPropagation()}>
+											<input
+												type="checkbox"
+												checked={selectedKelompokIds.includes(k.id)}
+												onchange={() => toggleSelectKelompok(k.id)}
+												class="w-4 h-4 rounded border-border text-primary focus:ring-primary cursor-pointer accent-primary"
+											/>
+										</td>
+									{/if}
+
 									<td class="py-3.5 px-4 font-semibold text-foreground flex items-center gap-2">
 										<div class="w-6 h-6 rounded bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors flex items-center justify-center font-mono text-[10px] shrink-0">
 											KL
@@ -700,16 +868,26 @@
 										</span>
 									</td>
 									<td class="py-3.5 px-4 text-center">
-										<button
-											type="button"
-											onclick={(e) => {
-												e.stopPropagation();
-												openKelompokDetail(k);
-											}}
-											class="px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-[10.5px] font-bold transition-colors cursor-pointer"
-										>
-											Detail & Lokasi
-										</button>
+										<div class="flex items-center justify-center gap-1.5" onclick={(e) => e.stopPropagation()}>
+											<button
+												type="button"
+												onclick={() => openKelompokDetail(k)}
+												class="px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-[10.5px] font-bold transition-colors cursor-pointer"
+											>
+												Detail & Lokasi
+											</button>
+
+											{#if data.permissions?.canDeleteKelompok}
+												<button
+													type="button"
+													onclick={() => openDeleteSingleKelompok(k)}
+													class="p-1 rounded-lg hover:bg-destructive/10 text-foreground/50 hover:text-destructive transition-colors cursor-pointer"
+													title="Hapus Kelompok"
+												>
+													<Trash2 class="w-3.5 h-3.5" />
+												</button>
+											{/if}
+										</div>
 									</td>
 								</tr>
 							{/each}
@@ -719,29 +897,84 @@
 			</div>
 		</div>
 	{:else}
+		<!-- Toolbar Aksi Massal Hapus Sub-Kelompok -->
+		{#if data.permissions?.canDeleteSubKelompok && selectedSubKelompokIds.length > 0}
+			<div
+				class="p-3 bg-destructive/10 border border-destructive/20 rounded-xl flex items-center justify-between gap-3 animate-in fade-in duration-150 shadow-xs"
+			>
+				<div class="flex items-center gap-2 text-xs font-semibold text-destructive">
+					<CheckSquare class="w-4 h-4 shrink-0" />
+					<span><strong>{selectedSubKelompokIds.length}</strong> sub-kelompok dipilih untuk aksi massal</span>
+				</div>
+				<div class="flex items-center gap-2">
+					<button
+						type="button"
+						onclick={() => (selectedSubKelompokIds = [])}
+						class="px-3 py-1.5 rounded-lg border border-border text-xs font-semibold text-foreground/70 hover:bg-secondary cursor-pointer transition-colors"
+					>
+						Batal Pilih
+					</button>
+					<button
+						type="button"
+						onclick={openDeleteBatchSubKelompok}
+						class="px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground text-xs font-bold hover:bg-destructive/90 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+					>
+						<Trash2 class="w-3.5 h-3.5" />
+						<span>Hapus Terpilih ({selectedSubKelompokIds.length})</span>
+					</button>
+				</div>
+			</div>
+		{/if}
+
 		<!-- Tabel Sub-Kelompok -->
 		<div class="bg-card border border-border rounded-xl overflow-hidden shadow-xs">
 			<div class="overflow-x-auto">
 				<table class="w-full text-left text-xs">
 					<thead class="bg-secondary/60 text-foreground/70 uppercase text-[10px] tracking-wider border-b border-border">
 						<tr>
+							{#if data.permissions?.canDeleteSubKelompok}
+								<th class="py-3 px-3 w-10 text-center">
+									<input
+										type="checkbox"
+										checked={isAllSubKelompokSelected}
+										indeterminate={isSomeSubKelompokSelected}
+										onchange={toggleSelectAllSubKelompok}
+										class="w-4 h-4 rounded border-border text-primary focus:ring-primary cursor-pointer accent-primary"
+										title="Pilih Semua Sub-Kelompok"
+									/>
+								</th>
+							{/if}
 							<th class="py-3 px-4 font-semibold">Nama Sub-Kelompok</th>
 							<th class="py-3 px-4 font-semibold">Kelompok Induk</th>
 							<th class="py-3 px-4 font-semibold">Keterangan / Rukun</th>
 							<th class="py-3 px-4 font-semibold">Desa Induk</th>
 							<th class="py-3 px-4 font-semibold">Daerah Induk</th>
+							{#if data.permissions?.canDeleteSubKelompok}
+								<th class="py-3 px-4 font-semibold text-center">Aksi</th>
+							{/if}
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-border">
 						{#if filteredSubKelompok.length === 0}
 							<tr>
-								<td colspan="5" class="py-12 text-center text-foreground/50">
+								<td colspan={data.permissions?.canDeleteSubKelompok ? 7 : 5} class="py-12 text-center text-foreground/50">
 									Belum ada unit sub-kelompok yang cocok dengan filter atau pencarian.
 								</td>
 							</tr>
 						{:else}
 							{#each filteredSubKelompok as sk}
-								<tr class="hover:bg-secondary/30 transition-colors">
+								<tr class="hover:bg-secondary/30 transition-colors {selectedSubKelompokIds.includes(sk.id) ? 'bg-destructive/5' : ''}">
+									{#if data.permissions?.canDeleteSubKelompok}
+										<td class="py-3.5 px-3 text-center" onclick={(e) => e.stopPropagation()}>
+											<input
+												type="checkbox"
+												checked={selectedSubKelompokIds.includes(sk.id)}
+												onchange={() => toggleSelectSubKelompok(sk.id)}
+												class="w-4 h-4 rounded border-border text-primary focus:ring-primary cursor-pointer accent-primary"
+											/>
+										</td>
+									{/if}
+
 									<td class="py-3.5 px-4 font-semibold text-foreground flex items-center gap-2">
 										<div class="w-6 h-6 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center font-mono text-[10px] shrink-0">
 											SK
@@ -752,6 +985,19 @@
 									<td class="py-3.5 px-4 text-foreground/70">{sk.keterangan || '-'}</td>
 									<td class="py-3.5 px-4 text-foreground/70">{sk.desaNama || '-'}</td>
 									<td class="py-3.5 px-4 text-foreground/60">{sk.daerahNama || '-'}</td>
+
+									{#if data.permissions?.canDeleteSubKelompok}
+										<td class="py-3.5 px-4 text-center">
+											<button
+												type="button"
+												onclick={() => openDeleteSingleSubKelompok(sk)}
+												class="p-1 rounded-lg hover:bg-destructive/10 text-foreground/50 hover:text-destructive transition-colors cursor-pointer"
+												title="Hapus Sub-Kelompok"
+											>
+												<Trash2 class="w-3.5 h-3.5" />
+											</button>
+										</td>
+									{/if}
 								</tr>
 							{/each}
 						{/if}
