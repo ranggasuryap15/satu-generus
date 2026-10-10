@@ -100,6 +100,11 @@ export const actions: Actions = {
 			if (!r.tanggalLahir?.trim()) {
 				return fail(400, { error: `Baris ke-${i + 1} (${nama}): Tanggal lahir wajib diisi.` });
 			}
+			if (!r.statusKeluarga?.trim()) {
+				return fail(400, {
+					error: `Baris ke-${i + 1} (${nama}): Hubungan keluarga wajib dipilih (tidak boleh kosong).`
+				});
+			}
 
 			let kId = r.kelompokId ? parseInt(String(r.kelompokId), 10) : defaultKelompokId;
 			if (kId && !isKelompokAllowed(kId, accessibleWilayah.allowedKelompokIdSet, adminScope.isPusat)) {

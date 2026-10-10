@@ -1,9 +1,9 @@
 /**
  * @file src/lib/generus.ts
- * @purpose Helper kalkulasi umur, klasifikasi status generus otomatis, dan opsi metadata sensus jamaah
+ * @purpose Helper kalkulasi umur, klasifikasi status generus otomatis, dan opsi metadata sensus jamaah sesuai jenis kelamin
  * @usedBy Form sensus, modul batch insert (/admin/sensus/batch), dan visualisasi data generus
  * @dependencies Tidak ada (Pure utility TypeScript)
- * @publicFunctions hitungUmur, hitungStatusGenerus, DAFTAR_STATUS_GENERUS, DAFTAR_STATUS_PERNIKAHAN, DAFTAR_STATUS_KELUARGA, DAFTAR_GOLONGAN_DARAH
+ * @publicFunctions hitungUmur, hitungStatusGenerus, getDaftarStatusKeluargaByGender, DAFTAR_STATUS_GENERUS, DAFTAR_STATUS_PERNIKAHAN, DAFTAR_STATUS_KELUARGA, DAFTAR_GOLONGAN_DARAH
  * @sideEffects Tidak ada (Fungsi murni deterministik / read-only date)
  */
 
@@ -92,15 +92,46 @@ export const DAFTAR_STATUS_GENERUS = [
 export const DAFTAR_STATUS_PERNIKAHAN = ['Belum Menikah', 'Sudah Menikah'] as const;
 
 export const DAFTAR_STATUS_KELUARGA = [
+	'Kepala Keluarga',
 	'Bapak',
 	'Ibu',
-	'Anak',
-	'Kepala Keluarga',
 	'Istri',
+	'Anak',
 	'Remaja Perantau',
 	'Mandiri',
 	'Famili Lain'
 ] as const;
+
+export const DAFTAR_STATUS_KELUARGA_LAKI = [
+	'Kepala Keluarga',
+	'Bapak',
+	'Anak',
+	'Remaja Perantau',
+	'Mandiri',
+	'Famili Lain'
+] as const;
+
+export const DAFTAR_STATUS_KELUARGA_PEREMPUAN = [
+	'Ibu',
+	'Istri',
+	'Anak',
+	'Remaja Perantau',
+	'Mandiri',
+	'Famili Lain'
+] as const;
+
+/**
+ * Mengambil daftar opsi hubungan keluarga yang valid sesuai jenis kelamin
+ */
+export function getDaftarStatusKeluargaByGender(jenisKelamin?: string | null): readonly string[] {
+	if (jenisKelamin === 'L') {
+		return DAFTAR_STATUS_KELUARGA_LAKI;
+	}
+	if (jenisKelamin === 'P') {
+		return DAFTAR_STATUS_KELUARGA_PEREMPUAN;
+	}
+	return DAFTAR_STATUS_KELUARGA;
+}
 
 export const DAFTAR_GOLONGAN_DARAH = ['-', 'A', 'B', 'AB', 'O'] as const;
 export const DAFTAR_STATUS_JAMAAH = ['Aktif', 'Tidak Aktif'] as const;
