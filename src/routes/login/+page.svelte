@@ -7,9 +7,9 @@
   @sideEffects Mengirim formulir login kredensial pengguna dan menampilkan pesan validasi
 -->
 <script lang="ts">
-	import { Lock, Mail, ArrowRight, ShieldCheck, AlertCircle } from '@lucide/svelte';
-	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import { enhance } from '$app/forms';
+	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import { AlertCircle, ArrowRight, Lock, Mail, ShieldCheck } from '@lucide/svelte';
 	import type { ActionData } from './$types';
 
 	let { form } = $props<{ form: ActionData }>();
@@ -80,9 +80,6 @@
 						<label for="password" class="block text-xs font-medium text-foreground/80">
 							Kata Sandi
 						</label>
-						<a href="#lupa-password" class="text-[11px] font-medium text-primary hover:underline">
-							Lupa sandi?
-						</a>
 					</div>
 					<div class="relative">
 						<Lock class="w-4 h-4 text-foreground/40 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -95,6 +92,11 @@
 							placeholder="••••••••"
 							class="w-full bg-secondary/50 border border-border rounded-lg pl-9 pr-3 py-2 text-xs text-foreground placeholder:text-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
 						/>
+					</div>
+					<div>
+						<a href="#lupa-password" class="text-[11px] font-medium text-primary hover:underline">
+							Lupa sandi?
+						</a>
 					</div>
 				</div>
 
