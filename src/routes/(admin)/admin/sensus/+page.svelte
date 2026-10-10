@@ -1,36 +1,39 @@
 <!--
   @file src/routes/(admin)/admin/sensus/+page.svelte
-  @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri/Perantau, dashboard statistik, filter bertingkat (collapsible di mobile), dan form modal pendaftaran sensus KK/Mandiri (No KK dan NIK opsional/nullable) dengan proteksi draft input
+  @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri/Perantau, dashboard statistik, link batch insert, dan pembuatan akun login mandiri bagi anggota keluarga
   @usedBy Route admin '/admin/sensus'
-  @dependencies @lucide/svelte (Search, Eye, ShieldCheck, Users, Download, X, Home, UserCheck, MapPin, Plus, CheckCircle2, AlertCircle, Filter, RotateCcw, UserPlus, Trash2, ChevronDown, ChevronUp), Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/utils (formatDateDDMMYYYY)
-  @publicFunctions requestUnmask, openCreateModal, closeCreateModal, openAddMemberModal, closeAddMemberModal, resetFilters, toggleMobileFilter
-  @sideEffects Menampilkan metrik, unmask data sensitif via /api/sensus/unmask, submit form createSensus & addAnggotaKeluarga
+  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/utils (formatDateDDMMYYYY)
+  @publicFunctions requestUnmask, openCreateModal, closeCreateModal, openAddMemberModal, closeAddMemberModal, openCreateAccountModal, resetFilters, toggleMobileFilter
+  @sideEffects Menampilkan metrik, unmask data sensitif via /api/sensus/unmask, submit createSensus, addAnggotaKeluarga, createMemberAccount
 -->
 <script lang="ts">
-	import {
-		Search,
-		Eye,
-		ShieldCheck,
-		Users,
-		Download,
-		X,
-		Home,
-		UserCheck,
-		MapPin,
-		Plus,
-		CheckCircle2,
-		AlertCircle,
-		Filter,
-		RotateCcw,
-		UserPlus,
-		Trash2,
-		ChevronDown,
-		ChevronUp
-	} from '@lucide/svelte';
-	import type { PageData, ActionData } from './$types';
-	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
 	import DateInput from '$lib/components/DateInput.svelte';
+	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
 	import { formatDateDDMMYYYY } from '$lib/utils';
+	import {
+	  AlertCircle,
+	  CheckCircle2,
+	  ChevronDown,
+	  ChevronUp,
+	  Download,
+	  Eye,
+	  Filter,
+	  Home,
+	  KeyRound,
+	  MapPin,
+	  Plus,
+	  RotateCcw,
+	  Search,
+	  ShieldCheck,
+	  TableProperties,
+	  Trash2,
+	  UserCheck,
+	  UserPlus,
+	  Users,
+	  X
+	} from '@lucide/svelte';
+	import { enhance } from '$app/forms';
+	import type { ActionData, PageData } from './$types';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -56,6 +59,20 @@
 	let showUnmaskModal = $state(false);
 	let unmaskLoading = $state(false);
 	let unmaskedData = $state<{ label: string; value: string } | null>(null);
+
+	// State Modal Buat Akun Mandiri untuk Anggota
+	let memberForAccount = $state<(typeof data.daftarKeluarga)[0]['anggota'][0] | null>(null);
+	let newAccountEmail = $state('');
+	let newAccountPhone = $state('');
+	let newAccountPassword = $state('');
+	let isAccountSubmitting = $state(false);
+
+	function openCreateAccountModal(member: (typeof data.daftarKeluarga)[0]['anggota'][0]) {
+		memberForAccount = member;
+		newAccountEmail = '';
+		newAccountPhone = member.noTelepon !== '-' ? member.noTelepon : '';
+		newAccountPassword = '12345678';
+	}
 
 	// State Modal Tambah Sensus Baru (Akun + KK/Mandiri + Anggota)
 	let showCreateModal = $state(false);
@@ -383,6 +400,14 @@
 		</div>
 
 		<div class="flex items-center gap-2">
+			<a
+				href="/admin/sensus/batch"
+				class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-primary/30 bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 transition-all shadow-sm"
+			>
+				<TableProperties class="w-3.5 h-3.5" />
+				<span>Batch Insert</span>
+			</a>
+
 			<button
 				type="button"
 				class="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-card text-xs font-medium text-foreground/80 hover:bg-secondary transition-colors"
@@ -1350,18 +1375,38 @@
 
 			<div class="space-y-2.5 max-h-80 overflow-y-auto pr-1">
 				{#each selectedKeluarga.anggota as a}
-					<div class="p-3 rounded-xl border border-border bg-secondary/30 flex items-center justify-between text-xs">
-						<div>
-							<div class="flex items-center gap-2 flex-wrap">
+					<div class="p-3 rounded-xl border border-border bg-secondary/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+						<div class="space-y-1">
+							<div class="flex items-center gap-1.5 flex-wrap">
 								<span class="font-bold text-foreground text-sm">{a.namaLengkap}</span>
-								<span class="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
+								<span class="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-semibold">
 									{a.statusHubungan}
 								</span>
-								<span class="text-[10px] bg-secondary px-1.5 py-0.5 rounded text-foreground/70 font-mono">
+								<span class="text-[10px] bg-secondary px-1.5 py-0.5 rounded text-foreground/70 font-mono font-bold">
 									{a.jenisKelamin}
 								</span>
+								{#if a.statusGenerus && a.statusGenerus !== '-'}
+									<span class="text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-full font-semibold">
+										{a.statusGenerus}
+									</span>
+								{/if}
+								{#if a.statusPernikahan && a.statusPernikahan !== '-'}
+									<span class="text-[10px] bg-blue-500/10 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded font-medium">
+										{a.statusPernikahan}
+									</span>
+								{/if}
+								{#if a.statusJamaah}
+									<span class="text-[10px] {a.statusJamaah === 'Aktif' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-destructive/10 text-destructive'} px-1.5 py-0.5 rounded font-medium">
+										{a.statusJamaah}
+									</span>
+								{/if}
+								{#if a.isrun === 'Ya'}
+									<span class="text-[10px] bg-purple-500/10 text-purple-600 px-1.5 py-0.5 rounded font-medium">
+										Isrun: Ya
+									</span>
+								{/if}
 							</div>
-							<div class="flex items-center gap-2 mt-1">
+							<div class="flex items-center gap-2">
 								<span class="font-mono text-[11px] text-foreground/70">NIK: {a.nikMasked}</span>
 								{#if a.hasNik}
 									<button
@@ -1374,7 +1419,37 @@
 									</button>
 								{/if}
 							</div>
-							<p class="text-[10px] text-foreground/50 mt-0.5">Tgl Lahir: {formatDateDDMMYYYY(a.tanggalLahir)}</p>
+							<div class="flex items-center gap-3 text-[10px] text-foreground/60 flex-wrap">
+								<span>Lahir: {a.tempatLahir !== '-' ? `${a.tempatLahir}, ` : ''}{formatDateDDMMYYYY(a.tanggalLahir)}</span>
+								{#if a.noTelepon && a.noTelepon !== '-'}
+									<span class="font-mono">HP: {a.noTelepon}</span>
+								{/if}
+								{#if a.profesi && a.profesi !== '-'}
+									<span>Profesi: {a.profesi}</span>
+								{/if}
+								{#if a.golonganDarah && a.golonganDarah !== '-'}
+									<span>Gol. Darah: {a.golonganDarah}</span>
+								{/if}
+							</div>
+						</div>
+
+						<div class="shrink-0 flex items-center gap-2">
+							{#if a.userId}
+								<span class="inline-flex items-center gap-1 text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded-lg font-semibold border border-emerald-500/20">
+									<CheckCircle2 class="w-3 h-3" />
+									<span>Punya Akun</span>
+								</span>
+							{:else}
+								<button
+									type="button"
+									onclick={() => openCreateAccountModal(a)}
+									class="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg border border-primary/40 bg-primary/10 hover:bg-primary/20 text-primary font-semibold transition-colors"
+									title="Buatkan akun mandiri agar anggota ini bisa login sendiri"
+								>
+									<KeyRound class="w-3 h-3" />
+									<span>Buatkan Akun</span>
+								</button>
+							{/if}
 						</div>
 					</div>
 				{/each}
@@ -1406,6 +1481,116 @@
 					Tutup
 				</button>
 			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- MODAL BUAT AKUN MANDIRI UNTUK ANGGOTA -->
+{#if memberForAccount}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
+		role="dialog"
+		aria-modal="true"
+	>
+		<div class="bg-card border border-border rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4">
+			<div class="flex items-center justify-between border-b border-border pb-3">
+				<div>
+					<h3 class="text-sm font-bold text-foreground">Buat Akun Login Mandiri</h3>
+					<p class="text-[11px] text-foreground/60 mt-0.5">
+						Anggota tetap terikat pada KK, namun kini bisa login sendiri.
+					</p>
+				</div>
+				<button
+					type="button"
+					onclick={() => (memberForAccount = null)}
+					class="text-foreground/50 hover:text-foreground text-sm font-semibold"
+				>
+					✕
+				</button>
+			</div>
+
+			<form
+				method="POST"
+				action="?/createMemberAccount"
+				use:enhance={() => {
+					isAccountSubmitting = true;
+					return async ({ update }) => {
+						isAccountSubmitting = false;
+						await update();
+						memberForAccount = null;
+					};
+				}}
+				class="space-y-3 text-xs"
+			>
+				<input type="hidden" name="anggotaId" value={memberForAccount.id} />
+
+				<div class="p-2.5 rounded-lg bg-secondary/40 border border-border space-y-0.5">
+					<span class="block text-[10px] text-foreground/50 font-medium uppercase">Nama Anggota:</span>
+					<span class="font-bold text-foreground text-xs">{memberForAccount.namaLengkap}</span>
+					<span class="text-[11px] text-primary block">({memberForAccount.statusHubungan})</span>
+				</div>
+
+				<div>
+					<label for="accEmail" class="block font-medium text-foreground/80 mb-1">
+						Email Login (Opsional)
+					</label>
+					<input
+						id="accEmail"
+						name="email"
+						type="email"
+						bind:value={newAccountEmail}
+						placeholder="contoh@domain.com"
+						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-primary"
+					/>
+				</div>
+
+				<div>
+					<label for="accPhone" class="block font-medium text-foreground/80 mb-1">
+						Nomor HP / WhatsApp (Bisa untuk Login)
+					</label>
+					<input
+						id="accPhone"
+						name="noTelepon"
+						type="text"
+						bind:value={newAccountPhone}
+						placeholder="0812xxxx"
+						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary"
+					/>
+				</div>
+
+				<div>
+					<label for="accPass" class="block font-medium text-foreground/80 mb-1">
+						Kata Sandi Akun *
+					</label>
+					<input
+						id="accPass"
+						name="password"
+						type="text"
+						required
+						minlength="6"
+						bind:value={newAccountPassword}
+						placeholder="Minimal 6 karakter"
+						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary"
+					/>
+				</div>
+
+				<div class="flex gap-2 pt-2">
+					<button
+						type="button"
+						onclick={() => (memberForAccount = null)}
+						class="flex-1 py-2 rounded-lg border border-border bg-secondary/60 hover:bg-secondary text-foreground font-semibold"
+					>
+						Batal
+					</button>
+					<button
+						type="submit"
+						disabled={isAccountSubmitting}
+						class="flex-1 py-2 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-semibold disabled:opacity-50"
+					>
+						{isAccountSubmitting ? 'Memproses...' : 'Buat Akun'}
+					</button>
+				</div>
+			</form>
 		</div>
 	</div>
 {/if}

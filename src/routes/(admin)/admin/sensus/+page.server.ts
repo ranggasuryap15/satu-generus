@@ -1,9 +1,9 @@
 /**
  * @file src/routes/(admin)/admin/sensus/+page.server.ts
- * @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri/Perantau, metrik dashboard, serta form actions penambahan sensus dan anggota keluarga (No KK dan NIK opsional/nullable) dengan proteksi RBAC
+ * @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri/Perantau, metrik dashboard, serta form actions penambahan sensus, anggota, dan pembuatan akun mandiri (createMemberAccount)
  * @usedBy src/routes/(admin)/admin/sensus/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/auth, src/lib/server/scope, src/lib/utils (normalizeDateToISO), drizzle-orm
- * @publicFunctions load, actions.createSensus, actions.addAnggotaKeluarga
+ * @publicFunctions load, actions.createSensus, actions.addAnggotaKeluarga, actions.createMemberAccount
  * @sideEffects Transaksi penulisan database tabel users, keluarga, anggota_keluarga; query join multi-tabel terindeks
  */
 
@@ -142,6 +142,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 				return {
 					id: a.id,
+					userId: a.userId,
 					namaLengkap:
 						a.namaLengkap ||
 						(a.statusHubungan === 'Kepala Keluarga' ? k.kepalaKeluargaNama || 'Kepala Keluarga' : a.statusHubungan),
@@ -149,7 +150,15 @@ export const load: PageServerLoad = async ({ locals }) => {
 					hasNik,
 					statusHubungan: a.statusHubungan,
 					tanggalLahir: a.tanggalLahir,
-					jenisKelamin: a.jenisKelamin
+					jenisKelamin: a.jenisKelamin,
+					tempatLahir: a.tempatLahir || '-',
+					profesi: a.profesi || '-',
+					noTelepon: a.noTelepon || '-',
+					statusGenerus: a.statusGenerus || '-',
+					statusPernikahan: a.statusPernikahan || '-',
+					statusJamaah: a.statusJamaah || 'Aktif',
+					isrun: a.isrun || 'Tidak',
+					golonganDarah: a.golonganDarah || '-'
 				};
 			});
 
@@ -504,5 +513,98 @@ export const actions: Actions = {
 		return {
 			success: 'Anggota keluarga baru berhasil ditambahkan.'
 		};
+	},
+
+	createMemberAccount: async ({ request, locals }) => {
+		if (!locals.user || !locals.isAdmin) {
+			throw redirect(303, '/login');
+		}
+
+		const formData = await request.formData();
+		const anggotaId = formData.get('anggotaId')?.toString() || '';
+		const email = formData.get('email')?.toString()?.trim() || '';
+		const noTelepon = formData.get('noTelepon')?.toString()?.trim() || '';
+		const password = formData.get('password')?.toString() || '';
+
+		if (!anggotaId) {
+			return fail(400, { errorAccount: 'ID anggota keluarga tidak valid.' });
+		}
+		if (!password || password.length < 6) {
+			return fail(400, { errorAccount: 'Kata sandi akun minimal 6 karakter.' });
+		}
+		if (!email && !noTelepon) {
+			return fail(400, { errorAccount: 'Minimal isi Email atau Nomor HP untuk kredensial login.' });
+		}
+
+		const targetAnggota = db
+			.select()
+			.from(anggotaKeluarga)
+			.where(eq(anggotaKeluarga.id, anggotaId))
+			.get();
+
+		if (!targetAnggota) {
+			return fail(404, { errorAccount: 'Data anggota keluarga tidak ditemukan.' });
+		}
+		if (targetAnggota.userId) {
+			return fail(400, { errorAccount: 'Anggota ini sudah memiliki akun login mandiri.' });
+		}
+
+		// Cari kelompok keluarga untuk user baru
+		const parentKeluarga = db
+			.select({
+				kelompokId: users.kelompokId
+			})
+			.from(keluarga)
+			.leftJoin(users, eq(keluarga.kepalaKeluargaId, users.id))
+			.where(eq(keluarga.id, targetAnggota.keluargaId))
+			.get();
+
+		const kelompokId = parentKeluarga?.kelompokId || null;
+
+		if (email) {
+			const existingEmail = db
+				.select()
+				.from(users)
+				.where(eq(users.email, email.toLowerCase()))
+				.get();
+			if (existingEmail) {
+				return fail(400, { errorAccount: 'Email tersebut sudah terdaftar pada akun lain.' });
+			}
+		}
+
+		const passwordHash = await hashPassword(password);
+
+		try {
+			db.transaction((tx) => {
+				const [newUser] = tx
+					.insert(users)
+					.values({
+						kelompokId,
+						namaLengkap: targetAnggota.namaLengkap || 'Jamaah',
+						email: email ? email.toLowerCase() : null,
+						noTelepon: noTelepon || targetAnggota.noTelepon || null,
+						passwordHash
+					})
+					.returning()
+					.all();
+
+				tx.update(anggotaKeluarga)
+					.set({
+						userId: newUser.id,
+						noTelepon: noTelepon || targetAnggota.noTelepon
+					})
+					.where(eq(anggotaKeluarga.id, anggotaId))
+					.run();
+			});
+
+			return {
+				success: 'Akun login mandiri berhasil dibuat untuk anggota keluarga!'
+			};
+		} catch (err) {
+			console.error('Gagal membuat akun anggota keluarga:', err);
+			return fail(500, {
+				errorAccount: 'Terjadi kesalahan sistem saat membuat akun login.'
+			});
+		}
 	}
 };

@@ -1,6 +1,6 @@
 /**
  * @file src/lib/db/schema.ts
- * @purpose Definisi schema tabel Drizzle ORM untuk SQLite sesuai SCHEMA.md (termasuk No KK dan NIK opsional/nullable)
+ * @purpose Definisi schema tabel Drizzle ORM untuk SQLite sesuai SCHEMA.md (termasuk No KK/NIK nullable, kontak no_telepon user, serta rincian lengkap anggota keluarga)
  * @usedBy src/lib/db/index.ts, queries/actions di routes dan services
  * @dependencies drizzle-orm/sqlite-core, @paralleldrive/cuid2
  * @publicFunctions daerah, desa, kelompok, users, dapukan, userDapukan, keluarga, anggotaKeluarga, presensiJadwal, presensiKehadiran
@@ -60,9 +60,13 @@ export const users = sqliteTable(
 		kelompokId: integer('kelompok_id').references(() => kelompok.id, { onDelete: 'set null' }),
 		namaLengkap: text('nama_lengkap').notNull(),
 		email: text('email').unique(),
+		noTelepon: text('no_telepon'),
 		passwordHash: text('password_hash').notNull()
 	},
-	(table) => [index('users_kelompok_id_idx').on(table.kelompokId)]
+	(table) => [
+		index('users_kelompok_id_idx').on(table.kelompokId),
+		index('users_no_telepon_idx').on(table.noTelepon)
+	]
 );
 
 export const dapukan = sqliteTable('dapukan', {
@@ -135,13 +139,22 @@ export const anggotaKeluarga = sqliteTable(
 		userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
 		namaLengkap: text('nama_lengkap'),
 		nikEncrypted: text('nik_encrypted'),
-		statusHubungan: text('status_hubungan').notNull(), // 'Suami' | 'Istri' | 'Anak' | dll
+		statusHubungan: text('status_hubungan').notNull(), // 'Bapak' | 'Ibu' | 'Anak' | 'Kepala Keluarga' | dll
 		tanggalLahir: text('tanggal_lahir').notNull(), // ISO8601 YYYY-MM-DD
-		jenisKelamin: text('jenis_kelamin').notNull() // 'L' | 'P'
+		jenisKelamin: text('jenis_kelamin').notNull(), // 'L' | 'P'
+		tempatLahir: text('tempat_lahir'),
+		profesi: text('profesi'),
+		noTelepon: text('no_telepon'),
+		statusGenerus: text('status_generus'), // 'Paud' | 'Caberawit' | 'Pra Remaja' | 'Remaja' | 'Pra Nikah' | 'Usia Nikah' | 'Dewasa Menikah' | 'Lansia'
+		statusPernikahan: text('status_pernikahan'), // 'Belum Menikah' | 'Sudah Menikah'
+		statusJamaah: text('status_jamaah').default('Aktif'), // 'Aktif' | 'Tidak Aktif'
+		isrun: text('isrun').default('Tidak'), // 'Ya' | 'Tidak'
+		golonganDarah: text('golongan_darah') // 'A' | 'B' | 'AB' | 'O' | '-'
 	},
 	(table) => [
 		index('anggota_keluarga_keluarga_id_idx').on(table.keluargaId),
-		index('anggota_keluarga_user_id_idx').on(table.userId)
+		index('anggota_keluarga_user_id_idx').on(table.userId),
+		index('anggota_keluarga_status_generus_idx').on(table.statusGenerus)
 	]
 );
 

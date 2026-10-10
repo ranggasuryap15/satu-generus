@@ -1,8 +1,8 @@
 /**
  * @file src/routes/login/+page.server.ts
- * @purpose Server action untuk memproses autentikasi login pengguna dan membuat session cookie
+ * @purpose Server action untuk memproses autentikasi login pengguna (Email / Nomor HP) dan membuat session cookie
  * @usedBy Form login pada src/routes/login/+page.svelte
- * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/auth
+ * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/auth, drizzle-orm
  * @publicFunctions load, actions.default
  * @sideEffects Membaca data pengguna dari SQLite, menulis cookie session, dan redirect pengguna
  */
@@ -11,7 +11,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import { db } from '$lib/db';
 import { users, userDapukan, dapukan } from '$lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, or } from 'drizzle-orm';
 import { createSession, verifyPassword } from '$lib/server/auth';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -38,11 +38,16 @@ export const actions: Actions = {
 			});
 		}
 
-		// Cari akun pengguna berdasarkan email
+		// Cari akun pengguna berdasarkan email atau nomor telepon (HP)
 		const user = db
 			.select()
 			.from(users)
-			.where(eq(users.email, identifier.toLowerCase()))
+			.where(
+				or(
+					eq(users.email, identifier.toLowerCase()),
+					eq(users.noTelepon, identifier)
+				)
+			)
 			.get();
 
 		if (!user) {

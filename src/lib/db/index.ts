@@ -4,7 +4,7 @@
  * @usedBy Backend server routes (+page.server.ts, +server.ts, hooks.server.ts, scripts migrasi/seed)
  * @dependencies better-sqlite3, drizzle-orm/better-sqlite3, src/lib/db/schema.ts
  * @publicFunctions db, sqlite
- * @sideEffects Membuka koneksi file database SQLite, mengaktifkan PRAGMA WAL & foreign_keys, auto-migrasi kolom skema dan relaksasi constraint nullable (no_kk_encrypted, nik_encrypted)
+ * @sideEffects Membuka koneksi file database SQLite, mengaktifkan PRAGMA WAL & foreign_keys, auto-migrasi kolom skema (no_telepon di users, detail sensus di anggota_keluarga, dan relaksasi constraint nullable)
  */
 
 import Database from 'better-sqlite3';
@@ -84,13 +84,21 @@ try {
 					id TEXT PRIMARY KEY NOT NULL,
 					keluarga_id TEXT NOT NULL REFERENCES keluarga(id) ON DELETE CASCADE,
 					user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
-					nama_lengkap TEXT,
+					namaLengkap TEXT,
 					nik_encrypted TEXT,
 					status_hubungan TEXT NOT NULL,
 					tanggal_lahir TEXT NOT NULL,
-					jenis_kelamin TEXT NOT NULL
+					jenis_kelamin TEXT NOT NULL,
+					tempat_lahir TEXT,
+					profesi TEXT,
+					no_telepon TEXT,
+					status_generus TEXT,
+					status_pernikahan TEXT,
+					status_jamaah TEXT DEFAULT 'Aktif',
+					isrun TEXT DEFAULT 'Tidak',
+					golongan_darah TEXT
 				);
-				INSERT INTO anggota_keluarga_temp (id, keluarga_id, user_id, nama_lengkap, nik_encrypted, status_hubungan, tanggal_lahir, jenis_kelamin)
+				INSERT INTO anggota_keluarga_temp (id, keluarga_id, user_id, namaLengkap, nik_encrypted, status_hubungan, tanggal_lahir, jenis_kelamin)
 				SELECT id, keluarga_id, user_id, (CASE WHEN nama_lengkap IS NOT NULL THEN nama_lengkap ELSE NULL END), nik_encrypted, status_hubungan, tanggal_lahir, jenis_kelamin FROM anggota_keluarga;
 				DROP TABLE anggota_keluarga;
 				ALTER TABLE anggota_keluarga_temp RENAME TO anggota_keluarga;
@@ -98,6 +106,37 @@ try {
 				CREATE INDEX IF NOT EXISTS anggota_keluarga_user_id_idx ON anggota_keluarga (user_id);
 			`);
 			sqlite.pragma('foreign_keys = ON');
+		}
+
+		// Tambahkan kolom-kolom baru sensus jika belum ada
+		const newAnggotaCols: Record<string, string> = {
+			tempat_lahir: 'TEXT',
+			profesi: 'TEXT',
+			no_telepon: 'TEXT',
+			status_generus: 'TEXT',
+			status_pernikahan: 'TEXT',
+			status_jamaah: "TEXT DEFAULT 'Aktif'",
+			isrun: "TEXT DEFAULT 'Tidak'",
+			golongan_darah: 'TEXT'
+		};
+		for (const [colName, colDef] of Object.entries(newAnggotaCols)) {
+			if (!anggotaCols.includes(colName)) {
+				sqlite.exec(`ALTER TABLE anggota_keluarga ADD COLUMN ${colName} ${colDef}`);
+			}
+		}
+		sqlite.exec('CREATE INDEX IF NOT EXISTS anggota_keluarga_status_generus_idx ON anggota_keluarga (status_generus)');
+	}
+
+	// Auto-heal / migrasi kolom users jika belum memiliki no_telepon
+	const tableUsers = sqlite
+		.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+		.get();
+	if (tableUsers) {
+		const rawUsersInfo = sqlite.prepare('PRAGMA table_info(users)').all() as Array<{ name: string }>;
+		const userCols = rawUsersInfo.map((c) => c.name);
+		if (!userCols.includes('no_telepon')) {
+			sqlite.exec('ALTER TABLE users ADD COLUMN no_telepon TEXT');
+			sqlite.exec('CREATE INDEX IF NOT EXISTS users_no_telepon_idx ON users (no_telepon)');
 		}
 	}
 } catch (migErr) {
