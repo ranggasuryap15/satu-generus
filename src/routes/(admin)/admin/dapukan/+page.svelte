@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(admin)/admin/dapukan/+page.svelte
-  @purpose Halaman manajemen struktur dapukan/jabatan dan penugasan RBAC pengurus dengan proteksi wewenang 4S (Ketua/Sekretaris di tingkat kelompok) serta penguncian scope wilayah
+  @purpose Halaman manajemen struktur dapukan/jabatan dan penugasan RBAC pengurus dengan proteksi wewenang 4S (Kyai/Penerobos di tingkat kelompok) serta penguncian scope wilayah
   @usedBy Route admin '/admin/dapukan'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte
   @publicFunctions openAssignModal, closeAssignModal, resetAssignForm, confirmRemove
@@ -256,10 +256,10 @@
 		{:else}
 			<div
 				class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary/70 text-foreground/50 text-xs font-medium border border-border"
-				title="Pada tingkat kelompok, hanya pengurus 4S dengan jabatan Ketua atau Sekretaris yang dapat menugaskan pengurus"
+				title="Pada tingkat kelompok, hanya pengurus 4S dengan jabatan Kyai atau Sekretaris / Penerobos yang dapat menugaskan pengurus"
 			>
 				<ShieldCheck class="w-4 h-4 text-foreground/40" />
-				<span>Khusus 4S Ketua / Sekretaris</span>
+				<span>Khusus 4S Kyai / Penerobos</span>
 			</div>
 		{/if}
 	</div>

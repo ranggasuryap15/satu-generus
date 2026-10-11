@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(admin)/admin/dapukan/+page.server.ts
- * @purpose Memuat daftar struktur dapukan/jabatan, penugasan RBAC pengurus dengan proteksi hierarki wilayah jamaah, serta mutasi penugasan (khusus 4S Ketua/Sekretaris pada tingkat kelompok)
+ * @purpose Memuat daftar struktur dapukan/jabatan, penugasan RBAC pengurus dengan proteksi hierarki wilayah jamaah, serta mutasi penugasan (khusus 4S Kyai / Sekretaris / Penerobos pada tingkat kelompok)
  * @usedBy src/routes/(admin)/admin/dapukan/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm
  * @publicFunctions load, actions.assignDapukan, actions.removeDapukan
@@ -101,7 +101,7 @@ export const actions: Actions = {
 
 		if (!canManageDapukan(locals.roles || [])) {
 			return fail(403, {
-				error: 'Akses ditolak: Pada tingkat kelompok, hanya pengurus 4S dengan jabatan Ketua atau Sekretaris yang dapat menugaskan pengurus baru.'
+				error: 'Akses ditolak: Pada tingkat kelompok, hanya pengurus 4S dengan jabatan Kyai atau Sekretaris / Penerobos yang dapat menugaskan pengurus baru.'
 			});
 		}
 
@@ -251,7 +251,7 @@ export const actions: Actions = {
 
 		if (!canManageDapukan(locals.roles || [])) {
 			return fail(403, {
-				error: 'Akses ditolak: Pada tingkat kelompok, hanya pengurus 4S dengan jabatan Ketua atau Sekretaris yang dapat mencabut penugasan pengurus.'
+				error: 'Akses ditolak: Pada tingkat kelompok, hanya pengurus 4S dengan jabatan Kyai atau Sekretaris / Penerobos yang dapat mencabut penugasan pengurus.'
 			});
 		}
 

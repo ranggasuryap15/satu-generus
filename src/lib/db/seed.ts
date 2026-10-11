@@ -1,10 +1,10 @@
 /**
  * @file src/lib/db/seed.ts
- * @purpose Script seeder data awal master wilayah (Cikarang 1 & 2), 6 desa, 36 kelompok, dan 5 tingkatan akun admin
+ * @purpose Script seeder data awal master wilayah, struktur 4S baku (Kyai, Sekretaris/Penerobos, KU/Bendahara, Mubaligh/Ulama, Aghnia) dan akun admin
  * @usedBy npm run db:seed, pengujian lokal, dan setup lingkungan awal
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/auth, drizzle-orm
  * @publicFunctions seed
- * @sideEffects Menulis record ke SQLite tabel daerah, desa, kelompok, dapukan, users, user_dapukan
+ * @sideEffects Menulis/memperbarui record ke SQLite tabel daerah, desa, kelompok, dapukan, users, user_dapukan
  */
 
 import { db, sqlite } from './index';
@@ -18,12 +18,19 @@ export async function seed() {
 	// 1. Master Dapukan Baku (4S & Superadmin)
 	const masterDapukan = [
 		{ namaDapukan: 'Superadmin', is4S: true, keterangan: 'Akses penuh seluruh sistem' },
-		{ namaDapukan: 'Ketua', is4S: true, keterangan: 'Pengurus 4S lini Ketua' },
-		{ namaDapukan: 'Sekretaris', is4S: true, keterangan: 'Pengurus 4S lini Sekretaris' },
-		{ namaDapukan: 'Bendahara', is4S: true, keterangan: 'Pengurus 4S lini Bendahara' },
-		{ namaDapukan: 'Penasihat', is4S: true, keterangan: 'Pengurus 4S lini Penasihat' },
-		{ namaDapukan: 'Seksi Acara', is4S: false, keterangan: 'Dapukan operasional kegiatan' }
+		{ namaDapukan: 'Kyai', is4S: true, keterangan: 'Pengurus 4S lini Keimaman / Kyai' },
+		{ namaDapukan: 'Sekretaris / Penerobos', is4S: true, keterangan: 'Pengurus 4S lini Sekretaris / Penerobos' },
+		{ namaDapukan: 'KU/Bendahara', is4S: true, keterangan: 'Pengurus 4S lini Keuangan / Bendahara' },
+		{ namaDapukan: 'Mubaligh/Ulama', is4S: true, keterangan: 'Pengurus 4S lini Mubaligh / Ulama' },
+		{ namaDapukan: 'Aghnia', is4S: true, keterangan: 'Pengurus 4S lini Aghnia' }
 	];
+
+	// Bersihkan dapukan non-4S lama (Seksi Acara) dan migrasikan nama lama bila ada
+	db.delete(dapukan).where(eq(dapukan.namaDapukan, 'Seksi Acara')).run();
+	db.update(dapukan).set({ namaDapukan: 'Kyai' }).where(eq(dapukan.namaDapukan, 'Ketua')).run();
+	db.update(dapukan).set({ namaDapukan: 'Sekretaris / Penerobos' }).where(eq(dapukan.namaDapukan, 'Sekretaris')).run();
+	db.update(dapukan).set({ namaDapukan: 'KU/Bendahara' }).where(eq(dapukan.namaDapukan, 'Bendahara')).run();
+	db.update(dapukan).set({ namaDapukan: 'Mubaligh/Ulama' }).where(eq(dapukan.namaDapukan, 'Penasihat')).run();
 
 	for (const d of masterDapukan) {
 		const existing = db.select().from(dapukan).where(eq(dapukan.namaDapukan, d.namaDapukan)).get();
@@ -37,7 +44,7 @@ export async function seed() {
 		db.select().from(dapukan).where(eq(dapukan.namaDapukan, name)).get();
 
 	const dapukanSuperadmin = getDapukan('Superadmin');
-	const dapukanKetua = getDapukan('Ketua');
+	const dapukanKyai = getDapukan('Kyai');
 
 	// 2. Master Wilayah: 2 Daerah (Cikarang 1 dan Cikarang 2)
 	const listDaerah = [
@@ -155,7 +162,7 @@ export async function seed() {
 			namaLengkap: 'Admin Pengurus Pusat',
 			kelompokId: kelompok1KarangRahayu.id,
 			scope: 'Pusat',
-			dapukanId: dapukanKetua?.id
+			dapukanId: dapukanKyai?.id
 		},
 		// c. Admin Daerah (Cikarang 1)
 		{
@@ -163,7 +170,7 @@ export async function seed() {
 			namaLengkap: 'Admin Daerah Cikarang 1',
 			kelompokId: kelompok1KarangRahayu.id,
 			scope: 'Daerah',
-			dapukanId: dapukanKetua?.id,
+			dapukanId: dapukanKyai?.id,
 			daerahId: daerahCikarang1.id
 		},
 		// d. Admin Desa (Karang Rahayu)
@@ -172,7 +179,7 @@ export async function seed() {
 			namaLengkap: 'Admin Desa Karang Rahayu',
 			kelompokId: kelompok1KarangRahayu.id,
 			scope: 'Desa',
-			dapukanId: dapukanKetua?.id,
+			dapukanId: dapukanKyai?.id,
 			desaId: desaKarangRahayu.id
 		},
 		// e. Admin Kelompok (Kelompok 1)
@@ -181,7 +188,7 @@ export async function seed() {
 			namaLengkap: 'Admin Kelompok 1 Karang Rahayu',
 			kelompokId: kelompok1KarangRahayu.id,
 			scope: 'Kelompok',
-			dapukanId: dapukanKetua?.id,
+			dapukanId: dapukanKyai?.id,
 			assignedKelompokId: kelompok1KarangRahayu.id
 		},
 		// f. Akun Jamaah Biasa

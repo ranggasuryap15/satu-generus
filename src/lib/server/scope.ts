@@ -227,7 +227,7 @@ export function isKelompokAllowed(
  * Memeriksa apakah admin memiliki wewenang untuk menambahkan atau mengelola penugasan dapukan
  * Aturan wewenang:
  * - Admin Pusat, Daerah, Desa: berwenang mengelola dapukan sesuai tingkat cakupannya.
- * - Admin Kelompok: HANYA pengurus 4S dengan jabatan Ketua atau Sekretaris yang dapat menambahkan/mengelola pengurus. 4S lain (Bendahara, Penasihat, dll) tidak diizinkan.
+ * - Admin Kelompok: HANYA pengurus 4S dengan jabatan Kyai atau Sekretaris/Penerobos yang dapat menambahkan/mengelola pengurus. 4S lain (KU/Bendahara, Mubaligh/Ulama, Aghnia) tidak diizinkan.
  */
 export function canManageDapukan(roles: App.UserRole[]): boolean {
 	const adminScope = getAdminScope(roles);
@@ -237,12 +237,17 @@ export function canManageDapukan(roles: App.UserRole[]): boolean {
 		return true;
 	}
 
-	// Pada tingkat Kelompok: hanya 4S yang menjabat sebagai Ketua atau Sekretaris
+	// Pada tingkat Kelompok: hanya 4S yang menjabat sebagai Kyai atau Sekretaris/Penerobos
 	if (adminScope.level === 'Kelompok') {
 		return roles.some((r) => {
 			if (r.tingkatScope !== 'Kelompok' || !r.is4S) return false;
 			const nama = (r.namaDapukan || r.namaDapukanCustom || '').trim().toLowerCase();
-			return nama.includes('ketua') || nama.includes('sekretaris');
+			return (
+				nama.includes('kyai') ||
+				nama.includes('ketua') ||
+				nama.includes('sekretaris') ||
+				nama.includes('penerobos')
+			);
 		});
 	}
 
