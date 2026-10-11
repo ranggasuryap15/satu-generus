@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(admin)/admin/dapukan/+page.server.ts
- * @purpose Memuat daftar struktur dapukan/jabatan, penugasan RBAC pengurus dengan proteksi hierarki wilayah jamaah, serta mutasi penugasan
+ * @purpose Memuat daftar struktur dapukan/jabatan, penugasan RBAC pengurus dengan proteksi hierarki wilayah jamaah, serta mutasi penugasan (khusus 4S Ketua/Sekretaris pada tingkat kelompok)
  * @usedBy src/routes/(admin)/admin/dapukan/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm
  * @publicFunctions load, actions.assignDapukan, actions.removeDapukan
@@ -12,7 +12,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { db } from '$lib/db';
 import { dapukan, userDapukan, users, daerah, desa, kelompok } from '$lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
-import { getAdminScope, getAccessibleWilayah, isKelompokAllowed } from '$lib/server/scope';
+import { getAdminScope, getAccessibleWilayah, isKelompokAllowed, canManageDapukan } from '$lib/server/scope';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user || !locals.isAdmin) {
@@ -88,7 +88,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 		desaList,
 		kelompokList,
 		adminScopeLevel: adminScope.level,
-		isPusat: adminScope.isPusat
+		isPusat: adminScope.isPusat,
+		canManageDapukan: canManageDapukan(locals.roles || [])
 	};
 };
 
@@ -96,6 +97,12 @@ export const actions: Actions = {
 	assignDapukan: async ({ request, locals }) => {
 		if (!locals.user || !locals.isAdmin) {
 			return fail(403, { error: 'Akses ditolak.' });
+		}
+
+		if (!canManageDapukan(locals.roles || [])) {
+			return fail(403, {
+				error: 'Akses ditolak: Pada tingkat kelompok, hanya pengurus 4S dengan jabatan Ketua atau Sekretaris yang dapat menugaskan pengurus baru.'
+			});
 		}
 
 		const adminScope = getAdminScope(locals.roles || []);
@@ -240,6 +247,12 @@ export const actions: Actions = {
 	removeDapukan: async ({ request, locals }) => {
 		if (!locals.user || !locals.isAdmin) {
 			return fail(403, { error: 'Akses ditolak.' });
+		}
+
+		if (!canManageDapukan(locals.roles || [])) {
+			return fail(403, {
+				error: 'Akses ditolak: Pada tingkat kelompok, hanya pengurus 4S dengan jabatan Ketua atau Sekretaris yang dapat mencabut penugasan pengurus.'
+			});
 		}
 
 		const adminScope = getAdminScope(locals.roles || []);

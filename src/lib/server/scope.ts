@@ -1,9 +1,9 @@
 /**
  * @file src/lib/server/scope.ts
- * @purpose Evaluasi wewenang administratif berjenjang (Pusat, Daerah, Desa, Kelompok) dan filter wilayah RBAC
- * @usedBy src/routes/(admin)/admin/sensus/+page.server.ts, src/routes/(admin)/admin/wilayah/+page.server.ts, src/routes/(admin)/admin/wilayah/batch/+page.server.ts
+ * @purpose Evaluasi wewenang administratif berjenjang (Pusat, Daerah, Desa, Kelompok), filter wilayah RBAC, dan validasi hak mutasi dapukan
+ * @usedBy src/routes/(admin)/admin/sensus/+page.server.ts, src/routes/(admin)/admin/wilayah/+page.server.ts, src/routes/(admin)/admin/wilayah/batch/+page.server.ts, src/routes/(admin)/admin/dapukan/+page.server.ts
  * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm
- * @publicFunctions getAdminScope, getAccessibleWilayah, isKelompokAllowed
+ * @publicFunctions getAdminScope, getAccessibleWilayah, isKelompokAllowed, canManageDapukan
  * @sideEffects Membaca data relasi master daerah, desa, dan kelompok dari SQLite
  */
 
@@ -222,3 +222,30 @@ export function isKelompokAllowed(
 	if (isPusat) return true;
 	return allowedKelompokIdSet.has(kelompokId);
 }
+
+/**
+ * Memeriksa apakah admin memiliki wewenang untuk menambahkan atau mengelola penugasan dapukan
+ * Aturan wewenang:
+ * - Admin Pusat, Daerah, Desa: berwenang mengelola dapukan sesuai tingkat cakupannya.
+ * - Admin Kelompok: HANYA pengurus 4S dengan jabatan Ketua atau Sekretaris yang dapat menambahkan/mengelola pengurus. 4S lain (Bendahara, Penasihat, dll) tidak diizinkan.
+ */
+export function canManageDapukan(roles: App.UserRole[]): boolean {
+	const adminScope = getAdminScope(roles);
+
+	// Pusat, Daerah, dan Desa memiliki hak penugasan pengurus pada lingkup masing-masing
+	if (adminScope.isPusat || adminScope.level === 'Daerah' || adminScope.level === 'Desa') {
+		return true;
+	}
+
+	// Pada tingkat Kelompok: hanya 4S yang menjabat sebagai Ketua atau Sekretaris
+	if (adminScope.level === 'Kelompok') {
+		return roles.some((r) => {
+			if (r.tingkatScope !== 'Kelompok' || !r.is4S) return false;
+			const nama = (r.namaDapukan || r.namaDapukanCustom || '').trim().toLowerCase();
+			return nama.includes('ketua') || nama.includes('sekretaris');
+		});
+	}
+
+	return false;
+}
+
