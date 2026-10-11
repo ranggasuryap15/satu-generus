@@ -28,6 +28,7 @@
 	import type { PageData, ActionData } from './$types';
 	import DateInput from '$lib/components/DateInput.svelte';
 	import { formatDateDDMMYYYY } from '$lib/utils';
+	import { confirmAction } from '$lib/confirm.svelte';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -79,12 +80,19 @@
 		activeModal = 'editKk';
 	}
 
-	function closeEditKkModal() {
+	async function closeEditKkModal() {
 		const initialNoKk = isKkRevealed && plainNoKk ? plainNoKk : '';
 		const initialAlamat = data.keluarga?.alamatLengkap || '';
 		const isDirty = editKkNoKk !== initialNoKk || editKkAlamat !== initialAlamat;
 		if (isDirty) {
-			if (!confirm('Ada perubahan data Kartu Keluarga yang belum disimpan. Yakin ingin menutup modal?')) {
+			const ok = await confirmAction({
+				title: 'Tutup Ubah KK?',
+				message: 'Ada perubahan data Kartu Keluarga yang belum disimpan. Yakin ingin menutup modal?',
+				confirmText: 'Ya, Tutup Modal',
+				cancelText: 'Lanjut Mengisi',
+				variant: 'warning'
+			});
+			if (!ok) {
 				return;
 			}
 		}
@@ -101,7 +109,7 @@
 		activeModal = 'editAnggota';
 	}
 
-	function closeEditAnggotaModal() {
+	async function closeEditAnggotaModal() {
 		if (selectedAnggota) {
 			const isDirty = (
 				editAnggotaNama !== (selectedAnggota.namaLengkap || '') ||
@@ -111,7 +119,14 @@
 				editAnggotaJk !== selectedAnggota.jenisKelamin
 			);
 			if (isDirty) {
-				if (!confirm('Ada perubahan data anggota yang belum disimpan. Yakin ingin menutup modal?')) {
+				const ok = await confirmAction({
+					title: 'Tutup Ubah Anggota?',
+					message: 'Ada perubahan data anggota yang belum disimpan. Yakin ingin menutup modal?',
+					confirmText: 'Ya, Tutup Modal',
+					cancelText: 'Lanjut Mengisi',
+					variant: 'warning'
+				});
+				if (!ok) {
 					return;
 				}
 			}
@@ -124,10 +139,18 @@
 		activeModal = 'tambahAnggota';
 	}
 
-	function closeTambahAnggotaModal() {
+	async function closeTambahAnggotaModal() {
 		const isDirty = !!(newAnggotaNama.trim() || newAnggotaNik.trim() || newAnggotaTgl);
 		if (isDirty) {
-			if (!confirm('Ada data anggota yang sudah Anda isi. Yakin ingin menutup modal? Isian Anda akan tetap tersimpan sebagai draf.')) {
+			const ok = await confirmAction({
+				title: 'Tutup Tambah Anggota?',
+				message:
+					'Ada data anggota yang sudah Anda isi. Yakin ingin menutup modal? Isian Anda akan tetap tersimpan sebagai draf.',
+				confirmText: 'Ya, Tutup Modal',
+				cancelText: 'Lanjut Mengisi',
+				variant: 'warning'
+			});
+			if (!ok) {
 				return;
 			}
 		}
@@ -542,15 +565,21 @@
 										method="POST"
 										action="?/hapusAnggota"
 										use:enhance
-										onsubmit={(e) => {
-											if (!confirm('Yakin ingin menghapus anggota keluarga ini?')) {
-												e.preventDefault();
-											}
-										}}
 									>
 										<input type="hidden" name="anggotaId" value={anggota.id} />
 										<button
-											type="submit"
+											type="button"
+											onclick={async (e) => {
+												const ok = await confirmAction({
+													title: 'Hapus Anggota Keluarga?',
+													message: `Apakah Anda yakin ingin menghapus data anggota ${anggota.namaLengkap || 'ini'}?`,
+													confirmText: 'Ya, Hapus',
+													variant: 'danger'
+												});
+												if (ok) {
+													(e.currentTarget as HTMLButtonElement).closest('form')?.requestSubmit();
+												}
+											}}
 											class="p-1.5 rounded-lg text-destructive/60 hover:text-destructive hover:bg-destructive/10 transition-colors inline-flex items-center justify-center"
 											title="Hapus Anggota"
 											aria-label="Hapus Anggota"

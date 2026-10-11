@@ -35,6 +35,7 @@
 	} from '@lucide/svelte';
 	import { enhance } from '$app/forms';
 	import type { ActionData, PageData } from './$types';
+	import { confirmAction } from '$lib/confirm.svelte';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -357,9 +358,17 @@
 		showCreateModal = true;
 	}
 
-	function closeCreateModal() {
+	async function closeCreateModal() {
 		if (isCreateFormDirty()) {
-			if (!confirm('Ada data sensus yang sudah Anda isi. Yakin ingin menutup modal? Isian Anda akan tetap tersimpan sebagai draf.')) {
+			const ok = await confirmAction({
+				title: 'Tutup Formulir Sensus?',
+				message:
+					'Ada data sensus yang sudah Anda isi. Yakin ingin menutup modal? Isian Anda akan tetap tersimpan sebagai draf.',
+				confirmText: 'Ya, Tutup Modal',
+				cancelText: 'Lanjut Mengisi',
+				variant: 'warning'
+			});
+			if (!ok) {
 				return;
 			}
 		}
@@ -402,9 +411,17 @@
 		showAddMemberModal = true;
 	}
 
-	function closeAddMemberModal() {
+	async function closeAddMemberModal() {
 		if (isAddMemberFormDirty()) {
-			if (!confirm('Ada data anggota yang sudah Anda isi. Yakin ingin menutup modal? Isian Anda akan tetap tersimpan sebagai draf.')) {
+			const ok = await confirmAction({
+				title: 'Tutup Formulir Anggota?',
+				message:
+					'Ada data anggota yang sudah Anda isi. Yakin ingin menutup modal? Isian Anda akan tetap tersimpan sebagai draf.',
+				confirmText: 'Ya, Tutup Modal',
+				cancelText: 'Lanjut Mengisi',
+				variant: 'warning'
+			});
+			if (!ok) {
 				return;
 			}
 		}
@@ -1258,8 +1275,14 @@
 					{#if isCreateFormDirty()}
 						<button
 							type="button"
-							onclick={() => {
-								if (confirm('Kosongkan semua isian formulir sensus?')) resetCreateForm();
+							onclick={async () => {
+								const ok = await confirmAction({
+									title: 'Kosongkan Formulir Sensus?',
+									message: 'Apakah Anda yakin ingin mengosongkan semua isian formulir sensus ini?',
+									confirmText: 'Ya, Kosongkan',
+									variant: 'danger'
+								});
+								if (ok) resetCreateForm();
 							}}
 							class="text-xs font-medium text-destructive hover:text-destructive/80 transition-colors"
 						>

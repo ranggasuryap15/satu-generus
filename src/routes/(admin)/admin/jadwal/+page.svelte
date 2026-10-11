@@ -44,6 +44,7 @@
 		X
 	} from '@lucide/svelte';
 	import type { ActionData, PageData } from './$types';
+	import { confirmAction } from '$lib/confirm.svelte';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -541,9 +542,17 @@
 									>
 										<input type="hidden" name="id" value={tmpl.id} />
 										<button
-											type="submit"
-											onclick={(e) => {
-												if (!confirm('Hapus pola jadwal rutin ini?')) e.preventDefault();
+											type="button"
+											onclick={async (e) => {
+												const ok = await confirmAction({
+													title: 'Hapus Pola Jadwal?',
+													message: 'Apakah Anda yakin ingin menghapus pola jadwal rutin ini?',
+													confirmText: 'Ya, Hapus',
+													variant: 'danger'
+												});
+												if (ok) {
+													(e.currentTarget as HTMLButtonElement).closest('form')?.requestSubmit();
+												}
 											}}
 											class="p-1.5 text-foreground/50 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
 											title="Hapus Pola"
@@ -685,9 +694,17 @@
 									>
 										<input type="hidden" name="id" value={sesi.id} />
 										<button
-											type="submit"
-											onclick={(e) => {
-												if (!confirm('Hapus sesi pengajian tanggal ini?')) e.preventDefault();
+											type="button"
+											onclick={async (e) => {
+												const ok = await confirmAction({
+													title: 'Hapus Sesi Pengajian?',
+													message: 'Apakah Anda yakin ingin menghapus sesi pengajian tanggal ini?',
+													confirmText: 'Ya, Hapus Sesi',
+													variant: 'danger'
+												});
+												if (ok) {
+													(e.currentTarget as HTMLButtonElement).closest('form')?.requestSubmit();
+												}
 											}}
 											class="p-2 text-foreground/50 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
 											title="Hapus Sesi"
@@ -844,9 +861,17 @@
 									>
 										<input type="hidden" name="id" value={tmpl.id} />
 										<button
-											type="submit"
-											onclick={(e) => {
-												if (!confirm('Hapus pola jadwal rutin ini?')) e.preventDefault();
+											type="button"
+											onclick={async (e) => {
+												const ok = await confirmAction({
+													title: 'Hapus Pola Jadwal?',
+													message: 'Apakah Anda yakin ingin menghapus pola jadwal rutin ini?',
+													confirmText: 'Ya, Hapus',
+													variant: 'danger'
+												});
+												if (ok) {
+													(e.currentTarget as HTMLButtonElement).closest('form')?.requestSubmit();
+												}
 											}}
 											class="p-1.5 text-foreground/50 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
 											title="Hapus Pola"
@@ -988,9 +1013,17 @@
 									>
 										<input type="hidden" name="id" value={sesi.id} />
 										<button
-											type="submit"
-											onclick={(e) => {
-												if (!confirm('Hapus sesi pengajian tanggal ini?')) e.preventDefault();
+											type="button"
+											onclick={async (e) => {
+												const ok = await confirmAction({
+													title: 'Hapus Sesi Pengajian?',
+													message: 'Apakah Anda yakin ingin menghapus sesi pengajian tanggal ini?',
+													confirmText: 'Ya, Hapus Sesi',
+													variant: 'danger'
+												});
+												if (ok) {
+													(e.currentTarget as HTMLButtonElement).closest('form')?.requestSubmit();
+												}
 											}}
 											class="p-2 text-foreground/50 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
 											title="Hapus Sesi"

@@ -20,6 +20,7 @@
 	} from '@lucide/svelte';
 	import type { PageData, ActionData } from './$types';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
+	import { confirmAction } from '$lib/confirm.svelte';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -198,13 +199,17 @@
 		showAssignModal = true;
 	}
 
-	function closeAssignModal() {
+	async function closeAssignModal() {
 		if (isAssignFormDirty()) {
-			if (
-				confirm(
-					'Ada isian penugasan yang belum disimpan. Tetap tutup modal? (Isian Anda akan tetap tersimpan sebagai draf)'
-				)
-			) {
+			const ok = await confirmAction({
+				title: 'Tutup Formulir Penugasan?',
+				message:
+					'Ada isian penugasan yang belum disimpan. Tetap tutup modal? Isian Anda akan tetap tersimpan sebagai draf.',
+				confirmText: 'Ya, Tutup Modal',
+				cancelText: 'Lanjut Mengisi',
+				variant: 'warning'
+			});
+			if (ok) {
 				showAssignModal = false;
 			}
 		} else {

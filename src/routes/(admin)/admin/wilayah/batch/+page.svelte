@@ -24,6 +24,7 @@
 	} from '@lucide/svelte';
 	import type { ActionData, PageData } from './$types';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
+	import { confirmAction } from '$lib/confirm.svelte';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -108,9 +109,15 @@
 		group.kelompoks.push(createEmptyKelompok(''));
 	}
 
-	function removeKelompok(group: DesaBatchGroup, kIndex: number) {
+	async function removeKelompok(group: DesaBatchGroup, kIndex: number) {
 		if (group.kelompoks.length === 1) {
-			if (confirm('Grup ini hanya memiliki 1 kelompok. Hapus seluruh grup desa/daerah ini?')) {
+			const ok = await confirmAction({
+				title: 'Hapus Grup Wilayah?',
+				message: 'Grup ini hanya memiliki 1 kelompok. Hapus seluruh grup desa/daerah ini?',
+				confirmText: 'Ya, Hapus Grup',
+				variant: 'danger'
+			});
+			if (ok) {
 				const gIdx = groups.indexOf(group);
 				if (gIdx !== -1) removeGroup(gIdx);
 			}
@@ -127,8 +134,14 @@
 		kelompok.subKelompoks.splice(skIndex, 1);
 	}
 
-	function clearGroups() {
-		if (confirm('Apakah Anda yakin ingin mengosongkan seluruh formulir batch wilayah?')) {
+	async function clearGroups() {
+		const ok = await confirmAction({
+			title: 'Kosongkan Seluruh Formulir?',
+			message: 'Apakah Anda yakin ingin mengosongkan seluruh formulir batch wilayah ini?',
+			confirmText: 'Ya, Kosongkan',
+			variant: 'danger'
+		});
+		if (ok) {
 			groups = [createEmptyGroup()];
 		}
 	}

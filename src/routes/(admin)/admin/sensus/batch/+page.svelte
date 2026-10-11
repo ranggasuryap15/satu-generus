@@ -9,6 +9,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
+	import { confirmAction } from '$lib/confirm.svelte';
 	import {
 		DAFTAR_GOLONGAN_DARAH,
 		DAFTAR_ISRUN,
@@ -210,9 +211,15 @@
 		family.members.push(newMember);
 	}
 
-	function removeMember(family: FamilyGroupData, memberIndex: number) {
+	async function removeMember(family: FamilyGroupData, memberIndex: number) {
 		if (family.members.length === 1) {
-			if (confirm('Keluarga ini hanya memiliki 1 anggota. Hapus seluruh kartu keluarga ini?')) {
+			const ok = await confirmAction({
+				title: 'Hapus Kartu Keluarga?',
+				message: 'Keluarga ini hanya memiliki 1 anggota. Hapus seluruh kartu keluarga ini?',
+				confirmText: 'Ya, Hapus KK',
+				variant: 'danger'
+			});
+			if (ok) {
 				const famIdx = families.indexOf(family);
 				if (famIdx !== -1) {
 					removeFamily(famIdx);
@@ -223,13 +230,16 @@
 		family.members.splice(memberIndex, 1);
 	}
 
-	function convertToPerantau(family: FamilyGroupData) {
+	async function convertToPerantau(family: FamilyGroupData) {
 		if (family.members.length > 1) {
-			if (
-				!confirm(
-					'Mengubah ke Jamaah Mandiri akan melepas anggota tambahan dan hanya mempertahankan data pertama. Lanjutkan?'
-				)
-			) {
+			const ok = await confirmAction({
+				title: 'Ubah ke Jamaah Mandiri?',
+				message:
+					'Mengubah ke Jamaah Mandiri akan melepas anggota tambahan dan hanya mempertahankan data pertama. Lanjutkan?',
+				confirmText: 'Ya, Ubah',
+				variant: 'warning'
+			});
+			if (!ok) {
 				return;
 			}
 			family.members = [family.members[0]];
@@ -244,8 +254,14 @@
 		family.members[0].statusKeluarga = 'Kepala Keluarga';
 	}
 
-	function clearFamilies() {
-		if (confirm('Apakah Anda yakin ingin mengosongkan seluruh data keluarga & sensus?')) {
+	async function clearFamilies() {
+		const ok = await confirmAction({
+			title: 'Kosongkan Seluruh Data?',
+			message: 'Apakah Anda yakin ingin mengosongkan seluruh formulir data keluarga & sensus?',
+			confirmText: 'Ya, Kosongkan',
+			variant: 'danger'
+		});
+		if (ok) {
 			families = [createEmptyFamily(false)];
 		}
 	}

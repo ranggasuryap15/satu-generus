@@ -13,6 +13,7 @@
 	import DateInput from '$lib/components/DateInput.svelte';
 	import LocationPicker from '$lib/components/LocationPicker.svelte';
 	import { formatDateDDMMYYYY } from '$lib/utils';
+	import { confirmAction } from '$lib/confirm.svelte';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -60,9 +61,17 @@
 		showAddModal = true;
 	}
 
-	function closeAddModal() {
+	async function closeAddModal() {
 		if (isAddFormDirty()) {
-			if (confirm('Ada isian jadwal yang belum disimpan. Tetap tutup modal? (Isian Anda akan tetap tersimpan sebagai draf)')) {
+			const ok = await confirmAction({
+				title: 'Tutup Pembuatan Jadwal?',
+				message:
+					'Ada isian jadwal yang belum disimpan. Tetap tutup modal? Isian Anda akan tetap tersimpan sebagai draf.',
+				confirmText: 'Ya, Tutup Modal',
+				cancelText: 'Lanjut Mengisi',
+				variant: 'warning'
+			});
+			if (ok) {
 				showAddModal = false;
 			}
 		} else {

@@ -30,6 +30,7 @@
 	import { pwaState } from '$lib/pwa.svelte';
 	import { enhance } from '$app/forms';
 	import type { PageData, ActionData } from './$types';
+	import { confirmAction } from '$lib/confirm.svelte';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -93,13 +94,17 @@
 		inputEmail = data.user.email || '';
 	}
 
-	function closeProfileModal() {
+	async function closeProfileModal() {
 		if (isProfileDirty()) {
-			if (
-				confirm(
-					'Ada perubahan profil yang belum disimpan. Tetap tutup modal? (Isian Anda akan tetap tersimpan sebagai draf)'
-				)
-			) {
+			const ok = await confirmAction({
+				title: 'Tutup Ubah Profil?',
+				message:
+					'Ada perubahan profil yang belum disimpan. Tetap tutup modal? Isian Anda akan tetap tersimpan sebagai draf.',
+				confirmText: 'Ya, Tutup Modal',
+				cancelText: 'Lanjut Mengisi',
+				variant: 'warning'
+			});
+			if (ok) {
 				activeModal = 'none';
 			}
 		} else {
@@ -117,13 +122,17 @@
 		confirmPassword = '';
 	}
 
-	function closePasswordModal() {
+	async function closePasswordModal() {
 		if (isPasswordDirty()) {
-			if (
-				confirm(
-					'Ada isian kata sandi yang belum disimpan. Tetap tutup modal? (Isian Anda akan tetap tersimpan sebagai draf)'
-				)
-			) {
+			const ok = await confirmAction({
+				title: 'Tutup Ubah Kata Sandi?',
+				message:
+					'Ada isian kata sandi yang belum disimpan. Tetap tutup modal? Isian Anda akan tetap tersimpan sebagai draf.',
+				confirmText: 'Ya, Tutup Modal',
+				cancelText: 'Lanjut Mengisi',
+				variant: 'warning'
+			});
+			if (ok) {
 				activeModal = 'none';
 			}
 		} else {
