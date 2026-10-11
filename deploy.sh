@@ -2,7 +2,7 @@
 set -e
 
 echo "=== Menarik Update Terbaru ==="
-git pull origin main
+git pull
 
 echo "=== Memperbarui Dependensi ==="
 npm install
