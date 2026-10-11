@@ -1,8 +1,8 @@
 <!--
   @file src/routes/(app)/sensus/+page.svelte
-  @purpose Tampilan status dan rincian Kartu Keluarga serta Jamaah Mandiri/Perantau dengan fitur unmasking, ubah data domisili, NIK (opsional), dan data anggota dengan proteksi draf input
+  @purpose Tampilan status dan rincian Kartu Keluarga serta Jamaah Mandiri/Perantau dengan fitur unmasking, ubah data domisili, NIK (opsional), dan penambahan anggota ke KK sendiri
   @usedBy Route client '/sensus'
-  @dependencies @lucide/svelte, $app/forms (enhance), $lib/components/DateInput.svelte, $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
+  @dependencies @lucide/svelte, $app/forms (enhance), $app/state (page), $lib/components/DateInput.svelte, $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
   @publicFunctions toggleKk, copyKk, toggleNik, copyNik, openEditKk, closeEditKkModal, openEditAnggota, closeEditAnggotaModal, openTambahAnggota, closeTambahAnggotaModal
   @sideEffects Mengirim HTTP POST ke /api/sensus/unmask serta server actions updateKeluarga/updateAnggota/tambahAnggota/hapusAnggota
 -->
@@ -25,12 +25,20 @@
 		CheckCircle
 	} from '@lucide/svelte';
 	import { enhance } from '$app/forms';
+	import { page } from '$app/state';
 	import type { PageData, ActionData } from './$types';
 	import DateInput from '$lib/components/DateInput.svelte';
 	import { formatDateDDMMYYYY } from '$lib/utils';
 	import { confirmAction } from '$lib/confirm.svelte';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
+
+	// Auto-buka modal tambah anggota jika query params ?tambah=1
+	$effect(() => {
+		if (page.url.searchParams.get('tambah') === '1' && data.hasKeluarga) {
+			activeModal = 'tambahAnggota';
+		}
+	});
 
 	// State Unmasking No KK
 	let isKkRevealed = $state(false);
@@ -275,7 +283,16 @@
 			<p class="text-xs text-foreground/60">Data kependudukan & keanggotaan jamaah</p>
 		</div>
 
-		{#if !data.hasKeluarga}
+		{#if data.hasKeluarga}
+			<button
+				type="button"
+				onclick={openTambahAnggota}
+				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all shadow-sm"
+			>
+				<Plus class="w-3.5 h-3.5" />
+				<span>Tambah Sensus</span>
+			</button>
+		{:else}
 			<a
 				href="/sensus/tambah"
 				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all shadow-sm"
@@ -471,16 +488,14 @@
 					{data.keluarga.isKk ? `Anggota Keluarga (${data.anggotaList.length})` : 'Data Diri Jamaah'}
 				</h3>
 
-				{#if data.keluarga.isKk}
-					<button
-						type="button"
-						onclick={openTambahAnggota}
-						class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold transition-colors cursor-pointer"
-					>
-						<Plus class="w-3 h-3" />
-						<span>Tambah Anggota</span>
-					</button>
-				{/if}
+				<button
+					type="button"
+					onclick={openTambahAnggota}
+					class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold transition-colors cursor-pointer"
+				>
+					<Plus class="w-3 h-3" />
+					<span>Tambah Anggota</span>
+				</button>
 			</div>
 
 			<div class="space-y-2.5">

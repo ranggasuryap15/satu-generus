@@ -1,10 +1,10 @@
 /**
  * @file src/routes/(app)/sensus/tambah/+page.server.ts
- * @purpose Form action pemrosesan pendaftaran sensus KK dan anggota keluarga dengan enkripsi AES-256-GCM (No KK dan NIK opsional/nullable)
+ * @purpose Form action pendaftaran sensus KK/anggota keluarga dengan enkripsi AES-256-GCM; mengarahkan ke KK sendiri jika user sudah terdaftar
  * @usedBy Wizard form sensus pada src/routes/(app)/sensus/tambah/+page.svelte
- * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/utils (normalizeDateToISO)
+ * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/sensus (getKeluargaForUser), src/lib/utils (normalizeDateToISO), drizzle-orm
  * @publicFunctions load, actions.default
- * @sideEffects Menulis record terenkripsi ke tabel keluarga dan anggota_keluarga dalam satu transaksi SQLite
+ * @sideEffects Menulis record terenkripsi ke tabel keluarga dan anggota_keluarga dalam satu transaksi SQLite atomik
  */
 
 import { fail, redirect } from '@sveltejs/kit';
@@ -12,12 +12,21 @@ import type { Actions, PageServerLoad } from './$types';
 import { db } from '$lib/db';
 import { keluarga, anggotaKeluarga } from '$lib/db/schema';
 import { encryptSensitive } from '$lib/server/crypto';
+import { getKeluargaForUser } from '$lib/server/sensus';
 import { normalizeDateToISO } from '$lib/utils';
+import { eq } from 'drizzle-orm';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) {
 		throw redirect(303, '/login?redirectTo=/sensus/tambah');
 	}
+
+	// Jika user sudah memiliki KK sendiri, arahkan langsung ke halaman sensus KK miliknya dengan modal tambah anggota aktif
+	const userKeluarga = getKeluargaForUser(locals.user.id);
+	if (userKeluarga) {
+		throw redirect(303, '/sensus?tambah=1');
+	}
+
 	return {
 		user: locals.user
 	};
@@ -96,24 +105,46 @@ export const actions: Actions = {
 		// Eksekusi enkripsi data sensitif (Zero Plaintext di DB)
 		const noKkEncrypted = noKk ? encryptSensitive(noKk) : null;
 
+		// Cek apakah user sudah memiliki KK (agar masuk ke KK dia sendiri, bukan buat KK baru ganda)
+		const existingKeluarga = getKeluargaForUser(locals.user.id);
+
 		// Transaksi database: Minimum Lock & Atomicity
 		try {
 			db.transaction((tx) => {
-				const [newKeluarga] = tx
-					.insert(keluarga)
-					.values({
-						noKkEncrypted,
-						kepalaKeluargaId: locals.user?.id,
-						alamatLengkap
-					})
-					.returning()
-					.all();
+				let targetKeluargaId: string;
+
+				if (!existingKeluarga) {
+					// Jika user belum punya KK, buat kartu keluarga baru
+					const [newKeluarga] = tx
+						.insert(keluarga)
+						.values({
+							noKkEncrypted,
+							kepalaKeluargaId: locals.user?.id,
+							alamatLengkap
+						})
+						.returning()
+						.all();
+					targetKeluargaId = newKeluarga.id;
+				} else {
+					targetKeluargaId = existingKeluarga.id;
+					// Jika sudah punya KK, perbarui No KK / alamat jika sebelumnya belum terisi
+					const updates: { noKkEncrypted?: string | null; alamatLengkap?: string } = {};
+					if (noKkEncrypted && !existingKeluarga.noKkEncrypted) {
+						updates.noKkEncrypted = noKkEncrypted;
+					}
+					if (alamatLengkap && (!existingKeluarga.alamatLengkap || existingKeluarga.alamatLengkap === '-')) {
+						updates.alamatLengkap = alamatLengkap;
+					}
+					if (Object.keys(updates).length > 0) {
+						tx.update(keluarga).set(updates).where(eq(keluarga.id, targetKeluargaId)).run();
+					}
+				}
 
 				for (const a of anggotaList) {
 					const nikVal = a.nik ? a.nik.trim() : '';
 					tx.insert(anggotaKeluarga)
 						.values({
-							keluargaId: newKeluarga.id,
+							keluargaId: targetKeluargaId,
 							namaLengkap: a.namaLengkap?.trim() || locals.user?.namaLengkap || 'Anggota',
 							nikEncrypted: nikVal ? encryptSensitive(nikVal) : null,
 							statusHubungan: a.statusHubungan,

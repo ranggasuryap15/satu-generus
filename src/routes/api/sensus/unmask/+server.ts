@@ -2,7 +2,7 @@
  * @file src/routes/api/sensus/unmask/+server.ts
  * @purpose Endpoint API untuk mendekripsi data sensitif (Unmask NIK / No. KK) bagi Admin 4S atau Pemilik KK (mendukung penanganan data kosong/null)
  * @usedBy Modal verifikasi admin dan halaman sensus jamaah (src/routes/(app)/sensus/+page.svelte)
- * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto
+ * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/sensus (isUserInKeluarga)
  * @publicFunctions POST
  * @sideEffects Mendekripsi ciphertext NIK/KK dengan verifikasi wewenang admin 4S atau pemilik KK yang sah
  */
@@ -12,6 +12,7 @@ import { db } from '$lib/db';
 import { keluarga, anggotaKeluarga } from '$lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { decryptSensitive } from '$lib/server/crypto';
+import { isUserInKeluarga } from '$lib/server/sensus';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
 	// Wajib login
@@ -28,8 +29,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			return json({ error: 'Data keluarga tidak ditemukan.' }, { status: 404 });
 		}
 
-		// Verifikasi wewenang: Admin 4S ATAU Kepala/Pemilik Keluarga sah
-		const isOwner = k.kepalaKeluargaId === locals.user.id;
+		// Verifikasi wewenang: Admin 4S ATAU Kepala/Anggota Keluarga sah
+		const isOwner = isUserInKeluarga(locals.user.id, k.id);
 		if (!locals.isAdmin && !isOwner) {
 			return json(
 				{ error: 'Akses ditolak: Anda bukan pemilik kartu keluarga ini dan tidak memiliki hak akses admin.' },
@@ -57,7 +58,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		// Cari keluarga terkait untuk verifikasi pemilik
 		const k = db.select().from(keluarga).where(eq(keluarga.id, a.keluargaId)).get();
-		const isOwner = k && k.kepalaKeluargaId === locals.user.id;
+		const isOwner = k && isUserInKeluarga(locals.user.id, k.id);
 		if (!locals.isAdmin && !isOwner) {
 			return json(
 				{ error: 'Akses ditolak: Anda bukan pemilik kartu keluarga ini dan tidak memiliki hak akses admin.' },

@@ -1,8 +1,8 @@
 /**
  * @file src/routes/(app)/sensus/+page.server.ts
- * @purpose Menampilkan status sensus keluarga/mandiri dan memproses server actions untuk edit data kependudukan dan anggota (No KK dan NIK opsional/nullable)
+ * @purpose Menampilkan status sensus keluarga/mandiri milik user sendiri dan memproses server actions untuk edit kependudukan serta anggota
  * @usedBy src/routes/(app)/sensus/+page.svelte
- * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/utils (normalizeDateToISO), drizzle-orm
+ * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/sensus (getKeluargaForUser, isUserInKeluarga), src/lib/utils (normalizeDateToISO), drizzle-orm
  * @publicFunctions load, actions.updateKeluarga, actions.updateAnggota, actions.tambahAnggota, actions.hapusAnggota
  * @sideEffects Mengambil & memperbarui record keluarga dan anggotaKeluarga di SQLite dengan enkripsi AES-256-GCM
  */
@@ -13,6 +13,7 @@ import { db } from '$lib/db';
 import { keluarga, anggotaKeluarga } from '$lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { decryptSensitive, encryptSensitive, maskSensitive } from '$lib/server/crypto';
+import { getKeluargaForUser, isUserInKeluarga } from '$lib/server/sensus';
 import { normalizeDateToISO } from '$lib/utils';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -20,12 +21,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 		throw redirect(303, '/login?redirectTo=/sensus');
 	}
 
-	// Cari kartu keluarga di mana user adalah kepala keluarga
-	const keluargaRecord = db
-		.select()
-		.from(keluarga)
-		.where(eq(keluarga.kepalaKeluargaId, locals.user.id))
-		.get();
+	// Cari kartu keluarga milik user sendiri (baik sebagai kepala keluarga atau anggota)
+	const keluargaRecord = getKeluargaForUser(locals.user.id);
 
 	if (!keluargaRecord) {
 		return {
@@ -111,14 +108,8 @@ export const actions: Actions = {
 			return fail(400, { errorKeluarga: 'ID keluarga tidak ditemukan.' });
 		}
 
-		// Validasi kepemilikan KK oleh user saat ini
-		const currentKeluarga = db
-			.select()
-			.from(keluarga)
-			.where(and(eq(keluarga.id, keluargaId), eq(keluarga.kepalaKeluargaId, locals.user.id)))
-			.get();
-
-		if (!currentKeluarga) {
+		// Validasi kepemilikan / keanggotaan KK oleh user saat ini
+		if (!isUserInKeluarga(locals.user.id, keluargaId)) {
 			return fail(403, { errorKeluarga: 'Anda tidak memiliki hak akses untuk mengubah data ini.' });
 		}
 
@@ -174,13 +165,12 @@ export const actions: Actions = {
 
 		// Pastikan anggota keluarga ini berada di dalam KK milik user
 		const verifiedAnggota = db
-			.select({ id: anggotaKeluarga.id })
+			.select({ id: anggotaKeluarga.id, keluargaId: anggotaKeluarga.keluargaId })
 			.from(anggotaKeluarga)
-			.innerJoin(keluarga, eq(anggotaKeluarga.keluargaId, keluarga.id))
-			.where(and(eq(anggotaKeluarga.id, anggotaId), eq(keluarga.kepalaKeluargaId, locals.user.id)))
+			.where(eq(anggotaKeluarga.id, anggotaId))
 			.get();
 
-		if (!verifiedAnggota) {
+		if (!verifiedAnggota || !isUserInKeluarga(locals.user.id, verifiedAnggota.keluargaId)) {
 			return fail(403, { errorAnggota: 'Anda tidak memiliki hak akses mengubah anggota ini.' });
 		}
 
@@ -244,14 +234,8 @@ export const actions: Actions = {
 			return fail(400, { errorTambahAnggota: 'ID keluarga tidak ditemukan.' });
 		}
 
-		// Validasi kepemilikan KK
-		const ownedKeluarga = db
-			.select({ id: keluarga.id })
-			.from(keluarga)
-			.where(and(eq(keluarga.id, keluargaId), eq(keluarga.kepalaKeluargaId, locals.user.id)))
-			.get();
-
-		if (!ownedKeluarga) {
+		// Validasi kepemilikan / keanggotaan KK
+		if (!isUserInKeluarga(locals.user.id, keluargaId)) {
 			return fail(403, { errorTambahAnggota: 'Akses ditolak.' });
 		}
 
@@ -300,15 +284,14 @@ export const actions: Actions = {
 			return fail(400, { errorHapusAnggota: 'ID anggota tidak valid.' });
 		}
 
-		// Cek kepemilikan
+		// Cek kepemilikan / keanggotaan KK
 		const target = db
 			.select({ id: anggotaKeluarga.id, keluargaId: anggotaKeluarga.keluargaId })
 			.from(anggotaKeluarga)
-			.innerJoin(keluarga, eq(anggotaKeluarga.keluargaId, keluarga.id))
-			.where(and(eq(anggotaKeluarga.id, anggotaId), eq(keluarga.kepalaKeluargaId, locals.user.id)))
+			.where(eq(anggotaKeluarga.id, anggotaId))
 			.get();
 
-		if (!target) {
+		if (!target || !isUserInKeluarga(locals.user.id, target.keluargaId)) {
 			return fail(403, { errorHapusAnggota: 'Akses ditolak.' });
 		}
 

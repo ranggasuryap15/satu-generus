@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(app)/+page.svelte
-  @purpose Halaman beranda client/jamaah (Mobile-First) dengan launcher Quick Access aplikasi, jadwal pengajian bertingkat (Kelompok & Desa) lengkap dengan jam wajib dan detail materi, dan modal ekosistem aplikasi
+  @purpose Halaman beranda client/jamaah (Mobile-First) dengan launcher Quick Access, jadwal pengajian, modal ekosistem aplikasi, dan tautan pintar penambahan sensus ke KK sendiri
   @usedBy Route utama client '/'
   @dependencies @lucide/svelte, $lib/utils (formatDateDDMMYYYY), $lib/jadwal (formatDateIndoFull), Svelte 5 Runes
   @publicFunctions openAppDetail, closeModals
@@ -339,20 +339,37 @@
 					<ChevronRight class="w-4 h-4 text-foreground/40 shrink-0" />
 				</button>
 
-				<a
-					href="/sensus/tambah"
-					onclick={closeModals}
-					class="flex items-center gap-3 p-2.5 rounded-xl border border-dashed border-border hover:bg-secondary/40 transition-colors"
-				>
-					<div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-						<Users class="w-5 h-5" />
-					</div>
-					<div class="flex-1 min-w-0">
-						<h4 class="text-sm font-bold text-foreground">Daftar Sensus Baru</h4>
-						<p class="text-xs text-foreground/60 truncate">Registrasi mandiri data keluarga jamaah</p>
-					</div>
-					<ChevronRight class="w-4 h-4 text-foreground/40 shrink-0" />
-				</a>
+				{#if data.hasKeluarga}
+					<a
+						href="/sensus?tambah=1"
+						onclick={closeModals}
+						class="flex items-center gap-3 p-2.5 rounded-xl border border-dashed border-border hover:bg-secondary/40 transition-colors"
+					>
+						<div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+							<Users class="w-5 h-5" />
+						</div>
+						<div class="flex-1 min-w-0">
+							<h4 class="text-sm font-bold text-foreground">Tambah Sensus Anggota</h4>
+							<p class="text-xs text-foreground/60 truncate">Tambah anggota keluarga ke KK Anda</p>
+						</div>
+						<ChevronRight class="w-4 h-4 text-foreground/40 shrink-0" />
+					</a>
+				{:else}
+					<a
+						href="/sensus/tambah"
+						onclick={closeModals}
+						class="flex items-center gap-3 p-2.5 rounded-xl border border-dashed border-border hover:bg-secondary/40 transition-colors"
+					>
+						<div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+							<Users class="w-5 h-5" />
+						</div>
+						<div class="flex-1 min-w-0">
+							<h4 class="text-sm font-bold text-foreground">Daftar Sensus Baru</h4>
+							<p class="text-xs text-foreground/60 truncate">Registrasi mandiri data keluarga jamaah</p>
+						</div>
+						<ChevronRight class="w-4 h-4 text-foreground/40 shrink-0" />
+					</a>
+				{/if}
 			</div>
 		</div>
 	</div>

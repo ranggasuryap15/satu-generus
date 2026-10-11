@@ -1,10 +1,10 @@
 /**
  * @file src/routes/(app)/+page.server.ts
- * @purpose Memuat informasi ringkasan jamaah, kelompok, desa, dan jadwal pengajian terdekat (Kelompok & Desa)
+ * @purpose Memuat informasi ringkasan jamaah, kelompok, desa, status kepemilikan KK, dan jadwal pengajian terdekat (Kelompok & Desa)
  * @usedBy src/routes/(app)/+page.svelte
- * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm
+ * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/sensus (getKeluargaForUser), drizzle-orm
  * @publicFunctions load
- * @sideEffects Query kelompok, desa, dan jadwal pengajian terbaru dari SQLite
+ * @sideEffects Query kelompok, desa, status keluarga, dan jadwal pengajian terbaru dari SQLite
  */
 
 import { redirect } from '@sveltejs/kit';
@@ -12,6 +12,7 @@ import type { PageServerLoad } from './$types';
 import { db } from '$lib/db';
 import { desa, kelompok, presensiJadwal } from '$lib/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
+import { getKeluargaForUser } from '$lib/server/sensus';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) {
@@ -76,6 +77,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	return {
 		user: locals.user,
+		hasKeluarga: getKeluargaForUser(locals.user.id) !== null,
 		kelompokNama,
 		desaNama,
 		upcomingJadwalKelompok,
