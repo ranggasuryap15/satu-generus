@@ -23,60 +23,66 @@
 
 ### A. Tipografi (Poppins)
 
-- **Font Family:** `Poppins`, _sans-serif_. Dipilih karena geometris, bulat, dan sangat mudah dibaca pada layar kecil.
-- **Skala Ukuran:**
-  - H1 (Judul Halaman): 24px, SemiBold (600).
-  - H2 (Judul Kartu/Modal): 18px, Medium (500).
-  - Body (Teks Utama): 14px, Regular (400), _Line-height_ 1.6.
-  - Caption (Label/Bantuan): 12px, Regular (400).
+- **Font Family:** `Poppins`, _sans-serif_. Dipilih karena bentuknya geometris, bulat, bersahabat, dan nyaman di mata.
+- **Skala Ukuran Responsif (Mobile-First vs Desktop):**
+  Untuk mencegah teks terasa kerdil di smartphone, menghindari bug *auto-zoom* pada iOS Safari (< 16px pada form input), serta memastikan kenyamanan baca optimal (*high legibility*):
+
+  | Hierarki | Mobile (< 768px) | Desktop (>= 768px) | Penggunaan & Keterangan |
+  | :--- | :--- | :--- | :--- |
+  | **H1 (Judul Halaman)** | `22px – 24px` (SemiBold 600 / Bold 700) | `28px – 32px` (Bold 700) | Header utama halaman aplikasi |
+  | **H2 (Judul Kartu / Modal)** | `18px – 20px` (SemiBold 600) | `20px – 22px` (SemiBold 600) | Header kartu utama, judul modal pop-up |
+  | **H3 (Sub-judul / Label Utama)** | `15px – 16px` (SemiBold 600) | `14px – 15px` (SemiBold 600) | Label form input, sub-header section |
+  | **Body (Teks Utama & Input Form)** | **`16px`** (Regular 400 / Medium 500, Line-height 1.5–1.6) | **`14px – 15px`** (Regular 400, Line-height 1.6) | **Wajib 16px di mobile** agar bebas auto-zoom di iOS |
+  | **Body Small / Sub-text** | `14px` (Regular 400, Line-height 1.5) | `13px` (Regular 400, Line-height 1.5) | Teks pendukung, deskripsi, sublabel list |
+  | **Caption / Badge / Helper** | `12px – 13px` (Medium 500) | `12px` (Regular 400 / Medium 500) | Badge status, tooltip, catatan bantuan (hindari < 12px di HP) |
 
 ### B. Palet Warna & Mode Tema (Cool Midnight Slate & Vibrant Jade)
 
-Sistem wajib mendeteksi preferensi tema perangkat (_system default_) dengan opsi _toggle_ manual. 
+Sistem wajib mendeteksi preferensi tema perangkat (_system default_) dengan opsi _toggle_ manual.
 
 Menghindari abu-abu kusam flat (`#1F2937`) atau hitam pekat mati (`#000000`) yang merusak vibransi warna hijau. Menggunakan basis **Cool Midnight / Slate-Obsidian** (hitam dengan sedikit undertone slate/teal dingin 2–3%) untuk background serta **Vibrant Jade / Mid Emerald (500–600)** agar visual tetap segar, berwibawa, dan estetik di kedua mode.
 
 #### 1. Rekomendasi Surface & Background (Midnight Slate)
 
-| Tipe Elemen | Mode Terang (Light) | Mode Gelap (Dark - Midnight Slate) | Karakteristik & Fungsi |
-| :--- | :--- | :--- | :--- |
-| **Main Background / Canvas** | `#F8FAFC` | `#0B0F19` | Hitam slate dingin modern. Ramah di mata dan membuat aksen hijau terasa *pop-up*. |
-| **Card / Container Level 1** | `#FFFFFF` | `#121826` | Warna card utama. Memberikan efek kedalaman/elevasi yang bersih dan mewah. |
-| **Surface Level 2 / Input / Table** | `#F1F5F9` | `#1A2338` | Background input form, dropdown select, baris tabel, atau hover card. |
-| **Border / Divider** | `#E2E8F0` | `#26324D` | Halus dan tidak kasar, memisahkan konten dengan rapi tanpa garis tegas yang mengganggu. |
+| Tipe Elemen                         | Mode Terang (Light) | Mode Gelap (Dark - Midnight Slate) | Karakteristik & Fungsi                                                                  |
+| :---------------------------------- | :------------------ | :--------------------------------- | :-------------------------------------------------------------------------------------- |
+| **Main Background / Canvas**        | `#F8FAFC`           | `#0B0F19`                          | Hitam slate dingin modern. Ramah di mata dan membuat aksen hijau terasa*pop-up*.        |
+| **Card / Container Level 1**        | `#FFFFFF`           | `#121826`                          | Warna card utama. Memberikan efek kedalaman/elevasi yang bersih dan mewah.              |
+| **Surface Level 2 / Input / Table** | `#F1F5F9`           | `#1A2338`                          | Background input form, dropdown select, baris tabel, atau hover card.                   |
+| **Border / Divider**                | `#E2E8F0`           | `#26324D`                          | Halus dan tidak kasar, memisahkan konten dengan rapi tanpa garis tegas yang mengganggu. |
 
 #### 2. Warna Utama: Hijau Brand Identity (Vibrant Jade / Mid Emerald)
 
 Menjaga keseimbangan antara wibawa di mode terang dan vibransi segar di mode gelap tanpa menyilaukan:
 
-* **Warna Universal (*Sweet-Spot* Light & Dark):**
-  * `#05A875` (atau Tailwind **Emerald-500** `#10B981` / **Emerald-600** `#059669`).
-  * *Di mode terang:* Cukup pekat untuk dibaca di atas putih, tetap berwibawa dan tidak pudar.
-  * *Di mode gelap:* Bercahaya segar di atas background `#0B0F19` tanpa menusuk mata.
-* **Hierarki Shade Hijau:**
-  * **Brand Primary:** `#05A875` (Tombol utama, badge status sukses, icon aktif).
-  * **Brand Hover / Active:** `#04875E`.
-  * **Subtle Surface (Badge BG):**
-    * Mode Gelap: `rgba(5, 168, 117, 0.15)` (Badge hijau transparan).
-    * Mode Terang: `#E6F7F0`.
+- **Warna Universal (_Sweet-Spot_ Light & Dark):**
+  - `#05A875` (atau Tailwind **Emerald-500** `#10B981` / **Emerald-600** `#059669`).
+  - _Di mode terang:_ Cukup pekat untuk dibaca di atas putih, tetap berwibawa dan tidak pudar.
+  - _Di mode gelap:_ Bercahaya segar di atas background `#0B0F19` tanpa menusuk mata.
+- **Hierarki Shade Hijau:**
+  - **Brand Primary:** `#05A875` (Tombol utama, badge status sukses, icon aktif).
+  - **Brand Hover / Active:** `#04875E`.
+  - **Subtle Surface (Badge BG):**
+    - Mode Gelap: `rgba(5, 168, 117, 0.15)` (Badge hijau transparan).
+    - Mode Terang: `#E6F7F0`.
 
 #### 3. Warna Aksen & Status (Mid-Tone Seimbang)
 
-| Kegunaan / Status | Hex Code | Nama Shade | Sifat di Mode Terang & Gelap |
-| :--- | :--- | :--- | :--- |
-| **Secondary / Teal** | `#0D9488` | Teal Mid | Menjembatani hijau dan biru untuk menu pendukung. |
-| **Warning / Perhatian** | `#F59E0B` | Warm Amber | Emas/Kuning hangat, jelas untuk status pending / izin. |
-| **Info / Jamaah Mandiri** | `#0284C7` | Ocean Blue | Sejuk, kontras bagus di card hitam maupun putih. |
-| **Danger / Ditolak** | `#EF4444` | Soft Coral Red | Merah terang bersih untuk aksi destruktif & status tolak. |
+| Kegunaan / Status         | Hex Code  | Nama Shade     | Sifat di Mode Terang & Gelap                              |
+| :------------------------ | :-------- | :------------- | :-------------------------------------------------------- |
+| **Secondary / Teal**      | `#0D9488` | Teal Mid       | Menjembatani hijau dan biru untuk menu pendukung.         |
+| **Warning / Perhatian**   | `#F59E0B` | Warm Amber     | Emas/Kuning hangat, jelas untuk status pending / izin.    |
+| **Info / Jamaah Mandiri** | `#0284C7` | Ocean Blue     | Sejuk, kontras bagus di card hitam maupun putih.          |
+| **Danger / Ditolak**      | `#EF4444` | Soft Coral Red | Merah terang bersih untuk aksi destruktif & status tolak. |
 
 #### 4. Tipografi & Teks Kontras
 
-* **Mode Gelap:**
-  * Text Primary: `#F1F5F9` (Off-white, ramah di mata dibanding putih 100%).
-  * Text Muted / Subtitle: `#94A3B8` (Abu-abu keperakan elegan).
-* **Mode Terang:**
-  * Text Primary: `#0F172A` (Charcoal gelap tajam).
-  * Text Muted / Subtitle: `#64748B` (Slate abu-abu lembut).
+- **Mode Gelap:**
+  - Text Primary: `#F1F5F9` (Off-white, ramah di mata dibanding putih 100%).
+  - Text Muted / Subtitle: `#94A3B8` (Abu-abu keperakan elegan).
+- **Mode Terang:**
+  - Text Primary: `#0F172A` (Charcoal gelap tajam).
+  - Text Muted / Subtitle: `#64748B` (Slate abu-abu lembut).
 
 #### 5. Contoh Penerapan CSS Variables / Tailwind
 
