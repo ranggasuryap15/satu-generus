@@ -13,7 +13,7 @@ npm run build
 echo "=== Restart Service ==="
 # Sesuaikan dengan runner server Anda:
 # Jika menggunakan Docker:
-docker compose restart app
+# docker compose restart app
 # Atau jika menggunakan PM2/Node langsung:
 pm2 restart satu-generus
 
