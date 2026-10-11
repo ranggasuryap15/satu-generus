@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(admin)/admin/wilayah/+page.svelte
-  @purpose Halaman manajemen Data Wilayah lengkap dengan 1 tombol Tambah Wilayah cerdas (dropdown search & auto-create hierarki Daerah -> Desa -> Kelompok -> Sub-Kelompok), modal detail kelompok dengan Leaflet, kontrol RBAC visual, checklist hapus massal & single delete
+  @purpose Halaman manajemen Data Wilayah lengkap dengan 1 tombol Tambah Wilayah cerdas (dropdown search & auto-create hierarki Daerah -> Desa -> Kelompok -> Sub-Kelompok), modal detail desa & kelompok dengan Leaflet LocationPicker, kontrol RBAC visual, checklist hapus massal & single delete
   @usedBy Route admin '/admin/wilayah'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/LocationPicker.svelte, $app/forms (enhance)
-  @publicFunctions openUnifiedAddModal, closeUnifiedAddModal, openKelompokDetail, closeKelompokDetail, resetFilter, toggleSelectKelompok, toggleSelectAllKelompok, openDeleteSingleKelompok, openDeleteBatchKelompok, closeDeleteModal
-  @sideEffects Menampilkan data wilayah sesuai scope RBAC, menyaring data, mengelola lokasi kelompok dengan Leaflet, dan mengirim update/create/delete ke server via enhance
+  @publicFunctions openUnifiedAddModal, closeUnifiedAddModal, openKelompokDetail, closeKelompokDetail, openDesaDetail, closeDesaDetail, resetFilter, toggleSelectKelompok, toggleSelectAllKelompok, openDeleteSingleKelompok, openDeleteBatchKelompok, closeDeleteModal
+  @sideEffects Menampilkan data wilayah sesuai scope RBAC, menyaring data, mengelola lokasi kelompok & desa dengan Leaflet, dan mengirim update/create/delete ke server via enhance
 -->
 <script lang="ts">
 	import {
@@ -29,7 +29,8 @@
 		Navigation,
 		Trash2,
 		AlertTriangle,
-		CheckSquare
+		CheckSquare,
+		Check
 	} from '@lucide/svelte';
 	import type { ActionData, PageData } from './$types';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
@@ -39,7 +40,7 @@
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
 	// State Tab Tampilan
-	let activeTab = $state<'kelompok' | 'subKelompok'>('kelompok');
+	let activeTab = $state<'kelompok' | 'subKelompok' | 'desa'>('kelompok');
 
 	// State Filter & Pencarian
 	let searchQuery = $state('');
@@ -133,6 +134,32 @@
 		selectedKelompok = null;
 	}
 
+	// State Modal Detail & Lokasi Desa
+	let showDesaDetailModal = $state(false);
+	let selectedDesa = $state<(typeof data.desaList)[number] | null>(null);
+
+	// State Form Edit Lokasi Desa
+	let editDesaLokasiNama = $state('');
+	let editDesaLatitude = $state('');
+	let editDesaLongitude = $state('');
+	let editDesaRadiusMeter = $state(100);
+	let editDesaGmapsUrl = $state('');
+
+	function openDesaDetail(d: (typeof data.desaList)[number]) {
+		selectedDesa = d;
+		editDesaLokasiNama = d.lokasiNama || '';
+		editDesaLatitude = d.latitude || '';
+		editDesaLongitude = d.longitude || '';
+		editDesaRadiusMeter = d.radiusMeter || 100;
+		editDesaGmapsUrl = d.gmapsUrl || '';
+		showDesaDetailModal = true;
+	}
+
+	function closeDesaDetail() {
+		showDesaDetailModal = false;
+		selectedDesa = null;
+	}
+
 	// Form Tambah Lama
 	let inputNamaDaerah = $state('');
 	let inputProvinsi = $state('');
@@ -162,7 +189,7 @@
 	// Cek apakah Daerah input baru
 	const isNewDaerah = $derived(
 		Boolean(unifiedDaerahValue) &&
-		!daerahOptions.some((opt) => String(opt.value) === String(unifiedDaerahValue))
+		!daerahOptions.some((opt: any) => String(opt.value) === String(unifiedDaerahValue))
 	);
 
 	// Opsi Desa terfilter berdasarkan Daerah terpilih
@@ -181,7 +208,7 @@
 	// Cek apakah Desa input baru
 	const isNewDesa = $derived(
 		Boolean(unifiedDesaValue) &&
-		!desaUnifiedOptions.some((opt) => String(opt.value) === String(unifiedDesaValue))
+		!desaUnifiedOptions.some((opt: any) => String(opt.value) === String(unifiedDesaValue))
 	);
 
 	// Opsi Kelompok terfilter berdasarkan Desa terpilih
@@ -200,7 +227,7 @@
 	// Cek apakah Kelompok input baru
 	const isNewKelompok = $derived(
 		Boolean(unifiedKelompokValue) &&
-		!kelompokUnifiedOptions.some((opt) => String(opt.value) === String(unifiedKelompokValue))
+		!kelompokUnifiedOptions.some((opt: any) => String(opt.value) === String(unifiedKelompokValue))
 	);
 
 	function handleDaerahChange(val: string | number) {
@@ -313,6 +340,31 @@
 		})
 	);
 
+	// Filter Data Desa
+	let filteredDesa = $derived(
+		(data.desaList || []).filter((d: (typeof data.desaList)[number]) => {
+			if (selectedFilterDaerahId && String(d.daerahId) !== String(selectedFilterDaerahId)) {
+				return false;
+			}
+
+			if (selectedFilterDesaId && String(d.id) !== String(selectedFilterDesaId)) {
+				return false;
+			}
+
+			if (searchQuery.trim()) {
+				const q = searchQuery.toLowerCase();
+				return (
+					d.nama.toLowerCase().includes(q) ||
+					(d.kecamatan || '').toLowerCase().includes(q) ||
+					(d.daerahNama || '').toLowerCase().includes(q) ||
+					(d.lokasiNama || '').toLowerCase().includes(q)
+				);
+			}
+
+			return true;
+		})
+	);
+
 	// Reset forms
 	function resetAddDaerahForm() {
 		inputNamaDaerah = '';
@@ -377,21 +429,21 @@
 	}
 
 	function toggleSelectAllKelompok() {
-		const visibleIds = filteredKelompok.map((k) => k.id);
-		const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedKelompokIds.includes(id));
+		const visibleIds = filteredKelompok.map((k: any) => k.id);
+		const allSelected = visibleIds.length > 0 && visibleIds.every((id: number) => selectedKelompokIds.includes(id));
 		if (allSelected) {
-			selectedKelompokIds = selectedKelompokIds.filter((id) => !visibleIds.includes(id));
+			selectedKelompokIds = selectedKelompokIds.filter((id: number) => !visibleIds.includes(id));
 		} else {
 			selectedKelompokIds = Array.from(new Set([...selectedKelompokIds, ...visibleIds]));
 		}
 	}
 
 	const isAllKelompokSelected = $derived(
-		filteredKelompok.length > 0 && filteredKelompok.every((k) => selectedKelompokIds.includes(k.id))
+		filteredKelompok.length > 0 && filteredKelompok.every((k: any) => selectedKelompokIds.includes(k.id))
 	);
 
 	const isSomeKelompokSelected = $derived(
-		filteredKelompok.some((k) => selectedKelompokIds.includes(k.id)) && !isAllKelompokSelected
+		filteredKelompok.some((k: any) => selectedKelompokIds.includes(k.id)) && !isAllKelompokSelected
 	);
 
 	function openDeleteSingleKelompok(k: (typeof data.kelompokList)[number]) {
@@ -422,21 +474,21 @@
 	}
 
 	function toggleSelectAllSubKelompok() {
-		const visibleIds = filteredSubKelompok.map((sk) => sk.id);
-		const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedSubKelompokIds.includes(id));
+		const visibleIds = filteredSubKelompok.map((sk: any) => sk.id);
+		const allSelected = visibleIds.length > 0 && visibleIds.every((id: number) => selectedSubKelompokIds.includes(id));
 		if (allSelected) {
-			selectedSubKelompokIds = selectedSubKelompokIds.filter((id) => !visibleIds.includes(id));
+			selectedSubKelompokIds = selectedSubKelompokIds.filter((id: number) => !visibleIds.includes(id));
 		} else {
 			selectedSubKelompokIds = Array.from(new Set([...selectedSubKelompokIds, ...visibleIds]));
 		}
 	}
 
 	const isAllSubKelompokSelected = $derived(
-		filteredSubKelompok.length > 0 && filteredSubKelompok.every((sk) => selectedSubKelompokIds.includes(sk.id))
+		filteredSubKelompok.length > 0 && filteredSubKelompok.every((sk: any) => selectedSubKelompokIds.includes(sk.id))
 	);
 
 	const isSomeSubKelompokSelected = $derived(
-		filteredSubKelompok.some((sk) => selectedSubKelompokIds.includes(sk.id)) && !isAllSubKelompokSelected
+		filteredSubKelompok.some((sk: any) => selectedSubKelompokIds.includes(sk.id)) && !isAllSubKelompokSelected
 	);
 
 	function openDeleteSingleSubKelompok(sk: (typeof data.subKelompokList)[number]) {
@@ -511,11 +563,11 @@
 					<ShieldCheck class="w-3.5 h-3.5 text-primary" />
 					<span>Scope: <strong class="text-foreground">{data.adminScope?.level ?? '-'}</strong></span>
 					{#if data.adminScope?.level === 'Desa' && (data.desaList?.length ?? 0) > 0}
-						<span class="text-foreground/50">({data.desaList.map((d) => d.nama).join(', ')})</span>
+						<span class="text-foreground/50">({data.desaList.map((d: any) => d.nama).join(', ')})</span>
 					{:else if data.adminScope?.level === 'Daerah' && (data.daerahList?.length ?? 0) > 0}
-						<span class="text-foreground/50">({data.daerahList.map((d) => d.nama).join(', ')})</span>
+						<span class="text-foreground/50">({data.daerahList.map((d: any) => d.nama).join(', ')})</span>
 					{:else if data.adminScope?.level === 'Kelompok' && (data.kelompokList?.length ?? 0) > 0}
-						<span class="text-foreground/50">({data.kelompokList.map((k) => k.nama).join(', ')})</span>
+						<span class="text-foreground/50">({data.kelompokList.map((k: any) => k.nama).join(', ')})</span>
 					{:else if data.adminScope?.isPusat}
 						<span class="text-foreground/50">(Seluruh Wilayah)</span>
 					{/if}
@@ -574,7 +626,11 @@
 		</div>
 
 		<!-- 2. Desa -->
-		<div class="bg-card border border-border rounded-xl p-3.5 sm:p-4 shadow-xs flex items-center justify-between">
+		<button
+			type="button"
+			onclick={() => (activeTab = 'desa')}
+			class="bg-card border border-border rounded-xl p-3.5 sm:p-4 shadow-xs flex items-center justify-between text-left hover:border-accent transition-all cursor-pointer {activeTab === 'desa' ? 'ring-2 ring-accent/40 bg-accent/5' : ''}"
+		>
 			<div>
 				<p class="text-[11px] font-semibold text-foreground/60 uppercase tracking-wider">Desa</p>
 				<p class="text-xl sm:text-2xl font-bold text-foreground mt-0.5">{data.desaList?.length ?? 0}</p>
@@ -583,10 +639,14 @@
 			<div class="w-10 h-10 rounded-xl bg-accent/20 text-accent flex items-center justify-center shrink-0">
 				<Building class="w-5 h-5" />
 			</div>
-		</div>
+		</button>
 
 		<!-- 3. Kelompok -->
-		<div class="bg-card border border-border rounded-xl p-3.5 sm:p-4 shadow-xs flex items-center justify-between">
+		<button
+			type="button"
+			onclick={() => (activeTab = 'kelompok')}
+			class="bg-card border border-border rounded-xl p-3.5 sm:p-4 shadow-xs flex items-center justify-between text-left hover:border-primary transition-all cursor-pointer {activeTab === 'kelompok' ? 'ring-2 ring-primary/40 bg-primary/5' : ''}"
+		>
 			<div>
 				<p class="text-[11px] font-semibold text-foreground/60 uppercase tracking-wider">Kelompok</p>
 				<p class="text-xl sm:text-2xl font-bold text-foreground mt-0.5">{data.kelompokList?.length ?? 0}</p>
@@ -595,10 +655,14 @@
 			<div class="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center text-foreground/70 shrink-0">
 				<Home class="w-5 h-5" />
 			</div>
-		</div>
+		</button>
 
 		<!-- 4. Sub-Kelompok -->
-		<div class="bg-card border border-border rounded-xl p-3.5 sm:p-4 shadow-xs flex items-center justify-between">
+		<button
+			type="button"
+			onclick={() => (activeTab = 'subKelompok')}
+			class="bg-card border border-border rounded-xl p-3.5 sm:p-4 shadow-xs flex items-center justify-between text-left hover:border-blue-500 transition-all cursor-pointer {activeTab === 'subKelompok' ? 'ring-2 ring-blue-500/40 bg-blue-500/5' : ''}"
+		>
 			<div>
 				<p class="text-[11px] font-semibold text-foreground/60 uppercase tracking-wider">Sub-Kelompok</p>
 				<p class="text-xl sm:text-2xl font-bold text-foreground mt-0.5">{data.subKelompokList?.length ?? 0}</p>
@@ -607,7 +671,7 @@
 			<div class="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
 				<Layers class="w-5 h-5" />
 			</div>
-		</div>
+		</button>
 	</div>
 
 	<!-- ============================================================== -->
@@ -758,7 +822,7 @@
 			</div>
 		{/if}
 
-		<!-- Tab Tampilan: Kelompok vs Sub-Kelompok -->
+		<!-- Tab Tampilan: Kelompok vs Desa vs Sub-Kelompok -->
 		<div class="flex items-center gap-1 px-4 border-t border-border bg-secondary/30">
 			<button
 				type="button"
@@ -770,6 +834,18 @@
 			>
 				<Home class="w-3.5 h-3.5" />
 				<span>Data Kelompok ({filteredKelompok.length})</span>
+			</button>
+
+			<button
+				type="button"
+				onclick={() => (activeTab = 'desa')}
+				class="py-2.5 px-3 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5 {activeTab ===
+				'desa'
+					? 'border-primary text-primary'
+					: 'border-transparent text-foreground/60 hover:text-foreground'}"
+			>
+				<Building class="w-3.5 h-3.5" />
+				<span>Data Desa ({filteredDesa.length})</span>
 			</button>
 
 			<button
@@ -954,7 +1030,7 @@
 				</table>
 			</div>
 		</div>
-	{:else}
+	{:else if activeTab === 'subKelompok'}
 		<!-- Toolbar Aksi Massal Hapus Sub-Kelompok -->
 		{#if data.permissions?.canDeleteSubKelompok && selectedSubKelompokIds.length > 0}
 			<div
@@ -1056,6 +1132,90 @@
 											</button>
 										</td>
 									{/if}
+								</tr>
+							{/each}
+						{/if}
+					</tbody>
+				</table>
+			</div>
+		</div>
+	{:else if activeTab === 'desa'}
+		<!-- Tabel Desa -->
+		<div class="bg-card border border-border rounded-xl overflow-hidden shadow-xs">
+			<div class="overflow-x-auto">
+				<table class="w-full text-left text-xs">
+					<thead class="bg-secondary/60 text-foreground/70 uppercase text-[10px] tracking-wider border-b border-border">
+						<tr>
+							<th class="py-3 px-4 font-semibold">Nama Desa</th>
+							<th class="py-3 px-4 font-semibold">Lokasi Basis Desa</th>
+							<th class="py-3 px-4 font-semibold">Kecamatan</th>
+							<th class="py-3 px-4 font-semibold">Daerah Induk</th>
+							<th class="py-3 px-4 font-semibold text-center">Jumlah Kelompok</th>
+							<th class="py-3 px-4 font-semibold text-right">Aksi</th>
+						</tr>
+					</thead>
+					<tbody class="divide-y divide-border">
+						{#if filteredDesa.length === 0}
+							<tr>
+								<td colspan="6" class="py-12 text-center text-foreground/50">
+									Belum ada unit desa yang cocok dengan filter atau pencarian.
+								</td>
+							</tr>
+						{:else}
+							{#each filteredDesa as d}
+								<tr
+									onclick={() => openDesaDetail(d)}
+									class="hover:bg-secondary/30 transition-colors cursor-pointer group"
+								>
+									<td class="py-3.5 px-4 font-semibold text-foreground flex items-center gap-2">
+										<div class="w-6 h-6 rounded bg-accent/20 text-accent group-hover:bg-accent group-hover:text-accent-foreground transition-colors flex items-center justify-center font-mono text-[10px] shrink-0">
+											DS
+										</div>
+										<span class="group-hover:text-primary transition-colors">{d.nama}</span>
+									</td>
+
+									<!-- Kolom Status Lokasi Basis Desa -->
+									<td class="py-3.5 px-4">
+										{#if d.latitude && d.longitude}
+											<div class="space-y-0.5">
+												<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+													<MapPin class="w-3 h-3 text-emerald-600 shrink-0" />
+													<span class="truncate max-w-[130px]">{d.lokasiNama || 'Lokasi Terdaftar'}</span>
+												</span>
+												<span class="block text-[9.5px] text-foreground/50 font-mono pl-1">
+													Radius: &plusmn;{d.radiusMeter || 100}m
+												</span>
+											</div>
+										{:else}
+											<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-amber-500/10 text-amber-700 dark:text-amber-300">
+												<MapPin class="w-3 h-3 text-amber-600/60 shrink-0" />
+												<span>Belum Diset</span>
+											</span>
+										{/if}
+									</td>
+
+									<td class="py-3.5 px-4 text-foreground/70">{d.kecamatan || '-'}</td>
+									<td class="py-3.5 px-4 font-medium text-foreground">{d.daerahNama || '-'}</td>
+
+									<td class="py-3.5 px-4 text-center">
+										<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-secondary text-foreground/80">
+											<Home class="w-3 h-3" />
+											<span>{d.totalKelompok ?? 0} Kelompok</span>
+										</span>
+									</td>
+
+									<td class="py-3.5 px-4 text-right">
+										<button
+											type="button"
+											onclick={(e) => {
+												e.stopPropagation();
+												openDesaDetail(d);
+											}}
+											class="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-colors cursor-pointer"
+										>
+											Detail & Lokasi
+										</button>
+									</td>
 								</tr>
 							{/each}
 						{/if}
@@ -1480,6 +1640,142 @@
 								>
 									Simpan Lokasi Kelompok
 								</button>
+							</div>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Modal Detail & Lokasi Desa (LocationPicker Leaflet) -->
+{#if showDesaDetailModal && selectedDesa}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-background/80 backdrop-blur-sm overflow-y-auto"
+		role="dialog"
+		aria-modal="true"
+	>
+		<div
+			class="bg-card border border-border rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+		>
+			<!-- Modal Header -->
+			<div class="px-5 py-4 border-b border-border flex items-center justify-between bg-secondary/30">
+				<div class="flex items-center gap-2.5">
+					<div class="w-9 h-9 rounded-xl bg-accent/20 text-accent flex items-center justify-center font-bold text-xs shrink-0">
+						DS
+					</div>
+					<div>
+						<h3 class="text-sm font-bold text-foreground flex items-center gap-1.5">
+							<span>Detail {selectedDesa.nama}</span>
+						</h3>
+						<p class="text-[11px] text-foreground/60">
+							Kecamatan {selectedDesa.kecamatan || '-'} &bull; Daerah {selectedDesa.daerahNama || '-'}
+						</p>
+					</div>
+				</div>
+
+				<button
+					type="button"
+					onclick={closeDesaDetail}
+					class="p-1.5 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground cursor-pointer transition-colors"
+					aria-label="Tutup detail desa"
+				>
+					<X class="w-4 h-4" />
+				</button>
+			</div>
+
+			<!-- Modal Body (Scrollable) -->
+			<div class="p-4 sm:p-6 overflow-y-auto space-y-5 text-xs">
+				<!-- Ringkasan Informasi Desa -->
+				<div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+					<div class="bg-secondary/40 border border-border/80 rounded-xl p-2.5 text-center">
+						<span class="text-[10px] text-foreground/50 uppercase font-semibold">Kecamatan</span>
+						<p class="font-bold text-foreground text-xs mt-0.5 truncate">{selectedDesa.kecamatan || '-'}</p>
+					</div>
+					<div class="bg-secondary/40 border border-border/80 rounded-xl p-2.5 text-center">
+						<span class="text-[10px] text-foreground/50 uppercase font-semibold">Daerah Induk</span>
+						<p class="font-bold text-foreground text-xs mt-0.5 truncate">{selectedDesa.daerahNama || '-'}</p>
+					</div>
+					<div class="bg-secondary/40 border border-border/80 rounded-xl p-2.5 text-center">
+						<span class="text-[10px] text-foreground/50 uppercase font-semibold">Kelompok</span>
+						<p class="font-bold text-primary text-xs mt-0.5">{selectedDesa.totalKelompok ?? 0} Basis Kelompok</p>
+					</div>
+				</div>
+
+				<!-- Section Pengaturan Lokasi Basis Desa -->
+				<div class="space-y-3 pt-2 border-t border-border/80">
+					<div class="flex items-center justify-between gap-2">
+						<div>
+							<h4 class="text-xs font-bold text-foreground flex items-center gap-1.5">
+								<MapPin class="w-4 h-4 text-primary" />
+								<span>Titik Lokasi Basis Desa</span>
+							</h4>
+							<p class="text-[11px] text-foreground/60 mt-0.5 leading-relaxed">
+								Titik koordinat & radius ini menjadi acuan default jadwal pengajian desa dan validasi presensi pengajian desa.
+							</p>
+						</div>
+
+						<!-- Quick Access Google Maps jika lokasi sudah ada -->
+						{#if (editDesaLatitude && editDesaLongitude) || editDesaGmapsUrl}
+							<a
+								href={editDesaGmapsUrl || `https://www.google.com/maps?q=${editDesaLatitude},${editDesaLongitude}`}
+								target="_blank"
+								rel="noopener noreferrer"
+								class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold text-[11px] shrink-0 transition-colors shadow-xs"
+								title="Buka titik koordinat desa di Google Maps"
+							>
+								<span>Buka di Google Maps</span>
+								<ExternalLink class="w-3.5 h-3.5" />
+							</a>
+						{/if}
+					</div>
+
+					<form method="POST" action="?/updateDesaLocation" use:enhance class="space-y-4">
+						<input type="hidden" name="desaId" value={selectedDesa.id} />
+						<input type="hidden" name="lokasiNama" value={editDesaLokasiNama} />
+						<input type="hidden" name="latitude" value={editDesaLatitude} />
+						<input type="hidden" name="longitude" value={editDesaLongitude} />
+						<input type="hidden" name="radiusMeter" value={editDesaRadiusMeter} />
+						<input type="hidden" name="gmapsUrl" value={editDesaGmapsUrl} />
+
+						<!-- Komponen Peta Interaktif Leaflet + Draggable Pin + Pencarian + Link GMaps -->
+						<LocationPicker
+							bind:latitude={editDesaLatitude}
+							bind:longitude={editDesaLongitude}
+							bind:lokasiNama={editDesaLokasiNama}
+							bind:radiusMeter={editDesaRadiusMeter}
+							bind:gmapsUrl={editDesaGmapsUrl}
+						/>
+
+						<div class="flex items-center justify-between gap-2 pt-2 border-t border-border">
+							{#if editDesaLatitude && editDesaLongitude}
+								<span class="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+									<CheckCircle2 class="w-3.5 h-3.5" />
+									<span>Koordinat Terpilih: {editDesaLatitude}, {editDesaLongitude} (&plusmn;{editDesaRadiusMeter}m)</span>
+								</span>
+							{:else}
+								<span class="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+									Belum ada koordinat lokasi yang dipilih.
+								</span>
+							{/if}
+
+							<div class="flex items-center gap-2">
+								<button
+									type="button"
+									onclick={closeDesaDetail}
+									class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary cursor-pointer transition-colors"
+								>
+									Tutup
+								</button>
+								{#if data.permissions?.canManageDesa}
+									<button
+										type="submit"
+										class="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition-all shadow-sm cursor-pointer"
+									>
+										Simpan Lokasi Desa
+									</button>
+								{/if}
 							</div>
 						</div>
 					</form>

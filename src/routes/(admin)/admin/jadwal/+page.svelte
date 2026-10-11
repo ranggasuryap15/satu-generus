@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(admin)/admin/jadwal/+page.svelte
-  @purpose Antarmuka manajemen jadwal pengajian bertingkat (Desa & Kelompok), sinkronisasi tab aktif via URL query params, selector kelompok & desa tanpa refresh kasar, generator sesi bulanan, override mendadak, dan WhatsApp reminder
+  @purpose Antarmuka manajemen jadwal pengajian bertingkat (Desa & Kelompok), sinkronisasi tab aktif via URL query params, selector kelompok & desa tanpa refresh kasar, generator sesi bulanan, override mendadak, pewarisan lokasi default Desa & Kelompok pada sesi manual, dan WhatsApp reminder
   @usedBy Route admin '/admin/jadwal'
   @dependencies @lucide/svelte, $app/forms, $app/navigation, $app/state, $lib/components/SearchableSelect.svelte, $lib/jadwal (getNamaHari, getMingguKe, formatDateIndoFull, formatWhatsAppReminder, generateWhatsAppLink, NAMA_HARI_INDO, NAMA_BULAN_INDO), Svelte 5 Runes
   @publicFunctions switchTab, handleSelectKelompok, handleSelectDesa, openCreateTemplateModal, openEditTemplateModal, openOverrideModal, openWaModal, openGenerateModal, copyWaText
@@ -48,38 +48,36 @@
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
 	// Mode Tab Aktif: 'desa' atau 'kelompok' (tersinkronisasi penuh dengan URL parameter data.currentTab)
-	let activeTab = $state<'desa' | 'kelompok'>(data.currentTab || (data.canManageDesa ? 'desa' : 'kelompok'));
+	let activeTab = $state<'desa' | 'kelompok'>('desa');
 
 	$effect(() => {
-		if (data.currentTab) {
-			activeTab = data.currentTab;
-		}
+		activeTab = data.currentTab || (data.canManageDesa ? 'desa' : 'kelompok');
 	});
 
 	function switchTab(newTab: 'desa' | 'kelompok') {
 		activeTab = newTab;
-		const targetUrl = new URL(page.url);
+		const targetUrl = new URL(page.url.href);
 		targetUrl.searchParams.set('tab', newTab);
 		if (newTab === 'kelompok' && data.selectedKelompokId) {
 			targetUrl.searchParams.set('kelompokId', String(data.selectedKelompokId));
 		} else if (newTab === 'desa' && data.selectedDesaId) {
 			targetUrl.searchParams.set('desaId', String(data.selectedDesaId));
 		}
-		goto(targetUrl.toString(), { keepFocus: true, noScroll: true });
+		goto(targetUrl.toString(), { reset: false });
 	}
 
 	function handleSelectKelompok(val: string | number) {
-		const targetUrl = new URL(page.url);
+		const targetUrl = new URL(page.url.href);
 		targetUrl.searchParams.set('tab', 'kelompok');
 		targetUrl.searchParams.set('kelompokId', String(val));
-		goto(targetUrl.toString(), { keepFocus: true, noScroll: true });
+		goto(targetUrl.toString(), { reset: false });
 	}
 
 	function handleSelectDesa(val: string | number) {
-		const targetUrl = new URL(page.url);
+		const targetUrl = new URL(page.url.href);
 		targetUrl.searchParams.set('tab', 'desa');
 		targetUrl.searchParams.set('desaId', String(val));
-		goto(targetUrl.toString(), { keepFocus: true, noScroll: true });
+		goto(targetUrl.toString(), { reset: false });
 	}
 
 	// State Modal Tambah/Edit Template
@@ -93,6 +91,8 @@
 	// State Modal Buat Sesi Manual
 	let showCreateSesiModal = $state(false);
 	let createSesiScope = $state<'Desa' | 'Kelompok'>('Desa');
+	let manualLokasiNama = $state('');
+	let manualGmapsUrl = $state('');
 
 	// State Modal Generate Sesi Bulanan
 	let showGenerateModal = $state(false);
@@ -102,6 +102,21 @@
 
 	function openCreateSesiModal(scope: 'Desa' | 'Kelompok') {
 		createSesiScope = scope;
+		if (scope === 'Desa') {
+			manualLokasiNama = activeDesaObj?.lokasiNama || activeDesaObj?.nama || '';
+			manualGmapsUrl =
+				activeDesaObj?.gmapsUrl ||
+				(activeDesaObj?.latitude && activeDesaObj?.longitude
+					? `https://www.google.com/maps?q=${activeDesaObj.latitude},${activeDesaObj.longitude}`
+					: '');
+		} else {
+			manualLokasiNama = activeKelompokObj?.lokasiNama || activeKelompokObj?.nama || '';
+			manualGmapsUrl =
+				activeKelompokObj?.gmapsUrl ||
+				(activeKelompokObj?.latitude && activeKelompokObj?.longitude
+					? `https://www.google.com/maps?q=${activeKelompokObj.latitude},${activeKelompokObj.longitude}`
+					: '');
+		}
 		showCreateSesiModal = true;
 	}
 
@@ -141,6 +156,20 @@
 		daerahNama?: string;
 	}
 
+	interface DesaSelectOption {
+		value: number;
+		label: string;
+		sublabel?: string;
+	}
+
+	const desaOptions = $derived<DesaSelectOption[]>(
+		(data.desaList || []).map((d: DesaListItem) => ({
+			value: d.id,
+			label: d.nama,
+			sublabel: d.daerahNama ? `Daerah ${d.daerahNama}` : undefined
+		}))
+	);
+
 	const kelompokOptions = $derived<KelompokSelectOption[]>(
 		(data.kelompokList || []).map((k: KelompokListItem) => ({
 			value: k.id,
@@ -158,6 +187,21 @@
 	);
 
 	function openCreateTemplateModal(scope: 'Desa' | 'Kelompok') {
+		const defaultLokasi =
+			scope === 'Desa'
+				? activeDesaObj?.lokasiNama || activeDesaObj?.nama || ''
+				: activeKelompokObj?.lokasiNama || activeKelompokObj?.nama || '';
+		const defaultMaps =
+			scope === 'Desa'
+				? activeDesaObj?.gmapsUrl ||
+					(activeDesaObj?.latitude && activeDesaObj?.longitude
+						? `https://www.google.com/maps?q=${activeDesaObj.latitude},${activeDesaObj.longitude}`
+						: '')
+				: activeKelompokObj?.gmapsUrl ||
+					(activeKelompokObj?.latitude && activeKelompokObj?.longitude
+						? `https://www.google.com/maps?q=${activeKelompokObj.latitude},${activeKelompokObj.longitude}`
+						: '');
+
 		editingTemplate = {
 			id: null,
 			tingkatScope: scope,
@@ -171,8 +215,8 @@
 			namaKegiatan: scope === 'Desa' ? 'Pengajian Rutin Desa' : 'Pengajian Rutin Kelompok',
 			detailMateri: scope === 'Desa' ? "Qur'an Makna + Hadits + Nasehat" : "Qur'an Makna + Hadits",
 			isLibur: false,
-			lokasiNama: '',
-			gmapsUrl: ''
+			lokasiNama: defaultLokasi,
+			gmapsUrl: defaultMaps
 		};
 		showTemplateModal = true;
 	}
@@ -183,7 +227,25 @@
 	}
 
 	function openOverrideModal(sesi: any) {
-		editingSesi = { ...sesi };
+		const isDesa = sesi.tingkatScope === 'Desa';
+		const defaultLokasi = isDesa
+			? activeDesaObj?.lokasiNama || activeDesaObj?.nama || ''
+			: activeKelompokObj?.lokasiNama || activeKelompokObj?.nama || '';
+		const defaultMaps = isDesa
+			? activeDesaObj?.gmapsUrl ||
+				(activeDesaObj?.latitude && activeDesaObj?.longitude
+					? `https://www.google.com/maps?q=${activeDesaObj.latitude},${activeDesaObj.longitude}`
+					: '')
+			: activeKelompokObj?.gmapsUrl ||
+				(activeKelompokObj?.latitude && activeKelompokObj?.longitude
+					? `https://www.google.com/maps?q=${activeKelompokObj.latitude},${activeKelompokObj.longitude}`
+					: '');
+
+		editingSesi = {
+			...sesi,
+			lokasiNama: sesi.lokasiNama || defaultLokasi,
+			gmapsUrl: sesi.gmapsUrl || defaultMaps
+		};
 		showOverrideModal = true;
 	}
 
@@ -192,6 +254,20 @@
 			scope === 'Desa'
 				? activeDesaObj?.nama || 'Desa'
 				: activeKelompokObj?.nama || 'Kelompok';
+		const defaultLokasi =
+			scope === 'Desa'
+				? activeDesaObj?.lokasiNama || activeDesaObj?.nama || ''
+				: activeKelompokObj?.lokasiNama || activeKelompokObj?.nama || '';
+		const defaultMaps =
+			scope === 'Desa'
+				? activeDesaObj?.gmapsUrl ||
+					(activeDesaObj?.latitude && activeDesaObj?.longitude
+						? `https://www.google.com/maps?q=${activeDesaObj.latitude},${activeDesaObj.longitude}`
+						: '')
+				: activeKelompokObj?.gmapsUrl ||
+					(activeKelompokObj?.latitude && activeKelompokObj?.longitude
+						? `https://www.google.com/maps?q=${activeKelompokObj.latitude},${activeKelompokObj.longitude}`
+						: '');
 
 		waModalData = {
 			namaKegiatan: sesi.namaKegiatan,
@@ -200,8 +276,8 @@
 			tanggal: sesi.tanggal,
 			jamMulai: sesi.jamMulai || '08:00',
 			jamSelesai: sesi.jamSelesai,
-			lokasiNama: sesi.lokasiNama,
-			gmapsUrl: sesi.gmapsUrl,
+			lokasiNama: sesi.lokasiNama || defaultLokasi,
+			gmapsUrl: sesi.gmapsUrl || defaultMaps,
 			detailMateri: sesi.detailMateri,
 			isOverride: sesi.isOverride,
 			status: sesi.status
@@ -308,20 +384,29 @@
 	<!-- ============================================================== -->
 	{#if activeTab === 'desa' && data.canManageDesa}
 		<div class="space-y-6">
-			<!-- Bar Pemilihan Desa jika memiliki multi desa -->
+			<!-- Bar Pemilihan Desa jika memiliki multi desa (Dropdown Search untuk Superadmin & Admin Daerah) -->
 			{#if data.desaList.length > 1}
-				<div class="flex items-center gap-2 bg-secondary/30 border border-border p-3 rounded-xl text-xs">
-					<label for="desaSelect" class="font-semibold text-foreground/80 shrink-0">Pilih Desa:</label>
-					<select
-						id="desaSelect"
-						value={data.selectedDesaId}
-						onchange={(e) => handleSelectDesa(e.currentTarget.value)}
-						class="bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary cursor-pointer"
-					>
-						{#each data.desaList as d}
-							<option value={d.id}>{d.nama} ({d.daerahNama || 'Daerah'})</option>
-						{/each}
-					</select>
+				<div class="bg-card border border-border p-3.5 sm:p-4 rounded-xl shadow-xs space-y-2">
+					<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+						<label for="desaSelect" class="text-xs font-bold text-foreground">
+							Pilih Desa yang Dikelola:
+						</label>
+						<span class="text-[11px] text-foreground/60">
+							Sebagai admin {data.adminScope?.level ?? ''}, Anda dapat melihat dan mengatur jadwal pengajian desa di scope Anda.
+						</span>
+					</div>
+
+					<div class="max-w-md">
+						<SearchableSelect
+							id="desaSelect"
+							name="desaSelect"
+							options={desaOptions}
+							value={data.selectedDesaId || ''}
+							onchange={(val) => handleSelectDesa(val)}
+							placeholder="-- Cari / Pilih Desa --"
+							searchPlaceholder="Ketik nama desa atau daerah..."
+						/>
+					</div>
 				</div>
 			{/if}
 
@@ -1366,25 +1451,45 @@
 				<!-- Lokasi & GMaps -->
 				<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
 					<div>
-						<label for="manualLokasi" class="block font-semibold text-foreground/80 mb-1">
-							Tempat / Lokasi
-						</label>
+						<div class="flex items-center justify-between mb-1">
+							<label for="manualLokasi" class="block font-semibold text-foreground/80">
+								Tempat / Lokasi
+							</label>
+							<span class="text-[10px] text-foreground/50">
+								(Default: {createSesiScope === 'Desa' ? (activeDesaObj?.nama || 'Desa') : (activeKelompokObj?.nama || 'Kelompok')})
+							</span>
+						</div>
 						<input
 							id="manualLokasi"
 							name="lokasiNama"
 							type="text"
+							bind:value={manualLokasiNama}
 							placeholder="Masjid / Rumah Jamaah"
 							class="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-2 text-xs text-foreground focus:ring-1 focus:ring-primary"
 						/>
 					</div>
 					<div>
-						<label for="manualMaps" class="block font-semibold text-foreground/80 mb-1">
-							Link Google Maps
-						</label>
+						<div class="flex items-center justify-between mb-1">
+							<label for="manualMaps" class="block font-semibold text-foreground/80">
+								Link Google Maps
+							</label>
+							{#if manualGmapsUrl}
+								<a
+									href={manualGmapsUrl}
+									target="_blank"
+									rel="noopener noreferrer"
+									class="text-[10px] text-primary hover:underline inline-flex items-center gap-0.5"
+								>
+									<span>Cek Peta</span>
+									<ExternalLink class="w-2.5 h-2.5" />
+								</a>
+							{/if}
+						</div>
 						<input
 							id="manualMaps"
 							name="gmapsUrl"
 							type="url"
+							bind:value={manualGmapsUrl}
 							placeholder="https://maps.app.goo.gl/..."
 							class="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-2 text-xs text-foreground focus:ring-1 focus:ring-primary"
 						/>

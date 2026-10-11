@@ -4,7 +4,7 @@
  * @usedBy Backend server routes (+page.server.ts, +server.ts, hooks.server.ts, scripts migrasi/seed)
  * @dependencies better-sqlite3, drizzle-orm/better-sqlite3, src/lib/db/schema.ts
  * @publicFunctions db, sqlite
- * @sideEffects Membuka koneksi file database SQLite, mengaktifkan PRAGMA WAL & foreign_keys, auto-migrasi kolom & tabel skema (sub_kelompok, users, anggota_keluarga, jadwal_pengajian_template, presensi_jadwal, presensi_kehadiran, dan kelompok)
+ * @sideEffects Membuka koneksi file database SQLite, mengaktifkan PRAGMA WAL & foreign_keys, auto-migrasi kolom & tabel skema (sub_kelompok, users, anggota_keluarga, jadwal_pengajian_template, presensi_jadwal, presensi_kehadiran, kelompok, dan desa)
  */
 
 import Database from 'better-sqlite3';
@@ -308,6 +308,27 @@ try {
 		for (const [colName, colDef] of Object.entries(newKelompokCols)) {
 			if (!kelompokCols.includes(colName)) {
 				sqlite.exec(`ALTER TABLE kelompok ADD COLUMN ${colName} ${colDef}`);
+			}
+		}
+	}
+
+	// Auto-heal / migrasi kolom desa untuk data lokasi, koordinat GPS, radius, dan link GMaps
+	const tableDesa = sqlite
+		.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='desa'")
+		.get();
+	if (tableDesa) {
+		const rawDesaInfo = sqlite.prepare('PRAGMA table_info(desa)').all() as Array<{ name: string }>;
+		const desaCols = rawDesaInfo.map((c) => c.name);
+		const newDesaCols: Record<string, string> = {
+			lokasi_nama: 'TEXT',
+			latitude: 'TEXT',
+			longitude: 'TEXT',
+			radius_meter: 'INTEGER DEFAULT 100',
+			gmaps_url: 'TEXT'
+		};
+		for (const [colName, colDef] of Object.entries(newDesaCols)) {
+			if (!desaCols.includes(colName)) {
+				sqlite.exec(`ALTER TABLE desa ADD COLUMN ${colName} ${colDef}`);
 			}
 		}
 	}

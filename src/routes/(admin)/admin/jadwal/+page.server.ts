@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(admin)/admin/jadwal/+page.server.ts
- * @purpose Server load & actions untuk pengelolaan jadwal pengajian bertingkat (Desa & Kelompok), penanganan tab aktif (currentTab) via URL parameter, template siklus rutin, generator sesi bulanan, dan override perubahan jadwal insidental
+ * @purpose Server load & actions untuk pengelolaan jadwal pengajian bertingkat (Desa & Kelompok), penanganan tab aktif (currentTab) via URL parameter, template siklus rutin, generator sesi bulanan dengan pewarisan lokasi default Desa & Kelompok, serta override perubahan jadwal insidental
  * @usedBy src/routes/(admin)/admin/jadwal/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, src/lib/jadwal, drizzle-orm
  * @publicFunctions load, actions.saveTemplate, actions.deleteTemplate, actions.generateSesiBulanan, actions.createSesiManual, actions.updateSesiOverride, actions.deleteSesi
@@ -187,6 +187,44 @@ export const actions: Actions = {
 			}
 		}
 
+		let finalLokasiNama = lokasiNama;
+		let finalGmapsUrl = gmapsUrl;
+		let targetLat: string | null = null;
+		let targetLng: string | null = null;
+		let targetRadius = 100;
+
+		if (tingkatScope === 'Desa' && desaId) {
+			const desaRow = db.select().from(desa).where(eq(desa.id, desaId)).get();
+			if (desaRow) {
+				if (!finalLokasiNama) finalLokasiNama = desaRow.lokasiNama || desaRow.nama;
+				if (!finalGmapsUrl) {
+					finalGmapsUrl =
+						desaRow.gmapsUrl ||
+						(desaRow.latitude && desaRow.longitude
+							? `https://www.google.com/maps?q=${desaRow.latitude},${desaRow.longitude}`
+							: null);
+				}
+				targetLat = desaRow.latitude;
+				targetLng = desaRow.longitude;
+				targetRadius = desaRow.radiusMeter || 100;
+			}
+		} else if (tingkatScope === 'Kelompok' && kelompokId) {
+			const kelompokRow = db.select().from(kelompok).where(eq(kelompok.id, kelompokId)).get();
+			if (kelompokRow) {
+				if (!finalLokasiNama) finalLokasiNama = kelompokRow.lokasiNama || kelompokRow.nama;
+				if (!finalGmapsUrl) {
+					finalGmapsUrl =
+						kelompokRow.gmapsUrl ||
+						(kelompokRow.latitude && kelompokRow.longitude
+							? `https://www.google.com/maps?q=${kelompokRow.latitude},${kelompokRow.longitude}`
+							: null);
+				}
+				targetLat = kelompokRow.latitude;
+				targetLng = kelompokRow.longitude;
+				targetRadius = kelompokRow.radiusMeter || 100;
+			}
+		}
+
 		try {
 			if (templateId) {
 				db.update(jadwalPengajianTemplate)
@@ -202,8 +240,11 @@ export const actions: Actions = {
 						namaKegiatan,
 						detailMateri,
 						isLibur,
-						lokasiNama,
-						gmapsUrl
+						lokasiNama: finalLokasiNama,
+						latitude: targetLat,
+						longitude: targetLng,
+						radiusMeter: targetRadius,
+						gmapsUrl: finalGmapsUrl
 					})
 					.where(eq(jadwalPengajianTemplate.id, templateId))
 					.run();
@@ -221,8 +262,11 @@ export const actions: Actions = {
 						namaKegiatan,
 						detailMateri,
 						isLibur,
-						lokasiNama,
-						gmapsUrl,
+						lokasiNama: finalLokasiNama,
+						latitude: targetLat,
+						longitude: targetLng,
+						radiusMeter: targetRadius,
+						gmapsUrl: finalGmapsUrl,
 						isActive: true
 					})
 					.run();
@@ -305,6 +349,40 @@ export const actions: Actions = {
 		let createdCount = 0;
 		let skippedCount = 0;
 
+		let defaultLokasiNama: string | null = null;
+		let defaultGmapsUrl: string | null = null;
+		let defaultLat: string | null = null;
+		let defaultLng: string | null = null;
+		let defaultRadius = 100;
+
+		if (tingkatScope === 'Desa' && desaId) {
+			const dRow = db.select().from(desa).where(eq(desa.id, desaId)).get();
+			if (dRow) {
+				defaultLokasiNama = dRow.lokasiNama || dRow.nama;
+				defaultGmapsUrl =
+					dRow.gmapsUrl ||
+					(dRow.latitude && dRow.longitude
+						? `https://www.google.com/maps?q=${dRow.latitude},${dRow.longitude}`
+						: null);
+				defaultLat = dRow.latitude;
+				defaultLng = dRow.longitude;
+				defaultRadius = dRow.radiusMeter || 100;
+			}
+		} else if (tingkatScope === 'Kelompok' && kelompokId) {
+			const kRow = db.select().from(kelompok).where(eq(kelompok.id, kelompokId)).get();
+			if (kRow) {
+				defaultLokasiNama = kRow.lokasiNama || kRow.nama;
+				defaultGmapsUrl =
+					kRow.gmapsUrl ||
+					(kRow.latitude && kRow.longitude
+						? `https://www.google.com/maps?q=${kRow.latitude},${kRow.longitude}`
+						: null);
+				defaultLat = kRow.latitude;
+				defaultLng = kRow.longitude;
+				defaultRadius = kRow.radiusMeter || 100;
+			}
+		}
+
 		try {
 			db.transaction((tx) => {
 				for (const tmpl of templates) {
@@ -350,11 +428,11 @@ export const actions: Actions = {
 								detailMateri: tmpl.detailMateri,
 								status: tmpl.isLibur ? 'libur' : 'aktif',
 								isOverride: false,
-								lokasiNama: tmpl.lokasiNama,
-								latitude: tmpl.latitude,
-								longitude: tmpl.longitude,
-								radiusMeter: tmpl.radiusMeter,
-								gmapsUrl: tmpl.gmapsUrl
+								lokasiNama: tmpl.lokasiNama || defaultLokasiNama,
+								latitude: tmpl.latitude || defaultLat,
+								longitude: tmpl.longitude || defaultLng,
+								radiusMeter: tmpl.radiusMeter || defaultRadius,
+								gmapsUrl: tmpl.gmapsUrl || defaultGmapsUrl
 							})
 							.run();
 
@@ -398,6 +476,44 @@ export const actions: Actions = {
 
 		const tanggal = normalizeDateToISO(tanggalRaw);
 
+		let finalLokasiNama = lokasiNama;
+		let finalGmapsUrl = gmapsUrl;
+		let targetLat: string | null = null;
+		let targetLng: string | null = null;
+		let targetRadius = 100;
+
+		if (tingkatScope === 'Desa' && desaId) {
+			const desaRow = db.select().from(desa).where(eq(desa.id, desaId)).get();
+			if (desaRow) {
+				if (!finalLokasiNama) finalLokasiNama = desaRow.lokasiNama || desaRow.nama;
+				if (!finalGmapsUrl) {
+					finalGmapsUrl =
+						desaRow.gmapsUrl ||
+						(desaRow.latitude && desaRow.longitude
+							? `https://www.google.com/maps?q=${desaRow.latitude},${desaRow.longitude}`
+							: null);
+				}
+				targetLat = desaRow.latitude;
+				targetLng = desaRow.longitude;
+				targetRadius = desaRow.radiusMeter || 100;
+			}
+		} else if (tingkatScope === 'Kelompok' && kelompokId) {
+			const kelompokRow = db.select().from(kelompok).where(eq(kelompok.id, kelompokId)).get();
+			if (kelompokRow) {
+				if (!finalLokasiNama) finalLokasiNama = kelompokRow.lokasiNama || kelompokRow.nama;
+				if (!finalGmapsUrl) {
+					finalGmapsUrl =
+						kelompokRow.gmapsUrl ||
+						(kelompokRow.latitude && kelompokRow.longitude
+							? `https://www.google.com/maps?q=${kelompokRow.latitude},${kelompokRow.longitude}`
+							: null);
+				}
+				targetLat = kelompokRow.latitude;
+				targetLng = kelompokRow.longitude;
+				targetRadius = kelompokRow.radiusMeter || 100;
+			}
+		}
+
 		try {
 			db.insert(presensiJadwal)
 				.values({
@@ -411,8 +527,11 @@ export const actions: Actions = {
 					detailMateri,
 					status,
 					isOverride: false,
-					lokasiNama,
-					gmapsUrl
+					lokasiNama: finalLokasiNama,
+					gmapsUrl: finalGmapsUrl,
+					latitude: targetLat,
+					longitude: targetLng,
+					radiusMeter: targetRadius
 				})
 				.run();
 

@@ -1,9 +1,9 @@
 /**
  * @file src/routes/(admin)/admin/wilayah/+page.server.ts
- * @purpose Memuat data wilayah administratif berjenjang sesuai scope admin (Pusat, Daerah, Desa, Kelompok) dan otorisasi ketat aksi CRUD unit wilayah (termasuk pembuatan wilayah tunggal cerdas/creatable dropdown, serta hapus single & batch untuk Pusat, Daerah, Desa)
+ * @purpose Memuat data wilayah administratif berjenjang sesuai scope admin (Pusat, Daerah, Desa, Kelompok) dan otorisasi ketat aksi CRUD unit wilayah (termasuk pembuatan wilayah tunggal cerdas/creatable dropdown, update titik lokasi desa & kelompok, serta hapus single & batch untuk Pusat, Daerah, Desa)
  * @usedBy src/routes/(admin)/admin/wilayah/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm
- * @publicFunctions load, actions.createWilayah, actions.createDaerah, actions.createDesa, actions.createKelompok, actions.createSubKelompok, actions.updateKelompokLocation, actions.deleteKelompok, actions.batchDeleteKelompok, actions.deleteSubKelompok, actions.batchDeleteSubKelompok
+ * @publicFunctions load, actions.createWilayah, actions.createDaerah, actions.createDesa, actions.createKelompok, actions.createSubKelompok, actions.updateKelompokLocation, actions.updateDesaLocation, actions.deleteKelompok, actions.batchDeleteKelompok, actions.deleteSubKelompok, actions.batchDeleteSubKelompok
  * @sideEffects Insert/Update/Delete data daerah/desa/kelompok/sub_kelompok ke SQLite dalam transaksi atomik, verifikasi hierarki RBAC
  */
 
@@ -25,10 +25,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	// 1. Ambil seluruh data daerah yang diizinkan dalam scope admin
 	const daerahList = accessibleWilayah.daerahList;
 
-	// 2. Ambil seluruh data desa yang diizinkan dalam scope admin
-	const desaList = accessibleWilayah.desaList;
-
-	// 3. Ambil seluruh kelompok yang diizinkan join desa dan daerah dengan agregasi terindeks
+	// 2. Ambil seluruh kelompok yang diizinkan join desa dan daerah dengan agregasi terindeks
 	const rawKelompokList = db
 		.select({
 			id: kelompok.id,
@@ -53,6 +50,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const kelompokList = adminScope.isPusat
 		? rawKelompokList
 		: rawKelompokList.filter((k) => accessibleWilayah.allowedKelompokIdSet.has(k.id));
+
+	// 3. Ambil seluruh data desa yang diizinkan dalam scope admin beserta agregasi kelompok
+	const desaList = accessibleWilayah.desaList.map((d) => ({
+		...d,
+		totalKelompok: kelompokList.filter((k) => k.desaId === d.id).length
+	}));
 
 	// 4. Ambil seluruh sub-kelompok yang diizinkan
 	const rawSubKelompokList = db
@@ -86,6 +89,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		canBatchInsert: adminScope.isPusat || adminScope.level === 'Daerah',
 		canDeleteKelompok: canDeleteWilayah,
 		canDeleteSubKelompok: canDeleteWilayah,
+		canManageDesa: adminScope.isPusat || adminScope.level === 'Daerah' || adminScope.level === 'Desa',
 		scopeLevel: adminScope.level
 	};
 
@@ -557,6 +561,54 @@ export const actions: Actions = {
 			return { success: true, message: 'Data lokasi kelompok berhasil disimpan.' };
 		} catch (error: any) {
 			console.error('Gagal memperbarui lokasi kelompok:', error);
+			return fail(500, { error: `Terjadi kesalahan sistem: ${error.message}` });
+		}
+	},
+
+	updateDesaLocation: async ({ request, locals }) => {
+		if (!locals.user || !locals.isAdmin) {
+			return fail(403, { error: 'Akses ditolak.' });
+		}
+
+		const adminScope = getAdminScope(locals.roles);
+		const formData = await request.formData();
+		const desaId = parseInt(formData.get('desaId')?.toString() || '0', 10);
+		const lokasiNama = formData.get('lokasiNama')?.toString()?.trim() || null;
+		const latitude = formData.get('latitude')?.toString()?.trim() || null;
+		const longitude = formData.get('longitude')?.toString()?.trim() || null;
+		const radiusMeterRaw = parseInt(formData.get('radiusMeter')?.toString() || '100', 10);
+		const radiusMeter = isNaN(radiusMeterRaw) ? 100 : radiusMeterRaw;
+		const gmapsUrl = formData.get('gmapsUrl')?.toString()?.trim() || null;
+
+		if (!desaId) {
+			return fail(400, { error: 'ID Desa tidak valid.' });
+		}
+
+		if (!adminScope.isPusat) {
+			const accessibleWilayah = getAccessibleWilayah(adminScope);
+			const allowedDesaIds = new Set(accessibleWilayah.desaList.map((d) => d.id));
+			if (!allowedDesaIds.has(desaId)) {
+				return fail(403, {
+					error: 'Akses ditolak: Anda tidak memiliki wewenang mengelola lokasi desa ini.'
+				});
+			}
+		}
+
+		try {
+			db.update(desa)
+				.set({
+					lokasiNama,
+					latitude,
+					longitude,
+					radiusMeter,
+					gmapsUrl
+				})
+				.where(eq(desa.id, desaId))
+				.run();
+
+			return { success: true, message: 'Data lokasi desa berhasil disimpan.' };
+		} catch (error: any) {
+			console.error('Gagal memperbarui lokasi desa:', error);
 			return fail(500, { error: `Terjadi kesalahan sistem: ${error.message}` });
 		}
 	},
