@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(admin)/admin/dapukan/+page.svelte
-  @purpose Halaman manajemen struktur dapukan/jabatan dan penugasan RBAC pengurus dengan proteksi draf modal
+  @purpose Halaman manajemen struktur dapukan/jabatan dan penugasan RBAC pengurus dengan proteksi pembatasan scope sesuai basis wilayah jamaah
   @usedBy Route admin '/admin/dapukan'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte
   @publicFunctions openAssignModal, closeAssignModal, resetAssignForm, confirmRemove
@@ -38,13 +38,26 @@
 	let selectedDesaId = $state<string | number>('');
 	let selectedDaerahId = $state<string | number>('');
 
+	// Jamaah terpilih beserta basis wilayahnya
+	const selectedUserObj = $derived(
+		(data.userList || []).find((u: (typeof data.userList)[number]) => String(u.id) === String(selectedUserId))
+	);
+
 	// Options untuk Searchable Dropdowns
 	const userOptions = $derived(
-		(data.userList || []).map((u: (typeof data.userList)[number]) => ({
-			value: u.id,
-			label: u.namaLengkap,
-			sublabel: u.email || 'Tanpa Email'
-		}))
+		(data.userList || []).map((u: (typeof data.userList)[number]) => {
+			let sub = '';
+			if (u.kelompokNama) {
+				sub = `${u.kelompokNama} • ${u.desaNama || ''}`;
+			} else {
+				sub = u.email || 'Tanpa Email';
+			}
+			return {
+				value: u.id,
+				label: u.namaLengkap,
+				sublabel: sub
+			};
+		})
 	);
 
 	const masterDapukanOptions = $derived(
@@ -55,27 +68,106 @@
 		}))
 	);
 
-	const kelompokOptions = $derived(
-		(data.kelompokList || []).map((k: (typeof data.kelompokList)[number]) => ({
+	// Opsi Kelompok: Jika jamaah memiliki basis kelompok, kunci hanya ke kelompok basisnya
+	const kelompokOptions = $derived.by(() => {
+		if (selectedUserObj?.kelompokId) {
+			const matching = (data.kelompokList || []).find((k: (typeof data.kelompokList)[number]) => k.id === selectedUserObj.kelompokId);
+			if (matching) {
+				return [
+					{
+						value: matching.id,
+						label: matching.nama,
+						sublabel: `Terkunci: Basis ${selectedUserObj.namaLengkap}`
+					}
+				];
+			}
+			return [
+				{
+					value: selectedUserObj.kelompokId,
+					label: selectedUserObj.kelompokNama || `Kelompok #${selectedUserObj.kelompokId}`,
+					sublabel: `Terkunci: Basis ${selectedUserObj.namaLengkap}`
+				}
+			];
+		}
+		return (data.kelompokList || []).map((k: (typeof data.kelompokList)[number]) => ({
 			value: k.id,
 			label: k.nama
-		}))
-	);
+		}));
+	});
 
-	const desaOptions = $derived(
-		(data.desaList || []).map((d: (typeof data.desaList)[number]) => ({
+	// Opsi Desa: Jika jamaah memiliki basis desa, kunci hanya ke desa basisnya
+	const desaOptions = $derived.by(() => {
+		if (selectedUserObj?.desaId) {
+			const matching = (data.desaList || []).find((d: (typeof data.desaList)[number]) => d.id === selectedUserObj.desaId);
+			if (matching) {
+				return [
+					{
+						value: matching.id,
+						label: matching.nama,
+						sublabel: `Terkunci: Basis ${selectedUserObj.namaLengkap}`
+					}
+				];
+			}
+			return [
+				{
+					value: selectedUserObj.desaId,
+					label: selectedUserObj.desaNama || `Desa #${selectedUserObj.desaId}`,
+					sublabel: `Terkunci: Basis ${selectedUserObj.namaLengkap}`
+				}
+			];
+		}
+		return (data.desaList || []).map((d: (typeof data.desaList)[number]) => ({
 			value: d.id,
 			label: d.nama
-		}))
-	);
+		}));
+	});
 
-	const daerahOptions = $derived(
-		(data.daerahList || []).map((d: (typeof data.daerahList)[number]) => ({
-			value: d.id,
-			label: d.nama,
-			sublabel: d.kotaKabupaten
-		}))
-	);
+	// Opsi Daerah: Jika jamaah memiliki basis daerah, kunci hanya ke daerah basisnya
+	const daerahOptions = $derived.by(() => {
+		if (selectedUserObj?.daerahId) {
+			const matching = (data.daerahList || []).find((dr: (typeof data.daerahList)[number]) => dr.id === selectedUserObj.daerahId);
+			if (matching) {
+				return [
+					{
+						value: matching.id,
+						label: matching.nama,
+						sublabel: `Terkunci: Basis ${selectedUserObj.namaLengkap}`
+					}
+				];
+			}
+			return [
+				{
+					value: selectedUserObj.daerahId,
+					label: selectedUserObj.daerahNama || `Daerah #${selectedUserObj.daerahId}`,
+					sublabel: `Terkunci: Basis ${selectedUserObj.namaLengkap}`
+				}
+			];
+		}
+		return (data.daerahList || []).map((dr: (typeof data.daerahList)[number]) => ({
+			value: dr.id,
+			label: dr.nama,
+			sublabel: dr.kotaKabupaten
+		}));
+	});
+
+	// Sinkronisasi otomatis dan auto-select saat jamaah atau tingkat scope dipilih
+	$effect(() => {
+		if (selectedUserObj) {
+			if (selectedScope === 'Kelompok') {
+				if (selectedUserObj.kelompokId) {
+					selectedKelompokId = selectedUserObj.kelompokId;
+				}
+			} else if (selectedScope === 'Desa') {
+				if (selectedUserObj.desaId) {
+					selectedDesaId = selectedUserObj.desaId;
+				}
+			} else if (selectedScope === 'Daerah') {
+				if (selectedUserObj.daerahId) {
+					selectedDaerahId = selectedUserObj.daerahId;
+				}
+			}
+		}
+	});
 
 	function isAssignFormDirty() {
 		return (
@@ -355,9 +447,33 @@
 						bind:value={selectedUserId}
 						required
 						placeholder="-- Pilih Nama Jamaah --"
-						searchPlaceholder="Cari nama jamaah atau email..."
+						searchPlaceholder="Cari nama jamaah atau wilayah..."
 					/>
 				</div>
+
+				<!-- Informasi Basis Wilayah Jamaah Terpilih -->
+				{#if selectedUserObj}
+					<div class="p-3 bg-secondary/40 border border-border rounded-xl space-y-1">
+						<div class="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+							<MapPin class="w-3.5 h-3.5 text-primary" />
+							<span>Basis Wilayah Jamaah:</span>
+						</div>
+						<div class="text-[11px] text-foreground/80 pl-5">
+							{#if selectedUserObj.kelompokNama}
+								<span class="font-medium text-foreground">{selectedUserObj.kelompokNama}</span>
+								<span class="text-foreground/40 mx-1.5">•</span>
+								<span>{selectedUserObj.desaNama || 'Desa -'}</span>
+								<span class="text-foreground/40 mx-1.5">•</span>
+								<span>{selectedUserObj.daerahNama || 'Daerah -'}</span>
+								<p class="text-[10px] text-primary font-medium mt-1">
+									Pilihan wilayah cakupan otomatis diselaraskan & dikunci ke basis wilayah jamaah di atas.
+								</p>
+							{:else}
+								<span class="italic text-foreground/50">Belum terikat kelompok manapun (Jamaah Bebas).</span>
+							{/if}
+						</div>
+					</div>
+				{/if}
 
 				<!-- Jenis Jabatan: Baku vs Kustom -->
 				<div>
@@ -438,57 +554,96 @@
 						class="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
 					>
 						<option value="Kelompok">Kelompok (Tingkat Basis)</option>
-						<option value="Desa">Desa (Mengawasi Semua Kelompok)</option>
-						<option value="Daerah">Daerah (Mengawasi Semua Desa)</option>
-						<option value="Pusat">Pusat (Akses Nasional)</option>
+						{#if data.isPusat || data.adminScopeLevel === 'Daerah' || data.adminScopeLevel === 'Desa'}
+							<option value="Desa">Desa (Mengawasi Semua Kelompok)</option>
+						{/if}
+						{#if data.isPusat || data.adminScopeLevel === 'Daerah'}
+							<option value="Daerah">Daerah (Mengawasi Semua Desa)</option>
+						{/if}
+						{#if data.isPusat}
+							<option value="Pusat">Pusat (Akses Nasional)</option>
+						{/if}
 					</select>
 				</div>
 
 				<!-- Pemilihan Wilayah Terkait Sesuai Scope -->
 				{#if selectedScope === 'Kelompok'}
 					<div>
-						<label for="kelompokId" class="block text-xs font-semibold text-foreground mb-1.5">
-							Pilih Kelompok Cakupan *
-						</label>
+						<div class="flex items-center justify-between mb-1.5">
+							<label for="kelompokId" class="block text-xs font-semibold text-foreground">
+								Pilih Kelompok Cakupan *
+							</label>
+							{#if selectedUserObj?.kelompokId}
+								<span class="text-[10px] text-primary font-semibold">Terkunci ke Basis Jamaah</span>
+							{/if}
+						</div>
 						<SearchableSelect
 							id="kelompokId"
 							name="kelompokId"
 							options={kelompokOptions}
 							bind:value={selectedKelompokId}
+							disabled={Boolean(selectedUserObj?.kelompokId)}
 							required
 							placeholder="-- Pilih Kelompok Cakupan --"
 							searchPlaceholder="Cari kelompok..."
 						/>
+						{#if selectedUserObj?.kelompokId}
+							<p class="text-[10px] text-foreground/50 mt-1">
+								Scope kelompok dikunci ke basis kelompok jamaah ({selectedUserObj.kelompokNama}).
+							</p>
+						{/if}
 					</div>
 				{:else if selectedScope === 'Desa'}
 					<div>
-						<label for="desaId" class="block text-xs font-semibold text-foreground mb-1.5">
-							Pilih Desa Cakupan *
-						</label>
+						<div class="flex items-center justify-between mb-1.5">
+							<label for="desaId" class="block text-xs font-semibold text-foreground">
+								Pilih Desa Cakupan *
+							</label>
+							{#if selectedUserObj?.desaId}
+								<span class="text-[10px] text-primary font-semibold">Terkunci ke Basis Jamaah</span>
+							{/if}
+						</div>
 						<SearchableSelect
 							id="desaId"
 							name="desaId"
 							options={desaOptions}
 							bind:value={selectedDesaId}
+							disabled={Boolean(selectedUserObj?.desaId)}
 							required
 							placeholder="-- Pilih Desa Cakupan --"
 							searchPlaceholder="Cari desa..."
 						/>
+						{#if selectedUserObj?.desaId}
+							<p class="text-[10px] text-foreground/50 mt-1">
+								Scope desa dikunci ke basis desa jamaah ({selectedUserObj.desaNama}).
+							</p>
+						{/if}
 					</div>
 				{:else if selectedScope === 'Daerah'}
 					<div>
-						<label for="daerahId" class="block text-xs font-semibold text-foreground mb-1.5">
-							Pilih Daerah Cakupan *
-						</label>
+						<div class="flex items-center justify-between mb-1.5">
+							<label for="daerahId" class="block text-xs font-semibold text-foreground">
+								Pilih Daerah Cakupan *
+							</label>
+							{#if selectedUserObj?.daerahId}
+								<span class="text-[10px] text-primary font-semibold">Terkunci ke Basis Jamaah</span>
+							{/if}
+						</div>
 						<SearchableSelect
 							id="daerahId"
 							name="daerahId"
 							options={daerahOptions}
 							bind:value={selectedDaerahId}
+							disabled={Boolean(selectedUserObj?.daerahId)}
 							required
 							placeholder="-- Pilih Daerah Cakupan --"
 							searchPlaceholder="Cari daerah..."
 						/>
+						{#if selectedUserObj?.daerahId}
+							<p class="text-[10px] text-foreground/50 mt-1">
+								Scope daerah dikunci ke basis daerah jamaah ({selectedUserObj.daerahNama}).
+							</p>
+						{/if}
 					</div>
 				{/if}
 
