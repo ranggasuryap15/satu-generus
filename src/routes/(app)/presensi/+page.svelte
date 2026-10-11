@@ -252,67 +252,67 @@
 
 <div class="space-y-4 max-w-lg mx-auto">
 	<!-- Page Header -->
-	<div class="bg-card border border-border rounded-2xl p-4 shadow-xs">
+	<div class="bg-card border border-border rounded-2xl p-4 sm:p-5 shadow-xs">
 		<div class="flex items-center justify-between">
 			<div>
-				<h1 class="text-base font-bold text-foreground flex items-center gap-2">
-					<UserCheck class="w-5 h-5 text-primary" />
+				<h1 class="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">
+					<UserCheck class="w-6 h-6 text-primary" />
 					<span>Presensi Pengajian</span>
 				</h1>
-				<p class="text-xs text-foreground/60 mt-0.5">
+				<p class="text-sm text-foreground/60 mt-1">
 					{data.kelompokNama} • {data.user.namaLengkap}
 				</p>
 			</div>
-			<span class="px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-primary/10 text-primary">
+			<span class="px-3 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary">
 				Jamaah
 			</span>
 		</div>
 	</div>
 
 	<!-- Tab Navigation -->
-	<div class="grid grid-cols-4 p-1 bg-secondary rounded-xl text-center text-xs font-semibold">
+	<div class="grid grid-cols-4 p-1.5 bg-secondary rounded-xl text-center text-xs font-semibold">
 		<button
 			type="button"
 			onclick={() => (activeTab = 'hadir')}
-			class="py-2 rounded-lg transition-all flex flex-col items-center gap-1 {activeTab === 'hadir'
+			class="py-2.5 rounded-lg transition-all flex flex-col items-center gap-1.5 {activeTab === 'hadir'
 				? 'bg-card text-primary shadow-xs'
 				: 'text-foreground/60 hover:text-foreground'}"
 		>
 			<UserCheck class="w-4 h-4" />
-			<span class="text-[11px]">Hadir</span>
+			<span class="text-xs font-semibold">Hadir</span>
 		</button>
 
 		<button
 			type="button"
 			onclick={() => (activeTab = 'izin')}
-			class="py-2 rounded-lg transition-all flex flex-col items-center gap-1 {activeTab === 'izin'
+			class="py-2.5 rounded-lg transition-all flex flex-col items-center gap-1.5 {activeTab === 'izin'
 				? 'bg-card text-accent shadow-xs'
 				: 'text-foreground/60 hover:text-foreground'}"
 		>
 			<FileText class="w-4 h-4" />
-			<span class="text-[11px]">Izin/Sakit</span>
+			<span class="text-xs font-semibold">Izin/Sakit</span>
 		</button>
 
 		<button
 			type="button"
 			onclick={() => (activeTab = 'riwayat')}
-			class="py-2 rounded-lg transition-all flex flex-col items-center gap-1 {activeTab === 'riwayat'
+			class="py-2.5 rounded-lg transition-all flex flex-col items-center gap-1.5 {activeTab === 'riwayat'
 				? 'bg-card text-foreground shadow-xs'
 				: 'text-foreground/60 hover:text-foreground'}"
 		>
 			<Clock class="w-4 h-4" />
-			<span class="text-[11px]">Riwayat</span>
+			<span class="text-xs font-semibold">Riwayat</span>
 		</button>
 
 		<button
 			type="button"
 			onclick={() => (activeTab = 'qr')}
-			class="py-2 rounded-lg transition-all flex flex-col items-center gap-1 {activeTab === 'qr'
+			class="py-2.5 rounded-lg transition-all flex flex-col items-center gap-1.5 {activeTab === 'qr'
 				? 'bg-card text-foreground shadow-xs'
 				: 'text-foreground/60 hover:text-foreground'}"
 		>
 			<QrCode class="w-4 h-4" />
-			<span class="text-[11px]">Kartu QR</span>
+			<span class="text-xs font-semibold">Kartu QR</span>
 		</button>
 	</div>
 
@@ -403,14 +403,14 @@
 					</select>
 
 					{#if selectedJadwal?.lokasiNama || selectedJadwal?.latitudeVenue}
-						<div class="mt-2.5 p-2.5 rounded-xl bg-secondary/40 border border-border/80 flex items-start justify-between gap-3 text-[11px]">
+						<div class="mt-2.5 p-3 rounded-xl bg-secondary/40 border border-border/80 flex items-start justify-between gap-3 text-xs">
 							<div class="space-y-0.5 min-w-0">
 								<div class="flex items-center gap-1.5 font-semibold text-foreground truncate">
-									<MapPin class="w-3.5 h-3.5 text-primary shrink-0" />
+									<MapPin class="w-4 h-4 text-primary shrink-0" />
 									<span class="truncate">{selectedJadwal.lokasiNama || 'Titik Lokasi Kegiatan'}</span>
 								</div>
 								{#if selectedJadwal.latitudeVenue && selectedJadwal.longitudeVenue}
-									<p class="text-[10px] text-foreground/60 font-mono">
+									<p class="text-xs text-foreground/60 font-mono">
 										Radius Absensi: &plusmn;{selectedJadwal.radiusMeterVenue || 100}m
 									</p>
 								{/if}
@@ -420,10 +420,10 @@
 									href={selectedJadwal.gmapsUrlVenue || `https://www.google.com/maps?q=${selectedJadwal.latitudeVenue},${selectedJadwal.longitudeVenue}`}
 									target="_blank"
 									rel="noopener noreferrer"
-									class="inline-flex items-center gap-1 text-[10.5px] font-medium text-primary hover:underline shrink-0 px-2 py-1 bg-primary/10 rounded-lg"
+									class="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline shrink-0 px-2.5 py-1 bg-primary/10 rounded-lg"
 								>
 									<span>Buka Maps</span>
-									<ExternalLink class="w-3 h-3" />
+									<ExternalLink class="w-3.5 h-3.5" />
 								</a>
 							{/if}
 						</div>
@@ -432,8 +432,8 @@
 
 				<!-- Pilihan Kriteria: Hadir Offline vs Hadir Online -->
 				<div>
-					<span class="block font-semibold text-foreground/80 mb-1.5">Metode Kehadiran *</span>
-					<div class="grid grid-cols-2 gap-2.5">
+					<span class="block font-semibold text-sm text-foreground/80 mb-2">Metode Kehadiran *</span>
+					<div class="grid grid-cols-2 gap-3">
 						<!-- Kartu Opsi Hadir Offline -->
 						<button
 							type="button"
@@ -441,27 +441,27 @@
 								metodeKehadiran = 'offline';
 								if (!latitude) captureLocation();
 							}}
-							class="p-3 rounded-xl border text-left transition-all cursor-pointer {metodeKehadiran ===
+							class="p-3.5 rounded-xl border text-left transition-all cursor-pointer {metodeKehadiran ===
 							'offline'
 								? 'border-primary bg-primary/10 ring-1 ring-primary'
 								: 'border-border bg-card hover:bg-secondary/40'}"
 						>
 							<div class="flex items-center justify-between gap-1">
-								<div class="flex items-center gap-1.5 font-bold text-xs text-foreground">
-									<MapPin class="w-3.5 h-3.5 text-primary" />
+								<div class="flex items-center gap-1.5 font-bold text-sm text-foreground">
+									<MapPin class="w-4 h-4 text-primary" />
 									<span>Hadir Offline</span>
 								</div>
 								{#if isWithinRadius === false}
-									<span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-destructive/10 text-destructive">
+									<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-destructive/10 text-destructive">
 										Luar Radius
 									</span>
 								{:else if isWithinRadius === true}
-									<span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-500/10 text-emerald-600">
+									<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-600">
 										Sesuai
 									</span>
 								{/if}
 							</div>
-							<p class="text-[10px] text-foreground/60 mt-1 leading-snug">
+							<p class="text-xs text-foreground/60 mt-1.5 leading-relaxed">
 								{#if !selectedJadwal?.latitudeVenue}
 									<span class="text-amber-600 dark:text-amber-400 font-semibold">Lokasi kelompok belum diset. Wajib gunakan gambar online.</span>
 								{:else}
@@ -474,21 +474,21 @@
 						<button
 							type="button"
 							onclick={() => (metodeKehadiran = 'online')}
-							class="p-3 rounded-xl border text-left transition-all cursor-pointer {metodeKehadiran ===
+							class="p-3.5 rounded-xl border text-left transition-all cursor-pointer {metodeKehadiran ===
 							'online'
 								? 'border-blue-500 bg-blue-500/10 ring-1 ring-blue-500'
 								: 'border-border bg-card hover:bg-secondary/40'}"
 						>
 							<div class="flex items-center justify-between gap-1">
-								<div class="flex items-center gap-1.5 font-bold text-xs text-foreground">
-									<Globe class="w-3.5 h-3.5 text-blue-500" />
+								<div class="flex items-center gap-1.5 font-bold text-sm text-foreground">
+									<Globe class="w-4 h-4 text-blue-500" />
 									<span>Hadir Online</span>
 								</div>
-								<span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-blue-500/10 text-blue-600">
-									Wajib Gambar
+								<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-500/10 text-blue-600">
+									Wajib Foto
 								</span>
 							</div>
-							<p class="text-[10px] text-foreground/60 mt-1 leading-snug">
+							<p class="text-xs text-foreground/60 mt-1.5 leading-relaxed">
 								Daring / di luar lokasi. <strong>Wajib foto bukti gambar</strong>.
 							</p>
 						</button>
@@ -497,53 +497,53 @@
 
 				<!-- Bagian Deteksi Lokasi GPS (Khusus Hadir Offline) -->
 				{#if metodeKehadiran === 'offline'}
-					<div class="p-3 rounded-xl bg-secondary/30 border border-border space-y-2">
+					<div class="p-3.5 rounded-xl bg-secondary/30 border border-border space-y-2.5">
 						<div class="flex items-center justify-between">
-							<span class="font-semibold text-foreground flex items-center gap-1.5 text-[11px]">
-								<MapPin class="w-3.5 h-3.5 text-primary" />
+							<span class="font-semibold text-foreground flex items-center gap-1.5 text-xs sm:text-sm">
+								<MapPin class="w-4 h-4 text-primary" />
 								<span>Titik Koordinat Lokasi Anda (Wajib)</span>
 							</span>
 							<button
 								type="button"
 								onclick={captureLocation}
 								disabled={isLocating}
-								class="inline-flex items-center gap-1 text-[10.5px] font-semibold text-primary hover:underline cursor-pointer"
+								class="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline cursor-pointer"
 							>
 								{#if isLocating}
-									<Loader2 class="w-3 h-3 animate-spin" />
+									<Loader2 class="w-3.5 h-3.5 animate-spin" />
 									<span>Mencari...</span>
 								{:else}
-									<RefreshCw class="w-3 h-3" />
+									<RefreshCw class="w-3.5 h-3.5" />
 									<span>Deteksi Ulang</span>
 								{/if}
 							</button>
 						</div>
 
 						{#if !selectedJadwal?.latitudeVenue}
-							<div class="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-200 text-[11px] space-y-1.5">
+							<div class="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-200 text-xs sm:text-sm space-y-2">
 								<div class="flex items-center gap-1.5 font-bold">
 									<AlertCircle class="w-4 h-4 text-amber-600 shrink-0" />
 									<span>Titik Lokasi Kelompok Belum Didaftarkan</span>
 								</div>
-								<p class="text-[10px] text-foreground/70 leading-relaxed">
+								<p class="text-xs text-foreground/75 leading-relaxed">
 									Pengurus belum menentukan titik koordinat kelompok ini. Anda tidak dapat presensi menggunakan lokasi, dan <strong>wajib menggunakan presensi Hadir Online dengan gambar</strong>.
 								</p>
 								<button
 									type="button"
 									onclick={() => (metodeKehadiran = 'online')}
-									class="px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold text-[10.5px] inline-flex items-center gap-1 cursor-pointer"
+									class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs inline-flex items-center gap-1.5 cursor-pointer"
 								>
-									<Globe class="w-3 h-3" />
+									<Globe class="w-3.5 h-3.5" />
 									<span>Beralih ke Hadir Online (Wajib Gambar) &rarr;</span>
 								</button>
 							</div>
 						{:else if latitude && longitude}
-							<div class="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[11px] space-y-2">
+							<div class="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs sm:text-sm space-y-2.5">
 								<div class="flex items-center justify-between">
-									<div class="font-mono text-[10.5px]">
+									<div class="font-mono text-xs">
 										<span>Lat: {latitude}, Lng: {longitude}</span>
 										{#if accuracy}
-											<span class="block text-[10px] text-foreground/50">
+											<span class="block text-xs text-foreground/60">
 												Akurasi GPS: &plusmn;{accuracy} meter
 											</span>
 										{/if}
@@ -552,29 +552,29 @@
 								</div>
 
 								{#if distanceToVenue !== null}
-									<div class="pt-2 border-t border-emerald-500/20 text-[10.5px]">
+									<div class="pt-2 border-t border-emerald-500/20 text-xs">
 										{#if isWithinRadius}
 											<div class="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300 font-medium">
-												<CheckCircle2 class="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+												<CheckCircle2 class="w-4 h-4 text-emerald-600 shrink-0" />
 												<span>
 													Lokasi Sesuai! Anda berada dalam radius kelompok (~{distanceToVenue} m dari lokasi, batas &plusmn;{selectedJadwal?.radiusMeterVenue || 100} m).
 												</span>
 											</div>
 										{:else}
-											<div class="p-2.5 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive space-y-1.5">
+											<div class="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive space-y-2">
 												<div class="flex items-center gap-1.5 font-bold">
 													<AlertCircle class="w-4 h-4 shrink-0" />
 													<span>Lokasi Tidak Sesuai (~{distanceToVenue} m dari lokasi kelompok)</span>
 												</div>
-												<p class="text-[10px] text-foreground/70 leading-relaxed">
+												<p class="text-xs text-foreground/75 leading-relaxed">
 													Anda berada di luar batas toleransi (&plusmn;{selectedJadwal?.radiusMeterVenue || 100} m). Anda <strong>tidak dapat presensi menggunakan lokasi</strong>, melainkan <strong>wajib menggunakan presensi Hadir Online dengan bukti gambar</strong>.
 												</p>
 												<button
 													type="button"
 													onclick={() => (metodeKehadiran = 'online')}
-													class="mt-1 px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold text-[10.5px] inline-flex items-center gap-1 cursor-pointer"
+													class="mt-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs inline-flex items-center gap-1.5 cursor-pointer"
 												>
-													<Globe class="w-3 h-3" />
+													<Globe class="w-3.5 h-3.5" />
 													<span>Beralih ke Hadir Online (Wajib Gambar) &rarr;</span>
 												</button>
 											</div>
@@ -583,14 +583,14 @@
 								{/if}
 							</div>
 						{:else}
-							<div class="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-200 text-[11px]">
+							<div class="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-200 text-xs sm:text-sm">
 								{#if isLocating}
 									<p class="flex items-center gap-1.5">
-										<Loader2 class="w-3.5 h-3.5 animate-spin" />
+										<Loader2 class="w-4 h-4 animate-spin" />
 										<span>Sedang mengambil titik koordinat GPS ponsel...</span>
 									</p>
 								{:else}
-									<p class="leading-relaxed">
+									<p class="leading-relaxed text-xs">
 										Lokasi belum terdeteksi. Pastikan GPS aktif dan tekan tombol <strong>Deteksi Ulang</strong>.
 									</p>
 								{/if}
@@ -879,13 +879,13 @@
 					Belum ada jadwal kegiatan untuk kelompok ini.
 				</div>
 			{:else}
-				<div class="space-y-2.5">
+				<div class="space-y-3">
 					{#each data.jadwalList as item}
-						<div class="bg-card border border-border rounded-xl p-3.5 shadow-xs space-y-2">
+						<div class="bg-card border border-border rounded-xl p-3.5 sm:p-4 shadow-xs space-y-2.5">
 							<div class="flex items-start justify-between gap-2">
 								<div>
-									<h4 class="text-xs font-bold text-foreground">{item.namaKegiatan}</h4>
-									<div class="flex items-center gap-1.5 text-[11px] text-foreground/50 mt-0.5">
+									<h4 class="text-sm font-semibold text-foreground">{item.namaKegiatan}</h4>
+									<div class="flex items-center gap-1.5 text-xs text-foreground/60 mt-0.5">
 										<Clock class="w-3.5 h-3.5" />
 										<span>{formatDateDDMMYYYY(item.tanggal)}</span>
 									</div>
@@ -895,7 +895,7 @@
 								<div>
 									{#if item.statusKehadiran === 'Hadir'}
 										<span
-											class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10.5px] font-bold bg-primary/10 text-primary"
+											class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-primary/10 text-primary"
 										>
 											<CheckCircle2 class="w-3.5 h-3.5" />
 											<span>Hadir {item.metodeKehadiran === 'offline' ? 'Offline' : 'Online'}</span>
@@ -903,7 +903,7 @@
 									{:else if item.statusKehadiran === 'Izin' || item.statusKehadiran === 'Sakit'}
 										<div class="text-right">
 											<span
-												class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10.5px] font-bold {item.statusApproval ===
+												class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold {item.statusApproval ===
 												'Disetujui'
 													? 'bg-emerald-500/10 text-emerald-600'
 													: item.statusApproval === 'Ditolak'
@@ -916,13 +916,13 @@
 										</div>
 									{:else if item.statusKehadiran === 'Alpa'}
 										<span
-											class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10.5px] font-semibold bg-destructive/10 text-destructive"
+											class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-destructive/10 text-destructive"
 										>
 											<XCircle class="w-3.5 h-3.5" />
 											<span>Alpa</span>
 										</span>
 									{:else}
-										<span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[10.5px] font-medium bg-secondary text-foreground/60">
+										<span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-secondary text-foreground/60">
 											Belum Hadir
 										</span>
 									{/if}
@@ -931,13 +931,13 @@
 
 							<!-- Rincian Bukti (Jika Ada) -->
 							{#if item.fotoUrl || item.latitude || item.keteranganIzin}
-								<div class="pt-2 border-t border-border/50 text-[11px] text-foreground/70 flex items-center justify-between gap-2">
+								<div class="pt-2 border-t border-border/50 text-xs text-foreground/75 flex items-center justify-between gap-2">
 									<div class="space-y-0.5">
 										{#if item.keteranganIzin}
 											<p><strong class="text-foreground">Alasan:</strong> {item.keteranganIzin}</p>
 										{/if}
 										{#if item.latitude}
-											<p class="font-mono text-[10px] text-foreground/50">
+											<p class="font-mono text-xs text-foreground/50">
 												Lokasi: {item.latitude}, {item.longitude}
 											</p>
 										{/if}
@@ -947,7 +947,7 @@
 										<button
 											type="button"
 											onclick={() => openPreviewFoto(item.fotoUrl || '', `${item.namaKegiatan} (${formatDateDDMMYYYY(item.tanggal)})`)}
-											class="px-2.5 py-1 rounded-lg bg-secondary text-foreground hover:bg-secondary/80 text-[10.5px] font-semibold shrink-0 cursor-pointer border border-border/50 transition-colors"
+											class="px-3 py-1.5 rounded-lg bg-secondary text-foreground hover:bg-secondary/80 text-xs font-semibold shrink-0 cursor-pointer border border-border/50 transition-colors"
 										>
 											Lihat Foto
 										</button>
@@ -966,8 +966,8 @@
 	{:else if activeTab === 'qr'}
 		<div class="bg-card border border-border rounded-2xl p-6 text-center shadow-xs space-y-4">
 			<div class="space-y-1">
-				<h3 class="text-base font-bold text-foreground">{data.user.namaLengkap}</h3>
-				<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-primary/10 text-primary">
+				<h3 class="text-lg font-bold text-foreground">{data.user.namaLengkap}</h3>
+				<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary">
 					{data.kelompokNama}
 				</span>
 			</div>
@@ -976,13 +976,13 @@
 				{#if qrCodeUrl}
 					<img src={qrCodeUrl} alt="QR Code Jamaah" class="w-56 h-56 mx-auto rounded-lg" />
 				{:else}
-					<div class="w-56 h-56 flex items-center justify-center text-xs text-foreground/50">
+					<div class="w-56 h-56 flex items-center justify-center text-sm text-foreground/50">
 						Memuat QR Code...
 					</div>
 				{/if}
 			</div>
 
-			<p class="text-[11px] text-foreground/60 max-w-xs mx-auto leading-relaxed">
+			<p class="text-xs sm:text-sm text-foreground/60 max-w-xs mx-auto leading-relaxed">
 				Tunjukkan kartu QR ini saat berada di tempat pengajian apabila pengurus kelompok menggunakan pemindai QR langsung.
 			</p>
 		</div>

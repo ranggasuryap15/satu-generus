@@ -137,21 +137,21 @@
 			<ArrowLeft class="w-5 h-5" />
 		</a>
 		<div>
-			<h2 class="text-base font-bold text-foreground tracking-tight">Formulir Sensus Keluarga</h2>
-			<p class="text-xs text-foreground/60">Langkah {step} dari 3</p>
+			<h2 class="text-lg sm:text-xl font-bold text-foreground tracking-tight">Formulir Sensus Keluarga</h2>
+			<p class="text-xs sm:text-sm text-foreground/60">Langkah {step} dari 3</p>
 		</div>
 	</div>
 
 	<!-- Step Progress Indicator -->
 	<div class="flex items-center justify-between gap-2 px-1">
 		{#each [1, 2, 3] as s}
-			<div class="flex-1 flex flex-col items-center gap-1">
+			<div class="flex-1 flex flex-col items-center gap-1.5">
 				<div
 					class="w-full h-1.5 rounded-full transition-colors duration-300 {step >= s
 						? 'bg-primary'
 						: 'bg-secondary'}"
 				></div>
-				<span class="text-[10px] font-medium {step >= s ? 'text-primary' : 'text-foreground/40'}">
+				<span class="text-xs font-semibold {step >= s ? 'text-primary' : 'text-foreground/40'}">
 					{s === 1 ? 'Data KK' : s === 2 ? 'Anggota' : 'Review'}
 				</span>
 			</div>
@@ -159,7 +159,7 @@
 	</div>
 
 	{#if form?.error}
-		<div class="p-3 rounded-lg bg-destructive/10 border border-destructive/20 flex items-center gap-2 text-xs text-destructive">
+		<div class="p-3.5 rounded-xl bg-destructive/10 border border-destructive/20 flex items-center gap-2 text-sm text-destructive">
 			<AlertCircle class="w-4 h-4 shrink-0" />
 			<span>{form.error}</span>
 		</div>
@@ -170,13 +170,13 @@
 		{#if step === 1}
 			<!-- STEP 1: Data Kartu Keluarga -->
 			<div class="space-y-4">
-				<div class="flex items-center gap-2 text-xs text-primary font-medium bg-primary/10 p-2.5 rounded-lg">
+				<div class="flex items-center gap-2 text-xs sm:text-sm text-primary font-medium bg-primary/10 p-3 rounded-xl">
 					<Shield class="w-4 h-4 shrink-0" />
 					<span>Nomor KK akan langsung dienkripsi dua arah (AES-256-GCM) di server.</span>
 				</div>
 
 				<div>
-					<label for="noKk" class="block text-xs font-semibold text-foreground mb-1.5">
+					<label for="noKk" class="block text-sm font-semibold text-foreground/80 mb-1.5">
 						Nomor Kartu Keluarga (16 Digit, Opsional)
 					</label>
 					<input
@@ -192,10 +192,10 @@
 						}}
 						class="w-full bg-secondary/50 border {errors.noKk
 							? 'border-destructive'
-							: 'border-border'} rounded-lg px-3 py-2 text-xs text-foreground font-mono placeholder:text-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
+							: 'border-border'} rounded-lg px-3.5 py-2.5 text-sm text-foreground font-mono placeholder:text-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
 					/>
 					{#if errors.noKk}
-						<p class="text-[11px] text-destructive mt-1">{errors.noKk}</p>
+						<p class="text-xs text-destructive mt-1">{errors.noKk}</p>
 					{/if}
 				</div>
 
@@ -251,7 +251,7 @@
 							</div>
 
 							<div>
-								<label for={`nama-${idx}`} class="block text-[11px] font-medium text-foreground/70 mb-1">
+								<label for={`nama-${idx}`} class="block text-sm font-semibold text-foreground/80 mb-1.5">
 									Nama Lengkap *
 								</label>
 								<input
@@ -259,12 +259,12 @@
 									type="text"
 									placeholder="Contoh: Budi Santoso"
 									bind:value={anggota.namaLengkap}
-									class="w-full bg-background border border-border rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+									class="w-full bg-background border border-border rounded-lg px-3.5 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 								/>
 							</div>
 
 							<div>
-								<label for={`nik-${idx}`} class="block text-[11px] font-medium text-foreground/70 mb-1">
+								<label for={`nik-${idx}`} class="block text-sm font-semibold text-foreground/80 mb-1.5">
 									NIK (16 Digit, Opsional)
 								</label>
 								<input
@@ -278,19 +278,19 @@
 									oninput={(e) => {
 										anggota.nik = e.currentTarget.value.replace(/\D/g, '');
 									}}
-									class="w-full bg-background border border-border rounded-lg px-3 py-1.5 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+									class="w-full bg-background border border-border rounded-lg px-3.5 py-2.5 text-sm text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary"
 								/>
 							</div>
 
-							<div class="grid grid-cols-2 gap-2">
+							<div class="grid grid-cols-2 gap-2.5">
 								<div>
-									<label for={`hub-${idx}`} class="block text-[11px] font-medium text-foreground/70 mb-1">
+									<label for={`hub-${idx}`} class="block text-sm font-semibold text-foreground/80 mb-1.5">
 										Status Hubungan *
 									</label>
 									<select
 										id={`hub-${idx}`}
 										bind:value={anggota.statusHubungan}
-										class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+										class="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 									>
 										<option value="Kepala Keluarga">Kepala Keluarga</option>
 										<option value="Suami">Suami</option>
@@ -302,13 +302,13 @@
 								</div>
 
 								<div>
-									<label for={`jk-${idx}`} class="block text-[11px] font-medium text-foreground/70 mb-1">
+									<label for={`jk-${idx}`} class="block text-sm font-semibold text-foreground/80 mb-1.5">
 										Jenis Kelamin *
 									</label>
 									<select
 										id={`jk-${idx}`}
 										bind:value={anggota.jenisKelamin}
-										class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+										class="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 									>
 										<option value="L">Laki-laki</option>
 										<option value="P">Perempuan</option>
@@ -317,14 +317,14 @@
 							</div>
 
 							<div>
-								<label for={`tgl-${idx}`} class="block text-[11px] font-medium text-foreground/70 mb-1">
+								<label for={`tgl-${idx}`} class="block text-sm font-semibold text-foreground/80 mb-1.5">
 									Tanggal Lahir (DD-MM-YYYY) *
 								</label>
 								<DateInput
 									id={`tgl-${idx}`}
 									required
 									bind:value={anggota.tanggalLahir}
-									class="bg-background border border-border rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+									class="bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 								/>
 							</div>
 						</div>

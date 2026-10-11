@@ -55,31 +55,31 @@
 	<section class="bg-card border border-border rounded-2xl p-4 sm:p-5 shadow-sm">
 		<div class="flex items-center justify-between">
 			<div>
-				<p class="text-[11px] sm:text-xs font-medium text-foreground/60">Selamat Datang,</p>
-				<h2 class="text-base sm:text-lg font-bold text-foreground tracking-tight">{data.user.namaLengkap}</h2>
+				<p class="text-xs sm:text-sm font-medium text-foreground/60">Selamat Datang,</p>
+				<h2 class="text-lg sm:text-xl font-bold text-foreground tracking-tight">{data.user.namaLengkap}</h2>
 			</div>
-			<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary">
+			<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary">
 				{data.kelompokNama}
 			</span>
 		</div>
-		<p class="text-xs text-foreground/70 mt-2 leading-relaxed">
+		<p class="text-sm text-foreground/70 mt-2 leading-relaxed">
 			Akses layanan sensus keluarga, presensi kegiatan pengajian, dan ekosistem aplikasi generus dalam satu genggaman.
 		</p>
 	</section>
 
 	<!-- Akses Cepat Aplikasi & Layanan (Quick Access Launcher) -->
-	<section class="bg-card border border-border rounded-2xl p-4 shadow-sm space-y-3">
+	<section class="bg-card border border-border rounded-2xl p-4 sm:p-5 shadow-sm space-y-3.5">
 		<div class="flex items-center justify-between px-1">
-			<div class="flex items-center gap-1.5">
+			<div class="flex items-center gap-2">
 				<Sparkles class="w-4 h-4 text-primary" />
-				<h3 class="text-xs font-bold text-foreground tracking-tight">Akses Cepat & Aplikasi</h3>
+				<h3 class="text-sm sm:text-base font-bold text-foreground tracking-tight">Akses Cepat & Aplikasi</h3>
 			</div>
 			<button
 				type="button"
 				onclick={() => (showAppsModal = true)}
-				class="text-[11px] font-semibold text-primary hover:underline flex items-center gap-0.5"
+				class="text-xs sm:text-sm font-semibold text-primary hover:underline flex items-center gap-0.5"
 			>
-				Lihat Semua <ChevronRight class="w-3 h-3" />
+				Lihat Semua <ChevronRight class="w-3.5 h-3.5" />
 			</button>
 		</div>
 
@@ -93,7 +93,7 @@
 				<div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-xs group-hover:scale-105 group-hover:bg-emerald-500/20 group-active:scale-95 transition-all">
 					<QrCode class="w-6 h-6 stroke-[2.2]" />
 				</div>
-				<span class="text-[11px] sm:text-xs font-semibold text-foreground mt-1.5 leading-tight group-hover:text-primary transition-colors">
+				<span class="text-xs sm:text-sm font-semibold text-foreground mt-1.5 leading-tight group-hover:text-primary transition-colors">
 					Presensi
 				</span>
 			</a>
@@ -106,8 +106,8 @@
 				<div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-sky-500/10 border border-sky-500/20 text-sky-600 dark:text-sky-400 flex items-center justify-center shadow-xs group-hover:scale-105 group-hover:bg-sky-500/20 group-active:scale-95 transition-all">
 					<Users class="w-6 h-6 stroke-[2.2]" />
 				</div>
-				<span class="text-[11px] sm:text-xs font-semibold text-foreground mt-1.5 leading-tight group-hover:text-primary transition-colors">
-					Data Keluarga
+				<span class="text-xs sm:text-sm font-semibold text-foreground mt-1.5 leading-tight group-hover:text-primary transition-colors">
+					Keluarga
 				</span>
 			</a>
 
@@ -124,7 +124,7 @@
 						<span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
 					</span>
 				</div>
-				<span class="text-[11px] sm:text-xs font-semibold text-foreground mt-1.5 leading-tight group-hover:text-primary transition-colors">
+				<span class="text-xs sm:text-sm font-semibold text-foreground mt-1.5 leading-tight group-hover:text-primary transition-colors">
 					Haramain
 				</span>
 			</button>
@@ -152,7 +152,7 @@
 				<div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-secondary border border-border text-foreground/70 flex items-center justify-center shadow-xs group-hover:scale-105 group-hover:text-primary group-active:scale-95 transition-all">
 					<LayoutGrid class="w-6 h-6 stroke-[2.2]" />
 				</div>
-				<span class="text-[11px] sm:text-xs font-semibold text-foreground mt-1.5 leading-tight group-hover:text-primary transition-colors">
+				<span class="text-xs sm:text-sm font-semibold text-foreground mt-1.5 leading-tight group-hover:text-primary transition-colors">
 					Lainnya
 				</span>
 			</button>
@@ -160,23 +160,23 @@
 	</section>
 
 	<!-- Jadwal Kegiatan Terdekat (Kelompok & Desa) -->
-	<section class="bg-card border border-border rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+	<section class="bg-card border border-border rounded-2xl p-4 sm:p-5 shadow-sm space-y-3.5">
 		<div class="flex items-center justify-between">
 			<div class="flex items-center gap-2">
 				<Calendar class="w-4 h-4 text-primary" />
-				<h3 class="text-xs font-bold text-foreground">Jadwal Pengajian Terdekat</h3>
+				<h3 class="text-sm sm:text-base font-bold text-foreground">Jadwal Pengajian Terdekat</h3>
 			</div>
-			<a href="/presensi" class="text-[11px] font-semibold text-primary hover:underline flex items-center">
-				Presensi Mandiri <ChevronRight class="w-3 h-3 ml-0.5" />
+			<a href="/presensi" class="text-xs sm:text-sm font-semibold text-primary hover:underline flex items-center">
+				Presensi Mandiri <ChevronRight class="w-3.5 h-3.5 ml-0.5" />
 			</a>
 		</div>
 
 		<!-- Switcher Tab: Kelompok vs Desa -->
-		<div class="flex items-center gap-2 border-b border-border/70 pb-2 text-xs">
+		<div class="flex items-center gap-2 border-b border-border/70 pb-2 text-xs sm:text-sm">
 			<button
 				type="button"
 				onclick={() => (jadwalTab = 'kelompok')}
-				class="px-3 py-1 rounded-lg font-bold transition-all {jadwalTab === 'kelompok'
+				class="px-3 py-1.5 rounded-lg font-bold transition-all {jadwalTab === 'kelompok'
 					? 'bg-primary/10 text-primary border border-primary/20'
 					: 'text-foreground/60 hover:text-foreground'}"
 			>
@@ -185,7 +185,7 @@
 			<button
 				type="button"
 				onclick={() => (jadwalTab = 'desa')}
-				class="px-3 py-1 rounded-lg font-bold transition-all {jadwalTab === 'desa'
+				class="px-3 py-1.5 rounded-lg font-bold transition-all {jadwalTab === 'desa'
 					? 'bg-primary/10 text-primary border border-primary/20'
 					: 'text-foreground/60 hover:text-foreground'}"
 			>
@@ -194,51 +194,51 @@
 		</div>
 
 		<!-- Daftar Jadwal Terdekat -->
-		<div class="space-y-2.5 pt-1">
+		<div class="space-y-3 pt-1">
 			{#if currentJadwalList.length === 0}
-				<p class="text-xs text-foreground/50 py-4 text-center">
+				<p class="text-sm text-foreground/50 py-4 text-center">
 					Belum ada jadwal pengajian {jadwalTab === 'kelompok' ? 'kelompok' : 'desa'} terdekat saat ini.
 				</p>
 			{:else}
 				{#each currentJadwalList as jadwal}
-					<div class="p-3 rounded-xl border border-border/80 bg-background/50 hover:border-primary/40 transition-all space-y-1.5 {jadwal.isOverride ? 'border-amber-500/30 bg-amber-500/5' : ''}">
+					<div class="p-3.5 rounded-xl border border-border/80 bg-background/50 hover:border-primary/40 transition-all space-y-2 {jadwal.isOverride ? 'border-amber-500/30 bg-amber-500/5' : ''}">
 						<div class="flex items-center justify-between gap-2">
 							<div class="flex items-center gap-2">
-								<span class="text-xs font-bold text-foreground">
+								<span class="text-sm font-bold text-foreground">
 									{formatDateIndoFull(jadwal.tanggal)}
 								</span>
 								{#if jadwal.status === 'libur'}
-									<span class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400">
+									<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400">
 										Libur
 									</span>
 								{/if}
 								{#if jadwal.isOverride}
-									<span class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300">
+									<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300">
 										Perubahan Khusus
 									</span>
 								{/if}
 							</div>
 
 							<!-- Jam Pelaksanaan (Wajib diisi & jelas) -->
-							<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-primary/10 text-primary font-mono">
-								<Clock class="w-3 h-3" />
+							<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-primary/10 text-primary font-mono">
+								<Clock class="w-3.5 h-3.5" />
 								<span>{jadwal.jamMulai}{jadwal.jamSelesai ? ` - ${jadwal.jamSelesai}` : ''} WIB</span>
 							</span>
 						</div>
 
-						<h4 class="text-xs font-bold text-foreground/90">
+						<h4 class="text-sm font-semibold text-foreground/90">
 							{jadwal.namaKegiatan}
 						</h4>
 
 						{#if jadwal.detailMateri}
-							<p class="text-[11px] text-foreground/75 bg-secondary/30 p-2 rounded-lg leading-relaxed whitespace-pre-line">
+							<p class="text-xs sm:text-sm text-foreground/75 bg-secondary/30 p-2.5 rounded-lg leading-relaxed whitespace-pre-line">
 								{jadwal.detailMateri}
 							</p>
 						{/if}
 
 						{#if jadwal.lokasiNama}
-							<div class="flex items-center gap-1 text-[10.5px] text-foreground/60 pt-0.5">
-								<MapPin class="w-3 h-3 text-foreground/40 shrink-0" />
+							<div class="flex items-center gap-1.5 text-xs text-foreground/60 pt-0.5">
+								<MapPin class="w-3.5 h-3.5 text-foreground/40 shrink-0" />
 								<span class="truncate">{jadwal.lokasiNama}</span>
 							</div>
 						{/if}
@@ -348,8 +348,8 @@
 						<Users class="w-5 h-5" />
 					</div>
 					<div class="flex-1 min-w-0">
-						<h4 class="text-xs font-bold text-foreground">Daftar Sensus Baru</h4>
-						<p class="text-[11px] text-foreground/60 truncate">Registrasi mandiri data keluarga jamaah</p>
+						<h4 class="text-sm font-bold text-foreground">Daftar Sensus Baru</h4>
+						<p class="text-xs text-foreground/60 truncate">Registrasi mandiri data keluarga jamaah</p>
 					</div>
 					<ChevronRight class="w-4 h-4 text-foreground/40 shrink-0" />
 				</a>
@@ -373,39 +373,39 @@
 							<Compass class="w-6 h-6 stroke-[2.2]" />
 						</div>
 						<div>
-							<h3 class="text-sm font-bold text-foreground">Menuju Haramain</h3>
-							<span class="text-[10px] font-semibold text-amber-600 dark:text-amber-400">Aplikasi Terintegrasi</span>
+							<h3 class="text-base font-bold text-foreground">Menuju Haramain</h3>
+							<span class="text-xs font-semibold text-amber-600 dark:text-amber-400">Aplikasi Terintegrasi</span>
 						</div>
 					{:else}
 						<div class="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 flex items-center justify-center shadow-xs">
 							<GraduationCap class="w-6 h-6 stroke-[2.2]" />
 						</div>
 						<div>
-							<h3 class="text-sm font-bold text-foreground">SI-PPG</h3>
-							<span class="text-[10px] font-semibold text-purple-600 dark:text-purple-400">Sistem Informasi PPG</span>
+							<h3 class="text-base font-bold text-foreground">SI-PPG</h3>
+							<span class="text-xs font-semibold text-purple-600 dark:text-purple-400">Sistem Informasi PPG</span>
 						</div>
 					{/if}
 				</div>
 				<button
 					type="button"
 					onclick={closeModals}
-					class="p-1 text-foreground/50 hover:text-foreground rounded-lg"
+					class="p-1.5 text-foreground/50 hover:text-foreground rounded-lg"
 					aria-label="Tutup"
 				>
 					<X class="w-4 h-4" />
 				</button>
 			</div>
 
-			<div class="text-xs text-foreground/75 space-y-2 leading-relaxed">
+			<div class="text-sm text-foreground/80 space-y-2.5 leading-relaxed">
 				{#if selectedAppModal === 'haramain'}
 					<p>
 						<strong>Menuju Haramain</strong> adalah platform pendampingan dan perencanaan ibadah Umroh & Haji bagi warga jamaah.
 					</p>
-					<div class="p-3 bg-secondary/50 rounded-xl space-y-1.5 text-[11px]">
+					<div class="p-3 bg-secondary/50 rounded-xl space-y-2 text-xs">
 						<div class="flex items-center gap-1.5 text-foreground font-semibold">
 							<span>✨</span> <span>Fitur Unggulan:</span>
 						</div>
-						<ul class="list-disc list-inside space-y-1 text-foreground/70">
+						<ul class="list-disc list-inside space-y-1 text-foreground/75">
 							<li>Simulasi & tabungan ibadah terencana</li>
 							<li>Informasi jadwal keberangkatan resmi</li>
 							<li>Panduan manasik & doa digital</li>
@@ -415,11 +415,11 @@
 					<p>
 						<strong>SI-PPG</strong> (Sistem Informasi Pembinaan Penggerak Pembina Generus) mengelola kurikulum dan target capaian generasi penerus.
 					</p>
-					<div class="p-3 bg-secondary/50 rounded-xl space-y-1.5 text-[11px]">
+					<div class="p-3 bg-secondary/50 rounded-xl space-y-2 text-xs">
 						<div class="flex items-center gap-1.5 text-foreground font-semibold">
 							<span>📚</span> <span>Fokus Pembinaan:</span>
 						</div>
-						<ul class="list-disc list-inside space-y-1 text-foreground/70">
+						<ul class="list-disc list-inside space-y-1 text-foreground/75">
 							<li>Evaluasi capaian 3 Sukses Generus</li>
 							<li>Monitoring jenjang Paud s/d Usia Nikah</li>
 							<li>Silabus dan bahan ajar pengajian terstandar</li>
@@ -428,24 +428,21 @@
 				{/if}
 			</div>
 
-			<div class="flex gap-2 pt-1">
+			<div class="flex gap-2.5 pt-2">
 				<button
 					type="button"
 					onclick={closeModals}
-					class="flex-1 py-2 rounded-xl border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary transition-colors"
+					class="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold text-foreground/80 hover:bg-secondary transition-colors"
 				>
 					Tutup
 				</button>
 				<button
 					type="button"
-					onclick={() => {
-						alert('Aplikasi terhubung dengan akun Satu Generus Anda.');
-						closeModals();
-					}}
-					class="flex-1 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+					onclick={closeModals}
+					class="flex-1 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
 				>
-					<span>Buka Aplikasi</span>
-					<ExternalLink class="w-3.5 h-3.5" />
+					<span>Buka Layanan</span>
+					<ExternalLink class="w-4 h-4" />
 				</button>
 			</div>
 		</div>

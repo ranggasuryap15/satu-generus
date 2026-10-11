@@ -103,8 +103,8 @@
 					SG
 				</div>
 				<div>
-					<h2 class="text-sm font-bold text-foreground tracking-tight leading-none">Satu Generus</h2>
-					<span class="text-[11px] text-foreground/60 font-medium">Panel Pengurus</span>
+					<h2 class="text-base font-bold text-foreground tracking-tight leading-none">Satu Generus</h2>
+					<span class="text-xs text-foreground/60 font-medium">Panel Pengurus</span>
 				</div>
 			</div>
 
@@ -124,7 +124,7 @@
 			{#each menuGroups as group}
 				<div class="space-y-1">
 					{#if group.title}
-						<div class="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-foreground/45">
+						<div class="px-3 py-1 text-xs font-bold uppercase tracking-wider text-foreground/50">
 							{group.title}
 						</div>
 					{/if}
@@ -133,7 +133,7 @@
 						<a
 							href={item.href}
 							onclick={onClose}
-							class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors group {active
+							class="flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors group {active
 								? 'bg-secondary text-foreground font-semibold shadow-xs'
 								: 'text-foreground/70 hover:bg-secondary/60 hover:text-foreground'}"
 							aria-current={active ? 'page' : undefined}
@@ -143,7 +143,7 @@
 								<span class="truncate">{item.label}</span>
 							</div>
 							{#if item.href === '/admin/presensi' && totalPending > 0}
-								<span class="px-1.5 py-0.2 rounded-full bg-rose-500 text-white font-bold text-[9.5px] leading-tight shrink-0 shadow-xs">
+								<span class="px-2 py-0.5 rounded-full bg-rose-500 text-white font-bold text-xs leading-tight shrink-0 shadow-xs">
 									{totalPending}
 								</span>
 							{/if}
@@ -159,13 +159,13 @@
 		<a
 			href="/"
 			onclick={onClose}
-			class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-foreground/70 hover:bg-secondary hover:text-foreground transition-colors"
+			class="flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium text-foreground/70 hover:bg-secondary hover:text-foreground transition-colors"
 		>
 			<span class="flex items-center gap-2">
 				<ExternalLink class="w-4 h-4 text-foreground/50" />
 				Tampilan Jamaah
 			</span>
-			<span class="text-[10px] bg-secondary px-1.5 py-0.5 rounded text-foreground/60">Client</span>
+			<span class="text-xs bg-secondary px-2 py-0.5 rounded text-foreground/60">Client</span>
 		</a>
 	</div>
 </aside>

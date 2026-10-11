@@ -380,16 +380,16 @@
 					</div>
 					<div>
 						<div class="flex items-center gap-1.5">
-							<p class="text-[11px] text-foreground/60 font-medium">
+							<p class="text-xs text-foreground/60 font-medium">
 								{data.keluarga.isKk ? 'Nomor Kartu Keluarga' : 'Status Sensus Jamaah'}
 							</p>
 							{#if data.keluarga.isKk && isKkRevealed}
-								<span class="text-[9px] font-semibold bg-primary/10 text-primary px-1.5 py-0.2 rounded">Tampil</span>
+								<span class="text-xs font-semibold bg-primary/10 text-primary px-2 py-0.5 rounded-full">Tampil</span>
 							{/if}
 						</div>
 						<div class="flex items-center gap-1.5 mt-0.5">
 							{#if data.keluarga.isKk}
-								<h3 class="text-sm font-bold font-mono text-foreground tracking-wide select-all">
+								<h3 class="text-base font-bold font-mono text-foreground tracking-wide select-all">
 									{isKkRevealed && plainNoKk ? plainNoKk : data.keluarga.noKkMasked}
 								</h3>
 
@@ -488,18 +488,18 @@
 					<div class="bg-card border border-border rounded-xl p-3.5 shadow-sm space-y-2">
 						<div class="flex items-center justify-between">
 							<div class="flex items-center gap-2">
-								<div class="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-xs font-medium text-foreground">
-									<UserCheck class="w-3.5 h-3.5 text-primary" />
+								<div class="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-medium text-foreground">
+									<UserCheck class="w-4 h-4 text-primary" />
 								</div>
 								<div>
-									<div class="flex items-center gap-1.5 flex-wrap">
-										<h4 class="text-xs font-bold text-foreground">{anggota.namaLengkap}</h4>
-										<span class="text-[10px] bg-primary/10 text-primary px-1.5 py-0.2 rounded font-medium">
+									<div class="flex items-center gap-2 flex-wrap">
+										<h4 class="text-sm font-semibold text-foreground">{anggota.namaLengkap}</h4>
+										<span class="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
 											{anggota.statusHubungan}
 										</span>
 									</div>
 									<div class="flex items-center gap-1.5 mt-0.5">
-										<p class="text-[11px] text-foreground/60 font-mono select-all">
+										<p class="text-xs text-foreground/60 font-mono select-all">
 											NIK: {revealedNiks[anggota.id] || anggota.nikMasked}
 										</p>
 
@@ -514,7 +514,7 @@
 												aria-label={revealedNiks[anggota.id] ? "Sembunyikan NIK" : "Lihat NIK Asli"}
 											>
 												{#if loadingNiks[anggota.id]}
-													<span class="inline-block w-3 h-3 border border-primary border-t-transparent rounded-full animate-spin"></span>
+													<span class="inline-block w-3.5 h-3.5 border border-primary border-t-transparent rounded-full animate-spin"></span>
 												{:else if revealedNiks[anggota.id]}
 													<EyeOff class="w-3.5 h-3.5 text-primary" />
 												{:else}
@@ -543,8 +543,8 @@
 								</div>
 							</div>
 
-							<div class="flex items-center gap-1.5">
-								<span class="text-[10px] bg-secondary px-2 py-0.5 rounded text-foreground/70 font-medium">
+							<div class="flex items-center gap-2">
+								<span class="text-xs bg-secondary px-2.5 py-1 rounded-md text-foreground/70 font-medium">
 									{anggota.jenisKelamin === 'L' || anggota.jenisKelamin === 'Laki-laki' ? 'Laki-laki' : 'Perempuan'}
 								</span>
 

@@ -14,6 +14,7 @@
 		Mail,
 		LogOut,
 		ArrowRight,
+		ChevronRight,
 		Moon,
 		KeyRound,
 		CheckCircle,
@@ -177,40 +178,40 @@
 			{userInitials}
 		</div>
 
-		<h1 class="text-base font-bold text-foreground tracking-tight">{data.user.namaLengkap}</h1>
-		<p class="text-xs text-foreground/60 mt-0.5">{data.user.email || 'Email belum ditautkan'}</p>
+		<h1 class="text-xl sm:text-2xl font-bold text-foreground tracking-tight">{data.user.namaLengkap}</h1>
+		<p class="text-sm text-foreground/60 mt-1">{data.user.email || 'Email belum ditautkan'}</p>
 
 		<div class="flex items-center justify-center gap-2 mt-3">
-			<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-primary/10 text-primary">
-				<MapPin class="w-3 h-3" />
+			<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary">
+				<MapPin class="w-3.5 h-3.5" />
 				{data.kelompokNama}
 			</span>
 
 			{#if data.isAdmin}
-				<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-accent/20 text-accent">
-					<ShieldCheck class="w-3 h-3" />
+				<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-accent/20 text-accent">
+					<ShieldCheck class="w-3.5 h-3.5" />
 					Pengurus 4S
 				</span>
 			{/if}
 		</div>
 
 		<!-- Tombol Aksi Cepat Akun -->
-		<div class="grid grid-cols-2 gap-2 mt-5 pt-4 border-t border-border">
+		<div class="grid grid-cols-2 gap-2.5 mt-5 pt-4 border-t border-border">
 			<button
 				type="button"
 				onclick={() => { activeModal = 'profile'; }}
-				class="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-secondary/80 hover:bg-secondary text-foreground text-xs font-semibold transition-colors border border-border/60"
+				class="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-secondary/80 hover:bg-secondary text-foreground text-sm font-semibold transition-colors border border-border/60"
 			>
-				<Pencil class="w-3.5 h-3.5 text-primary" />
+				<Pencil class="w-4 h-4 text-primary" />
 				<span>Ubah Profil</span>
 			</button>
 
 			<button
 				type="button"
 				onclick={() => { activeModal = 'password'; }}
-				class="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-secondary/80 hover:bg-secondary text-foreground text-xs font-semibold transition-colors border border-border/60"
+				class="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-secondary/80 hover:bg-secondary text-foreground text-sm font-semibold transition-colors border border-border/60"
 			>
-				<KeyRound class="w-3.5 h-3.5 text-primary" />
+				<KeyRound class="w-4 h-4 text-primary" />
 				<span>Ganti Kata Sandi</span>
 			</button>
 		</div>
@@ -220,38 +221,38 @@
 	{#if data.isAdmin}
 		<section class="bg-primary/5 border border-primary/20 rounded-xl p-4 shadow-sm">
 			<div class="flex items-center justify-between">
-				<div class="flex items-center gap-2.5">
-					<div class="w-9 h-9 rounded-lg bg-primary text-primary-foreground flex items-center justify-center">
+				<div class="flex items-center gap-3">
+					<div class="w-10 h-10 rounded-lg bg-primary text-primary-foreground flex items-center justify-center">
 						<ShieldCheck class="w-5 h-5" />
 					</div>
 					<div>
-						<h2 class="text-xs font-bold text-foreground">Panel Dashboard Admin</h2>
-						<p class="text-[11px] text-foreground/60">Kelola sensus wilayah dan jadwal presensi</p>
+						<h2 class="text-sm font-bold text-foreground">Panel Dashboard Admin</h2>
+						<p class="text-xs text-foreground/60">Kelola sensus wilayah dan jadwal presensi</p>
 					</div>
 				</div>
 
 				<a
 					href="/admin"
-					class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all shadow-sm"
+					class="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all shadow-sm"
 				>
 					<span>Buka</span>
-					<ArrowRight class="w-3.5 h-3.5" />
+					<ChevronRight class="w-3.5 h-3.5" />
 				</a>
 			</div>
 		</section>
 	{/if}
 
 	<!-- Pengaturan Akun & Preferensi -->
-	<section class="bg-card border border-border rounded-xl divide-y divide-border shadow-sm overflow-hidden text-xs">
+	<section class="bg-card border border-border rounded-xl divide-y divide-border shadow-sm overflow-hidden text-sm">
 		<!-- Toggle Mode Tampilan -->
 		<div class="p-4 flex items-center justify-between">
 			<div class="flex items-center gap-3">
-				<div class="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center text-foreground/70">
+				<div class="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-foreground/70">
 					<Moon class="w-4 h-4" />
 				</div>
 				<div>
-					<p class="font-semibold text-foreground">Tema Tampilan</p>
-					<p class="text-[11px] text-foreground/50">Sesuaikan mode terang atau gelap</p>
+					<p class="font-semibold text-foreground text-sm">Tema Tampilan</p>
+					<p class="text-xs text-foreground/50">Sesuaikan mode terang atau gelap</p>
 				</div>
 			</div>
 			<ThemeToggle />
@@ -260,18 +261,18 @@
 		<!-- Informasi Email / Kontak -->
 		<div class="p-4 flex items-center justify-between">
 			<div class="flex items-center gap-3">
-				<div class="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center text-foreground/70">
+				<div class="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-foreground/70">
 					<Mail class="w-4 h-4" />
 				</div>
 				<div>
-					<p class="font-semibold text-foreground">Email Akun</p>
-					<p class="text-[11px] text-foreground/50">{data.user.email || 'Belum diisi'}</p>
+					<p class="font-semibold text-foreground text-sm">Email Akun</p>
+					<p class="text-xs text-foreground/50">{data.user.email || 'Belum diisi'}</p>
 				</div>
 			</div>
 			<button
 				type="button"
 				onclick={() => { activeModal = 'profile'; }}
-				class="text-xs text-primary font-semibold hover:underline"
+				class="text-sm text-primary font-semibold hover:underline"
 			>
 				Ubah
 			</button>
@@ -280,35 +281,35 @@
 		<!-- Status Kelompok -->
 		<div class="p-4 flex items-center justify-between">
 			<div class="flex items-center gap-3">
-				<div class="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center text-foreground/70">
+				<div class="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-foreground/70">
 					<MapPin class="w-4 h-4" />
 				</div>
 				<div>
-					<p class="font-semibold text-foreground">Lingkup Kelompok</p>
-					<p class="text-[11px] text-foreground/50">{data.kelompokNama}</p>
+					<p class="font-semibold text-foreground text-sm">Lingkup Kelompok</p>
+					<p class="text-xs text-foreground/50">{data.kelompokNama}</p>
 				</div>
 			</div>
 		</div>
 	</section>
 
 	<!-- Section PWA: Pasang Satu Generus (Quick Install) -->
-	<section class="bg-card border border-border rounded-xl p-4 shadow-sm space-y-3 text-xs">
+	<section class="bg-card border border-border rounded-xl p-4 shadow-sm space-y-3 text-sm">
 		<div class="flex items-start justify-between gap-3">
 			<div class="flex items-start gap-3">
-				<div class="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
+				<div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
 					<Smartphone class="w-5 h-5" />
 				</div>
 				<div class="space-y-0.5">
 					<div class="flex items-center gap-2 flex-wrap">
-						<p class="font-bold text-foreground text-xs">Pasang Satu Generus</p>
+						<p class="font-bold text-foreground text-sm">Pasang Satu Generus</p>
 						{#if pwaState.isInstalled}
-							<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-								<CheckCircle2 class="w-3 h-3" />
+							<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+								<CheckCircle2 class="w-3.5 h-3.5" />
 								<span>Sudah Terpasang</span>
 							</span>
 						{/if}
 					</div>
-					<p class="text-[11px] text-foreground/60 leading-relaxed">
+					<p class="text-xs text-foreground/60 leading-relaxed">
 						{pwaState.isInstalled
 							? 'Aplikasi telah terpasang di perangkat Anda. Anda dapat membukanya langsung dari layar utama kapan saja.'
 							: 'Pasang ke layar utama untuk akses cepat 1-klik, tampilan layar penuh tanpa browser, dan hemat kuota.'}
@@ -318,13 +319,13 @@
 		</div>
 
 		{#if pwaMessage}
-			<div class="p-2.5 rounded-lg bg-primary/10 border border-primary/20 text-primary text-[11px] flex items-start justify-between gap-2">
+			<div class="p-2.5 rounded-lg bg-primary/10 border border-primary/20 text-primary text-xs flex items-start justify-between gap-2">
 				<div class="flex items-start gap-2">
-					<CheckCircle2 class="w-3.5 h-3.5 shrink-0 mt-0.5" />
+					<CheckCircle2 class="w-4 h-4 shrink-0 mt-0.5" />
 					<span class="leading-relaxed">{pwaMessage}</span>
 				</div>
 				<button type="button" onclick={() => (pwaMessage = null)} class="text-primary/70 hover:text-primary cursor-pointer shrink-0">
-					<X class="w-3.5 h-3.5" />
+					<X class="w-4 h-4" />
 				</button>
 			</div>
 		{/if}
@@ -454,25 +455,25 @@
 						<button
 							type="button"
 							onclick={resetProfileDraft}
-							class="text-[11px] text-destructive hover:underline font-medium"
+							class="text-xs text-destructive hover:underline font-semibold"
 						>
 							Reset ke Data Awal
 						</button>
 					</div>
 				{/if}
 
-				<div class="flex gap-2 pt-2">
+				<div class="flex gap-2.5 pt-2">
 					<button
 						type="button"
 						onclick={closeProfileModal}
-						class="flex-1 py-2 rounded-lg border border-border bg-secondary/60 hover:bg-secondary text-foreground font-semibold transition-colors"
+						class="flex-1 py-2.5 rounded-xl border border-border bg-secondary/60 hover:bg-secondary text-foreground text-sm font-semibold transition-colors"
 					>
 						Batal
 					</button>
 					<button
 						type="submit"
 						disabled={isSubmitting}
-						class="flex-1 py-2 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-semibold transition-colors disabled:opacity-50"
+						class="flex-1 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold transition-colors disabled:opacity-50"
 					>
 						{isSubmitting ? 'Menyimpan...' : 'Simpan'}
 					</button>
@@ -492,18 +493,18 @@
 	>
 		<div class="w-full max-w-sm bg-card border border-border rounded-2xl shadow-xl overflow-hidden p-6 space-y-4">
 			<div class="flex items-center justify-between border-b border-border pb-3">
-				<h3 class="text-sm font-bold text-foreground">Ganti Kata Sandi</h3>
+				<h3 class="text-base sm:text-lg font-bold text-foreground">Ganti Kata Sandi</h3>
 				<button
 					type="button"
 					onclick={closePasswordModal}
-					class="text-foreground/50 hover:text-foreground text-sm font-semibold"
+					class="text-foreground/50 hover:text-foreground text-sm font-semibold p-1"
 				>
 					✕
 				</button>
 			</div>
 
 			{#if form?.passwordError}
-				<div class="p-3 rounded-lg bg-destructive/10 border border-destructive/20 flex items-center gap-2 text-xs text-destructive">
+				<div class="p-3 rounded-xl bg-destructive/10 border border-destructive/20 flex items-center gap-2 text-sm text-destructive">
 					<AlertCircle class="w-4 h-4 shrink-0" />
 					<span>{form.passwordError}</span>
 				</div>
@@ -519,7 +520,7 @@
 						await update();
 					};
 				}}
-				class="space-y-4 text-xs"
+				class="space-y-4 text-sm"
 			>
 				<div>
 					<label for="currentPassword" class="block font-medium text-foreground/80 mb-1.5">
@@ -531,7 +532,7 @@
 						type="password"
 						required
 						bind:value={currentPassword}
-						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
+						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
 					/>
 				</div>
 
@@ -547,7 +548,7 @@
 						minlength="6"
 						placeholder="Minimal 6 karakter"
 						bind:value={newPassword}
-						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
+						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
 					/>
 				</div>
 
@@ -562,7 +563,7 @@
 						required
 						minlength="6"
 						bind:value={confirmPassword}
-						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
+						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
 					/>
 				</div>
 
@@ -571,18 +572,18 @@
 						<button
 							type="button"
 							onclick={resetPasswordDraft}
-							class="text-[11px] text-destructive hover:underline font-medium"
+							class="text-xs text-destructive hover:underline font-semibold"
 						>
 							Kosongkan Isian
 						</button>
 					</div>
 				{/if}
 
-				<div class="flex gap-2 pt-2">
+				<div class="flex gap-2.5 pt-2">
 					<button
 						type="button"
 						onclick={closePasswordModal}
-						class="flex-1 py-2 rounded-lg border border-border bg-secondary/60 hover:bg-secondary text-foreground font-semibold transition-colors"
+						class="flex-1 py-2.5 rounded-xl border border-border bg-secondary/60 hover:bg-secondary text-foreground text-sm font-semibold transition-colors"
 					>
 						Batal
 					</button>

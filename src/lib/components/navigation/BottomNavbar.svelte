@@ -60,8 +60,8 @@
 
 				<!-- Menu Label -->
 				<span
-					class="text-[10.5px] mt-0.5 tracking-tight transition-colors duration-150 {active
-						? 'font-bold text-primary'
+					class="text-xs mt-0.5 tracking-tight transition-colors duration-150 {active
+						? 'font-semibold text-primary'
 						: 'font-medium text-foreground/60 group-hover:text-foreground'}"
 				>
 					{item.label}

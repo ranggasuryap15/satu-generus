@@ -70,11 +70,11 @@
 			</div>
 
 			<!-- Teks Judul & Deskripsi Pesan -->
-			<div class="space-y-1.5">
-				<h3 id="confirm-modal-title" class="text-sm font-bold text-foreground tracking-tight">
+			<div class="space-y-2">
+				<h3 id="confirm-modal-title" class="text-base sm:text-lg font-bold text-foreground tracking-tight">
 					{confirmModalState.title}
 				</h3>
-				<p class="text-xs text-foreground/70 leading-relaxed max-w-xs mx-auto">
+				<p class="text-sm text-foreground/75 leading-relaxed max-w-xs mx-auto">
 					{confirmModalState.message}
 				</p>
 			</div>
@@ -84,7 +84,7 @@
 				<button
 					type="button"
 					onclick={handleCancel}
-					class="w-full py-2.5 px-4 rounded-xl border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary hover:text-foreground transition-all active:scale-95"
+					class="w-full py-2.5 px-4 rounded-xl border border-border text-sm font-semibold text-foreground/80 hover:bg-secondary hover:text-foreground transition-all active:scale-95"
 				>
 					{confirmModalState.cancelText}
 				</button>
@@ -92,7 +92,7 @@
 				<button
 					type="button"
 					onclick={handleConfirm}
-					class="w-full py-2.5 px-4 rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95 {confirmModalState.variant === 'danger'
+					class="w-full py-2.5 px-4 rounded-xl text-sm font-semibold shadow-sm transition-all active:scale-95 {confirmModalState.variant === 'danger'
 						? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
 						: confirmModalState.variant === 'warning'
 							? 'bg-amber-500 text-white hover:bg-amber-600'

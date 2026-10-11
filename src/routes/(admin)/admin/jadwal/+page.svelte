@@ -489,32 +489,32 @@
 							<div class="border border-border/80 bg-background rounded-xl p-3.5 space-y-2.5 relative hover:border-primary/50 transition-all flex flex-col justify-between">
 								<div class="space-y-1.5">
 									<div class="flex items-center justify-between gap-1">
-										<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-primary/10 text-primary">
+										<span class="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-semibold bg-primary/10 text-primary">
 											Minggu ke-{tmpl.mingguKe || 1} • {getNamaHari(tmpl.hari)}
 										</span>
 										{#if tmpl.isLibur}
-											<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400">
+											<span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400">
 												Libur Rutin
 											</span>
 										{/if}
 									</div>
 
-									<h3 class="text-xs font-bold text-foreground">{tmpl.namaKegiatan}</h3>
+									<h3 class="text-sm font-semibold text-foreground">{tmpl.namaKegiatan}</h3>
 
-									<div class="flex items-center gap-1.5 text-[11px] text-foreground/70 font-mono">
-										<Clock class="w-3 h-3 text-primary" />
+									<div class="flex items-center gap-1.5 text-xs text-foreground/75 font-mono">
+										<Clock class="w-3.5 h-3.5 text-primary" />
 										<span>{tmpl.jamMulai}{tmpl.jamSelesai ? ` - ${tmpl.jamSelesai}` : ''} WIB</span>
 									</div>
 
 									{#if tmpl.detailMateri}
-										<div class="text-[11px] text-foreground/75 bg-secondary/40 p-2 rounded-lg leading-relaxed whitespace-pre-line">
+										<div class="text-xs text-foreground/80 bg-secondary/40 p-2.5 rounded-lg leading-relaxed whitespace-pre-line">
 											{tmpl.detailMateri}
 										</div>
 									{/if}
 
 									{#if tmpl.lokasiNama}
-										<div class="flex items-center gap-1 text-[10.5px] text-foreground/60 truncate">
-											<MapPin class="w-3 h-3 text-foreground/40 shrink-0" />
+										<div class="flex items-center gap-1.5 text-xs text-foreground/60 truncate">
+											<MapPin class="w-3.5 h-3.5 text-foreground/40 shrink-0" />
 											<span class="truncate">{tmpl.lokasiNama}</span>
 										</div>
 									{/if}
@@ -602,28 +602,28 @@
 							<div class="border border-border/80 bg-background rounded-xl p-3.5 sm:p-4 hover:border-primary/40 transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 {sesi.isOverride ? 'border-amber-500/40 bg-amber-500/5' : ''}">
 								<div class="space-y-1.5 flex-1 min-w-0">
 									<div class="flex flex-wrap items-center gap-2">
-										<span class="font-bold text-xs text-foreground font-mono">
+										<span class="font-bold text-sm text-foreground font-mono">
 											{formatDateIndoFull(sesi.tanggal)}
 										</span>
 
-										<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-primary/10 text-primary">
-											<Clock class="w-3 h-3" />
+										<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-primary/10 text-primary">
+											<Clock class="w-3.5 h-3.5" />
 											<span>{sesi.jamMulai}{sesi.jamSelesai ? ` - ${sesi.jamSelesai}` : ''} WIB</span>
 										</span>
 
 										{#if sesi.status === 'libur'}
-											<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400">
+											<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400">
 												Libur
 											</span>
 										{:else if sesi.status === 'dibatalkan'}
-											<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400">
+											<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400">
 												Dibatalkan
 											</span>
 										{/if}
 
 										{#if sesi.isOverride}
-											<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300">
-												<AlertCircle class="w-2.5 h-2.5" />
+											<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-300">
+												<AlertCircle class="w-3 h-3" />
 												<span>Perubahan Khusus</span>
 											</span>
 										{/if}
@@ -634,12 +634,12 @@
 									</h3>
 
 									{#if sesi.detailMateri}
-										<p class="text-xs text-foreground/75 leading-relaxed bg-secondary/30 p-2 rounded-lg whitespace-pre-line max-w-3xl">
+										<p class="text-xs sm:text-sm text-foreground/75 leading-relaxed bg-secondary/30 p-2.5 rounded-lg whitespace-pre-line max-w-3xl">
 											{sesi.detailMateri}
 										</p>
 									{/if}
 
-									<div class="flex flex-wrap items-center gap-3 text-[11px] text-foreground/60">
+									<div class="flex flex-wrap items-center gap-3 text-xs text-foreground/60">
 										{#if sesi.lokasiNama}
 											<span class="flex items-center gap-1">
 												<MapPin class="w-3 h-3 text-foreground/40" />
@@ -808,32 +808,32 @@
 							<div class="border border-border/80 bg-background rounded-xl p-3.5 space-y-2.5 relative hover:border-primary/50 transition-all flex flex-col justify-between">
 								<div class="space-y-1.5">
 									<div class="flex items-center justify-between gap-1">
-										<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-primary/10 text-primary">
+										<span class="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-semibold bg-primary/10 text-primary">
 											Tiap {getNamaHari(tmpl.hari)}
 										</span>
 										{#if tmpl.isLibur}
-											<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400">
+											<span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400">
 												Libur Rutin
 											</span>
 										{/if}
 									</div>
 
-									<h3 class="text-xs font-bold text-foreground">{tmpl.namaKegiatan}</h3>
+									<h3 class="text-sm font-semibold text-foreground">{tmpl.namaKegiatan}</h3>
 
-									<div class="flex items-center gap-1.5 text-[11px] text-foreground/70 font-mono">
-										<Clock class="w-3 h-3 text-primary" />
+									<div class="flex items-center gap-1.5 text-xs text-foreground/75 font-mono">
+										<Clock class="w-3.5 h-3.5 text-primary" />
 										<span>{tmpl.jamMulai}{tmpl.jamSelesai ? ` - ${tmpl.jamSelesai}` : ''} WIB</span>
 									</div>
 
 									{#if tmpl.detailMateri}
-										<div class="text-[11px] text-foreground/75 bg-secondary/40 p-2 rounded-lg leading-relaxed whitespace-pre-line">
+										<div class="text-xs text-foreground/80 bg-secondary/40 p-2.5 rounded-lg leading-relaxed whitespace-pre-line">
 											{tmpl.detailMateri}
 										</div>
 									{/if}
 
 									{#if tmpl.lokasiNama}
-										<div class="flex items-center gap-1 text-[10.5px] text-foreground/60 truncate">
-											<MapPin class="w-3 h-3 text-foreground/40 shrink-0" />
+										<div class="flex items-center gap-1.5 text-xs text-foreground/60 truncate">
+											<MapPin class="w-3.5 h-3.5 text-foreground/40 shrink-0" />
 											<span class="truncate">{tmpl.lokasiNama}</span>
 										</div>
 									{/if}
@@ -921,28 +921,28 @@
 							<div class="border border-border/80 bg-background rounded-xl p-3.5 sm:p-4 hover:border-primary/40 transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 {sesi.isOverride ? 'border-amber-500/40 bg-amber-500/5' : ''}">
 								<div class="space-y-1.5 flex-1 min-w-0">
 									<div class="flex flex-wrap items-center gap-2">
-										<span class="font-bold text-xs text-foreground font-mono">
+										<span class="font-bold text-sm text-foreground font-mono">
 											{formatDateIndoFull(sesi.tanggal)}
 										</span>
 
-										<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-primary/10 text-primary">
-											<Clock class="w-3 h-3" />
+										<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-primary/10 text-primary">
+											<Clock class="w-3.5 h-3.5" />
 											<span>{sesi.jamMulai}{sesi.jamSelesai ? ` - ${sesi.jamSelesai}` : ''} WIB</span>
 										</span>
 
 										{#if sesi.status === 'libur'}
-											<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400">
+											<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400">
 												Libur
 											</span>
 										{:else if sesi.status === 'dibatalkan'}
-											<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400">
+											<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400">
 												Dibatalkan
 											</span>
 										{/if}
 
 										{#if sesi.isOverride}
-											<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300">
-												<AlertCircle class="w-2.5 h-2.5" />
+											<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-300">
+												<AlertCircle class="w-3 h-3" />
 												<span>Perubahan Khusus</span>
 											</span>
 										{/if}
@@ -953,15 +953,15 @@
 									</h3>
 
 									{#if sesi.detailMateri}
-										<p class="text-xs text-foreground/75 leading-relaxed bg-secondary/30 p-2 rounded-lg whitespace-pre-line max-w-3xl">
+										<p class="text-xs sm:text-sm text-foreground/75 leading-relaxed bg-secondary/30 p-2.5 rounded-lg whitespace-pre-line max-w-3xl">
 											{sesi.detailMateri}
 										</p>
 									{/if}
 
-									<div class="flex flex-wrap items-center gap-3 text-[11px] text-foreground/60">
+									<div class="flex flex-wrap items-center gap-3 text-xs text-foreground/60">
 										{#if sesi.lokasiNama}
-											<span class="flex items-center gap-1">
-												<MapPin class="w-3 h-3 text-foreground/40" />
+											<span class="flex items-center gap-1.5">
+												<MapPin class="w-3.5 h-3.5 text-foreground/40" />
 												<span>{sesi.lokasiNama}</span>
 											</span>
 										{/if}

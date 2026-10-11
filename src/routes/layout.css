@@ -1,10 +1,10 @@
 /**
  * @file src/routes/layout.css
- * @purpose Konfigurasi global CSS, Tailwind v4 theme tokens, dan warna tema Light/Dark
+ * @purpose Konfigurasi global CSS, Tailwind v4 theme tokens, palet warna Cool Midnight Slate & Vibrant Jade, serta skala tipografi responsif Poppins
  * @usedBy src/routes/+layout.svelte (seluruh aplikasi)
- * @dependencies Tailwind CSS v4, Poppins Font
+ * @dependencies Tailwind CSS v4, Poppins Font, DESIGN.md
  * @publicFunctions N/A (CSS stylesheet)
- * @sideEffects Menerapkan style global dan token warna ke root document
+ * @sideEffects Menerapkan style global, CSS variables tema Light/Dark, dan rule responsif form input mobile ke root document
  */
 
 @import 'tailwindcss';
@@ -12,8 +12,8 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --font-sans: 'Poppins', sans-serif;
-  --font-poppins: 'Poppins', sans-serif;
+  --font-sans: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-poppins: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -58,7 +58,7 @@
   --popover: #FFFFFF;
   --popover-foreground: #0F172A;
 
-  --primary: #1B5E20;
+  --primary: #059669;
   --primary-foreground: #FFFFFF;
 
   --secondary: #F1F5F9;
@@ -75,37 +75,37 @@
 
   --border: #E2E8F0;
   --input: #E2E8F0;
-  --ring: #1B5E20;
+  --ring: #059669;
   --radius: 0.5rem;
 }
 
 .dark {
-  /* DESIGN.md Dark Mode Tokens */
-  --background: #121212;
+  /* DESIGN.md Dark Mode Tokens (Midnight Slate) */
+  --background: #0B0F19;
   --foreground: #F1F5F9;
-  --card: #1E1E1E;
+  --card: #121826;
   --card-foreground: #F1F5F9;
-  --popover: #1E1E1E;
+  --popover: #121826;
   --popover-foreground: #F1F5F9;
 
-  --primary: #2E7D32;
+  --primary: #10B981;
   --primary-foreground: #FFFFFF;
 
-  --secondary: #27272A;
+  --secondary: #1A2338;
   --secondary-foreground: #F1F5F9;
 
-  --muted: #27272A;
+  --muted: #1A2338;
   --muted-foreground: #94A3B8;
 
   --accent: #FBBF24;
-  --accent-foreground: #121212;
+  --accent-foreground: #0B0F19;
 
   --destructive: #EF4444;
   --destructive-foreground: #FFFFFF;
 
-  --border: #334155;
-  --input: #334155;
-  --ring: #2E7D32;
+  --border: #26324D;
+  --input: #26324D;
+  --ring: #10B981;
 }
 
 body {
@@ -113,4 +113,21 @@ body {
   background-color: var(--background);
   color: var(--foreground);
   min-height: 100vh;
+  font-size: 0.9375rem; /* 15px Desktop / base */
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Hindari auto-zoom iOS Safari pada form input (<16px) & optimalkan legibilitas mobile */
+@media (max-width: 767px) {
+  body {
+    font-size: 1rem; /* 16px Mobile base */
+  }
+
+  input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
 }

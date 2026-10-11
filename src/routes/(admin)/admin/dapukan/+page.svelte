@@ -333,8 +333,8 @@
 	<!-- Tabel Penugasan Pengurus RBAC -->
 	<div class="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
 		<div class="overflow-x-auto">
-			<table class="w-full text-left text-xs">
-				<thead class="bg-secondary/60 text-foreground/70 uppercase text-[10px] tracking-wider border-b border-border">
+			<table class="w-full text-left text-sm">
+				<thead class="bg-secondary/60 text-foreground/70 uppercase text-xs tracking-wider border-b border-border">
 					<tr>
 						<th class="py-3 px-4 font-semibold">Nama Pengurus</th>
 						<th class="py-3 px-4 font-semibold">Jabatan / Dapukan</th>
@@ -356,43 +356,43 @@
 							<tr class="hover:bg-secondary/30 transition-colors">
 								<td class="py-3.5 px-4 font-semibold text-foreground">
 									<div class="flex items-center gap-2">
-										<div class="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
+										<div class="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
 											{(p.userNama || 'U')[0]}
 										</div>
 										<div>
 											<p class="leading-tight">{p.userNama || '-'}</p>
-											<p class="text-[10px] text-foreground/50 leading-tight">{p.userEmail || ''}</p>
+											<p class="text-xs text-foreground/50 leading-tight">{p.userEmail || ''}</p>
 										</div>
 									</div>
 								</td>
 								<td class="py-3.5 px-4">
 									{#if p.namaDapukanCustom}
 										<span class="font-medium text-foreground">{p.namaDapukanCustom}</span>
-										<span class="block text-[10px] text-foreground/50">(Tentatif/Kustom)</span>
+										<span class="block text-xs text-foreground/50">(Tentatif/Kustom)</span>
 									{:else}
 										<span class="font-bold text-primary">{p.dapukanNama || '-'}</span>
-										<span class="block text-[10px] text-foreground/50">(Master Baku)</span>
+										<span class="block text-xs text-foreground/50">(Master Baku)</span>
 									{/if}
 								</td>
 								<td class="py-3.5 px-4">
-									<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-secondary text-foreground/80">
+									<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-secondary text-foreground/80">
 										{p.tingkatScope}
 									</span>
 								</td>
 								<td class="py-3.5 px-4 text-foreground/70">
 									<span class="inline-flex items-center gap-1">
-										<MapPin class="w-3 h-3 text-foreground/40" />
+										<MapPin class="w-3.5 h-3.5 text-foreground/40" />
 										{p.kelompokNama || p.desaNama || p.daerahNama || 'Semua Wilayah'}
 									</span>
 								</td>
 								<td class="py-3.5 px-4">
 									{#if p.is4S}
-										<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary">
-											<ShieldCheck class="w-3 h-3" />
+										<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary/10 text-primary">
+											<ShieldCheck class="w-3.5 h-3.5" />
 											Admin CRUD (4S)
 										</span>
 									{:else}
-										<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-secondary text-foreground/60">
+										<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary text-foreground/60">
 											Pengurus (Read-Only)
 										</span>
 									{/if}
@@ -590,11 +590,11 @@
 				{#if selectedScope === 'Kelompok'}
 					<div>
 						<div class="flex items-center justify-between mb-1.5">
-							<label for="kelompokId" class="block text-xs font-semibold text-foreground">
+							<label for="kelompokId" class="block text-sm font-semibold text-foreground">
 								Pilih Kelompok Cakupan *
 							</label>
 							{#if selectedUserObj?.kelompokId}
-								<span class="text-[10px] text-primary font-semibold">Terkunci ke Basis Jamaah</span>
+								<span class="text-xs text-primary font-semibold">Terkunci ke Basis Jamaah</span>
 							{/if}
 						</div>
 						<SearchableSelect
@@ -608,7 +608,7 @@
 							searchPlaceholder="Cari kelompok..."
 						/>
 						{#if selectedUserObj?.kelompokId}
-							<p class="text-[10px] text-foreground/50 mt-1">
+							<p class="text-xs text-foreground/60 mt-1">
 								Scope kelompok dikunci ke basis kelompok jamaah ({selectedUserObj.kelompokNama}).
 							</p>
 						{/if}
@@ -616,11 +616,11 @@
 				{:else if selectedScope === 'Desa'}
 					<div>
 						<div class="flex items-center justify-between mb-1.5">
-							<label for="desaId" class="block text-xs font-semibold text-foreground">
+							<label for="desaId" class="block text-sm font-semibold text-foreground">
 								Pilih Desa Cakupan *
 							</label>
 							{#if selectedUserObj?.desaId}
-								<span class="text-[10px] text-primary font-semibold">Terkunci ke Basis Jamaah</span>
+								<span class="text-xs text-primary font-semibold">Terkunci ke Basis Jamaah</span>
 							{/if}
 						</div>
 						<SearchableSelect
@@ -634,7 +634,7 @@
 							searchPlaceholder="Cari desa..."
 						/>
 						{#if selectedUserObj?.desaId}
-							<p class="text-[10px] text-foreground/50 mt-1">
+							<p class="text-xs text-foreground/60 mt-1">
 								Scope desa dikunci ke basis desa jamaah ({selectedUserObj.desaNama}).
 							</p>
 						{/if}
@@ -642,11 +642,11 @@
 				{:else if selectedScope === 'Daerah'}
 					<div>
 						<div class="flex items-center justify-between mb-1.5">
-							<label for="daerahId" class="block text-xs font-semibold text-foreground">
+							<label for="daerahId" class="block text-sm font-semibold text-foreground">
 								Pilih Daerah Cakupan *
 							</label>
 							{#if selectedUserObj?.daerahId}
-								<span class="text-[10px] text-primary font-semibold">Terkunci ke Basis Jamaah</span>
+								<span class="text-xs text-primary font-semibold">Terkunci ke Basis Jamaah</span>
 							{/if}
 						</div>
 						<SearchableSelect
@@ -660,7 +660,7 @@
 							searchPlaceholder="Cari daerah..."
 						/>
 						{#if selectedUserObj?.daerahId}
-							<p class="text-[10px] text-foreground/50 mt-1">
+							<p class="text-xs text-foreground/60 mt-1">
 								Scope daerah dikunci ke basis daerah jamaah ({selectedUserObj.daerahNama}).
 							</p>
 						{/if}
@@ -672,7 +672,7 @@
 						<button
 							type="button"
 							onclick={resetAssignForm}
-							class="text-[11px] text-destructive hover:underline font-medium"
+							class="text-xs text-destructive hover:underline font-semibold"
 						>
 							Kosongkan Isian
 						</button>
@@ -683,13 +683,13 @@
 						<button
 							type="button"
 							onclick={closeAssignModal}
-							class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary"
+							class="px-4 py-2.5 rounded-xl border border-border text-sm font-semibold text-foreground/80 hover:bg-secondary"
 						>
 							Batal
 						</button>
 						<button
 							type="submit"
-							class="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90"
+							class="px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90"
 						>
 							Simpan Penugasan
 						</button>

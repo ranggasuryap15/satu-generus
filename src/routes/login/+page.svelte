@@ -59,7 +59,7 @@
 
 			<form class="space-y-5" method="POST" use:enhance>
 				<div>
-					<label for="identifier" class="block text-xs font-medium text-foreground/80 mb-1.5">
+					<label for="identifier" class="block text-sm font-semibold text-foreground/80 mb-1.5">
 						Email atau Nomor HP
 					</label>
 					<div class="relative">
@@ -71,14 +71,14 @@
 							required
 							bind:value={identifier}
 							placeholder="nama@email.com atau 0812xxxx"
-							class="w-full bg-secondary/50 border border-border rounded-lg pl-9 pr-3 py-2 text-xs text-foreground placeholder:text-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
+							class="w-full bg-secondary/50 border border-border rounded-lg pl-9 pr-3.5 py-2.5 text-sm text-foreground placeholder:text-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
 						/>
 					</div>
 				</div>
 
 				<div>
 					<div class="flex items-center justify-between mb-1.5">
-						<label for="password" class="block text-xs font-medium text-foreground/80">
+						<label for="password" class="block text-sm font-semibold text-foreground/80">
 							Kata Sandi
 						</label>
 					</div>
@@ -91,7 +91,7 @@
 							required
 							bind:value={password}
 							placeholder="••••••••"
-							class="w-full bg-secondary/50 border border-border rounded-lg pl-9 pr-3 py-2 text-xs text-foreground placeholder:text-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
+							class="w-full bg-secondary/50 border border-border rounded-lg pl-9 pr-3.5 py-2.5 text-sm text-foreground placeholder:text-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
 						/>
 					</div>
 				</div>
@@ -103,9 +103,9 @@
 							bind:checked={rememberMe}
 							class="rounded border-border text-primary focus:ring-primary h-4 w-4"
 						/>
-						<span class="text-xs text-foreground/70">Ingat saya di perangkat ini</span>
+						<span class="text-xs sm:text-sm text-foreground/75">Ingat saya di perangkat ini</span>
 					</label>
-					<a href="#lupa-password" class="text-[11px] font-medium text-primary hover:underline">
+					<a href="#lupa-password" class="text-xs font-semibold text-primary hover:underline">
 						Lupa sandi?
 					</a>
 				</div>
@@ -113,7 +113,7 @@
 				<div>
 					<button
 						type="submit"
-						class="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-all shadow-sm active:scale-[0.99]"
+						class="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-all shadow-sm active:scale-[0.99]"
 					>
 						<span>Masuk ke Akun</span>
 						<ArrowRight class="w-4 h-4" />
@@ -121,7 +121,7 @@
 				</div>
 			</form>
 
-			<div class="mt-6 pt-5 border-t border-border flex items-center justify-center gap-2 text-[11px] text-foreground/50">
+			<div class="mt-6 pt-5 border-t border-border flex items-center justify-center gap-2 text-xs text-foreground/60">
 				<ShieldCheck class="w-4 h-4 text-primary" />
 				<span>Data sensus & login dienkripsi dengan standar keamanan tinggi</span>
 			</div>
@@ -129,7 +129,7 @@
 
 		<!-- Link ke Halaman Depan -->
 		<div class="mt-4 text-center">
-			<a href="/" class="text-xs text-foreground/60 hover:text-primary transition-colors">
+			<a href="/" class="text-xs sm:text-sm text-foreground/60 hover:text-primary transition-colors">
 				← Kembali ke Beranda Jamaah
 			</a>
 		</div>
