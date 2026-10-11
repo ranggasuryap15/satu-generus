@@ -209,38 +209,186 @@
 		/>
 	</div>
 
-	<!-- Tabel Checklist Kehadiran -->
-	<div class="bg-card border border-border rounded-xl overflow-hidden shadow-xs">
-		<div class="overflow-x-auto">
-			<table class="w-full text-left text-xs">
-				<thead class="bg-secondary/60 text-foreground/70 uppercase text-[10px] tracking-wider border-b border-border">
-					<tr>
-						<th class="py-3 px-4 font-semibold">Nama Jamaah</th>
-						<th class="py-3 px-4 font-semibold">Status Kehadiran</th>
-						<th class="py-3 px-4 font-semibold">Metode & Bukti</th>
-						<th class="py-3 px-4 font-semibold">Lokasi / Keterangan</th>
-						<th class="py-3 px-4 font-semibold text-right">Ubah Status</th>
-					</tr>
-				</thead>
-				<tbody class="divide-y divide-border">
-					{#if filteredPeserta.length === 0}
+	<!-- Presentasi Data Checklist: Compact Cards di Mobile (< md), Tabel Lengkap di Desktop (>= md) -->
+	{#if filteredPeserta.length === 0}
+		<div class="bg-card border border-border rounded-2xl p-8 text-center text-foreground/50 text-sm">
+			Tidak ada jamaah yang cocok dengan pencarian.
+		</div>
+	{:else}
+		<!-- 1. Tampilan Mobile: Compact Cards dengan Tombol Status Cepat -->
+		<div class="md:hidden space-y-3">
+			{#each filteredPeserta as peserta}
+				<div class="bg-card border border-border rounded-xl p-3.5 shadow-xs space-y-2.5">
+					<div class="flex items-start justify-between gap-2">
+						<div class="flex items-center gap-2.5 min-w-0">
+							<div class="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-foreground/60 shrink-0">
+								<User class="w-4 h-4" />
+							</div>
+							<div class="min-w-0">
+								<h3 class="text-sm font-semibold text-foreground truncate">{peserta.namaLengkap}</h3>
+								<span class="block text-xs text-foreground/50 truncate">
+									{peserta.email || peserta.noTelepon || '-'}
+								</span>
+							</div>
+						</div>
+
+						<!-- Status Badge Saat Ini -->
+						<div>
+							{#if peserta.status === 'Hadir'}
+								<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary/10 text-primary">
+									<CheckCircle2 class="w-3.5 h-3.5" />
+									<span>Hadir</span>
+								</span>
+							{:else if peserta.status === 'Izin' || peserta.status === 'Sakit'}
+								<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-accent/20 text-accent">
+									<AlertCircle class="w-3.5 h-3.5" />
+									<span>{peserta.status}</span>
+								</span>
+							{:else if peserta.status === 'Alpa'}
+								<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-destructive/10 text-destructive">
+									<XCircle class="w-3.5 h-3.5" />
+									<span>Alpa</span>
+								</span>
+							{:else}
+								<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-secondary text-foreground/60">
+									Belum Terdata
+								</span>
+							{/if}
+						</div>
+					</div>
+
+					<!-- Bukti Foto / Lokasi / Keterangan (Jika Ada) -->
+					{#if peserta.metodeKehadiran || peserta.fotoUrl || peserta.latitude || peserta.keteranganIzin}
+						<div class="flex flex-wrap items-center gap-2 pt-1 border-t border-border/50 text-xs">
+							{#if peserta.metodeKehadiran === 'offline'}
+								<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-bold">
+									<MapPin class="w-3 h-3" />
+									<span>Offline (GPS)</span>
+								</span>
+							{:else if peserta.metodeKehadiran === 'online'}
+								<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/10 text-blue-700 dark:text-blue-300 font-bold">
+									<Globe class="w-3 h-3" />
+									<span>Online</span>
+								</span>
+							{/if}
+
+							{#if peserta.fotoUrl}
+								<button
+									type="button"
+									onclick={() => {
+										selectedPreviewFoto = peserta.fotoUrl;
+										selectedPreviewTitle = `Bukti Kehadiran - ${peserta.namaLengkap}`;
+									}}
+									class="px-2 py-0.5 rounded bg-secondary hover:bg-secondary/80 text-foreground text-xs font-medium inline-flex items-center gap-1 cursor-pointer"
+								>
+									<Eye class="w-3.5 h-3.5 text-primary" />
+									<span>Foto</span>
+								</button>
+							{/if}
+
+							{#if peserta.latitude && peserta.longitude}
+								<a
+									href={`https://www.google.com/maps?q=${peserta.latitude},${peserta.longitude}`}
+									target="_blank"
+									rel="noopener noreferrer"
+									class="inline-flex items-center gap-1 text-primary hover:underline font-mono"
+								>
+									<MapPin class="w-3 h-3" />
+									<span>Maps</span>
+								</a>
+							{/if}
+
+							{#if peserta.keteranganIzin}
+								<span class="text-foreground/70 italic truncate max-w-[200px]" title={peserta.keteranganIzin}>
+									"{peserta.keteranganIzin}"
+								</span>
+							{/if}
+						</div>
+					{/if}
+
+					<!-- 4 Tombol Cepat Ubah Status Sentuh Nyaman di Mobile -->
+					<div class="grid grid-cols-4 gap-1.5 pt-1 border-t border-border/50">
+						<form method="POST" action="?/updateStatus" class="w-full">
+							<input type="hidden" name="userId" value={peserta.id} />
+							<input type="hidden" name="status" value="Hadir" />
+							<button
+								type="submit"
+								class="w-full py-2 rounded-lg text-xs font-bold transition-all cursor-pointer {peserta.status === 'Hadir'
+									? 'bg-primary text-primary-foreground shadow-xs'
+									: 'bg-secondary text-foreground/75 hover:bg-secondary/80'}"
+							>
+								Hadir
+							</button>
+						</form>
+
+						<form method="POST" action="?/updateStatus" class="w-full">
+							<input type="hidden" name="userId" value={peserta.id} />
+							<input type="hidden" name="status" value="Izin" />
+							<button
+								type="submit"
+								class="w-full py-2 rounded-lg text-xs font-bold transition-all cursor-pointer {peserta.status === 'Izin'
+									? 'bg-accent text-accent-foreground shadow-xs'
+									: 'bg-secondary text-foreground/75 hover:bg-secondary/80'}"
+							>
+								Izin
+							</button>
+						</form>
+
+						<form method="POST" action="?/updateStatus" class="w-full">
+							<input type="hidden" name="userId" value={peserta.id} />
+							<input type="hidden" name="status" value="Sakit" />
+							<button
+								type="submit"
+								class="w-full py-2 rounded-lg text-xs font-bold transition-all cursor-pointer {peserta.status === 'Sakit'
+									? 'bg-accent text-accent-foreground shadow-xs'
+									: 'bg-secondary text-foreground/75 hover:bg-secondary/80'}"
+							>
+								Sakit
+							</button>
+						</form>
+
+						<form method="POST" action="?/updateStatus" class="w-full">
+							<input type="hidden" name="userId" value={peserta.id} />
+							<input type="hidden" name="status" value="Alpa" />
+							<button
+								type="submit"
+								class="w-full py-2 rounded-lg text-xs font-bold transition-all cursor-pointer {peserta.status === 'Alpa'
+									? 'bg-destructive text-destructive-foreground shadow-xs'
+									: 'bg-secondary text-foreground/75 hover:bg-secondary/80'}"
+							>
+								Alpa
+							</button>
+						</form>
+					</div>
+				</div>
+			{/each}
+		</div>
+
+		<!-- 2. Tampilan Desktop: Tabel Checklist Lengkap -->
+		<div class="hidden md:block bg-card border border-border rounded-xl overflow-hidden shadow-xs">
+			<div class="overflow-x-auto">
+				<table class="w-full text-left text-sm">
+					<thead class="bg-secondary/60 text-foreground/70 uppercase text-xs tracking-wider border-b border-border">
 						<tr>
-							<td colspan="5" class="py-12 text-center text-foreground/50">
-								Tidak ada jamaah yang cocok dengan pencarian.
-							</td>
+							<th class="py-3 px-4 font-semibold">Nama Jamaah</th>
+							<th class="py-3 px-4 font-semibold">Status Kehadiran</th>
+							<th class="py-3 px-4 font-semibold">Metode & Bukti</th>
+							<th class="py-3 px-4 font-semibold">Lokasi / Keterangan</th>
+							<th class="py-3 px-4 font-semibold text-right">Ubah Status</th>
 						</tr>
-					{:else}
+					</thead>
+					<tbody class="divide-y divide-border">
 						{#each filteredPeserta as peserta}
 							<tr class="hover:bg-secondary/30 transition-colors">
 								<!-- Kolom Nama -->
 								<td class="py-3 px-4 font-semibold text-foreground">
 									<div class="flex items-center gap-2">
-										<div class="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-foreground/60 shrink-0">
-											<User class="w-3.5 h-3.5" />
+										<div class="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-foreground/60 shrink-0">
+											<User class="w-4 h-4" />
 										</div>
 										<div>
 											<span>{peserta.namaLengkap}</span>
-											<span class="block text-[10px] font-normal text-foreground/50">
+											<span class="block text-xs font-normal text-foreground/50">
 												{peserta.email || peserta.noTelepon || '-'}
 											</span>
 										</div>
@@ -250,13 +398,13 @@
 								<!-- Kolom Status & Approval -->
 								<td class="py-3 px-4">
 									{#if peserta.status === 'Hadir'}
-										<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-primary/10 text-primary">
+										<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary/10 text-primary">
 											<CheckCircle2 class="w-3.5 h-3.5" />
 											<span>Hadir</span>
 										</span>
 									{:else if peserta.status === 'Izin' || peserta.status === 'Sakit'}
 										<div class="space-y-0.5">
-											<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-accent/20 text-accent">
+											<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-accent/20 text-accent">
 												<AlertCircle class="w-3 h-3" />
 												<span>{peserta.status}</span>
 											</span>
@@ -264,23 +412,23 @@
 												<button
 													type="button"
 													onclick={() => (isApprovalModalOpen = true)}
-													class="text-[9.5px] text-amber-600 dark:text-amber-400 hover:underline font-semibold block cursor-pointer"
+													class="text-xs text-amber-600 dark:text-amber-400 hover:underline font-semibold block cursor-pointer"
 												>
 													(Perlu Approval &rarr;)
 												</button>
 											{:else if peserta.statusApproval}
-												<span class="block text-[9.5px] {peserta.statusApproval === 'Disetujui' ? 'text-emerald-600' : 'text-destructive'}">
+												<span class="block text-xs {peserta.statusApproval === 'Disetujui' ? 'text-emerald-600' : 'text-destructive'}">
 													({peserta.statusApproval})
 												</span>
 											{/if}
 										</div>
 									{:else if peserta.status === 'Alpa'}
-										<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-destructive/10 text-destructive">
+										<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-destructive/10 text-destructive">
 											<XCircle class="w-3.5 h-3.5" />
 											<span>Alpa</span>
 										</span>
 									{:else}
-										<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-secondary text-foreground/60">
+										<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-secondary text-foreground/60">
 											Belum Terdata
 										</span>
 									{/if}
@@ -290,22 +438,22 @@
 								<td class="py-3 px-4">
 									<div class="flex items-center gap-2">
 										{#if peserta.metodeKehadiran === 'offline'}
-											<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+											<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
 												<MapPin class="w-3 h-3" />
 												<span>Offline (GPS)</span>
 											</span>
 										{:else if peserta.metodeKehadiran === 'online'}
-											<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-700 dark:text-blue-300">
+											<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-blue-500/10 text-blue-700 dark:text-blue-300">
 												<Globe class="w-3 h-3" />
 												<span>Online (SDC)</span>
 											</span>
 										{:else if peserta.metodeKehadiran === 'izin'}
-											<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-secondary text-foreground/70">
+											<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-secondary text-foreground/70">
 												<FileText class="w-3 h-3" />
 												<span>Izin</span>
 											</span>
 										{:else}
-											<span class="text-foreground/40 text-[11px]">-</span>
+											<span class="text-foreground/40 text-xs">-</span>
 										{/if}
 
 										{#if peserta.fotoUrl}
@@ -315,10 +463,10 @@
 													selectedPreviewFoto = peserta.fotoUrl;
 													selectedPreviewTitle = `Bukti Kehadiran - ${peserta.namaLengkap}`;
 												}}
-												class="p-1 rounded bg-secondary hover:bg-secondary/80 text-foreground/70 hover:text-foreground text-[10.5px] font-medium flex items-center gap-1 cursor-pointer transition-colors"
+												class="p-1 rounded bg-secondary hover:bg-secondary/80 text-foreground/70 hover:text-foreground text-xs font-medium flex items-center gap-1 cursor-pointer transition-colors"
 												title="Lihat foto bukti"
 											>
-												<Eye class="w-3 h-3 text-primary" />
+												<Eye class="w-3.5 h-3.5 text-primary" />
 												<span>Foto</span>
 											</button>
 										{/if}
@@ -332,19 +480,19 @@
 											href={`https://www.google.com/maps?q=${peserta.latitude},${peserta.longitude}`}
 											target="_blank"
 											rel="noopener noreferrer"
-											class="inline-flex items-center gap-1 text-[10.5px] text-primary hover:underline font-mono"
+											class="inline-flex items-center gap-1 text-xs text-primary hover:underline font-mono"
 											title="Buka titik koordinat di Google Maps"
 										>
-											<MapPin class="w-3 h-3" />
+											<MapPin class="w-3.5 h-3.5" />
 											<span>{peserta.latitude}, {peserta.longitude}</span>
-											<ExternalLink class="w-2.5 h-2.5" />
+											<ExternalLink class="w-3 h-3" />
 										</a>
 									{:else if peserta.keteranganIzin}
-										<span class="text-[11px] text-foreground/70 italic line-clamp-1" title={peserta.keteranganIzin}>
+										<span class="text-xs text-foreground/70 italic line-clamp-1" title={peserta.keteranganIzin}>
 											{peserta.keteranganIzin}
 										</span>
 									{:else}
-										<span class="text-foreground/40 text-[11px]">-</span>
+										<span class="text-foreground/40 text-xs">-</span>
 									{/if}
 								</td>
 
@@ -356,7 +504,7 @@
 											<input type="hidden" name="status" value="Hadir" />
 											<button
 												type="submit"
-												class="px-2 py-1 rounded text-[10px] font-semibold transition-colors cursor-pointer {peserta.status ===
+												class="px-2.5 py-1 rounded text-xs font-semibold transition-colors cursor-pointer {peserta.status ===
 												'Hadir'
 													? 'bg-primary text-primary-foreground'
 													: 'bg-secondary text-foreground/70 hover:bg-secondary/80'}"
@@ -370,7 +518,7 @@
 											<input type="hidden" name="status" value="Izin" />
 											<button
 												type="submit"
-												class="px-2 py-1 rounded text-[10px] font-semibold transition-colors cursor-pointer {peserta.status ===
+												class="px-2.5 py-1 rounded text-xs font-semibold transition-colors cursor-pointer {peserta.status ===
 												'Izin'
 													? 'bg-accent text-accent-foreground'
 													: 'bg-secondary text-foreground/70 hover:bg-secondary/80'}"
@@ -384,7 +532,7 @@
 											<input type="hidden" name="status" value="Sakit" />
 											<button
 												type="submit"
-												class="px-2 py-1 rounded text-[10px] font-semibold transition-colors cursor-pointer {peserta.status ===
+												class="px-2.5 py-1 rounded text-xs font-semibold transition-colors cursor-pointer {peserta.status ===
 												'Sakit'
 													? 'bg-accent text-accent-foreground'
 													: 'bg-secondary text-foreground/70 hover:bg-secondary/80'}"
@@ -398,7 +546,7 @@
 											<input type="hidden" name="status" value="Alpa" />
 											<button
 												type="submit"
-												class="px-2 py-1 rounded text-[10px] font-semibold transition-colors cursor-pointer {peserta.status ===
+												class="px-2.5 py-1 rounded text-xs font-semibold transition-colors cursor-pointer {peserta.status ===
 												'Alpa'
 													? 'bg-destructive text-destructive-foreground'
 													: 'bg-secondary text-foreground/70 hover:bg-secondary/80'}"
@@ -410,11 +558,11 @@
 								</td>
 							</tr>
 						{/each}
-					{/if}
-				</tbody>
-			</table>
+					</tbody>
+				</table>
+			</div>
 		</div>
-	</div>
+	{/if}
 </div>
 
 <!-- Modal Preview Foto Bukti Presensi -->

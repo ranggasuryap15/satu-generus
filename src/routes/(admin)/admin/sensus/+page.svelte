@@ -737,38 +737,132 @@
 		</div>
 	</div>
 
-	<!-- 3. TABEL DATA SENSUS KARTU KELUARGA & JAMAAH MANDIRI -->
-	<div class="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-		<div class="overflow-x-auto">
-			<table class="w-full text-left text-xs text-foreground/80">
-				<thead class="bg-secondary/40 text-foreground/60 uppercase text-[10px] tracking-wider border-b border-border">
-					<tr>
-						<th class="py-3 px-4 font-semibold">No. KK / Tipe Sensus</th>
-						<th class="py-3 px-4 font-semibold">Kepala Keluarga / Jamaah</th>
-						<th class="py-3 px-4 font-semibold">Wilayah Basis</th>
-						<th class="py-3 px-4 font-semibold">Alamat Domisili</th>
-						<th class="py-3 px-4 font-semibold">Jiwa</th>
-						<th class="py-3 px-4 font-semibold text-right">Aksi</th>
-					</tr>
-				</thead>
-				<tbody class="divide-y divide-border">
-					{#if filteredKeluarga.length === 0}
+	<!-- 3. PRESENTASI DATA SENSUS: COMPACT CARDS DI MOBILE (< md), TABEL LENGKAP DI DESKTOP (>= md) -->
+	{#if filteredKeluarga.length === 0}
+		<div class="bg-card border border-border rounded-2xl p-12 text-center text-foreground/40">
+			<div class="flex flex-col items-center justify-center gap-2">
+				<Users class="w-8 h-8 opacity-40" />
+				<span class="text-sm">Tidak ada data sensus yang sesuai filter.</span>
+			</div>
+		</div>
+	{:else}
+		<!-- 1. Tampilan Mobile: Compact Cards -->
+		<div class="md:hidden space-y-3">
+			{#each filteredKeluarga as k}
+				<div class="bg-card border border-border rounded-xl p-3.5 shadow-xs space-y-3">
+					<!-- Header Kartu: Nama & Badge -->
+					<div class="flex items-start justify-between gap-2">
+						<div class="min-w-0">
+							<div class="flex items-center gap-1.5 flex-wrap">
+								<h3 class="text-sm font-semibold text-foreground truncate">{k.kepalaKeluargaNama}</h3>
+								{#if !k.isKk}
+									<span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+										Mandiri
+									</span>
+								{/if}
+								{#if k.is4S}
+									<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+										4S
+									</span>
+								{:else if k.isPengurus}
+									<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+										Pengurus
+									</span>
+								{/if}
+							</div>
+							{#if k.kepalaKeluargaEmail}
+								<p class="text-xs text-foreground/50 truncate mt-0.5">{k.kepalaKeluargaEmail}</p>
+							{/if}
+						</div>
+
+						<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-secondary text-foreground/80 shrink-0">
+							<Users class="w-3.5 h-3.5" />
+							{k.jumlahAnggota} Jiwa
+						</span>
+					</div>
+
+					<!-- No. KK & Unmask -->
+					<div class="pt-1 border-t border-border/50 text-xs flex items-center justify-between gap-2">
+						<div class="flex items-center gap-1.5 min-w-0 font-mono">
+							{#if k.isKk}
+								<span class="px-1.5 py-0.5 rounded text-xs font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400">
+									KK
+								</span>
+								<span class="truncate">{k.noKkMasked}</span>
+								{#if k.noKkMasked !== 'Belum Ada No. KK'}
+									<button
+										type="button"
+										onclick={() => requestUnmask({ keluargaId: k.id, label: `No. KK (${k.kepalaKeluargaNama})` })}
+										class="text-primary hover:text-primary/80 p-1 rounded hover:bg-primary/10 transition-colors shrink-0"
+										title="Buka Enkripsi No. KK"
+									>
+										<Eye class="w-3.5 h-3.5" />
+									</button>
+								{/if}
+							{:else}
+								<span class="text-xs font-medium text-foreground/60">Perorangan / Perantau</span>
+							{/if}
+						</div>
+
+						<div class="text-xs text-foreground/70 truncate text-right">
+							{k.kelompokNama}
+						</div>
+					</div>
+
+					<!-- Alamat Domisili -->
+					{#if k.alamatLengkap}
+						<p class="text-xs text-foreground/60 truncate">
+							{k.alamatLengkap}
+						</p>
+					{/if}
+
+					<!-- Tombol Aksi Thumb-Friendly -->
+					<div class="flex items-center gap-2 pt-1 border-t border-border/50">
+						{#if k.isKk}
+							<button
+								type="button"
+								onclick={() => openAddMemberModal(k)}
+								class="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border border-border hover:bg-secondary text-foreground text-xs font-semibold transition-colors"
+							>
+								<UserPlus class="w-4 h-4 text-primary" />
+								<span>+ Anggota</span>
+							</button>
+						{/if}
+
+						<button
+							type="button"
+							onclick={() => (selectedKeluarga = k)}
+							class="flex-1 py-2 px-3 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground font-semibold text-xs transition-colors border border-border/60 text-center"
+						>
+							Lihat Detail
+						</button>
+					</div>
+				</div>
+			{/each}
+		</div>
+
+		<!-- 2. Tampilan Desktop: Tabel Lengkap -->
+		<div class="hidden md:block bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+			<div class="overflow-x-auto">
+				<table class="w-full text-left text-sm text-foreground/80">
+					<thead class="bg-secondary/40 text-foreground/60 uppercase text-xs tracking-wider border-b border-border">
 						<tr>
-							<td colspan="6" class="py-12 text-center text-foreground/40">
-								<div class="flex flex-col items-center justify-center gap-2">
-									<Users class="w-8 h-8 opacity-40" />
-									<span class="text-xs">Tidak ada data sensus yang sesuai filter.</span>
-								</div>
-							</td>
+							<th class="py-3 px-4 font-semibold">No. KK / Tipe Sensus</th>
+							<th class="py-3 px-4 font-semibold">Kepala Keluarga / Jamaah</th>
+							<th class="py-3 px-4 font-semibold">Wilayah Basis</th>
+							<th class="py-3 px-4 font-semibold">Alamat Domisili</th>
+							<th class="py-3 px-4 font-semibold">Jiwa</th>
+							<th class="py-3 px-4 font-semibold text-right">Aksi</th>
 						</tr>
-					{:else}
+					</thead>
+					<tbody class="divide-y divide-border">
 						{#each filteredKeluarga as k}
 							<tr class="hover:bg-secondary/20 transition-colors">
 								<!-- No. KK / Tipe Sensus dengan Unmask Eye -->
 								<td class="py-3.5 px-4 font-mono font-medium text-foreground">
 									<div class="flex items-center gap-1.5 flex-wrap">
 										{#if k.isKk}
-											<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+											<span class="px-2 py-0.5 rounded text-xs font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
 												KK
 											</span>
 											<span>{k.noKkMasked}</span>
@@ -783,7 +877,7 @@
 												</button>
 											{/if}
 										{:else}
-											<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+											<span class="px-2 py-0.5 rounded text-xs font-semibold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
 												Perorangan / Perantau
 											</span>
 										{/if}
@@ -796,29 +890,29 @@
 										<div class="flex items-center gap-1.5">
 											<span class="font-semibold text-foreground">{k.kepalaKeluargaNama}</span>
 											{#if !k.isKk}
-												<span class="px-1.5 py-0.2 rounded text-[9px] font-medium bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+												<span class="px-2 py-0.5 rounded text-xs font-medium bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
 													Mandiri
 												</span>
 											{/if}
 											{#if k.is4S}
-												<span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+												<span class="px-2 py-0.5 rounded text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
 													4S
 												</span>
 											{:else if k.isPengurus}
-												<span class="px-1.5 py-0.2 rounded text-[9px] font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+												<span class="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
 													Pengurus
 												</span>
 											{/if}
 										</div>
-										<span class="text-[10px] text-foreground/50">{k.kepalaKeluargaEmail}</span>
+										<span class="text-xs text-foreground/50">{k.kepalaKeluargaEmail}</span>
 									</div>
 								</td>
 
 								<!-- Wilayah Basis -->
 								<td class="py-3.5 px-4">
-									<div class="flex flex-col text-[11px]">
+									<div class="flex flex-col text-xs">
 										<span class="font-medium text-foreground">{k.kelompokNama}</span>
-										<span class="text-[10px] text-foreground/50">Desa {k.desaNama} • {k.daerahNama}</span>
+										<span class="text-foreground/50">Desa {k.desaNama} • {k.daerahNama}</span>
 									</div>
 								</td>
 
@@ -827,8 +921,8 @@
 
 								<!-- Jumlah Jiwa -->
 								<td class="py-3.5 px-4">
-									<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-secondary text-foreground/80">
-										<Users class="w-3 h-3" />
+									<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-secondary text-foreground/80">
+										<Users class="w-3.5 h-3.5" />
 										{k.jumlahAnggota} Jiwa
 									</span>
 								</td>
@@ -840,7 +934,7 @@
 											<button
 												type="button"
 												onclick={() => openAddMemberModal(k)}
-												class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-border hover:bg-secondary text-foreground/80 text-xs font-medium transition-colors"
+												class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-border hover:bg-secondary text-foreground/80 text-xs font-semibold transition-colors"
 												title="Tambah Anggota Keluarga"
 											>
 												<UserPlus class="w-3.5 h-3.5 text-primary" />
@@ -851,7 +945,7 @@
 										<button
 											type="button"
 											onclick={() => (selectedKeluarga = k)}
-											class="px-2.5 py-1 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground font-medium text-xs transition-colors"
+											class="px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground font-semibold text-xs transition-colors"
 										>
 											Detail
 										</button>
@@ -859,11 +953,11 @@
 								</td>
 							</tr>
 						{/each}
-					{/if}
-				</tbody>
-			</table>
+					</tbody>
+				</table>
+			</div>
 		</div>
-	</div>
+	{/if}
 </div>
 
 <!-- MODAL TAMBAH SENSUS BARU (AKUN DENGAN DEFAULT PASSWORD jokam354 + KK + ANGGOTA) -->

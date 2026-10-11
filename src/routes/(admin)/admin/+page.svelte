@@ -105,24 +105,50 @@
 			</a>
 		</div>
 
-		<div class="border border-border rounded-lg overflow-hidden">
-			<table class="w-full text-left text-xs">
-				<thead class="bg-secondary/60 text-foreground/70 uppercase text-[10px] tracking-wider border-b border-border">
-					<tr>
-						<th class="py-2.5 px-4 font-semibold">Tanggal</th>
-						<th class="py-2.5 px-4 font-semibold">Nama Kegiatan</th>
-						<th class="py-2.5 px-4 font-semibold">Kelompok</th>
-						<th class="py-2.5 px-4 font-semibold text-right">Aksi</th>
-					</tr>
-				</thead>
-				<tbody class="divide-y divide-border">
-					{#if data.recentJadwal.length === 0}
+		<!-- Presentasi Jadwal: Compact Cards di Mobile (< md), Tabel di Desktop (>= md) -->
+		{#if data.recentJadwal.length === 0}
+			<div class="border border-border rounded-xl p-8 text-center text-foreground/50 text-sm">
+				Belum ada jadwal kegiatan pengajian.
+			</div>
+		{:else}
+			<!-- 1. Tampilan Mobile: Compact Cards -->
+			<div class="md:hidden space-y-2.5">
+				{#each data.recentJadwal as item}
+					<div class="border border-border rounded-xl p-3.5 bg-card flex items-center justify-between gap-3 shadow-xs">
+						<div class="min-w-0">
+							<span class="font-mono text-xs font-semibold text-primary">
+								{formatDateDDMMYYYY(item.tanggal)}
+							</span>
+							<h4 class="text-sm font-semibold text-foreground truncate mt-0.5">
+								{item.namaKegiatan}
+							</h4>
+							<p class="text-xs text-foreground/60 truncate mt-0.5">
+								{item.kelompokNama || 'Semua Kelompok'}
+							</p>
+						</div>
+
+						<a
+							href={`/admin/presensi/${item.id}`}
+							class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-semibold text-xs shrink-0 transition-colors"
+						>
+							Presensi
+						</a>
+					</div>
+				{/each}
+			</div>
+
+			<!-- 2. Tampilan Desktop: Tabel Lengkap -->
+			<div class="hidden md:block border border-border rounded-xl overflow-hidden shadow-xs">
+				<table class="w-full text-left text-sm">
+					<thead class="bg-secondary/60 text-foreground/70 uppercase text-xs tracking-wider border-b border-border">
 						<tr>
-							<td colspan="4" class="py-8 text-center text-foreground/50">
-								Belum ada jadwal kegiatan pengajian.
-							</td>
+							<th class="py-3 px-4 font-semibold">Tanggal</th>
+							<th class="py-3 px-4 font-semibold">Nama Kegiatan</th>
+							<th class="py-3 px-4 font-semibold">Kelompok</th>
+							<th class="py-3 px-4 font-semibold text-right">Aksi</th>
 						</tr>
-					{:else}
+					</thead>
+					<tbody class="divide-y divide-border">
 						{#each data.recentJadwal as item}
 							<tr class="hover:bg-secondary/30 transition-colors">
 								<td class="py-3 px-4 font-mono font-medium text-foreground">{formatDateDDMMYYYY(item.tanggal)}</td>
@@ -131,16 +157,16 @@
 								<td class="py-3 px-4 text-right">
 									<a
 										href={`/admin/presensi/${item.id}`}
-										class="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-secondary hover:bg-secondary/80 text-foreground font-medium text-[11px] transition-colors"
+										class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground font-semibold text-xs transition-colors"
 									>
 										Presensi
 									</a>
 								</td>
 							</tr>
 						{/each}
-					{/if}
-				</tbody>
-			</table>
-		</div>
+					</tbody>
+				</table>
+			</div>
+		{/if}
 	</div>
 </div>

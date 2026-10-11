@@ -330,28 +330,97 @@
 		</span>
 	</div>
 
-	<!-- Tabel Penugasan Pengurus RBAC -->
-	<div class="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
-		<div class="overflow-x-auto">
-			<table class="w-full text-left text-sm">
-				<thead class="bg-secondary/60 text-foreground/70 uppercase text-xs tracking-wider border-b border-border">
-					<tr>
-						<th class="py-3 px-4 font-semibold">Nama Pengurus</th>
-						<th class="py-3 px-4 font-semibold">Jabatan / Dapukan</th>
-						<th class="py-3 px-4 font-semibold">Tingkat Scope</th>
-						<th class="py-3 px-4 font-semibold">Wilayah Cakupan</th>
-						<th class="py-3 px-4 font-semibold">Hak Wewenang</th>
-						<th class="py-3 px-4 font-semibold text-right">Aksi</th>
-					</tr>
-				</thead>
-				<tbody class="divide-y divide-border">
-					{#if filteredPengurus.length === 0}
+	<!-- Presentasi Data: Compact Cards di Mobile (< md), Tabel Lengkap di Desktop (>= md) -->
+	{#if filteredPengurus.length === 0}
+		<div class="bg-card border border-border rounded-2xl p-8 text-center text-foreground/50 text-sm">
+			Belum ada pengurus yang ditugaskan atau sesuai pencarian.
+		</div>
+	{:else}
+		<!-- 1. Tampilan Mobile: Compact Cards -->
+		<div class="md:hidden space-y-3">
+			{#each filteredPengurus as p}
+				<div class="bg-card border border-border rounded-xl p-3.5 shadow-xs space-y-2.5">
+					<div class="flex items-start justify-between gap-2">
+						<div class="flex items-center gap-2.5 min-w-0">
+							<div class="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+								{(p.userNama || 'U')[0]}
+							</div>
+							<div class="min-w-0">
+								<h3 class="text-sm font-semibold text-foreground truncate">{p.userNama || '-'}</h3>
+								{#if p.userEmail}
+									<p class="text-xs text-foreground/50 truncate">{p.userEmail}</p>
+								{/if}
+							</div>
+						</div>
+
+						{#if data.canManageDapukan}
+							<button
+								type="button"
+								onclick={() => {
+									selectedPengurusToRemove = {
+										id: p.id,
+										nama: p.userNama || 'Pengurus',
+										jabatan: p.namaDapukanCustom || p.dapukanNama || 'Jabatan'
+									};
+									showRemoveModal = true;
+								}}
+								class="p-2 rounded-lg text-destructive hover:bg-destructive/10 transition-colors shrink-0"
+								title="Cabut Penugasan"
+								aria-label="Cabut Penugasan"
+							>
+								<Trash2 class="w-4 h-4" />
+							</button>
+						{/if}
+					</div>
+
+					<!-- Rincian Jabatan & Wilayah -->
+					<div class="flex flex-wrap items-center gap-2 pt-1 border-t border-border/50 text-xs">
+						<span class="font-medium text-foreground">
+							{p.namaDapukanCustom || p.dapukanNama || '-'}
+						</span>
+						<span class="text-foreground/40">•</span>
+						<span class="inline-flex items-center px-2 py-0.5 rounded bg-secondary text-foreground/80 font-medium">
+							{p.tingkatScope}
+						</span>
+						<span class="text-foreground/40">•</span>
+						<span class="inline-flex items-center gap-1 text-foreground/70 truncate">
+							<MapPin class="w-3.5 h-3.5 text-foreground/40 shrink-0" />
+							<span class="truncate">{p.kelompokNama || p.desaNama || p.daerahNama || 'Semua Wilayah'}</span>
+						</span>
+					</div>
+
+					<!-- Status Wewenang 4S -->
+					<div>
+						{#if p.is4S}
+							<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary/10 text-primary">
+								<ShieldCheck class="w-3.5 h-3.5" />
+								Admin CRUD (4S)
+							</span>
+						{:else}
+							<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary text-foreground/60">
+								Pengurus (Read-Only)
+							</span>
+						{/if}
+					</div>
+				</div>
+			{/each}
+		</div>
+
+		<!-- 2. Tampilan Desktop: Tabel Data Lengkap -->
+		<div class="hidden md:block bg-card border border-border rounded-xl overflow-hidden shadow-sm">
+			<div class="overflow-x-auto">
+				<table class="w-full text-left text-sm">
+					<thead class="bg-secondary/60 text-foreground/70 uppercase text-xs tracking-wider border-b border-border">
 						<tr>
-							<td colspan="6" class="py-12 text-center text-foreground/50">
-								Belum ada pengurus yang ditugaskan atau sesuai pencarian.
-							</td>
+							<th class="py-3 px-4 font-semibold">Nama Pengurus</th>
+							<th class="py-3 px-4 font-semibold">Jabatan / Dapukan</th>
+							<th class="py-3 px-4 font-semibold">Tingkat Scope</th>
+							<th class="py-3 px-4 font-semibold">Wilayah Cakupan</th>
+							<th class="py-3 px-4 font-semibold">Hak Wewenang</th>
+							<th class="py-3 px-4 font-semibold text-right">Aksi</th>
 						</tr>
-					{:else}
+					</thead>
+					<tbody class="divide-y divide-border">
 						{#each filteredPengurus as p}
 							<tr class="hover:bg-secondary/30 transition-colors">
 								<td class="py-3.5 px-4 font-semibold text-foreground">
@@ -420,11 +489,11 @@
 								</td>
 							</tr>
 						{/each}
-					{/if}
-				</tbody>
-			</table>
+					</tbody>
+				</table>
+			</div>
 		</div>
-	</div>
+	{/if}
 </div>
 
 <!-- Modal Tugaskan Pengurus Baru -->

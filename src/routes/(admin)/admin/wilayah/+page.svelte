@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(admin)/admin/wilayah/+page.svelte
-  @purpose Halaman manajemen Data Wilayah lengkap dengan 1 tombol Tambah Wilayah cerdas (dropdown search & auto-create hierarki Daerah -> Desa -> Kelompok -> Sub-Kelompok), modal detail desa & kelompok dengan Leaflet LocationPicker, fitur 'Hubungkan ke Lokasi' desa ke kelompok terhubung, kontrol RBAC visual, checklist hapus massal & single delete
+  @purpose Halaman manajemen Data Wilayah lengkap dengan dual presentation (compact cards mobile & table desktop) di tab Kelompok, Desa, & Sub-Kelompok, 1 tombol Tambah Wilayah cerdas (hierarki Daerah -> Desa -> Kelompok -> Sub-Kelompok), modal detail desa & kelompok dengan Leaflet LocationPicker, fitur 'Hubungkan ke Lokasi', kontrol RBAC visual, checklist hapus massal & single delete
   @usedBy Route admin '/admin/wilayah'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/LocationPicker.svelte, $app/forms (enhance)
   @publicFunctions openUnifiedAddModal, closeUnifiedAddModal, openKelompokDetail, closeKelompokDetail, openDesaDetail, closeDesaDetail, handleConnectToKelompok, handleDisconnectKelompok, resetFilter, toggleSelectKelompok, toggleSelectAllKelompok, openDeleteSingleKelompok, openDeleteBatchKelompok, closeDeleteModal
@@ -959,42 +959,139 @@
 			</div>
 		{/if}
 
-		<!-- Tabel Kelompok -->
-		<div class="bg-card border border-border rounded-xl overflow-hidden shadow-xs">
-			<div class="overflow-x-auto">
-				<table class="w-full text-left text-xs">
-					<thead class="bg-secondary/60 text-foreground/70 uppercase text-[10px] tracking-wider border-b border-border">
-						<tr>
-							{#if data.permissions?.canDeleteKelompok}
-								<th class="py-3 px-3 w-10 text-center">
+		<!-- Tampilan Data Kelompok (Dual Presentation: Mobile Compact Cards & Desktop Table) -->
+		{#if filteredKelompok.length === 0}
+			<div class="bg-card border border-border rounded-xl p-12 text-center text-foreground/50 text-xs">
+				Belum ada unit kelompok yang cocok dengan filter atau pencarian.
+			</div>
+		{:else}
+			<!-- 1. Tampilan Mobile (< md): Compact Cards -->
+			<div class="md:hidden space-y-3">
+				{#each filteredKelompok as k}
+					<div
+						class="bg-card border border-border rounded-xl p-3.5 space-y-3 transition-all {selectedKelompokIds.includes(k.id) ? 'border-destructive/40 bg-destructive/5' : ''}"
+					>
+						<div class="flex items-start justify-between gap-2.5">
+							<div class="flex items-center gap-2 min-w-0">
+								{#if data.permissions?.canDeleteKelompok}
 									<input
 										type="checkbox"
-										checked={isAllKelompokSelected}
-										indeterminate={isSomeKelompokSelected}
-										onchange={toggleSelectAllKelompok}
-										class="w-4 h-4 rounded border-border text-primary focus:ring-primary cursor-pointer accent-primary"
-										title="Pilih Semua Kelompok"
+										checked={selectedKelompokIds.includes(k.id)}
+										onchange={() => toggleSelectKelompok(k.id)}
+										class="w-4 h-4 rounded border-border text-primary focus:ring-primary cursor-pointer accent-primary shrink-0"
+										aria-label="Pilih kelompok {k.nama}"
 									/>
-								</th>
+								{/if}
+								<div class="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-mono text-[10px] font-bold shrink-0">
+									KL
+								</div>
+								<div class="min-w-0">
+									<button
+										type="button"
+										onclick={() => openKelompokDetail(k)}
+										class="text-left font-bold text-foreground text-sm hover:text-primary transition-colors truncate block"
+									>
+										{k.nama}
+									</button>
+									<p class="text-[11px] text-foreground/60 truncate">
+										{k.desaNama || '-'} &bull; {k.daerahNama || '-'}
+									</p>
+								</div>
+							</div>
+							<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-secondary text-foreground/80 shrink-0">
+								<Users class="w-3 h-3 text-primary" />
+								{k.totalJamaah}
+							</span>
+						</div>
+
+						<div class="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-border/50">
+							<div class="space-y-0.5">
+								<span class="text-[10.5px] text-foreground/50 block">Lokasi Basis</span>
+								{#if k.latitude && k.longitude}
+									<div class="flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+										<MapPin class="w-3 h-3 shrink-0" />
+										<span class="truncate">{k.lokasiNama || 'Terdaftar'} (&plusmn;{k.radiusMeter || 100}m)</span>
+									</div>
+								{:else}
+									<div class="flex items-center gap-1 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+										<MapPin class="w-3 h-3 shrink-0" />
+										<span>Belum Diset</span>
+									</div>
+								{/if}
+							</div>
+
+							<div class="space-y-0.5">
+								<span class="text-[10.5px] text-foreground/50 block">Sub-Kelompok</span>
+								{#if k.totalSubKelompok > 0}
+									<button
+										type="button"
+										onclick={() => {
+											searchQuery = k.nama;
+											activeTab = 'subKelompok';
+										}}
+										class="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+									>
+										<Layers class="w-3 h-3" />
+										<span>{k.totalSubKelompok} Sub</span>
+									</button>
+								{:else}
+									<span class="text-[11px] text-foreground/40">-</span>
+								{/if}
+							</div>
+						</div>
+
+						<div class="flex items-center gap-2 pt-2 border-t border-border/50">
+							<button
+								type="button"
+								onclick={() => openKelompokDetail(k)}
+								class="flex-1 py-1.5 px-3 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold transition-colors cursor-pointer text-center"
+							>
+								Detail & Lokasi
+							</button>
+							{#if data.permissions?.canDeleteKelompok}
+								<button
+									type="button"
+									onclick={() => openDeleteSingleKelompok(k)}
+									class="p-2 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors cursor-pointer shrink-0"
+									title="Hapus Kelompok"
+								>
+									<Trash2 class="w-3.5 h-3.5" />
+								</button>
 							{/if}
-							<th class="py-3 px-4 font-semibold">Nama Kelompok</th>
-							<th class="py-3 px-4 font-semibold">Lokasi Basis</th>
-							<th class="py-3 px-4 font-semibold">Sub-Kelompok</th>
-							<th class="py-3 px-4 font-semibold">Kelurahan / Domisili</th>
-							<th class="py-3 px-4 font-semibold">Desa Induk</th>
-							<th class="py-3 px-4 font-semibold">Daerah Induk</th>
-							<th class="py-3 px-4 font-semibold text-right">Populasi Jamaah</th>
-							<th class="py-3 px-4 font-semibold text-center">Aksi</th>
-						</tr>
-					</thead>
-					<tbody class="divide-y divide-border">
-						{#if filteredKelompok.length === 0}
+						</div>
+					</div>
+				{/each}
+			</div>
+
+			<!-- 2. Tampilan Desktop (>= md): Tabel Lengkap -->
+			<div class="hidden md:block bg-card border border-border rounded-xl overflow-hidden shadow-xs">
+				<div class="overflow-x-auto">
+					<table class="w-full text-left text-xs">
+						<thead class="bg-secondary/60 text-foreground/70 uppercase text-[10px] tracking-wider border-b border-border">
 							<tr>
-								<td colspan={data.permissions?.canDeleteKelompok ? 9 : 8} class="py-12 text-center text-foreground/50">
-									Belum ada unit kelompok yang cocok dengan filter atau pencarian.
-								</td>
+								{#if data.permissions?.canDeleteKelompok}
+									<th class="py-3 px-3 w-10 text-center">
+										<input
+											type="checkbox"
+											checked={isAllKelompokSelected}
+											indeterminate={isSomeKelompokSelected}
+											onchange={toggleSelectAllKelompok}
+											class="w-4 h-4 rounded border-border text-primary focus:ring-primary cursor-pointer accent-primary"
+											title="Pilih Semua Kelompok"
+										/>
+									</th>
+								{/if}
+								<th class="py-3 px-4 font-semibold">Nama Kelompok</th>
+								<th class="py-3 px-4 font-semibold">Lokasi Basis</th>
+								<th class="py-3 px-4 font-semibold">Sub-Kelompok</th>
+								<th class="py-3 px-4 font-semibold">Kelurahan / Domisili</th>
+								<th class="py-3 px-4 font-semibold">Desa Induk</th>
+								<th class="py-3 px-4 font-semibold">Daerah Induk</th>
+								<th class="py-3 px-4 font-semibold text-right">Populasi Jamaah</th>
+								<th class="py-3 px-4 font-semibold text-center">Aksi</th>
 							</tr>
-						{:else}
+						</thead>
+						<tbody class="divide-y divide-border">
 							{#each filteredKelompok as k}
 								<tr
 									onclick={() => openKelompokDetail(k)}
@@ -1089,11 +1186,11 @@
 									</td>
 								</tr>
 							{/each}
-						{/if}
-					</tbody>
-				</table>
+						</tbody>
+					</table>
+				</div>
 			</div>
-		</div>
+		{/if}
 	{:else if activeTab === 'subKelompok'}
 		<!-- Toolbar Aksi Massal Hapus Sub-Kelompok -->
 		{#if data.permissions?.canDeleteSubKelompok && selectedSubKelompokIds.length > 0}
@@ -1124,42 +1221,94 @@
 			</div>
 		{/if}
 
-		<!-- Tabel Sub-Kelompok -->
-		<div class="bg-card border border-border rounded-xl overflow-hidden shadow-xs">
-			<div class="overflow-x-auto">
-				<table class="w-full text-left text-xs">
-					<thead class="bg-secondary/60 text-foreground/70 uppercase text-[10px] tracking-wider border-b border-border">
-						<tr>
-							{#if data.permissions?.canDeleteSubKelompok}
-								<th class="py-3 px-3 w-10 text-center">
+		<!-- Tampilan Data Sub-Kelompok (Dual Presentation: Mobile Compact Cards & Desktop Table) -->
+		{#if filteredSubKelompok.length === 0}
+			<div class="bg-card border border-border rounded-xl p-12 text-center text-foreground/50 text-xs">
+				Belum ada unit sub-kelompok yang cocok dengan filter atau pencarian.
+			</div>
+		{:else}
+			<!-- 1. Tampilan Mobile (< md): Compact Cards -->
+			<div class="md:hidden space-y-3">
+				{#each filteredSubKelompok as sk}
+					<div
+						class="bg-card border border-border rounded-xl p-3.5 space-y-2.5 transition-all {selectedSubKelompokIds.includes(sk.id) ? 'border-destructive/40 bg-destructive/5' : ''}"
+					>
+						<div class="flex items-start justify-between gap-2.5">
+							<div class="flex items-center gap-2 min-w-0">
+								{#if data.permissions?.canDeleteSubKelompok}
 									<input
 										type="checkbox"
-										checked={isAllSubKelompokSelected}
-										indeterminate={isSomeSubKelompokSelected}
-										onchange={toggleSelectAllSubKelompok}
-										class="w-4 h-4 rounded border-border text-primary focus:ring-primary cursor-pointer accent-primary"
-										title="Pilih Semua Sub-Kelompok"
+										checked={selectedSubKelompokIds.includes(sk.id)}
+										onchange={() => toggleSelectSubKelompok(sk.id)}
+										class="w-4 h-4 rounded border-border text-primary focus:ring-primary cursor-pointer accent-primary shrink-0"
+										aria-label="Pilih sub-kelompok {sk.nama}"
 									/>
-								</th>
-							{/if}
-							<th class="py-3 px-4 font-semibold">Nama Sub-Kelompok</th>
-							<th class="py-3 px-4 font-semibold">Kelompok Induk</th>
-							<th class="py-3 px-4 font-semibold">Keterangan / Rukun</th>
-							<th class="py-3 px-4 font-semibold">Desa Induk</th>
-							<th class="py-3 px-4 font-semibold">Daerah Induk</th>
+								{/if}
+								<div class="w-7 h-7 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center font-mono text-[10px] font-bold shrink-0">
+									SK
+								</div>
+								<div class="min-w-0">
+									<span class="font-bold text-foreground text-sm truncate block">{sk.nama}</span>
+									<p class="text-[11px] text-foreground/60 truncate">
+										Kelompok: <span class="font-semibold text-foreground/80">{sk.kelompokNama || '-'}</span>
+									</p>
+								</div>
+							</div>
 							{#if data.permissions?.canDeleteSubKelompok}
-								<th class="py-3 px-4 font-semibold text-center">Aksi</th>
+								<button
+									type="button"
+									onclick={() => openDeleteSingleSubKelompok(sk)}
+									class="p-2 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors cursor-pointer shrink-0"
+									title="Hapus Sub-Kelompok"
+								>
+									<Trash2 class="w-3.5 h-3.5" />
+								</button>
 							{/if}
-						</tr>
-					</thead>
-					<tbody class="divide-y divide-border">
-						{#if filteredSubKelompok.length === 0}
+						</div>
+
+						<div class="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-border/50">
+							<div class="space-y-0.5">
+								<span class="text-[10.5px] text-foreground/50 block">Keterangan / Rukun</span>
+								<span class="text-[11.5px] text-foreground/80">{sk.keterangan || '-'}</span>
+							</div>
+							<div class="space-y-0.5">
+								<span class="text-[10.5px] text-foreground/50 block">Desa & Daerah</span>
+								<span class="text-[11px] text-foreground/60 truncate block">{sk.desaNama || '-'} &bull; {sk.daerahNama || '-'}</span>
+							</div>
+						</div>
+					</div>
+				{/each}
+			</div>
+
+			<!-- 2. Tampilan Desktop (>= md): Tabel Lengkap -->
+			<div class="hidden md:block bg-card border border-border rounded-xl overflow-hidden shadow-xs">
+				<div class="overflow-x-auto">
+					<table class="w-full text-left text-xs">
+						<thead class="bg-secondary/60 text-foreground/70 uppercase text-[10px] tracking-wider border-b border-border">
 							<tr>
-								<td colspan={data.permissions?.canDeleteSubKelompok ? 7 : 5} class="py-12 text-center text-foreground/50">
-									Belum ada unit sub-kelompok yang cocok dengan filter atau pencarian.
-								</td>
+								{#if data.permissions?.canDeleteSubKelompok}
+									<th class="py-3 px-3 w-10 text-center">
+										<input
+											type="checkbox"
+											checked={isAllSubKelompokSelected}
+											indeterminate={isSomeSubKelompokSelected}
+											onchange={toggleSelectAllSubKelompok}
+											class="w-4 h-4 rounded border-border text-primary focus:ring-primary cursor-pointer accent-primary"
+											title="Pilih Semua Sub-Kelompok"
+										/>
+									</th>
+								{/if}
+								<th class="py-3 px-4 font-semibold">Nama Sub-Kelompok</th>
+								<th class="py-3 px-4 font-semibold">Kelompok Induk</th>
+								<th class="py-3 px-4 font-semibold">Keterangan / Rukun</th>
+								<th class="py-3 px-4 font-semibold">Desa Induk</th>
+								<th class="py-3 px-4 font-semibold">Daerah Induk</th>
+								{#if data.permissions?.canDeleteSubKelompok}
+									<th class="py-3 px-4 font-semibold text-center">Aksi</th>
+								{/if}
 							</tr>
-						{:else}
+						</thead>
+						<tbody class="divide-y divide-border">
 							{#each filteredSubKelompok as sk}
 								<tr class="hover:bg-secondary/30 transition-colors {selectedSubKelompokIds.includes(sk.id) ? 'bg-destructive/5' : ''}">
 									{#if data.permissions?.canDeleteSubKelompok}
@@ -1198,34 +1347,96 @@
 									{/if}
 								</tr>
 							{/each}
-						{/if}
-					</tbody>
-				</table>
+						</tbody>
+					</table>
+				</div>
 			</div>
-		</div>
+		{/if}
 	{:else if activeTab === 'desa'}
-		<!-- Tabel Desa -->
-		<div class="bg-card border border-border rounded-xl overflow-hidden shadow-xs">
-			<div class="overflow-x-auto">
-				<table class="w-full text-left text-xs">
-					<thead class="bg-secondary/60 text-foreground/70 uppercase text-[10px] tracking-wider border-b border-border">
-						<tr>
-							<th class="py-3 px-4 font-semibold">Nama Desa</th>
-							<th class="py-3 px-4 font-semibold">Lokasi Basis Desa</th>
-							<th class="py-3 px-4 font-semibold">Kecamatan</th>
-							<th class="py-3 px-4 font-semibold">Daerah Induk</th>
-							<th class="py-3 px-4 font-semibold text-center">Jumlah Kelompok</th>
-							<th class="py-3 px-4 font-semibold text-right">Aksi</th>
-						</tr>
-					</thead>
-					<tbody class="divide-y divide-border">
-						{#if filteredDesa.length === 0}
+		<!-- Tampilan Data Desa (Dual Presentation: Mobile Compact Cards & Desktop Table) -->
+		{#if filteredDesa.length === 0}
+			<div class="bg-card border border-border rounded-xl p-12 text-center text-foreground/50 text-xs">
+				Belum ada unit desa yang cocok dengan filter atau pencarian.
+			</div>
+		{:else}
+			<!-- 1. Tampilan Mobile (< md): Compact Cards -->
+			<div class="md:hidden space-y-3">
+				{#each filteredDesa as d}
+					<div
+						class="bg-card border border-border rounded-xl p-3.5 space-y-3 transition-all cursor-pointer hover:border-primary/40"
+						onclick={() => openDesaDetail(d)}
+					>
+						<div class="flex items-start justify-between gap-2.5">
+							<div class="flex items-center gap-2 min-w-0">
+								<div class="w-7 h-7 rounded-lg bg-accent/20 text-accent flex items-center justify-center font-mono text-[10px] font-bold shrink-0">
+									DS
+								</div>
+								<div class="min-w-0">
+									<span class="font-bold text-foreground text-sm truncate block">{d.nama}</span>
+									<p class="text-[11px] text-foreground/60 truncate">
+										{d.kecamatan ? `Kec. ${d.kecamatan} • ` : ''}{d.daerahNama || '-'}
+									</p>
+								</div>
+							</div>
+							<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-secondary text-foreground/80 shrink-0">
+								<Home class="w-3 h-3 text-primary" />
+								{d.totalKelompok ?? 0}
+							</span>
+						</div>
+
+						<div class="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-border/50">
+							<div class="space-y-0.5">
+								<span class="text-[10.5px] text-foreground/50 block">Lokasi Basis Desa</span>
+								{#if d.latitude && d.longitude}
+									<div class="flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+										<MapPin class="w-3 h-3 shrink-0" />
+										<span class="truncate">{d.lokasiNama || 'Terdaftar'} (&plusmn;{d.radiusMeter || 100}m)</span>
+									</div>
+								{:else}
+									<div class="flex items-center gap-1 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+										<MapPin class="w-3 h-3 shrink-0" />
+										<span>Belum Diset</span>
+									</div>
+								{/if}
+							</div>
+
+							<div class="space-y-0.5">
+								<span class="text-[10.5px] text-foreground/50 block">Daerah Induk</span>
+								<span class="text-[11.5px] font-medium text-foreground">{d.daerahNama || '-'}</span>
+							</div>
+						</div>
+
+						<div class="pt-2 border-t border-border/50">
+							<button
+								type="button"
+								onclick={(e) => {
+									e.stopPropagation();
+									openDesaDetail(d);
+								}}
+								class="w-full py-1.5 px-3 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold transition-colors cursor-pointer text-center"
+							>
+								Detail & Lokasi
+							</button>
+						</div>
+					</div>
+				{/each}
+			</div>
+
+			<!-- 2. Tampilan Desktop (>= md): Tabel Lengkap -->
+			<div class="hidden md:block bg-card border border-border rounded-xl overflow-hidden shadow-xs">
+				<div class="overflow-x-auto">
+					<table class="w-full text-left text-xs">
+						<thead class="bg-secondary/60 text-foreground/70 uppercase text-[10px] tracking-wider border-b border-border">
 							<tr>
-								<td colspan="6" class="py-12 text-center text-foreground/50">
-									Belum ada unit desa yang cocok dengan filter atau pencarian.
-								</td>
+								<th class="py-3 px-4 font-semibold">Nama Desa</th>
+								<th class="py-3 px-4 font-semibold">Lokasi Basis Desa</th>
+								<th class="py-3 px-4 font-semibold">Kecamatan</th>
+								<th class="py-3 px-4 font-semibold">Daerah Induk</th>
+								<th class="py-3 px-4 font-semibold text-center">Jumlah Kelompok</th>
+								<th class="py-3 px-4 font-semibold text-right">Aksi</th>
 							</tr>
-						{:else}
+						</thead>
+						<tbody class="divide-y divide-border">
 							{#each filteredDesa as d}
 								<tr
 									onclick={() => openDesaDetail(d)}
@@ -1282,11 +1493,11 @@
 									</td>
 								</tr>
 							{/each}
-						{/if}
-					</tbody>
-				</table>
+						</tbody>
+					</table>
+				</div>
 			</div>
-		</div>
+		{/if}
 	{/if}
 </div>
 

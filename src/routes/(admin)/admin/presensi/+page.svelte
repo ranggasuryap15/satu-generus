@@ -141,53 +141,109 @@
 		</span>
 	</div>
 
-	<!-- Data Table Section -->
-	<div class="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
-		<div class="overflow-x-auto">
-			<table class="w-full text-left text-xs">
-				<thead class="bg-secondary/60 text-foreground/70 uppercase text-[10px] tracking-wider border-b border-border">
-					<tr>
-						<th class="py-3 px-4 font-semibold">Tanggal</th>
-						<th class="py-3 px-4 font-semibold">Kegiatan & Lokasi</th>
-						<th class="py-3 px-4 font-semibold">Kelompok</th>
-						<th class="py-3 px-4 font-semibold">Kehadiran</th>
-						<th class="py-3 px-4 font-semibold text-right">Aksi Input Presensi</th>
-					</tr>
-				</thead>
-				<tbody class="divide-y divide-border">
-					{#if filteredJadwal.length === 0}
+	<!-- Presentasi Data: Compact Cards di Mobile (< md), Tabel Lengkap di Desktop (>= md) -->
+	{#if filteredJadwal.length === 0}
+		<div class="bg-card border border-border rounded-2xl p-8 text-center text-foreground/50 text-sm">
+			Belum ada jadwal kegiatan pengajian. Buat jadwal baru untuk memulai presensi.
+		</div>
+	{:else}
+		<!-- 1. Tampilan Mobile: Compact Cards -->
+		<div class="md:hidden space-y-3">
+			{#each filteredJadwal as item}
+				<div class="bg-card border border-border rounded-xl p-3.5 shadow-xs space-y-3">
+					<div class="flex items-start justify-between gap-2">
+						<div class="min-w-0">
+							<span class="font-mono text-xs font-semibold text-primary">
+								{formatDateDDMMYYYY(item.tanggal)}
+							</span>
+							<h3 class="text-sm font-semibold text-foreground truncate mt-0.5">
+								{item.namaKegiatan}
+							</h3>
+							{#if item.lokasiNama}
+								<div class="text-xs text-foreground/60 flex items-center gap-1.5 mt-1">
+									<MapPin class="w-3.5 h-3.5 text-primary shrink-0" />
+									<span class="truncate">{item.lokasiNama}</span>
+									{#if item.radiusMeter}
+										<span class="text-foreground/45">({item.radiusMeter}m)</span>
+									{/if}
+								</div>
+							{/if}
+						</div>
+
+						<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary shrink-0">
+							<Users class="w-3.5 h-3.5" />
+							{item.totalHadir} Hadir
+						</span>
+					</div>
+
+					{#if item.kelompokNama}
+						<div class="text-xs text-foreground/60 pt-1 border-t border-border/50">
+							Kelompok: <span class="font-medium text-foreground">{item.kelompokNama}</span>
+						</div>
+					{/if}
+
+					<!-- Tombol Aksi Thumb-Friendly -->
+					<div class="grid grid-cols-2 gap-2 pt-1">
+						<a
+							href={`/admin/presensi/${item.id}`}
+							class="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground font-semibold text-xs transition-colors border border-border/60"
+						>
+							<SquareCheck class="w-4 h-4 text-primary" />
+							<span>Checklist</span>
+						</a>
+
+						<a
+							href={`/admin/presensi/${item.id}/scan`}
+							class="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary font-semibold text-xs transition-colors border border-primary/20"
+						>
+							<QrCode class="w-4 h-4" />
+							<span>Scan QR</span>
+						</a>
+					</div>
+				</div>
+			{/each}
+		</div>
+
+		<!-- 2. Tampilan Desktop: Tabel Data Lengkap -->
+		<div class="hidden md:block bg-card border border-border rounded-xl overflow-hidden shadow-sm">
+			<div class="overflow-x-auto">
+				<table class="w-full text-left text-sm">
+					<thead class="bg-secondary/60 text-foreground/70 uppercase text-xs tracking-wider border-b border-border">
 						<tr>
-							<td colspan="5" class="py-12 text-center text-foreground/50">
-								Belum ada jadwal kegiatan pengajian. Buat jadwal baru untuk memulai presensi.
-							</td>
+							<th class="py-3 px-4 font-semibold">Tanggal</th>
+							<th class="py-3 px-4 font-semibold">Kegiatan & Lokasi</th>
+							<th class="py-3 px-4 font-semibold">Kelompok</th>
+							<th class="py-3 px-4 font-semibold">Kehadiran</th>
+							<th class="py-3 px-4 font-semibold text-right">Aksi Input Presensi</th>
 						</tr>
-					{:else}
+					</thead>
+					<tbody class="divide-y divide-border">
 						{#each filteredJadwal as item}
 							<tr class="hover:bg-secondary/30 transition-colors">
 								<td class="py-3.5 px-4 font-mono font-medium text-foreground">{formatDateDDMMYYYY(item.tanggal)}</td>
 								<td class="py-3.5 px-4">
 									<div class="font-semibold text-foreground">{item.namaKegiatan}</div>
 									{#if item.lokasiNama}
-										<div class="text-[11px] text-foreground/60 flex items-center gap-1 mt-0.5">
-											<MapPin class="w-3 h-3 text-primary shrink-0" />
+										<div class="text-xs text-foreground/60 flex items-center gap-1 mt-0.5">
+											<MapPin class="w-3.5 h-3.5 text-primary shrink-0" />
 											<span class="truncate max-w-[200px]">{item.lokasiNama}</span>
 											{#if item.radiusMeter}
-												<span class="text-[10px] text-foreground/45">({item.radiusMeter}m)</span>
+												<span class="text-foreground/45 text-xs">({item.radiusMeter}m)</span>
 											{/if}
 										</div>
 									{/if}
 								</td>
 								<td class="py-3.5 px-4 text-foreground/70">{item.kelompokNama || '-'}</td>
 								<td class="py-3.5 px-4">
-									<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-primary/10 text-primary">
-										<Users class="w-3 h-3" />
+									<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary">
+										<Users class="w-3.5 h-3.5" />
 										{item.totalHadir} Hadir
 									</span>
 								</td>
 								<td class="py-3.5 px-4 text-right space-x-1.5">
 									<a
 										href={`/admin/presensi/${item.id}`}
-										class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground font-medium text-xs transition-colors"
+										class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground font-semibold text-xs transition-colors"
 										title="Checklist Manual"
 									>
 										<SquareCheck class="w-3.5 h-3.5 text-primary" />
@@ -196,7 +252,7 @@
 
 									<a
 										href={`/admin/presensi/${item.id}/scan`}
-										class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-medium text-xs transition-colors"
+										class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-semibold text-xs transition-colors"
 										title="Pindai QR Code"
 									>
 										<QrCode class="w-3.5 h-3.5" />
@@ -205,11 +261,11 @@
 								</td>
 							</tr>
 						{/each}
-					{/if}
-				</tbody>
-			</table>
+					</tbody>
+				</table>
+			</div>
 		</div>
-	</div>
+	{/if}
 </div>
 
 <!-- Modal Buat Jadwal Baru -->
