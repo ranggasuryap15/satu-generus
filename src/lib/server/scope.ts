@@ -29,9 +29,11 @@ export interface AccessibleWilayah {
 /**
  * Menganalisis wewenang tertinggi dari daftar role seorang admin
  */
-export function getAdminScope(roles: App.UserRole[]): AdminScope {
+export function getAdminScope(roles: App.UserRole[] = []): AdminScope {
+	const safeRoles = Array.isArray(roles) ? roles : [];
+
 	// 1. Cek tingkat Pusat (Superadmin / Pengurus Pusat)
-	const hasPusat = roles.some(
+	const hasPusat = safeRoles.some(
 		(r) => r.tingkatScope === 'Pusat' || r.namaDapukan === 'Superadmin'
 	);
 	if (hasPusat) {
@@ -45,7 +47,7 @@ export function getAdminScope(roles: App.UserRole[]): AdminScope {
 	}
 
 	// 2. Cek tingkat Daerah
-	const daerahRoles = roles.filter((r) => r.tingkatScope === 'Daerah' && r.daerahId !== null);
+	const daerahRoles = safeRoles.filter((r) => r.tingkatScope === 'Daerah' && r.daerahId !== null);
 	if (daerahRoles.length > 0) {
 		const daerahIds = Array.from(new Set(daerahRoles.map((r) => r.daerahId as number)));
 		return {
@@ -58,7 +60,7 @@ export function getAdminScope(roles: App.UserRole[]): AdminScope {
 	}
 
 	// 3. Cek tingkat Desa
-	const desaRoles = roles.filter((r) => r.tingkatScope === 'Desa' && r.desaId !== null);
+	const desaRoles = safeRoles.filter((r) => r.tingkatScope === 'Desa' && r.desaId !== null);
 	if (desaRoles.length > 0) {
 		const desaIds = Array.from(new Set(desaRoles.map((r) => r.desaId as number)));
 		return {
@@ -71,7 +73,7 @@ export function getAdminScope(roles: App.UserRole[]): AdminScope {
 	}
 
 	// 4. Cek tingkat Kelompok
-	const kelompokRoles = roles.filter((r) => r.tingkatScope === 'Kelompok' && r.kelompokId !== null);
+	const kelompokRoles = safeRoles.filter((r) => r.tingkatScope === 'Kelompok' && r.kelompokId !== null);
 	const kelompokIds = Array.from(new Set(kelompokRoles.map((r) => r.kelompokId as number)));
 	return {
 		level: 'Kelompok',

@@ -1,8 +1,8 @@
 /**
  * @file src/routes/(admin)/+layout.server.ts
- * @purpose Layout server load untuk area admin: memvalidasi hak akses admin dan memuat rekap notifikasi permohonan izin/sakit yang membutuhkan persetujuan
- * @usedBy src/routes/(admin)/+layout.svelte dan komponen navigasi AdminTopBar / AdminSidebar
- * @dependencies @sveltejs/kit, src/lib/db, src/lib/db/schema, drizzle-orm
+ * @purpose Layout server load untuk area admin: memvalidasi akses admin, memuat wewenang scope (adminScope), dan rekap notifikasi approval
+ * @usedBy src/routes/(admin)/+layout.svelte dan seluruh subhalaman admin
+ * @dependencies @sveltejs/kit, src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm
  * @publicFunctions load
  * @sideEffects DB read ke tabel presensi_kehadiran, users, presensi_jadwal, dan kelompok dengan filter status_approval 'Menunggu Persetujuan'
  */
@@ -11,12 +11,15 @@ import { redirect } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
 import { db } from '$lib/db';
 import { presensiKehadiran, presensiJadwal, users, kelompok } from '$lib/db/schema';
+import { getAdminScope } from '$lib/server/scope';
 import { count, desc, eq } from 'drizzle-orm';
 
 export const load: LayoutServerLoad = async ({ locals }) => {
 	if (!locals.user || !locals.isAdmin) {
 		throw redirect(303, '/login');
 	}
+
+	const adminScope = getAdminScope(locals.roles || []);
 
 	// 1. Agregasi jumlah total permohonan izin/sakit yang menunggu approval (cepat & minimum I/O memanfaatkan index status_approval)
 	const [pendingCountRes] = db
@@ -52,6 +55,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		.all();
 
 	return {
+		adminScope,
 		totalPendingApprovals,
 		pendingApprovalList
 	};
