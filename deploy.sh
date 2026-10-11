@@ -15,6 +15,6 @@ echo "=== Restart Service ==="
 # Jika menggunakan Docker:
 docker compose restart app
 # Atau jika menggunakan PM2/Node langsung:
-# pm2 restart satu-generus
+pm2 restart satu-generus
 
 echo "=== Deployment Selesai! ==="
