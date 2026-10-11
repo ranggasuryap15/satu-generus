@@ -579,6 +579,8 @@ export const actions: Actions = {
 		const radiusMeterRaw = parseInt(formData.get('radiusMeter')?.toString() || '100', 10);
 		const radiusMeter = isNaN(radiusMeterRaw) ? 100 : radiusMeterRaw;
 		const gmapsUrl = formData.get('gmapsUrl')?.toString()?.trim() || null;
+		const lokasiKelompokIdRaw = formData.get('lokasiKelompokId')?.toString()?.trim();
+		const lokasiKelompokId = lokasiKelompokIdRaw && lokasiKelompokIdRaw !== '' ? parseInt(lokasiKelompokIdRaw, 10) : null;
 
 		if (!desaId) {
 			return fail(400, { error: 'ID Desa tidak valid.' });
@@ -601,7 +603,8 @@ export const actions: Actions = {
 					latitude,
 					longitude,
 					radiusMeter,
-					gmapsUrl
+					gmapsUrl,
+					lokasiKelompokId
 				})
 				.where(eq(desa.id, desaId))
 				.run();

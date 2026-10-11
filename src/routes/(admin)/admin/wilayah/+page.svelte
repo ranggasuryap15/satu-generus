@@ -1,9 +1,9 @@
 <!--
   @file src/routes/(admin)/admin/wilayah/+page.svelte
-  @purpose Halaman manajemen Data Wilayah lengkap dengan 1 tombol Tambah Wilayah cerdas (dropdown search & auto-create hierarki Daerah -> Desa -> Kelompok -> Sub-Kelompok), modal detail desa & kelompok dengan Leaflet LocationPicker, kontrol RBAC visual, checklist hapus massal & single delete
+  @purpose Halaman manajemen Data Wilayah lengkap dengan 1 tombol Tambah Wilayah cerdas (dropdown search & auto-create hierarki Daerah -> Desa -> Kelompok -> Sub-Kelompok), modal detail desa & kelompok dengan Leaflet LocationPicker, fitur 'Hubungkan ke Lokasi' desa ke kelompok terhubung, kontrol RBAC visual, checklist hapus massal & single delete
   @usedBy Route admin '/admin/wilayah'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/LocationPicker.svelte, $app/forms (enhance)
-  @publicFunctions openUnifiedAddModal, closeUnifiedAddModal, openKelompokDetail, closeKelompokDetail, openDesaDetail, closeDesaDetail, resetFilter, toggleSelectKelompok, toggleSelectAllKelompok, openDeleteSingleKelompok, openDeleteBatchKelompok, closeDeleteModal
+  @publicFunctions openUnifiedAddModal, closeUnifiedAddModal, openKelompokDetail, closeKelompokDetail, openDesaDetail, closeDesaDetail, handleConnectToKelompok, handleDisconnectKelompok, resetFilter, toggleSelectKelompok, toggleSelectAllKelompok, openDeleteSingleKelompok, openDeleteBatchKelompok, closeDeleteModal
   @sideEffects Menampilkan data wilayah sesuai scope RBAC, menyaring data, mengelola lokasi kelompok & desa dengan Leaflet, dan mengirim update/create/delete ke server via enhance
 -->
 <script lang="ts">
@@ -30,7 +30,9 @@
 		Trash2,
 		AlertTriangle,
 		CheckSquare,
-		Check
+		Check,
+		Link2,
+		Link2Off
 	} from '@lucide/svelte';
 	import type { ActionData, PageData } from './$types';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
@@ -144,6 +146,35 @@
 	let editDesaLongitude = $state('');
 	let editDesaRadiusMeter = $state(100);
 	let editDesaGmapsUrl = $state('');
+	let editDesaLokasiKelompokId = $state<number | null>(null);
+
+	const connectedKelompokObj = $derived(
+		editDesaLokasiKelompokId
+			? (data.kelompokList || []).find((k: any) => k.id === editDesaLokasiKelompokId)
+			: null
+	);
+
+	const kelompokLinkOptions = $derived(
+		(data.kelompokList || [])
+			.map((k: any) => {
+				const isUnderThisDesa = Boolean(selectedDesa && k.desaId === selectedDesa.id);
+				const statusLoc = k.latitude && k.longitude ? 'GPS Tersedia' : 'Belum Ada GPS';
+				const sublabel = isUnderThisDesa
+					? `Basis Desa Ini • ${k.lokasiNama || statusLoc}`
+					: `Desa ${k.desaNama || '-'} • ${k.lokasiNama || statusLoc}`;
+				return {
+					value: k.id,
+					label: k.nama,
+					sublabel,
+					isUnderThisDesa
+				};
+			})
+			.sort((a: any, b: any) => {
+				if (a.isUnderThisDesa && !b.isUnderThisDesa) return -1;
+				if (!a.isUnderThisDesa && b.isUnderThisDesa) return 1;
+				return a.label.localeCompare(b.label);
+			})
+	);
 
 	function openDesaDetail(d: (typeof data.desaList)[number]) {
 		selectedDesa = d;
@@ -152,12 +183,45 @@
 		editDesaLongitude = d.longitude || '';
 		editDesaRadiusMeter = d.radiusMeter || 100;
 		editDesaGmapsUrl = d.gmapsUrl || '';
+		editDesaLokasiKelompokId = (d as any).lokasiKelompokId || null;
 		showDesaDetailModal = true;
 	}
 
 	function closeDesaDetail() {
 		showDesaDetailModal = false;
 		selectedDesa = null;
+		editDesaLokasiKelompokId = null;
+	}
+
+	function handleConnectToKelompok(val: string | number) {
+		if (!val) {
+			editDesaLokasiKelompokId = null;
+			return;
+		}
+		const kId = Number(val);
+		const targetKelompok = (data.kelompokList || []).find((k: any) => k.id === kId);
+		if (!targetKelompok) return;
+
+		editDesaLokasiKelompokId = targetKelompok.id;
+		if (targetKelompok.lokasiNama) {
+			editDesaLokasiNama = targetKelompok.lokasiNama;
+		} else {
+			editDesaLokasiNama = `Masjid/Tempat ${targetKelompok.nama}`;
+		}
+		if (targetKelompok.latitude && targetKelompok.longitude) {
+			editDesaLatitude = targetKelompok.latitude;
+			editDesaLongitude = targetKelompok.longitude;
+		}
+		editDesaRadiusMeter = targetKelompok.radiusMeter || 100;
+		if (targetKelompok.gmapsUrl) {
+			editDesaGmapsUrl = targetKelompok.gmapsUrl;
+		} else if (targetKelompok.latitude && targetKelompok.longitude) {
+			editDesaGmapsUrl = `https://www.google.com/maps?q=${targetKelompok.latitude},${targetKelompok.longitude}`;
+		}
+	}
+
+	function handleDisconnectKelompok() {
+		editDesaLokasiKelompokId = null;
 	}
 
 	// Form Tambah Lama
@@ -1738,6 +1802,69 @@
 						<input type="hidden" name="longitude" value={editDesaLongitude} />
 						<input type="hidden" name="radiusMeter" value={editDesaRadiusMeter} />
 						<input type="hidden" name="gmapsUrl" value={editDesaGmapsUrl} />
+						<input type="hidden" name="lokasiKelompokId" value={editDesaLokasiKelompokId || ''} />
+
+						<!-- Fitur: Hubungkan ke Lokasi Kelompok -->
+						<div class="bg-secondary/40 border border-border/80 rounded-xl p-3 sm:p-3.5 space-y-2.5">
+							<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+								<div class="flex items-center gap-2">
+									<div class="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+										<Link2 class="w-4 h-4" />
+									</div>
+									<div>
+										<span class="font-bold text-foreground text-xs flex items-center gap-1.5">
+											Hubungkan ke Lokasi Kelompok
+										</span>
+										<p class="text-[11px] text-foreground/60 leading-tight">
+											Pilih kelompok jika kegiatan desa bertempat di masjid atau lokasi yang sama dengan kelompok tertentu.
+										</p>
+									</div>
+								</div>
+
+								{#if editDesaLokasiKelompokId && connectedKelompokObj}
+									<button
+										type="button"
+										onclick={handleDisconnectKelompok}
+										class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-border bg-card hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 text-[11px] font-semibold text-foreground/70 transition-colors cursor-pointer self-start sm:self-auto shrink-0"
+										title="Putuskan hubungan lokasi kelompok dan atur manual"
+									>
+										<Link2Off class="w-3.5 h-3.5" />
+										<span>Atur Mandiri / Lepas</span>
+									</button>
+								{/if}
+							</div>
+
+							<div class="max-w-md">
+								<SearchableSelect
+									id="linkKelompokSelect"
+									name="linkKelompokSelect"
+									options={kelompokLinkOptions}
+									value={editDesaLokasiKelompokId || ''}
+									onchange={(val) => handleConnectToKelompok(val)}
+									placeholder="-- Cari / Pilih Kelompok untuk Dihubungkan --"
+									searchPlaceholder="Ketik nama kelompok atau desa..."
+								/>
+							</div>
+
+							{#if connectedKelompokObj}
+								<div class="bg-primary/5 border border-primary/20 rounded-lg p-2.5 flex items-start gap-2 text-[11px] text-foreground/80">
+									<CheckCircle2 class="w-4 h-4 text-primary shrink-0 mt-0.5" />
+									<div class="space-y-0.5 leading-snug flex-1">
+										<p class="font-semibold text-foreground">
+											Terhubung dengan Kelompok: <span class="text-primary font-bold">{connectedKelompokObj.nama}</span>
+										</p>
+										<p class="text-foreground/60 text-[10.5px]">
+											Lokasi: {connectedKelompokObj.lokasiNama || 'Masjid/Tempat Kelompok'}
+											{#if connectedKelompokObj.latitude && connectedKelompokObj.longitude}
+												• Titik GPS: {connectedKelompokObj.latitude}, {connectedKelompokObj.longitude} (&plusmn;{connectedKelompokObj.radiusMeter || 100}m)
+											{:else}
+												• <span class="text-amber-600 dark:text-amber-400 font-semibold">Kelompok ini belum memiliki koordinat GPS, silakan tentukan titiknya pada peta di bawah</span>
+											{/if}
+										</p>
+									</div>
+								</div>
+							{/if}
+						</div>
 
 						<!-- Komponen Peta Interaktif Leaflet + Draggable Pin + Pencarian + Link GMaps -->
 						<LocationPicker

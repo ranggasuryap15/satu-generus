@@ -1,13 +1,13 @@
 /**
  * @file src/routes/(admin)/admin/jadwal/+page.server.ts
- * @purpose Server load & actions untuk pengelolaan jadwal pengajian bertingkat (Desa & Kelompok), penanganan tab aktif (currentTab) via URL parameter, template siklus rutin, generator sesi bulanan dengan pewarisan lokasi default Desa & Kelompok, serta override perubahan jadwal insidental
+ * @purpose Server load & actions untuk pengelolaan jadwal pengajian bertingkat (Desa & Kelompok), persistensi state tab & ID terpilih via URL parameter & cookies agar tidak ter-reset, template siklus rutin, generator sesi bulanan dengan pewarisan lokasi default Desa & Kelompok, serta override perubahan jadwal insidental
  * @usedBy src/routes/(admin)/admin/jadwal/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, src/lib/jadwal, drizzle-orm
  * @publicFunctions load, actions.saveTemplate, actions.deleteTemplate, actions.generateSesiBulanan, actions.createSesiManual, actions.updateSesiOverride, actions.deleteSesi
- * @sideEffects Menulis dan membaca tabel jadwal_pengajian_template dan presensi_jadwal di SQLite
+ * @sideEffects Menulis dan membaca tabel jadwal_pengajian_template dan presensi_jadwal di SQLite, serta menyimpan preferensi tab aktif di cookies
  */
 
-import { fail, redirect } from '@sveltejs/kit';
+import { fail, redirect, type Cookies } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '$lib/db';
 import { jadwalPengajianTemplate, presensiJadwal, kelompok, desa } from '$lib/db/schema';
@@ -16,7 +16,24 @@ import { hitungTanggalSesiBulanan } from '$lib/jadwal';
 import { normalizeDateToISO } from '$lib/utils';
 import { eq, and, desc, asc } from 'drizzle-orm';
 
-export const load: PageServerLoad = async ({ locals, url }) => {
+const COOKIE_OPTS = { path: '/', httpOnly: false, sameSite: 'lax' as const, maxAge: 60 * 60 * 24 * 7 };
+
+function syncJadwalCookies(
+	cookies: Cookies,
+	scope: string | null | undefined,
+	desaId?: number | null,
+	kelompokId?: number | null
+) {
+	const tab = (scope || '').toLowerCase() === 'desa' ? 'desa' : 'kelompok';
+	cookies.set('admin_jadwal_tab', tab, COOKIE_OPTS);
+	if (tab === 'desa' && desaId) {
+		cookies.set('admin_jadwal_desa_id', String(desaId), COOKIE_OPTS);
+	} else if (tab === 'kelompok' && kelompokId) {
+		cookies.set('admin_jadwal_kelompok_id', String(kelompokId), COOKIE_OPTS);
+	}
+}
+
+export const load: PageServerLoad = async ({ locals, url, cookies }) => {
 	if (!locals.user || !locals.isAdmin) {
 		throw redirect(303, '/login');
 	}
@@ -28,12 +45,16 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const canManageDesa =
 		adminScope.level === 'Desa' || adminScope.level === 'Daerah' || adminScope.isPusat;
 
-	// Penentuan Tab aktif dari URL parameter (?tab=kelompok atau ?tab=desa)
+	// Penentuan Tab aktif dari URL parameter (?tab=kelompok atau ?tab=desa) atau cookie
+	const cookieTab = cookies.get('admin_jadwal_tab');
 	const urlTab = url.searchParams.get('tab');
-	const currentTab: 'desa' | 'kelompok' = isKelompokOnly || urlTab === 'kelompok' ? 'kelompok' : 'desa';
+	const effectiveTab = urlTab || cookieTab;
+	const currentTab: 'desa' | 'kelompok' = isKelompokOnly || effectiveTab === 'kelompok' ? 'kelompok' : 'desa';
+	cookies.set('admin_jadwal_tab', currentTab, { path: '/', httpOnly: false, sameSite: 'lax', maxAge: 60 * 60 * 24 * 7 });
 
 	// Penentuan Desa aktif
-	const urlDesaId = url.searchParams.get('desaId');
+	const cookieDesaId = cookies.get('admin_jadwal_desa_id');
+	const urlDesaId = url.searchParams.get('desaId') || cookieDesaId;
 	let selectedDesaId: number | null = null;
 	if (canManageDesa && accessibleWilayah.desaList.length > 0) {
 		if (urlDesaId && accessibleWilayah.desaList.some((d) => d.id === Number(urlDesaId))) {
@@ -41,10 +62,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		} else {
 			selectedDesaId = accessibleWilayah.desaList[0].id;
 		}
+		if (selectedDesaId) {
+			cookies.set('admin_jadwal_desa_id', String(selectedDesaId), { path: '/', httpOnly: false, sameSite: 'lax', maxAge: 60 * 60 * 24 * 7 });
+		}
 	}
 
 	// Penentuan Kelompok aktif
-	const urlKelompokId = url.searchParams.get('kelompokId');
+	const cookieKelompokId = cookies.get('admin_jadwal_kelompok_id');
+	const urlKelompokId = url.searchParams.get('kelompokId') || cookieKelompokId;
 	let selectedKelompokId: number | null = null;
 	if (accessibleWilayah.kelompokList.length > 0) {
 		if (urlKelompokId && accessibleWilayah.kelompokList.some((k) => k.id === Number(urlKelompokId))) {
@@ -55,6 +80,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			selectedKelompokId = locals.user.kelompokId;
 		} else {
 			selectedKelompokId = accessibleWilayah.kelompokList[0].id;
+		}
+		if (selectedKelompokId) {
+			cookies.set('admin_jadwal_kelompok_id', String(selectedKelompokId), { path: '/', httpOnly: false, sameSite: 'lax', maxAge: 60 * 60 * 24 * 7 });
 		}
 	}
 
@@ -140,7 +168,7 @@ export const actions: Actions = {
 	/**
 	 * Menyimpan atau memperbarui pola template pengajian rutin
 	 */
-	saveTemplate: async ({ request, locals }) => {
+	saveTemplate: async ({ request, locals, cookies }) => {
 		if (!locals.user || !locals.isAdmin) return fail(401, { error: 'Unauthorized' });
 
 		const formData = await request.formData();
@@ -186,6 +214,8 @@ export const actions: Actions = {
 				return fail(403, { error: 'Anda tidak memiliki wewenang untuk desa ini.' });
 			}
 		}
+
+		syncJadwalCookies(cookies, tingkatScope, desaId, kelompokId);
 
 		let finalLokasiNama = lokasiNama;
 		let finalGmapsUrl = gmapsUrl;
@@ -282,7 +312,7 @@ export const actions: Actions = {
 	/**
 	 * Menghapus template jadwal rutin
 	 */
-	deleteTemplate: async ({ request, locals }) => {
+	deleteTemplate: async ({ request, locals, cookies }) => {
 		if (!locals.user || !locals.isAdmin) return fail(401, { error: 'Unauthorized' });
 
 		const formData = await request.formData();
@@ -290,6 +320,10 @@ export const actions: Actions = {
 		if (!id) return fail(400, { error: 'ID template tidak valid.' });
 
 		try {
+			const existing = db.select().from(jadwalPengajianTemplate).where(eq(jadwalPengajianTemplate.id, id)).get();
+			if (existing) {
+				syncJadwalCookies(cookies, existing.tingkatScope, existing.desaId, existing.kelompokId);
+			}
 			db.delete(jadwalPengajianTemplate).where(eq(jadwalPengajianTemplate.id, id)).run();
 			return { success: true, message: 'Template jadwal berhasil dihapus.' };
 		} catch (err) {
@@ -301,7 +335,7 @@ export const actions: Actions = {
 	/**
 	 * Meng-generate sesi-sesi tanggal konkret untuk suatu bulan dari template rutin aktif
 	 */
-	generateSesiBulanan: async ({ request, locals }) => {
+	generateSesiBulanan: async ({ request, locals, cookies }) => {
 		if (!locals.user || !locals.isAdmin) return fail(401, { error: 'Unauthorized' });
 
 		const formData = await request.formData();
@@ -324,6 +358,8 @@ export const actions: Actions = {
 				return fail(403, { error: 'Anda tidak memiliki wewenang untuk desa ini.' });
 			}
 		}
+
+		syncJadwalCookies(cookies, tingkatScope, desaId, kelompokId);
 
 		// Ambil seluruh template aktif untuk scope ini
 		const templates = db
@@ -454,7 +490,7 @@ export const actions: Actions = {
 	/**
 	 * Membuat sesi jadwal pengajian manual / insidental
 	 */
-	createSesiManual: async ({ request, locals }) => {
+	createSesiManual: async ({ request, locals, cookies }) => {
 		if (!locals.user || !locals.isAdmin) return fail(401, { error: 'Unauthorized' });
 
 		const formData = await request.formData();
@@ -473,6 +509,8 @@ export const actions: Actions = {
 		if (!namaKegiatan) return fail(400, { error: 'Nama kegiatan wajib diisi.' });
 		if (!tanggalRaw) return fail(400, { error: 'Tanggal kegiatan wajib diisi.' });
 		if (!jamMulai) return fail(400, { error: 'Jam mulai kegiatan wajib diisi.' });
+
+		syncJadwalCookies(cookies, tingkatScope, desaId, kelompokId);
 
 		const tanggal = normalizeDateToISO(tanggalRaw);
 
@@ -546,7 +584,7 @@ export const actions: Actions = {
 	 * Mengubah 1 sesi jadwal pengajian mendadak (Single-Instance Override)
 	 * Tidak merusak template rutin maupun jadwal di tanggal lainnya!
 	 */
-	updateSesiOverride: async ({ request, locals }) => {
+	updateSesiOverride: async ({ request, locals, cookies }) => {
 		if (!locals.user || !locals.isAdmin) return fail(401, { error: 'Unauthorized' });
 
 		const formData = await request.formData();
@@ -565,6 +603,10 @@ export const actions: Actions = {
 		if (!jamMulai) return fail(400, { error: 'Jam mulai wajib diisi.' });
 
 		try {
+			const existing = db.select().from(presensiJadwal).where(eq(presensiJadwal.id, id)).get();
+			if (existing) {
+				syncJadwalCookies(cookies, existing.tingkatScope, existing.desaId, existing.kelompokId);
+			}
 			db.update(presensiJadwal)
 				.set({
 					jamMulai,
@@ -589,7 +631,7 @@ export const actions: Actions = {
 	/**
 	 * Menghapus satu sesi pengajian
 	 */
-	deleteSesi: async ({ request, locals }) => {
+	deleteSesi: async ({ request, locals, cookies }) => {
 		if (!locals.user || !locals.isAdmin) return fail(401, { error: 'Unauthorized' });
 
 		const formData = await request.formData();
@@ -597,6 +639,10 @@ export const actions: Actions = {
 		if (!id) return fail(400, { error: 'ID sesi tidak valid.' });
 
 		try {
+			const existing = db.select().from(presensiJadwal).where(eq(presensiJadwal.id, id)).get();
+			if (existing) {
+				syncJadwalCookies(cookies, existing.tingkatScope, existing.desaId, existing.kelompokId);
+			}
 			db.delete(presensiJadwal).where(eq(presensiJadwal.id, id)).run();
 			return { success: true, message: 'Sesi jadwal berhasil dihapus.' };
 		} catch (err) {

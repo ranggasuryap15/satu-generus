@@ -134,7 +134,7 @@
 	// Sinkronisasi reaktif selectedKeluarga ketika data mutasi berhasil
 	$effect(() => {
 		if (selectedKeluarga) {
-			const fresh = data.daftarKeluarga.find((item) => item.id === selectedKeluarga?.id);
+			const fresh = data.daftarKeluarga.find((item: any) => item.id === selectedKeluarga?.id);
 			if (fresh) {
 				selectedKeluarga = fresh;
 			}

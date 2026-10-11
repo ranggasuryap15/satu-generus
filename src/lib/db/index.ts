@@ -324,7 +324,8 @@ try {
 			latitude: 'TEXT',
 			longitude: 'TEXT',
 			radius_meter: 'INTEGER DEFAULT 100',
-			gmaps_url: 'TEXT'
+			gmaps_url: 'TEXT',
+			lokasi_kelompok_id: 'INTEGER'
 		};
 		for (const [colName, colDef] of Object.entries(newDesaCols)) {
 			if (!desaCols.includes(colName)) {

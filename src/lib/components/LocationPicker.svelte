@@ -175,6 +175,22 @@
 		}
 	});
 
+	// Update posisi marker & peta jika koordinat latitude/longitude diubah dari luar komponen (misal saat hubungkan ke lokasi kelompok)
+	$effect(() => {
+		if (mapInstance && markerInstance && circleInstance && latitude && longitude) {
+			const latNum = parseFloat(latitude);
+			const lngNum = parseFloat(longitude);
+			if (!isNaN(latNum) && !isNaN(lngNum)) {
+				const currentPos = markerInstance.getLatLng();
+				if (Math.abs(currentPos.lat - latNum) > 0.00001 || Math.abs(currentPos.lng - lngNum) > 0.00001) {
+					markerInstance.setLatLng([latNum, lngNum]);
+					circleInstance.setLatLng([latNum, lngNum]);
+					mapInstance.setView([latNum, lngNum], Math.max(mapInstance.getZoom() || 16, 16));
+				}
+			}
+		}
+	});
+
 	// 1. Pencarian Tempat (Geocoding via Nominatim OpenStreetMap)
 	async function searchPlace() {
 		const q = searchQuery.trim();

@@ -34,9 +34,13 @@ export const desa = sqliteTable(
 		latitude: text('latitude'),
 		longitude: text('longitude'),
 		radiusMeter: integer('radius_meter').default(100),
-		gmapsUrl: text('gmaps_url')
+		gmapsUrl: text('gmaps_url'),
+		lokasiKelompokId: integer('lokasi_kelompok_id')
 	},
-	(table) => [index('desa_daerah_id_idx').on(table.daerahId)]
+	(table) => [
+		index('desa_daerah_id_idx').on(table.daerahId),
+		index('desa_lokasi_kelompok_id_idx').on(table.lokasiKelompokId)
+	]
 );
 
 export const kelompok = sqliteTable(

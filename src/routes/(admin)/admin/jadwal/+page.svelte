@@ -1,9 +1,9 @@
 <!--
   @file src/routes/(admin)/admin/jadwal/+page.svelte
-  @purpose Antarmuka manajemen jadwal pengajian bertingkat (Desa & Kelompok), sinkronisasi tab aktif via URL query params, selector kelompok & desa tanpa refresh kasar, generator sesi bulanan, override mendadak, pewarisan lokasi default Desa & Kelompok pada sesi manual, dan WhatsApp reminder
+  @purpose Antarmuka manajemen jadwal pengajian bertingkat (Desa & Kelompok), sinkronisasi tab aktif via URL query params & cookies persisten tanpa refresh merusak state, helper getActionUrl penjaga query params form submit, selector kelompok & desa tanpa refresh kasar, generator sesi bulanan, override mendadak, pewarisan lokasi default Desa & Kelompok pada sesi manual, dan WhatsApp reminder
   @usedBy Route admin '/admin/jadwal'
   @dependencies @lucide/svelte, $app/forms, $app/navigation, $app/state, $lib/components/SearchableSelect.svelte, $lib/jadwal (getNamaHari, getMingguKe, formatDateIndoFull, formatWhatsAppReminder, generateWhatsAppLink, NAMA_HARI_INDO, NAMA_BULAN_INDO), Svelte 5 Runes
-  @publicFunctions switchTab, handleSelectKelompok, handleSelectDesa, openCreateTemplateModal, openEditTemplateModal, openOverrideModal, openWaModal, openGenerateModal, copyWaText
+  @publicFunctions getActionUrl, switchTab, handleSelectKelompok, handleSelectDesa, openCreateTemplateModal, openEditTemplateModal, openOverrideModal, openWaModal, openGenerateModal, copyWaText
   @sideEffects Mengirim server action POST untuk template & sesi jadwal, navigasi query client-side, dan menyalin teks ke clipboard pengguna
 -->
 <script lang="ts">
@@ -47,12 +47,26 @@
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
-	// Mode Tab Aktif: 'desa' atau 'kelompok' (tersinkronisasi penuh dengan URL parameter data.currentTab)
+	// Mode Tab Aktif: 'desa' atau 'kelompok' (tersinkronisasi penuh dengan URL parameter data.currentTab & cookies)
 	let activeTab = $state<'desa' | 'kelompok'>('desa');
 
 	$effect(() => {
-		activeTab = data.currentTab || (data.canManageDesa ? 'desa' : 'kelompok');
+		if (data.currentTab) {
+			activeTab = data.currentTab;
+		}
 	});
+
+	function getActionUrl(actionName: string, explicitScope?: 'Desa' | 'Kelompok') {
+		const targetTab = explicitScope ? (explicitScope === 'Desa' ? 'desa' : 'kelompok') : activeTab;
+		const params = new URLSearchParams();
+		params.set('tab', targetTab);
+		if (targetTab === 'kelompok' && data.selectedKelompokId) {
+			params.set('kelompokId', String(data.selectedKelompokId));
+		} else if (targetTab === 'desa' && data.selectedDesaId) {
+			params.set('desaId', String(data.selectedDesaId));
+		}
+		return `?${params.toString()}&/${actionName}`;
+	}
 
 	function switchTab(newTab: 'desa' | 'kelompok') {
 		activeTab = newTab;
@@ -63,6 +77,9 @@
 		} else if (newTab === 'desa' && data.selectedDesaId) {
 			targetUrl.searchParams.set('desaId', String(data.selectedDesaId));
 		}
+		for (const key of Array.from(targetUrl.searchParams.keys())) {
+			if (key.startsWith('/')) targetUrl.searchParams.delete(key);
+		}
 		goto(targetUrl.toString(), { reset: false });
 	}
 
@@ -70,6 +87,9 @@
 		const targetUrl = new URL(page.url.href);
 		targetUrl.searchParams.set('tab', 'kelompok');
 		targetUrl.searchParams.set('kelompokId', String(val));
+		for (const key of Array.from(targetUrl.searchParams.keys())) {
+			if (key.startsWith('/')) targetUrl.searchParams.delete(key);
+		}
 		goto(targetUrl.toString(), { reset: false });
 	}
 
@@ -77,6 +97,9 @@
 		const targetUrl = new URL(page.url.href);
 		targetUrl.searchParams.set('tab', 'desa');
 		targetUrl.searchParams.set('desaId', String(val));
+		for (const key of Array.from(targetUrl.searchParams.keys())) {
+			if (key.startsWith('/')) targetUrl.searchParams.delete(key);
+		}
 		goto(targetUrl.toString(), { reset: false });
 	}
 
@@ -507,7 +530,15 @@
 										<Edit3 class="w-3.5 h-3.5" />
 									</button>
 
-									<form method="POST" action="?/deleteTemplate" use:enhance>
+									<form
+										method="POST"
+										action={getActionUrl('deleteTemplate', 'Desa')}
+										use:enhance={() => {
+											return async ({ update }) => {
+												await update({ reset: false });
+											};
+										}}
+									>
 										<input type="hidden" name="id" value={tmpl.id} />
 										<button
 											type="submit"
@@ -643,7 +674,15 @@
 									</button>
 
 									<!-- Tombol Hapus Sesi -->
-									<form method="POST" action="?/deleteSesi" use:enhance>
+									<form
+										method="POST"
+										action={getActionUrl('deleteSesi', 'Desa')}
+										use:enhance={() => {
+											return async ({ update }) => {
+												await update({ reset: false });
+											};
+										}}
+									>
 										<input type="hidden" name="id" value={sesi.id} />
 										<button
 											type="submit"
@@ -794,7 +833,15 @@
 										<Edit3 class="w-3.5 h-3.5" />
 									</button>
 
-									<form method="POST" action="?/deleteTemplate" use:enhance>
+									<form
+										method="POST"
+										action={getActionUrl('deleteTemplate', 'Kelompok')}
+										use:enhance={() => {
+											return async ({ update }) => {
+												await update({ reset: false });
+											};
+										}}
+									>
 										<input type="hidden" name="id" value={tmpl.id} />
 										<button
 											type="submit"
@@ -930,7 +977,15 @@
 									</button>
 
 									<!-- Tombol Hapus Sesi -->
-									<form method="POST" action="?/deleteSesi" use:enhance>
+									<form
+										method="POST"
+										action={getActionUrl('deleteSesi', 'Kelompok')}
+										use:enhance={() => {
+											return async ({ update }) => {
+												await update({ reset: false });
+											};
+										}}
+									>
 										<input type="hidden" name="id" value={sesi.id} />
 										<button
 											type="submit"
@@ -979,13 +1034,15 @@
 
 			<form
 				method="POST"
-				action="?/saveTemplate"
+				action={getActionUrl('saveTemplate', editingTemplate?.tingkatScope)}
 				use:enhance={() => {
 					isSubmitting = true;
-					return async ({ update }) => {
+					return async ({ update, result }) => {
 						isSubmitting = false;
-						showTemplateModal = false;
-						await update();
+						if (result.type === 'success') {
+							showTemplateModal = false;
+						}
+						await update({ reset: false });
 					};
 				}}
 				class="space-y-3.5 text-xs"
@@ -1189,13 +1246,15 @@
 
 			<form
 				method="POST"
-				action="?/updateSesiOverride"
+				action={getActionUrl('updateSesiOverride', editingSesi?.tingkatScope)}
 				use:enhance={() => {
 					isSubmitting = true;
-					return async ({ update }) => {
+					return async ({ update, result }) => {
 						isSubmitting = false;
-						showOverrideModal = false;
-						await update();
+						if (result.type === 'success') {
+							showOverrideModal = false;
+						}
+						await update({ reset: false });
 					};
 				}}
 				class="space-y-3.5 text-xs"
@@ -1361,13 +1420,15 @@
 
 			<form
 				method="POST"
-				action="?/createSesiManual"
+				action={getActionUrl('createSesiManual', createSesiScope)}
 				use:enhance={() => {
 					isSubmitting = true;
-					return async ({ update }) => {
+					return async ({ update, result }) => {
 						isSubmitting = false;
-						showCreateSesiModal = false;
-						await update();
+						if (result.type === 'success') {
+							showCreateSesiModal = false;
+						}
+						await update({ reset: false });
 					};
 				}}
 				class="space-y-3.5 text-xs"
@@ -1548,13 +1609,15 @@
 
 			<form
 				method="POST"
-				action="?/generateSesiBulanan"
+				action={getActionUrl('generateSesiBulanan', generateScope)}
 				use:enhance={() => {
 					isSubmitting = true;
-					return async ({ update }) => {
+					return async ({ update, result }) => {
 						isSubmitting = false;
-						showGenerateModal = false;
-						await update();
+						if (result.type === 'success') {
+							showGenerateModal = false;
+						}
+						await update({ reset: false });
 					};
 				}}
 				class="space-y-3.5 text-xs"
