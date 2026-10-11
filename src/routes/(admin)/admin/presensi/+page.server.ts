@@ -1,29 +1,67 @@
 /**
  * @file src/routes/(admin)/admin/presensi/+page.server.ts
- * @purpose Memuat seluruh jadwal pengajian dan menangani aksi pembuatan jadwal kegiatan baru bagi admin
+ * @purpose Memuat seluruh jadwal pengajian dan menangani aksi pembuatan jadwal kegiatan baru bagi admin dengan pembatasan wewenang scope wilayah
  * @usedBy src/routes/(admin)/admin/presensi/+page.svelte
- * @dependencies src/lib/db, src/lib/db/schema, src/lib/utils (normalizeDateToISO), drizzle-orm
+ * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, src/lib/utils (normalizeDateToISO), drizzle-orm
  * @publicFunctions load, actions.createJadwal
- * @sideEffects Query jadwal & rekap kehadiran, insert jadwal pengajian baru ke SQLite
+ * @sideEffects Query jadwal & rekap kehadiran sesuai scope, insert jadwal pengajian baru ke SQLite
  */
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '$lib/db';
 import { presensiJadwal, presensiKehadiran, kelompok } from '$lib/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, inArray, or } from 'drizzle-orm';
 import { normalizeDateToISO } from '$lib/utils';
+import { getAdminScope, getAccessibleWilayah, isKelompokAllowed } from '$lib/server/scope';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user || !locals.isAdmin) {
 		throw redirect(303, '/login');
 	}
 
-	// Query daftar kelompok yang tersedia
-	const kelompokList = db.select().from(kelompok).all();
+	const adminScope = getAdminScope(locals.roles || []);
+	const accessibleWilayah = getAccessibleWilayah(adminScope);
 
-	// Query daftar jadwal kegiatan join kelompok
-	const rawJadwal = db
+	// 1. Query daftar kelompok yang dapat diakses oleh admin
+	let kelompokList = accessibleWilayah.kelompokList;
+	if (adminScope.isPusat) {
+		kelompokList = db.select().from(kelompok).all();
+	}
+
+	// 2. Query jadwal kegiatan sesuai scope
+	let jadwalCondition;
+	if (adminScope.isPusat) {
+		jadwalCondition = undefined;
+	} else {
+		const allowedKelompokIds = Array.from(accessibleWilayah.allowedKelompokIdSet);
+		if (allowedKelompokIds.length === 0) {
+			return { kelompokList: [], daftarJadwal: [] };
+		}
+
+		if (adminScope.level === 'Kelompok') {
+			jadwalCondition = inArray(presensiJadwal.kelompokId, allowedKelompokIds);
+		} else if (adminScope.level === 'Desa') {
+			jadwalCondition =
+				adminScope.desaIds.length > 0
+					? or(
+							inArray(presensiJadwal.desaId, adminScope.desaIds),
+							inArray(presensiJadwal.kelompokId, allowedKelompokIds)
+						)
+					: inArray(presensiJadwal.kelompokId, allowedKelompokIds);
+		} else {
+			const allowedDesaIds = accessibleWilayah.desaList.map((d) => d.id);
+			jadwalCondition =
+				allowedDesaIds.length > 0
+					? or(
+							inArray(presensiJadwal.desaId, allowedDesaIds),
+							inArray(presensiJadwal.kelompokId, allowedKelompokIds)
+						)
+					: inArray(presensiJadwal.kelompokId, allowedKelompokIds);
+		}
+	}
+
+	const query = db
 		.select({
 			id: presensiJadwal.id,
 			kelompokId: presensiJadwal.kelompokId,
@@ -38,11 +76,20 @@ export const load: PageServerLoad = async ({ locals }) => {
 		})
 		.from(presensiJadwal)
 		.leftJoin(kelompok, eq(presensiJadwal.kelompokId, kelompok.id))
-		.orderBy(desc(presensiJadwal.tanggal))
-		.all();
+		.orderBy(desc(presensiJadwal.tanggal));
 
-	// Ambil rekap kehadiran per jadwal
-	const rawKehadiran = db.select().from(presensiKehadiran).all();
+	const rawJadwal = jadwalCondition ? query.where(jadwalCondition).all() : query.all();
+
+	// Rekap kehadiran untuk jadwal yang ditampilkan saja (minimum I/O)
+	const jadwalIds = rawJadwal.map((j) => j.id);
+	const rawKehadiran =
+		jadwalIds.length > 0
+			? db
+					.select()
+					.from(presensiKehadiran)
+					.where(inArray(presensiKehadiran.jadwalId, jadwalIds))
+					.all()
+			: [];
 
 	const daftarJadwal = rawJadwal.map((j) => {
 		const kehadiranTerkait = rawKehadiran.filter((k) => k.jadwalId === j.id);
@@ -66,6 +113,9 @@ export const actions: Actions = {
 			return fail(403, { error: 'Akses ditolak.' });
 		}
 
+		const adminScope = getAdminScope(locals.roles || []);
+		const accessibleWilayah = getAccessibleWilayah(adminScope);
+
 		const formData = await request.formData();
 		const namaKegiatan = formData.get('namaKegiatan')?.toString()?.trim() || '';
 		const tanggal = formData.get('tanggal')?.toString()?.trim() || '';
@@ -81,6 +131,12 @@ export const actions: Actions = {
 		if (!namaKegiatan || !tanggal || isNaN(kelompokId)) {
 			return fail(400, {
 				error: 'Nama kegiatan, tanggal, dan kelompok wajib diisi.'
+			});
+		}
+
+		if (!isKelompokAllowed(kelompokId, accessibleWilayah.allowedKelompokIdSet, adminScope.isPusat)) {
+			return fail(403, {
+				error: 'Akses ditolak: Anda tidak memiliki wewenang untuk membuat jadwal di kelompok ini.'
 			});
 		}
 

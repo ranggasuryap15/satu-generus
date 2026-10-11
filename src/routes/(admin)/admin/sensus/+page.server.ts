@@ -125,7 +125,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			if (isPengurus) totalPengurus++;
 
 			const primaryRole = userRoles[0];
-			const jabatanNama = primaryRole
+			const dapukanNama = primaryRole
 				? primaryRole.namaDapukanCustom || primaryRole.dapukanNama || 'Pengurus'
 				: 'Jamaah Biasa';
 
@@ -185,7 +185,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 				daerahNama: k.daerahNama || '-',
 				is4S,
 				isPengurus,
-				jabatanNama,
+				dapukanNama,
 				jumlahAnggota: anggotaFormatted.length,
 				anggota: anggotaFormatted
 			};

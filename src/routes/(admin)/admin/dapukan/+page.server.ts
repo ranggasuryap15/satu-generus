@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(admin)/admin/dapukan/+page.server.ts
- * @purpose Memuat daftar struktur dapukan/jabatan, penugasan RBAC pengurus dengan proteksi hierarki wilayah jamaah, serta mutasi penugasan (khusus 4S Kyai / Sekretaris / Penerobos pada tingkat kelompok)
+ * @purpose Memuat daftar struktur dapukan, penugasan RBAC pengurus dengan proteksi hierarki wilayah jamaah, serta mutasi penugasan (khusus 4S Kyai / Sekretaris / Penerobos pada tingkat kelompok)
  * @usedBy src/routes/(admin)/admin/dapukan/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm
  * @publicFunctions load, actions.assignDapukan, actions.removeDapukan
@@ -101,7 +101,7 @@ export const actions: Actions = {
 
 		if (!canManageDapukan(locals.roles || [])) {
 			return fail(403, {
-				error: 'Akses ditolak: Pada tingkat kelompok, hanya pengurus 4S dengan jabatan Kyai atau Sekretaris / Penerobos yang dapat menugaskan pengurus baru.'
+				error: 'Akses ditolak: Pada tingkat kelompok, hanya pengurus 4S dengan dapukan Kyai atau Sekretaris / Penerobos yang dapat menugaskan pengurus baru.'
 			});
 		}
 
@@ -110,7 +110,7 @@ export const actions: Actions = {
 
 		const formData = await request.formData();
 		const userId = formData.get('userId')?.toString()?.trim() || '';
-		const tipeJabatan = formData.get('tipeJabatan')?.toString() || 'tetap'; // 'tetap' | 'custom'
+		const tipeDapukan = formData.get('tipeDapukan')?.toString() || 'tetap'; // 'tetap' | 'custom'
 		const dapukanIdStr = formData.get('dapukanId')?.toString() || '';
 		const namaDapukanCustom = formData.get('namaDapukanCustom')?.toString()?.trim() || null;
 		const tingkatScope = formData.get('tingkatScope')?.toString() || 'Kelompok';
@@ -159,12 +159,12 @@ export const actions: Actions = {
 			return fail(400, { error: 'Data jamaah tidak ditemukan.' });
 		}
 
-		const dapukanId = tipeJabatan === 'tetap' && dapukanIdStr ? parseInt(dapukanIdStr, 10) : null;
-		if (tipeJabatan === 'tetap' && !dapukanId) {
-			return fail(400, { error: 'Pilih jabatan tetap master data.' });
+		const dapukanId = tipeDapukan === 'tetap' && dapukanIdStr ? parseInt(dapukanIdStr, 10) : null;
+		if (tipeDapukan === 'tetap' && !dapukanId) {
+			return fail(400, { error: 'Pilih dapukan tetap master data.' });
 		}
-		if (tipeJabatan === 'custom' && !namaDapukanCustom) {
-			return fail(400, { error: 'Tulis nama jabatan tentatif / kepanitiaan kustom.' });
+		if (tipeDapukan === 'custom' && !namaDapukanCustom) {
+			return fail(400, { error: 'Tulis nama dapukan tentatif / kepanitiaan kustom.' });
 		}
 
 		let finalKelompokId: number | null = null;
@@ -229,7 +229,7 @@ export const actions: Actions = {
 				.values({
 					userId,
 					dapukanId,
-					namaDapukanCustom: tipeJabatan === 'custom' ? namaDapukanCustom : null,
+					namaDapukanCustom: tipeDapukan === 'custom' ? namaDapukanCustom : null,
 					tingkatScope,
 					daerahId: finalDaerahId,
 					desaId: finalDesaId,
@@ -251,7 +251,7 @@ export const actions: Actions = {
 
 		if (!canManageDapukan(locals.roles || [])) {
 			return fail(403, {
-				error: 'Akses ditolak: Pada tingkat kelompok, hanya pengurus 4S dengan jabatan Kyai atau Sekretaris / Penerobos yang dapat mencabut penugasan pengurus.'
+				error: 'Akses ditolak: Pada tingkat kelompok, hanya pengurus 4S dengan dapukan Kyai atau Sekretaris / Penerobos yang dapat mencabut penugasan pengurus.'
 			});
 		}
 

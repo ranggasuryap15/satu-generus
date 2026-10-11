@@ -1,10 +1,10 @@
 /**
  * @file src/routes/(admin)/admin/presensi/[jadwalId]/+page.server.ts
- * @purpose Memuat daftar checklist absensi jamaah per jadwal, verifikasi bukti foto/lokasi, menangani approval izin/sakit, dan update status manual
+ * @purpose Memuat daftar checklist absensi jamaah per jadwal dengan proteksi scope wilayah admin, verifikasi bukti foto/lokasi, menangani approval izin/sakit, dan update status manual
  * @usedBy src/routes/(admin)/admin/presensi/[jadwalId]/+page.svelte
- * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm
+ * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm
  * @publicFunctions load, actions.updateStatus, actions.approveIzin, actions.rejectIzin
- * @sideEffects Query detail jadwal & kehadiran, serta update record presensi_kehadiran ke SQLite
+ * @sideEffects Query detail jadwal & kehadiran sesuai wewenang admin, serta update record presensi_kehadiran ke SQLite
  */
 
 import { error, redirect, fail } from '@sveltejs/kit';
@@ -12,6 +12,27 @@ import type { Actions, PageServerLoad } from './$types';
 import { db } from '$lib/db';
 import { presensiJadwal, presensiKehadiran, users, kelompok } from '$lib/db/schema';
 import { eq, and } from 'drizzle-orm';
+import { getAdminScope, getAccessibleWilayah } from '$lib/server/scope';
+
+function assertJadwalAccess(jadwalId: number, roles: App.UserRole[]) {
+	const jadwal = db.select().from(presensiJadwal).where(eq(presensiJadwal.id, jadwalId)).get();
+	if (!jadwal) {
+		throw error(404, 'Jadwal pengajian tidak ditemukan');
+	}
+
+	const adminScope = getAdminScope(roles || []);
+	if (adminScope.isPusat) return jadwal;
+
+	const accessibleWilayah = getAccessibleWilayah(adminScope);
+	if (jadwal.kelompokId && !accessibleWilayah.allowedKelompokIdSet.has(jadwal.kelompokId)) {
+		throw error(403, 'Akses ditolak: Anda tidak memiliki wewenang untuk mengakses jadwal kelompok ini.');
+	}
+	if (jadwal.desaId && adminScope.level === 'Desa' && !adminScope.desaIds.includes(jadwal.desaId)) {
+		throw error(403, 'Akses ditolak: Anda tidak memiliki wewenang untuk mengakses jadwal desa ini.');
+	}
+
+	return jadwal;
+}
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	if (!locals.user || !locals.isAdmin) {
@@ -23,10 +44,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		throw error(400, 'ID jadwal tidak valid');
 	}
 
-	const jadwal = db.select().from(presensiJadwal).where(eq(presensiJadwal.id, jadwalId)).get();
-	if (!jadwal) {
-		throw error(404, 'Jadwal pengajian tidak ditemukan');
-	}
+	// Validasi wewenang scope terhadap jadwal ini
+	const jadwal = assertJadwalAccess(jadwalId, locals.roles || []);
 
 	const kelompokData = jadwal.kelompokId
 		? db.select().from(kelompok).where(eq(kelompok.id, jadwal.kelompokId)).get()
@@ -88,6 +107,8 @@ export const actions: Actions = {
 		}
 
 		const jadwalId = parseInt(params.jadwalId || '0', 10);
+		assertJadwalAccess(jadwalId, locals.roles || []);
+
 		const formData = await request.formData();
 		const userId = formData.get('userId')?.toString() || '';
 		const status = formData.get('status')?.toString() || 'Hadir';
@@ -139,6 +160,8 @@ export const actions: Actions = {
 		}
 
 		const jadwalId = parseInt(params.jadwalId || '0', 10);
+		assertJadwalAccess(jadwalId, locals.roles || []);
+
 		const formData = await request.formData();
 		const userId = formData.get('userId')?.toString() || '';
 		const catatan = formData.get('catatanAdmin')?.toString()?.trim() || null;
@@ -177,6 +200,8 @@ export const actions: Actions = {
 		}
 
 		const jadwalId = parseInt(params.jadwalId || '0', 10);
+		assertJadwalAccess(jadwalId, locals.roles || []);
+
 		const formData = await request.formData();
 		const userId = formData.get('userId')?.toString() || '';
 		const catatan = formData.get('catatanAdmin')?.toString()?.trim() || 'Permohonan izin tidak disetujui';

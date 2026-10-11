@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(admin)/admin/dapukan/+page.svelte
-  @purpose Halaman manajemen struktur dapukan/jabatan dan penugasan RBAC pengurus dengan proteksi wewenang 4S (Kyai/Penerobos di tingkat kelompok) serta penguncian scope wilayah
+  @purpose Halaman manajemen struktur dapukan dan penugasan RBAC pengurus dengan proteksi wewenang 4S (Kyai/Penerobos di tingkat kelompok) serta penguncian scope wilayah
   @usedBy Route admin '/admin/dapukan'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte
   @publicFunctions openAssignModal, closeAssignModal, resetAssignForm, confirmRemove
@@ -27,10 +27,10 @@
 	let searchQuery = $state('');
 	let showAssignModal = $state(false);
 	let showRemoveModal = $state(false);
-	let selectedPengurusToRemove = $state<{ id: string; nama: string; jabatan: string } | null>(null);
+	let selectedPengurusToRemove = $state<{ id: string; nama: string; dapukan: string } | null>(null);
 
 	// Form State
-	let tipeJabatan = $state<'tetap' | 'custom'>('tetap');
+	let tipeDapukan = $state<'tetap' | 'custom'>('tetap');
 	let selectedScope = $state<'Pusat' | 'Daerah' | 'Desa' | 'Kelompok'>('Kelompok');
 	let selectedUserId = $state<string | number>('');
 	let selectedDapukanId = $state<string | number>('');
@@ -178,14 +178,14 @@
 			String(selectedKelompokId).trim() !== '' ||
 			String(selectedDesaId).trim() !== '' ||
 			String(selectedDaerahId).trim() !== '' ||
-			tipeJabatan !== 'tetap' ||
+			tipeDapukan !== 'tetap' ||
 			selectedScope !== 'Kelompok'
 		);
 	}
 
 	function resetAssignForm() {
 		selectedUserId = '';
-		tipeJabatan = 'tetap';
+		tipeDapukan = 'tetap';
 		selectedDapukanId = '';
 		inputNamaDapukanCustom = '';
 		selectedScope = 'Kelompok';
@@ -227,10 +227,10 @@
 	let filteredPengurus = $derived(
 		(data.daftarPengurus || []).filter((p: (typeof data.daftarPengurus)[number]) => {
 			const q = searchQuery.toLowerCase();
-			const jabatan = (p.namaDapukanCustom || p.dapukanNama || '').toLowerCase();
+			const dapukan = (p.namaDapukanCustom || p.dapukanNama || '').toLowerCase();
 			const user = (p.userNama || '').toLowerCase();
 			const scope = (p.tingkatScope || '').toLowerCase();
-			return user.includes(q) || jabatan.includes(q) || scope.includes(q);
+			return user.includes(q) || dapukan.includes(q) || scope.includes(q);
 		})
 	);
 </script>
@@ -245,7 +245,7 @@
 		<div>
 			<h1 class="text-xl font-bold text-foreground tracking-tight">Manajemen Dapukan & RBAC</h1>
 			<p class="text-xs text-foreground/60 mt-0.5">
-				Kelola jabatan baku (4S) dan jabatan tentatif serta lingkup wewenang administratif pengurus.
+				Kelola dapukan baku (4S) dan dapukan tentatif serta lingkup wewenang administratif pengurus.
 			</p>
 		</div>
 
@@ -261,7 +261,7 @@
 		{:else}
 			<div
 				class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary/70 text-foreground/50 text-xs font-medium border border-border"
-				title="Pada tingkat kelompok, hanya pengurus 4S dengan jabatan Kyai atau Sekretaris / Penerobos yang dapat menugaskan pengurus"
+				title="Pada tingkat kelompok, hanya pengurus 4S dengan dapukan Kyai atau Sekretaris / Penerobos yang dapat menugaskan pengurus"
 			>
 				<ShieldCheck class="w-4 h-4 text-foreground/40" />
 				<span>Khusus 4S Kyai / Penerobos</span>
@@ -319,7 +319,7 @@
 			<Search class="w-4 h-4 text-foreground/40 absolute left-3 top-1/2 -translate-y-1/2" />
 			<input
 				type="search"
-				placeholder="Cari nama pengurus, jabatan, scope..."
+				placeholder="Cari nama pengurus, dapukan, scope..."
 				bind:value={searchQuery}
 				class="w-full bg-secondary/50 border border-border rounded-lg pl-9 pr-3 py-2 text-xs text-foreground placeholder:text-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary focus:bg-background transition-all"
 			/>
@@ -360,7 +360,7 @@
 									selectedPengurusToRemove = {
 										id: p.id,
 										nama: p.userNama || 'Pengurus',
-										jabatan: p.namaDapukanCustom || p.dapukanNama || 'Jabatan'
+										dapukan: p.namaDapukanCustom || p.dapukanNama || 'Dapukan'
 									};
 									showRemoveModal = true;
 								}}
@@ -373,7 +373,7 @@
 						{/if}
 					</div>
 
-					<!-- Rincian Jabatan & Wilayah -->
+					<!-- Rincian Dapukan & Wilayah -->
 					<div class="flex flex-wrap items-center gap-2 pt-1 border-t border-border/50 text-xs">
 						<span class="font-medium text-foreground">
 							{p.namaDapukanCustom || p.dapukanNama || '-'}
@@ -413,7 +413,7 @@
 					<thead class="bg-secondary/60 text-foreground/70 uppercase text-xs tracking-wider border-b border-border">
 						<tr>
 							<th class="py-3 px-4 font-semibold">Nama Pengurus</th>
-							<th class="py-3 px-4 font-semibold">Jabatan / Dapukan</th>
+							<th class="py-3 px-4 font-semibold">Dapukan</th>
 							<th class="py-3 px-4 font-semibold">Tingkat Scope</th>
 							<th class="py-3 px-4 font-semibold">Wilayah Cakupan</th>
 							<th class="py-3 px-4 font-semibold">Hak Wewenang</th>
@@ -474,7 +474,7 @@
 												selectedPengurusToRemove = {
 													id: p.id,
 													nama: p.userNama || 'Pengurus',
-													jabatan: p.namaDapukanCustom || p.dapukanNama || 'Jabatan'
+													dapukan: p.namaDapukanCustom || p.dapukanNama || 'Dapukan'
 												};
 												showRemoveModal = true;
 											}}
@@ -564,44 +564,44 @@
 					</div>
 				{/if}
 
-				<!-- Jenis Jabatan: Baku vs Kustom -->
+				<!-- Jenis Dapukan: Baku vs Kustom -->
 				<div>
-					<span class="block text-xs font-semibold text-foreground mb-2">Tipe Jabatan *</span>
+					<span class="block text-xs font-semibold text-foreground mb-2">Tipe Dapukan *</span>
 					<div class="grid grid-cols-2 gap-3">
-						<label class="p-3 border rounded-xl flex items-center gap-2.5 cursor-pointer transition-colors {tipeJabatan === 'tetap' ? 'border-primary bg-primary/5' : 'border-border bg-secondary/30'}">
+						<label class="p-3 border rounded-xl flex items-center gap-2.5 cursor-pointer transition-colors {tipeDapukan === 'tetap' ? 'border-primary bg-primary/5' : 'border-border bg-secondary/30'}">
 							<input
 								type="radio"
-								name="tipeJabatan"
+								name="tipeDapukan"
 								value="tetap"
-								bind:group={tipeJabatan}
+								bind:group={tipeDapukan}
 								class="text-primary focus:ring-primary"
 							/>
 							<div>
-								<span class="text-xs font-bold text-foreground block">Jabatan Baku 4S</span>
+								<span class="text-xs font-bold text-foreground block">Dapukan Baku 4S</span>
 								<span class="text-[10px] text-foreground/60 block">Hak Admin Elevated</span>
 							</div>
 						</label>
 
-						<label class="p-3 border rounded-xl flex items-center gap-2.5 cursor-pointer transition-colors {tipeJabatan === 'custom' ? 'border-primary bg-primary/5' : 'border-border bg-secondary/30'}">
+						<label class="p-3 border rounded-xl flex items-center gap-2.5 cursor-pointer transition-colors {tipeDapukan === 'custom' ? 'border-primary bg-primary/5' : 'border-border bg-secondary/30'}">
 							<input
 								type="radio"
-								name="tipeJabatan"
+								name="tipeDapukan"
 								value="custom"
-								bind:group={tipeJabatan}
+								bind:group={tipeDapukan}
 								class="text-primary focus:ring-primary"
 							/>
 							<div>
 								<span class="text-xs font-bold text-foreground block">Tentatif / Panitia</span>
-								<span class="text-[10px] text-foreground/60 block">Jabatan Khusus Lokal</span>
+								<span class="text-[10px] text-foreground/60 block">Dapukan Khusus Lokal</span>
 							</div>
 						</label>
 					</div>
 				</div>
 
-				{#if tipeJabatan === 'tetap'}
+				{#if tipeDapukan === 'tetap'}
 					<div>
 						<label for="dapukanId" class="block text-xs font-semibold text-foreground mb-1.5">
-							Pilih Jabatan Master 4S *
+							Pilih Dapukan Master 4S *
 						</label>
 						<SearchableSelect
 							id="dapukanId"
@@ -609,14 +609,14 @@
 							options={masterDapukanOptions}
 							bind:value={selectedDapukanId}
 							required
-							placeholder="-- Pilih Jabatan Master 4S --"
-							searchPlaceholder="Cari nama jabatan..."
+							placeholder="-- Pilih Dapukan Master 4S --"
+							searchPlaceholder="Cari nama dapukan..."
 						/>
 					</div>
 				{:else}
 					<div>
 						<label for="namaDapukanCustom" class="block text-xs font-semibold text-foreground mb-1.5">
-							Nama Jabatan Tentatif / Panitia *
+							Nama Dapukan Tentatif / Panitia *
 						</label>
 						<input
 							id="namaDapukanCustom"
@@ -790,7 +790,7 @@
 			<div>
 				<h3 class="text-sm font-bold text-foreground">Cabut Penugasan Pengurus?</h3>
 				<p class="text-xs text-foreground/60 mt-1 leading-relaxed">
-					Apakah Anda yakin ingin mencabut jabatan <strong class="text-foreground">{selectedPengurusToRemove.jabatan}</strong> dari <strong class="text-foreground">{selectedPengurusToRemove.nama}</strong>?
+					Apakah Anda yakin ingin mencabut dapukan <strong class="text-foreground">{selectedPengurusToRemove.dapukan}</strong> dari <strong class="text-foreground">{selectedPengurusToRemove.nama}</strong>?
 				</p>
 			</div>
 
@@ -811,7 +811,7 @@
 					type="submit"
 					class="px-4 py-2 rounded-lg bg-destructive text-destructive-foreground text-xs font-semibold hover:bg-destructive/90"
 				>
-					Ya, Cabut Jabatan
+					Ya, Cabut Dapukan
 				</button>
 			</form>
 		</div>
