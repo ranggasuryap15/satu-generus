@@ -1,9 +1,9 @@
 /**
  * @file src/routes/(admin)/admin/wilayah/+page.server.ts
- * @purpose Memuat data wilayah administratif berjenjang sesuai scope admin (Pusat, Daerah, Desa, Kelompok) dan otorisasi ketat aksi CRUD unit wilayah (termasuk hapus single & batch untuk Pusat, Daerah, Desa)
+ * @purpose Memuat data wilayah administratif berjenjang sesuai scope admin (Pusat, Daerah, Desa, Kelompok) dan otorisasi ketat aksi CRUD unit wilayah (termasuk pembuatan wilayah tunggal cerdas/creatable dropdown, serta hapus single & batch untuk Pusat, Daerah, Desa)
  * @usedBy src/routes/(admin)/admin/wilayah/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm
- * @publicFunctions load, actions.createDaerah, actions.createDesa, actions.createKelompok, actions.createSubKelompok, actions.updateKelompokLocation, actions.deleteKelompok, actions.batchDeleteKelompok, actions.deleteSubKelompok, actions.batchDeleteSubKelompok
+ * @publicFunctions load, actions.createWilayah, actions.createDaerah, actions.createDesa, actions.createKelompok, actions.createSubKelompok, actions.updateKelompokLocation, actions.deleteKelompok, actions.batchDeleteKelompok, actions.deleteSubKelompok, actions.batchDeleteSubKelompok
  * @sideEffects Insert/Update/Delete data daerah/desa/kelompok/sub_kelompok ke SQLite dalam transaksi atomik, verifikasi hierarki RBAC
  */
 
@@ -11,7 +11,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '$lib/db';
 import { daerah, desa, kelompok, subKelompok } from '$lib/db/schema';
-import { eq, inArray, sql } from 'drizzle-orm';
+import { eq, inArray, sql, and } from 'drizzle-orm';
 import { getAdminScope, getAccessibleWilayah, isKelompokAllowed } from '$lib/server/scope';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -100,6 +100,250 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions: Actions = {
+	createWilayah: async ({ request, locals }) => {
+		if (!locals.user || !locals.isAdmin) {
+			return fail(403, { error: 'Akses ditolak.' });
+		}
+
+		const adminScope = getAdminScope(locals.roles);
+		const formData = await request.formData();
+
+		const daerahValue = formData.get('daerahValue')?.toString()?.trim() || '';
+		const daerahProvinsi = formData.get('daerahProvinsi')?.toString()?.trim() || '';
+		const daerahKotaKabupaten = formData.get('daerahKotaKabupaten')?.toString()?.trim() || '';
+
+		const desaValue = formData.get('desaValue')?.toString()?.trim() || '';
+		const desaKecamatan = formData.get('desaKecamatan')?.toString()?.trim() || '';
+
+		const kelompokValue = formData.get('kelompokValue')?.toString()?.trim() || '';
+		const kelompokKelurahan = formData.get('kelompokKelurahan')?.toString()?.trim() || '';
+
+		const subKelompokNama = formData.get('subKelompokNama')?.toString()?.trim() || '';
+		const subKelompokKeterangan = formData.get('subKelompokKeterangan')?.toString()?.trim() || '';
+
+		if (!daerahValue) {
+			return fail(400, { error: 'Daerah wajib dipilih atau diisi.' });
+		}
+
+		const accessibleWilayah = getAccessibleWilayah(adminScope);
+
+		try {
+			const result = db.transaction((tx) => {
+				let currentDaerahId: number;
+				let isDaerahCreated = false;
+				let isDesaCreated = false;
+				let isKelompokCreated = false;
+				let isSubKelompokCreated = false;
+
+				// 1. EVALUASI DAERAH
+				const parsedDaerahId = parseInt(daerahValue, 10);
+				const isExistingDaerahId = !isNaN(parsedDaerahId) && String(parsedDaerahId) === daerahValue;
+
+				if (isExistingDaerahId) {
+					if (!adminScope.isPusat && !adminScope.daerahIds.includes(parsedDaerahId)) {
+						throw new Error('Akses ditolak: Anda tidak memiliki wewenang pada Daerah yang dipilih.');
+					}
+					currentDaerahId = parsedDaerahId;
+				} else {
+					if (!adminScope.isPusat) {
+						throw new Error('Akses ditolak: Hanya Pengurus Tingkat Pusat yang memiliki wewenang menambahkan Daerah baru.');
+					}
+					const existingD = tx
+						.select()
+						.from(daerah)
+						.where(sql`lower(${daerah.nama}) = lower(${daerahValue})`)
+						.get();
+
+					if (existingD) {
+						currentDaerahId = existingD.id;
+					} else {
+						const [newD] = tx
+							.insert(daerah)
+							.values({
+								nama: daerahValue,
+								provinsi: daerahProvinsi || daerahValue,
+								kotaKabupaten: daerahKotaKabupaten || daerahValue
+							})
+							.returning()
+							.all();
+						currentDaerahId = newD.id;
+						isDaerahCreated = true;
+					}
+				}
+
+				// 2. EVALUASI DESA (jika diisi)
+				let currentDesaId: number | null = null;
+				if (desaValue) {
+					const parsedDesaId = parseInt(desaValue, 10);
+					const isExistingDesaId = !isNaN(parsedDesaId) && String(parsedDesaId) === desaValue;
+
+					if (isExistingDesaId) {
+						const existingDesa = tx
+							.select()
+							.from(desa)
+							.where(eq(desa.id, parsedDesaId))
+							.get();
+
+						if (!existingDesa || existingDesa.daerahId !== currentDaerahId) {
+							throw new Error('Data desa tidak valid atau tidak berada dalam Daerah yang dipilih.');
+						}
+						if (
+							!adminScope.isPusat &&
+							!adminScope.desaIds.includes(parsedDesaId) &&
+							!adminScope.daerahIds.includes(currentDaerahId)
+						) {
+							throw new Error('Akses ditolak: Anda tidak memiliki wewenang pada Desa yang dipilih.');
+						}
+						currentDesaId = parsedDesaId;
+					} else {
+						if (!adminScope.isPusat && adminScope.level !== 'Daerah') {
+							throw new Error('Akses ditolak: Hanya Pengurus Tingkat Pusat atau Daerah yang berwenang membuat Desa baru.');
+						}
+						if (!adminScope.isPusat && !adminScope.daerahIds.includes(currentDaerahId)) {
+							throw new Error('Akses ditolak: Tidak dapat membuat Desa di luar Daerah binaan Anda.');
+						}
+
+						const existingDesaByName = tx
+							.select()
+							.from(desa)
+							.where(
+								and(
+									eq(desa.daerahId, currentDaerahId),
+									sql`lower(${desa.nama}) = lower(${desaValue})`
+								)
+							)
+							.get();
+
+						if (existingDesaByName) {
+							currentDesaId = existingDesaByName.id;
+						} else {
+							const [newDesa] = tx
+								.insert(desa)
+								.values({
+									daerahId: currentDaerahId,
+									nama: desaValue,
+									kecamatan: desaKecamatan || null
+								})
+								.returning()
+								.all();
+							currentDesaId = newDesa.id;
+							isDesaCreated = true;
+						}
+					}
+				}
+
+				// 3. EVALUASI KELOMPOK (jika diisi)
+				let currentKelompokId: number | null = null;
+				if (kelompokValue) {
+					if (!currentDesaId) {
+						throw new Error('Untuk menambahkan Kelompok, Desa induk wajib dipilih atau dibuat terlebih dahulu.');
+					}
+
+					const parsedKelompokId = parseInt(kelompokValue, 10);
+					const isExistingKelompokId = !isNaN(parsedKelompokId) && String(parsedKelompokId) === kelompokValue;
+
+					if (isExistingKelompokId) {
+						const existingKel = tx
+							.select()
+							.from(kelompok)
+							.where(eq(kelompok.id, parsedKelompokId))
+							.get();
+
+						if (!existingKel || existingKel.desaId !== currentDesaId) {
+							throw new Error('Data kelompok tidak valid atau tidak berada di bawah Desa yang dipilih.');
+						}
+						if (!adminScope.isPusat && !accessibleWilayah.allowedKelompokIdSet.has(parsedKelompokId)) {
+							throw new Error('Akses ditolak: Anda tidak memiliki wewenang pada Kelompok yang dipilih.');
+						}
+						currentKelompokId = parsedKelompokId;
+					} else {
+						if (adminScope.level === 'Kelompok') {
+							throw new Error('Akses ditolak: Admin tingkat Kelompok tidak memiliki wewenang membuat Kelompok baru.');
+						}
+						if (!adminScope.isPusat) {
+							const allowedDesaIds = new Set(accessibleWilayah.desaList.map((d) => d.id));
+							if (!allowedDesaIds.has(currentDesaId)) {
+								throw new Error('Akses ditolak: Tidak dapat membuat Kelompok di luar Desa binaan Anda.');
+							}
+						}
+
+						const existingKelByName = tx
+							.select()
+							.from(kelompok)
+							.where(
+								and(
+									eq(kelompok.desaId, currentDesaId),
+									sql`lower(${kelompok.nama}) = lower(${kelompokValue})`
+								)
+							)
+							.get();
+
+						if (existingKelByName) {
+							currentKelompokId = existingKelByName.id;
+						} else {
+							const [newKel] = tx
+								.insert(kelompok)
+								.values({
+									desaId: currentDesaId,
+									nama: kelompokValue,
+									kelurahan: kelompokKelurahan || null
+								})
+								.returning()
+								.all();
+							currentKelompokId = newKel.id;
+							isKelompokCreated = true;
+						}
+					}
+				}
+
+				// 4. EVALUASI SUB-KELOMPOK (jika diisi)
+				if (subKelompokNama) {
+					if (!currentKelompokId) {
+						throw new Error('Untuk menambahkan Sub-Kelompok, Kelompok induk wajib dipilih atau dibuat terlebih dahulu.');
+					}
+					if (!adminScope.isPusat && !accessibleWilayah.allowedKelompokIdSet.has(currentKelompokId)) {
+						throw new Error('Akses ditolak: Tidak dapat membuat Sub-Kelompok di luar Kelompok binaan Anda.');
+					}
+
+					tx.insert(subKelompok)
+						.values({
+							kelompokId: currentKelompokId,
+							nama: subKelompokNama,
+							keterangan: subKelompokKeterangan || null
+						})
+						.run();
+					isSubKelompokCreated = true;
+				}
+
+				const createdItems: string[] = [];
+				if (isDaerahCreated) createdItems.push(`Daerah "${daerahValue}"`);
+				if (isDesaCreated) createdItems.push(`Desa "${desaValue}"`);
+				if (isKelompokCreated) createdItems.push(`Kelompok "${kelompokValue}"`);
+				if (isSubKelompokCreated) createdItems.push(`Sub-Kelompok "${subKelompokNama}"`);
+
+				return {
+					createdItems,
+					isAnyCreated: createdItems.length > 0
+				};
+			});
+
+			if (!result.isAnyCreated) {
+				return {
+					success: true,
+					message: 'Unit wilayah yang dipilih sudah ada di sistem. Tidak ada data baru yang dibuat.'
+				};
+			}
+
+			return {
+				success: true,
+				message: `Berhasil menambahkan data wilayah: ${result.createdItems.join(', ')}.`
+			};
+		} catch (error: any) {
+			console.error('Gagal memproses tambah wilayah:', error);
+			return fail(400, { error: error.message || 'Terjadi kesalahan sistem saat menyimpan wilayah.' });
+		}
+	},
+
 	createDaerah: async ({ request, locals }) => {
 		if (!locals.user || !locals.isAdmin) {
 			return fail(403, { error: 'Akses ditolak.' });

@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(admin)/admin/wilayah/+page.svelte
-  @purpose Halaman manajemen Data Wilayah lengkap (Daerah, Desa, Kelompok, Sub-Kelompok), modal detail kelompok dengan Leaflet, kontrol RBAC visual berjenjang, checklist hapus massal & single delete untuk admin Daerah, Desa, dan Superadmin
+  @purpose Halaman manajemen Data Wilayah lengkap dengan 1 tombol Tambah Wilayah cerdas (dropdown search & auto-create hierarki Daerah -> Desa -> Kelompok -> Sub-Kelompok), modal detail kelompok dengan Leaflet, kontrol RBAC visual, checklist hapus massal & single delete
   @usedBy Route admin '/admin/wilayah'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/LocationPicker.svelte, $app/forms (enhance)
-  @publicFunctions openAddDaerahModal, closeAddDaerahModal, openAddKelompokModal, closeAddKelompokModal, openAddDesaModal, closeAddDesaModal, openAddSubKelompokModal, closeAddSubKelompokModal, openKelompokDetail, closeKelompokDetail, resetFilter, toggleSelectKelompok, toggleSelectAllKelompok, openDeleteSingleKelompok, openDeleteBatchKelompok, closeDeleteModal
-  @sideEffects Menampilkan data wilayah sesuai scope RBAC, menyaring data, mengelola lokasi kelompok dengan Leaflet, dan mengirim update/delete ke server via enhance
+  @publicFunctions openUnifiedAddModal, closeUnifiedAddModal, openKelompokDetail, closeKelompokDetail, resetFilter, toggleSelectKelompok, toggleSelectAllKelompok, openDeleteSingleKelompok, openDeleteBatchKelompok, closeDeleteModal
+  @sideEffects Menampilkan data wilayah sesuai scope RBAC, menyaring data, mengelola lokasi kelompok dengan Leaflet, dan mengirim update/create/delete ke server via enhance
 -->
 <script lang="ts">
 	import {
@@ -47,7 +47,61 @@
 	let selectedFilterDesaId = $state<string | number>('');
 	let showMobileFilter = $state(false);
 
-	// State Modal Tambah
+	// State Modal Tambah Wilayah Cerdas & Bertingkat
+	let showUnifiedAddModal = $state(false);
+	let unifiedDaerahValue = $state<string | number>('');
+	let unifiedDaerahProvinsi = $state('');
+	let unifiedDaerahKotaKabupaten = $state('');
+
+	let unifiedDesaValue = $state<string | number>('');
+	let unifiedDesaKecamatan = $state('');
+
+	let unifiedKelompokValue = $state<string | number>('');
+	let unifiedKelompokKelurahan = $state('');
+
+	let unifiedSubKelompokNama = $state('');
+	let unifiedSubKelompokKeterangan = $state('');
+
+	function openUnifiedAddModal() {
+		// Auto-select jika daerahList hanya 1 dan admin tidak berhak create daerah
+		if ((data.daerahList?.length ?? 0) === 1 && !data.permissions?.canCreateDaerah) {
+			unifiedDaerahValue = data.daerahList[0].id;
+		} else {
+			unifiedDaerahValue = '';
+		}
+		// Auto-select desa jika desaList hanya 1 dan admin tidak berhak create desa
+		if ((data.desaList?.length ?? 0) === 1 && !data.permissions?.canCreateDesa) {
+			unifiedDesaValue = data.desaList[0].id;
+		} else {
+			unifiedDesaValue = '';
+		}
+		unifiedKelompokValue = '';
+		unifiedSubKelompokNama = '';
+		unifiedSubKelompokKeterangan = '';
+		unifiedDaerahProvinsi = '';
+		unifiedDaerahKotaKabupaten = '';
+		unifiedDesaKecamatan = '';
+		unifiedKelompokKelurahan = '';
+		showUnifiedAddModal = true;
+	}
+
+	function closeUnifiedAddModal() {
+		showUnifiedAddModal = false;
+	}
+
+	function resetUnifiedAddForm() {
+		unifiedDaerahValue = '';
+		unifiedDesaValue = '';
+		unifiedKelompokValue = '';
+		unifiedSubKelompokNama = '';
+		unifiedSubKelompokKeterangan = '';
+		unifiedDaerahProvinsi = '';
+		unifiedDaerahKotaKabupaten = '';
+		unifiedDesaKecamatan = '';
+		unifiedKelompokKelurahan = '';
+	}
+
+	// State Modal Tambah Lama (Backward Compatibility)
 	let showAddDaerahModal = $state(false);
 	let showAddKelompokModal = $state(false);
 	let showAddDesaModal = $state(false);
@@ -79,22 +133,19 @@
 		selectedKelompok = null;
 	}
 
-	// Form Tambah Daerah
+	// Form Tambah Lama
 	let inputNamaDaerah = $state('');
 	let inputProvinsi = $state('');
 	let inputKotaKabupaten = $state('');
 
-	// Form Tambah Kelompok
 	let inputNamaKelompok = $state('');
 	let selectedDesaId = $state<string | number>('');
 	let inputKelurahan = $state('');
 
-	// Form Tambah Desa
 	let inputNamaDesa = $state('');
 	let selectedDaerahId = $state<string | number>('');
 	let inputKecamatan = $state('');
 
-	// Form Tambah Sub-Kelompok
 	let inputNamaSubKelompok = $state('');
 	let selectedKelompokId = $state<string | number>('');
 	let inputKeteranganSubKelompok = $state('');
@@ -104,9 +155,64 @@
 		(data.daerahList || []).map((d: (typeof data.daerahList)[number]) => ({
 			value: d.id,
 			label: d.nama,
-			sublabel: d.kotaKabupaten
+			sublabel: d.kotaKabupaten ? `${d.kotaKabupaten}, ${d.provinsi}` : d.provinsi
 		}))
 	);
+
+	// Cek apakah Daerah input baru
+	const isNewDaerah = $derived(
+		Boolean(unifiedDaerahValue) &&
+		!daerahOptions.some((opt) => String(opt.value) === String(unifiedDaerahValue))
+	);
+
+	// Opsi Desa terfilter berdasarkan Daerah terpilih
+	const desaUnifiedOptions = $derived(
+		isNewDaerah || !unifiedDaerahValue
+			? []
+			: (data.desaList || [])
+					.filter((d: (typeof data.desaList)[number]) => String(d.daerahId) === String(unifiedDaerahValue))
+					.map((d: (typeof data.desaList)[number]) => ({
+						value: d.id,
+						label: d.nama,
+						sublabel: d.kecamatan ? `Kec. ${d.kecamatan}` : undefined
+					}))
+	);
+
+	// Cek apakah Desa input baru
+	const isNewDesa = $derived(
+		Boolean(unifiedDesaValue) &&
+		!desaUnifiedOptions.some((opt) => String(opt.value) === String(unifiedDesaValue))
+	);
+
+	// Opsi Kelompok terfilter berdasarkan Desa terpilih
+	const kelompokUnifiedOptions = $derived(
+		isNewDesa || !unifiedDesaValue
+			? []
+			: (data.kelompokList || [])
+					.filter((k: (typeof data.kelompokList)[number]) => String(k.desaId) === String(unifiedDesaValue))
+					.map((k: (typeof data.kelompokList)[number]) => ({
+						value: k.id,
+						label: k.nama,
+						sublabel: k.kelurahan ? `Kel. ${k.kelurahan}` : undefined
+					}))
+	);
+
+	// Cek apakah Kelompok input baru
+	const isNewKelompok = $derived(
+		Boolean(unifiedKelompokValue) &&
+		!kelompokUnifiedOptions.some((opt) => String(opt.value) === String(unifiedKelompokValue))
+	);
+
+	function handleDaerahChange(val: string | number) {
+		unifiedDaerahValue = val;
+		unifiedDesaValue = '';
+		unifiedKelompokValue = '';
+	}
+
+	function handleDesaChange(val: string | number) {
+		unifiedDesaValue = val;
+		unifiedKelompokValue = '';
+	}
 
 	const desaOptions = $derived(
 		(data.desaList || []).map((d: (typeof data.desaList)[number]) => ({
@@ -358,6 +464,8 @@
 
 	$effect(() => {
 		if (form?.success) {
+			resetUnifiedAddForm();
+			showUnifiedAddModal = false;
 			resetAddDaerahForm();
 			resetAddKelompokForm();
 			resetAddDesaForm();
@@ -424,64 +532,14 @@
 				</a>
 			{/if}
 
-			{#if data.permissions?.canCreateDaerah}
-				<button
-					type="button"
-					onclick={() => (showAddDaerahModal = true)}
-					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold transition-all shadow-xs"
-				>
-					<MapPin class="w-3.5 h-3.5" />
-					<span>+ Daerah</span>
-				</button>
-			{/if}
-
-			{#if data.permissions?.canCreateDesa}
-				<button
-					type="button"
-					onclick={() => {
-						if ((data.daerahList?.length ?? 0) === 1) {
-							selectedDaerahId = data.daerahList[0].id;
-						}
-						showAddDesaModal = true;
-					}}
-					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-secondary/50 hover:bg-secondary text-foreground text-xs font-semibold transition-colors"
-				>
-					<Building class="w-3.5 h-3.5 text-primary" />
-					<span>+ Desa</span>
-				</button>
-			{/if}
-
-			{#if data.permissions?.canCreateKelompok}
-				<button
-					type="button"
-					onclick={() => {
-						if ((data.desaList?.length ?? 0) === 1) {
-							selectedDesaId = data.desaList[0].id;
-						}
-						showAddKelompokModal = true;
-					}}
-					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-secondary/50 hover:bg-secondary text-foreground text-xs font-semibold transition-colors"
-				>
-					<Home class="w-3.5 h-3.5 text-primary" />
-					<span>+ Kelompok</span>
-				</button>
-			{/if}
-
-			{#if data.permissions?.canCreateSubKelompok}
-				<button
-					type="button"
-					onclick={() => {
-						if ((data.kelompokList?.length ?? 0) === 1) {
-							selectedKelompokId = data.kelompokList[0].id;
-						}
-						showAddSubKelompokModal = true;
-					}}
-					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-secondary/50 hover:bg-secondary text-foreground text-xs font-semibold transition-colors"
-				>
-					<Layers class="w-3.5 h-3.5 text-blue-500" />
-					<span>+ Sub-Kelompok</span>
-				</button>
-			{/if}
+			<button
+				type="button"
+				onclick={openUnifiedAddModal}
+				class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold transition-all shadow-xs cursor-pointer active:scale-95"
+			>
+				<Plus class="w-4 h-4" />
+				<span>+ Tambah Wilayah</span>
+			</button>
 		</div>
 	</div>
 
@@ -497,7 +555,7 @@
 		<div
 			class="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs rounded-xl flex items-center gap-2 font-medium"
 		>
-			<span>Data wilayah berhasil disimpan ke sistem.</span>
+			<span>{form.message || 'Data wilayah berhasil disimpan ke sistem.'}</span>
 		</div>
 	{/if}
 
@@ -1008,386 +1066,265 @@
 	{/if}
 </div>
 
-<!-- Modal Tambah Daerah Baru -->
-{#if showAddDaerahModal}
+<!-- Modal Tambah Data Wilayah Cerdas & Bertingkat (Unified Wilayah Creator) -->
+{#if showUnifiedAddModal}
 	<div
-		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
+		class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-background/80 backdrop-blur-sm overflow-y-auto"
 		role="dialog"
 		aria-modal="true"
+		aria-labelledby="modal-unified-title"
 	>
-		<div class="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-xl space-y-5">
+		<div class="bg-card border border-border rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 my-8 transition-all animate-in zoom-in-95 duration-150">
+			<!-- Header Modal -->
 			<div class="flex items-center justify-between pb-3 border-b border-border">
-				<div class="flex items-center gap-2">
+				<div class="flex items-center gap-2.5">
 					<div class="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-						<MapPin class="w-4 h-4" />
+						<Plus class="w-4 h-4" />
 					</div>
-					<h3 class="text-sm font-bold text-foreground">Tambah Daerah Baru</h3>
+					<div>
+						<h3 id="modal-unified-title" class="text-sm font-bold text-foreground">
+							Tambah Data Wilayah
+						</h3>
+						<p class="text-[11px] text-foreground/60">
+							Pilih wilayah yang sudah ada atau ketik nama baru untuk membuat otomatis
+						</p>
+					</div>
 				</div>
 				<button
 					type="button"
-					onclick={closeAddDaerahModal}
-					class="p-1 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground"
+					onclick={closeUnifiedAddModal}
+					class="p-1 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground cursor-pointer transition-colors"
+					aria-label="Tutup Modal"
 				>
 					<X class="w-5 h-5" />
 				</button>
 			</div>
 
-			<form method="POST" action="?/createDaerah" use:enhance class="space-y-4">
-				<div>
-					<label for="namaDaerah" class="block text-xs font-semibold text-foreground mb-1.5">
-						Nama Daerah *
-					</label>
-					<input
-						id="namaDaerah"
-						name="nama"
-						type="text"
-						bind:value={inputNamaDaerah}
-						required
-						placeholder="Contoh: Surabaya Barat / Jakarta Selatan"
-						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-					/>
-				</div>
-
-				<div>
-					<label for="kotaKabupaten" class="block text-xs font-semibold text-foreground mb-1.5">
-						Kota / Kabupaten *
-					</label>
-					<input
-						id="kotaKabupaten"
-						name="kotaKabupaten"
-						type="text"
-						bind:value={inputKotaKabupaten}
-						required
-						placeholder="Contoh: Kota Surabaya / Kota Administrasi Jakarta Selatan"
-						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-					/>
-				</div>
-
-				<div>
-					<label for="provinsi" class="block text-xs font-semibold text-foreground mb-1.5">
-						Provinsi *
-					</label>
-					<input
-						id="provinsi"
-						name="provinsi"
-						type="text"
-						bind:value={inputProvinsi}
-						required
-						placeholder="Contoh: Jawa Timur / DKI Jakarta"
-						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-					/>
-				</div>
-
-				<div class="flex items-center justify-end gap-2 pt-3 border-t border-border">
-					<button
-						type="button"
-						onclick={closeAddDaerahModal}
-						class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary"
-					>
-						Batal
-					</button>
-					<button
-						type="submit"
-						class="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90"
-					>
-						Simpan Daerah
-					</button>
-				</div>
-			</form>
-		</div>
-	</div>
-{/if}
-
-<!-- Modal Tambah Kelompok Baru -->
-{#if showAddKelompokModal}
-	<div
-		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
-		role="dialog"
-		aria-modal="true"
-	>
-		<div class="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-xl space-y-5">
-			<div class="flex items-center justify-between pb-3 border-b border-border">
-				<div class="flex items-center gap-2">
-					<div class="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-						<Home class="w-4 h-4" />
+			<!-- Form Submission -->
+			<form method="POST" action="?/createWilayah" use:enhance class="space-y-3.5">
+				<!-- LEVEL 1: DAERAH -->
+				<div class="space-y-1.5 p-3 rounded-xl bg-secondary/20 border border-border/60">
+					<div class="flex items-center justify-between">
+						<label for="unifiedDaerah" class="block text-xs font-bold text-foreground">
+							1. Daerah (Kota / Kabupaten) *
+						</label>
+						{#if isNewDaerah}
+							<span class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+								✨ Buat Daerah Baru
+							</span>
+						{/if}
 					</div>
-					<h3 class="text-sm font-bold text-foreground">Tambah Kelompok Baru</h3>
-				</div>
-				<button
-					type="button"
-					onclick={closeAddKelompokModal}
-					class="p-1 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground"
-				>
-					<X class="w-5 h-5" />
-				</button>
-			</div>
 
-			<form method="POST" action="?/createKelompok" use:enhance class="space-y-4">
-				<div>
-					<label for="namaKelompok" class="block text-xs font-semibold text-foreground mb-1.5">
-						Nama Kelompok *
-					</label>
-					<input
-						id="namaKelompok"
-						name="nama"
-						type="text"
-						bind:value={inputNamaKelompok}
-						required
-						placeholder="Contoh: Kelompok 2"
-						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-					/>
-				</div>
-
-				<div>
-					<label for="desaId" class="block text-xs font-semibold text-foreground mb-1.5">
-						Desa Induk *
-					</label>
-					{#if (data.desaList?.length ?? 0) === 1}
-						<div
-							class="px-3 py-2 bg-secondary/40 border border-border rounded-lg text-xs font-semibold text-foreground flex items-center justify-between"
-						>
-							<span>{data.desaList[0].nama}</span>
-							<span class="text-[10.5px] text-foreground/50 font-normal">Wilayah Binaan Anda</span>
-						</div>
-						<input type="hidden" name="desaId" value={data.desaList[0].id} />
-					{:else}
-						<SearchableSelect
-							id="desaId"
-							name="desaId"
-							options={desaOptions}
-							bind:value={selectedDesaId}
-							required
-							placeholder="-- Pilih Desa Induk --"
-							searchPlaceholder="Cari nama desa..."
-						/>
-					{/if}
-				</div>
-
-				<div>
-					<label for="kelurahan" class="block text-xs font-semibold text-foreground mb-1.5">
-						Kelurahan / Keterangan Domisili
-					</label>
-					<input
-						id="kelurahan"
-						name="kelurahan"
-						type="text"
-						bind:value={inputKelurahan}
-						placeholder="Contoh: Senayan"
-						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-					/>
-				</div>
-
-				<div class="flex items-center justify-end gap-2 pt-3 border-t border-border">
-					<button
-						type="button"
-						onclick={closeAddKelompokModal}
-						class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary"
-					>
-						Batal
-					</button>
-					<button
-						type="submit"
-						class="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90"
-					>
-						Simpan Kelompok
-					</button>
-				</div>
-			</form>
-		</div>
-	</div>
-{/if}
-
-<!-- Modal Tambah Desa Baru -->
-{#if showAddDesaModal}
-	<div
-		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
-		role="dialog"
-		aria-modal="true"
-	>
-		<div class="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-xl space-y-5">
-			<div class="flex items-center justify-between pb-3 border-b border-border">
-				<div class="flex items-center gap-2">
-					<div class="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-						<Building class="w-4 h-4" />
-					</div>
-					<h3 class="text-sm font-bold text-foreground">Tambah Desa Baru</h3>
-				</div>
-				<button
-					type="button"
-					onclick={closeAddDesaModal}
-					class="p-1 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground"
-				>
-					<X class="w-5 h-5" />
-				</button>
-			</div>
-
-			<form method="POST" action="?/createDesa" use:enhance class="space-y-4">
-				<div>
-					<label for="namaDesa" class="block text-xs font-semibold text-foreground mb-1.5">
-						Nama Desa *
-					</label>
-					<input
-						id="namaDesa"
-						name="nama"
-						type="text"
-						bind:value={inputNamaDesa}
-						required
-						placeholder="Contoh: Kebayoran Baru"
-						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-					/>
-				</div>
-
-				<div>
-					<label for="daerahId" class="block text-xs font-semibold text-foreground mb-1.5">
-						Daerah Induk *
-					</label>
-					{#if (data.daerahList?.length ?? 0) === 1}
-						<div
-							class="px-3 py-2 bg-secondary/40 border border-border rounded-lg text-xs font-semibold text-foreground flex items-center justify-between"
-						>
+					{#if (data.daerahList?.length ?? 0) === 1 && !data.permissions?.canCreateDaerah}
+						<div class="px-3 py-2 bg-secondary/40 border border-border rounded-lg text-xs font-semibold text-foreground flex items-center justify-between">
 							<span>{data.daerahList[0].nama}</span>
 							<span class="text-[10.5px] text-foreground/50 font-normal">Daerah Binaan Anda</span>
 						</div>
-						<input type="hidden" name="daerahId" value={data.daerahList[0].id} />
+						<input type="hidden" name="daerahValue" value={data.daerahList[0].id} />
 					{:else}
 						<SearchableSelect
-							id="daerahId"
-							name="daerahId"
+							id="unifiedDaerah"
+							name="daerahValue"
 							options={daerahOptions}
-							bind:value={selectedDaerahId}
+							bind:value={unifiedDaerahValue}
+							onchange={handleDaerahChange}
+							allowCustom={Boolean(data.permissions?.canCreateDaerah)}
+							customLabel="Daerah Baru"
 							required
-							placeholder="-- Pilih Daerah Induk --"
-							searchPlaceholder="Cari nama daerah atau kabupaten..."
+							placeholder="-- Cari / Pilih Daerah atau ketik Daerah Baru --"
+							searchPlaceholder="Cari atau ketik nama daerah baru..."
 						/>
 					{/if}
-				</div>
 
-				<div>
-					<label for="kecamatan" class="block text-xs font-semibold text-foreground mb-1.5">
-						Kecamatan Administratif
-					</label>
-					<input
-						id="kecamatan"
-						name="kecamatan"
-						type="text"
-						bind:value={inputKecamatan}
-						placeholder="Contoh: Kebayoran Baru"
-						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-					/>
-				</div>
-
-				<div class="flex items-center justify-end gap-2 pt-3 border-t border-border">
-					<button
-						type="button"
-						onclick={closeAddDesaModal}
-						class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary"
-					>
-						Batal
-					</button>
-					<button
-						type="submit"
-						class="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90"
-					>
-						Simpan Desa
-					</button>
-				</div>
-			</form>
-		</div>
-	</div>
-{/if}
-
-<!-- Modal Tambah Sub-Kelompok Baru -->
-{#if showAddSubKelompokModal}
-	<div
-		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
-		role="dialog"
-		aria-modal="true"
-	>
-		<div class="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-xl space-y-5">
-			<div class="flex items-center justify-between pb-3 border-b border-border">
-				<div class="flex items-center gap-2">
-					<div class="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
-						<Layers class="w-4 h-4" />
-					</div>
-					<h3 class="text-sm font-bold text-foreground">Tambah Sub-Kelompok Baru</h3>
-				</div>
-				<button
-					type="button"
-					onclick={closeAddSubKelompokModal}
-					class="p-1 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground"
-				>
-					<X class="w-5 h-5" />
-				</button>
-			</div>
-
-			<form method="POST" action="?/createSubKelompok" use:enhance class="space-y-4">
-				<div>
-					<label for="namaSubKelompok" class="block text-xs font-semibold text-foreground mb-1.5">
-						Nama Sub-Kelompok *
-					</label>
-					<input
-						id="namaSubKelompok"
-						name="nama"
-						type="text"
-						bind:value={inputNamaSubKelompok}
-						required
-						placeholder="Contoh: Rukun 1 / Lingkungan A"
-						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-					/>
-				</div>
-
-				<div>
-					<label for="subKelompokKelompokId" class="block text-xs font-semibold text-foreground mb-1.5">
-						Kelompok Induk *
-					</label>
-					{#if (data.kelompokList?.length ?? 0) === 1}
-						<div
-							class="px-3 py-2 bg-secondary/40 border border-border rounded-lg text-xs font-semibold text-foreground flex items-center justify-between"
-						>
-							<span>{data.kelompokList[0].nama}</span>
-							<span class="text-[10.5px] text-foreground/50 font-normal">Kelompok Binaan Anda</span>
+					<!-- Bidang Ekstra jika Daerah Baru -->
+					{#if isNewDaerah}
+						<div class="pt-2 grid grid-cols-2 gap-2 text-xs">
+							<div>
+								<label for="daerahKotaKabupaten" class="block text-[11px] text-foreground/70 mb-1">
+									Kota / Kabupaten
+								</label>
+								<input
+									id="daerahKotaKabupaten"
+									name="daerahKotaKabupaten"
+									type="text"
+									bind:value={unifiedDaerahKotaKabupaten}
+									placeholder={String(unifiedDaerahValue)}
+									class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+								/>
+							</div>
+							<div>
+								<label for="daerahProvinsi" class="block text-[11px] text-foreground/70 mb-1">
+									Provinsi
+								</label>
+								<input
+									id="daerahProvinsi"
+									name="daerahProvinsi"
+									type="text"
+									bind:value={unifiedDaerahProvinsi}
+									placeholder="Contoh: Jawa Timur"
+									class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+								/>
+							</div>
 						</div>
-						<input type="hidden" name="kelompokId" value={data.kelompokList[0].id} />
-					{:else}
-						<SearchableSelect
-							id="subKelompokKelompokId"
-							name="kelompokId"
-							options={kelompokOptions}
-							bind:value={selectedKelompokId}
-							required
-							placeholder="-- Pilih Kelompok Induk --"
-							searchPlaceholder="Cari nama kelompok..."
-						/>
 					{/if}
 				</div>
 
-				<div>
-					<label for="keteranganSubKelompok" class="block text-xs font-semibold text-foreground mb-1.5">
-						Keterangan / Rukun (Opsional)
-					</label>
-					<input
-						id="keteranganSubKelompok"
-						name="keterangan"
-						type="text"
-						bind:value={inputKeteranganSubKelompok}
-						placeholder="Contoh: RT 01-03 RW 05"
-						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+				<!-- LEVEL 2: DESA -->
+				<div class="space-y-1.5 p-3 rounded-xl bg-secondary/20 border border-border/60">
+					<div class="flex items-center justify-between">
+						<label for="unifiedDesa" class="block text-xs font-bold text-foreground">
+							2. Desa Induk (Kecamatan / Wilayah)
+						</label>
+						{#if isNewDesa}
+							<span class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+								✨ Buat Desa Baru
+							</span>
+						{/if}
+					</div>
+
+					<SearchableSelect
+						id="unifiedDesa"
+						name="desaValue"
+						options={desaUnifiedOptions}
+						bind:value={unifiedDesaValue}
+						onchange={handleDesaChange}
+						allowCustom={Boolean(data.permissions?.canCreateDesa)}
+						customLabel="Desa Baru"
+						disabled={!unifiedDaerahValue}
+						placeholder={!unifiedDaerahValue ? '-- Pilih Daerah terlebih dahulu --' : '-- Cari / Pilih Desa atau ketik Desa Baru (Opsional) --'}
+						searchPlaceholder="Cari atau ketik nama desa baru..."
 					/>
+
+					<!-- Bidang Ekstra jika Desa Baru -->
+					{#if isNewDesa}
+						<div class="pt-2 text-xs">
+							<label for="desaKecamatan" class="block text-[11px] text-foreground/70 mb-1">
+								Kecamatan Administratif (Opsional)
+							</label>
+							<input
+								id="desaKecamatan"
+								name="desaKecamatan"
+								type="text"
+								bind:value={unifiedDesaKecamatan}
+								placeholder="Contoh: Kebayoran Baru"
+								class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+							/>
+						</div>
+					{/if}
 				</div>
 
+				<!-- LEVEL 3: KELOMPOK -->
+				<div class="space-y-1.5 p-3 rounded-xl bg-secondary/20 border border-border/60">
+					<div class="flex items-center justify-between">
+						<label for="unifiedKelompok" class="block text-xs font-bold text-foreground">
+							3. Kelompok (Unit Basis Jamaah)
+						</label>
+						{#if isNewKelompok}
+							<span class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+								✨ Buat Kelompok Baru
+							</span>
+						{/if}
+					</div>
+
+					<SearchableSelect
+						id="unifiedKelompok"
+						name="kelompokValue"
+						options={kelompokUnifiedOptions}
+						bind:value={unifiedKelompokValue}
+						allowCustom={Boolean(data.permissions?.canCreateKelompok)}
+						customLabel="Kelompok Baru"
+						disabled={!unifiedDesaValue}
+						placeholder={!unifiedDesaValue ? '-- Pilih Desa terlebih dahulu --' : '-- Cari / Pilih Kelompok atau ketik Kelompok Baru (Opsional) --'}
+						searchPlaceholder="Cari atau ketik nama kelompok baru..."
+					/>
+
+					<!-- Bidang Ekstra jika Kelompok Baru -->
+					{#if isNewKelompok}
+						<div class="pt-2 text-xs">
+							<label for="kelompokKelurahan" class="block text-[11px] text-foreground/70 mb-1">
+								Kelurahan / Domisili (Opsional)
+							</label>
+							<input
+								id="kelompokKelurahan"
+								name="kelompokKelurahan"
+								type="text"
+								bind:value={unifiedKelompokKelurahan}
+								placeholder="Contoh: Kelurahan Sawunggaling"
+								class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+							/>
+						</div>
+					{/if}
+				</div>
+
+				<!-- LEVEL 4: SUB-KELOMPOK (Opsional) -->
+				<div class="space-y-1.5 p-3 rounded-xl bg-secondary/20 border border-border/60">
+					<label for="unifiedSubKelompokNama" class="block text-xs font-bold text-foreground">
+						4. Sub-Kelompok (Opsional)
+					</label>
+					<div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+						<div>
+							<input
+								id="unifiedSubKelompokNama"
+								name="subKelompokNama"
+								type="text"
+								bind:value={unifiedSubKelompokNama}
+								disabled={!unifiedKelompokValue}
+								placeholder={!unifiedKelompokValue ? 'Pilih Kelompok dahulu...' : 'Nama Sub-Kelompok (misal: Pemuda)'}
+								class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+							/>
+						</div>
+						<div>
+							<input
+								id="unifiedSubKelompokKeterangan"
+								name="subKelompokKeterangan"
+								type="text"
+								bind:value={unifiedSubKelompokKeterangan}
+								disabled={!unifiedKelompokValue || !unifiedSubKelompokNama}
+								placeholder="Keterangan rukun / wilayah"
+								class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+							/>
+						</div>
+					</div>
+				</div>
+
+				<!-- Ringkasan Rencana Pembuatan Data (Smart Preview) -->
+				{#if isNewDaerah || isNewDesa || isNewKelompok || unifiedSubKelompokNama}
+					<div class="p-3 rounded-xl bg-primary/5 border border-primary/20 text-xs space-y-1.5 animate-in fade-in duration-150">
+						<p class="font-bold text-primary flex items-center gap-1.5">
+							<CheckCircle2 class="w-3.5 h-3.5" />
+							<span>Rencana Pembuatan Data Wilayah:</span>
+						</p>
+						<ul class="text-[11px] text-foreground/80 space-y-1 list-disc list-inside">
+							{#if isNewDaerah}
+								<li>Membuat Daerah baru: <strong class="text-foreground">{unifiedDaerahValue}</strong></li>
+							{/if}
+							{#if isNewDesa}
+								<li>Membuat Desa baru: <strong class="text-foreground">{unifiedDesaValue}</strong></li>
+							{/if}
+							{#if isNewKelompok}
+								<li>Membuat Kelompok baru: <strong class="text-foreground">{unifiedKelompokValue}</strong></li>
+							{/if}
+							{#if unifiedSubKelompokNama}
+								<li>Membuat Sub-Kelompok baru: <strong class="text-foreground">{unifiedSubKelompokNama}</strong></li>
+							{/if}
+						</ul>
+					</div>
+				{/if}
+
+				<!-- Tombol Footer -->
 				<div class="flex items-center justify-end gap-2 pt-3 border-t border-border">
 					<button
 						type="button"
-						onclick={closeAddSubKelompokModal}
-						class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary"
+						onclick={closeUnifiedAddModal}
+						class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary cursor-pointer transition-colors"
 					>
 						Batal
 					</button>
 					<button
 						type="submit"
-						class="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90"
+						class="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 cursor-pointer shadow-xs transition-all active:scale-95"
 					>
-						Simpan Sub-Kelompok
+						Simpan Wilayah
 					</button>
 				</div>
 			</form>

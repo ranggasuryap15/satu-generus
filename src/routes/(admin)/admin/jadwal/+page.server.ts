@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(admin)/admin/jadwal/+page.server.ts
- * @purpose Server load & actions untuk pengelolaan jadwal pengajian bertingkat (Desa & Kelompok), template siklus rutin, generator sesi bulanan, dan override perubahan jadwal insidental
+ * @purpose Server load & actions untuk pengelolaan jadwal pengajian bertingkat (Desa & Kelompok), penanganan tab aktif (currentTab) via URL parameter, template siklus rutin, generator sesi bulanan, dan override perubahan jadwal insidental
  * @usedBy src/routes/(admin)/admin/jadwal/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, src/lib/jadwal, drizzle-orm
  * @publicFunctions load, actions.saveTemplate, actions.deleteTemplate, actions.generateSesiBulanan, actions.createSesiManual, actions.updateSesiOverride, actions.deleteSesi
@@ -27,6 +27,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const isKelompokOnly = adminScope.level === 'Kelompok';
 	const canManageDesa =
 		adminScope.level === 'Desa' || adminScope.level === 'Daerah' || adminScope.isPusat;
+
+	// Penentuan Tab aktif dari URL parameter (?tab=kelompok atau ?tab=desa)
+	const urlTab = url.searchParams.get('tab');
+	const currentTab: 'desa' | 'kelompok' = isKelompokOnly || urlTab === 'kelompok' ? 'kelompok' : 'desa';
 
 	// Penentuan Desa aktif
 	const urlDesaId = url.searchParams.get('desaId');
@@ -120,6 +124,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		adminScope,
 		isKelompokOnly,
 		canManageDesa,
+		currentTab,
 		desaList: accessibleWilayah.desaList,
 		kelompokList: accessibleWilayah.kelompokList,
 		selectedDesaId,

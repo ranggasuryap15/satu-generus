@@ -7,24 +7,25 @@
   @sideEffects Menampilkan modal drawer notifikasi interaktif jamaah, overlay backdrop, dan shortcut menuju /presensi
 -->
 <script lang="ts">
-	import {
-		Search,
-		Bell,
-		ShieldCheck,
-		X,
-		CalendarClock,
-		AlertTriangle,
-		CheckCircle2,
-		Clock,
-		ChevronRight,
-		BellOff
-	} from '@lucide/svelte';
-	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import { page } from '$app/state';
+	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import {
+	  AlertTriangle,
+	  Bell,
+	  BellOff,
+	  CalendarClock,
+	  CheckCircle2,
+	  ChevronRight,
+	  Clock,
+	  Search,
+	  ShieldCheck,
+	  X
+	} from '@lucide/svelte';
 
 	let { title = 'Satu Generus' } = $props<{ title?: string }>();
 
 	let isNotifOpen = $state(false);
+	
 
 	const isAdmin = $derived(page.data.isAdmin);
 

@@ -1,13 +1,15 @@
 <!--
   @file src/routes/(admin)/admin/jadwal/+page.svelte
-  @purpose Antarmuka manajemen jadwal pengajian bertingkat (Desa & Kelompok), siklus pola rutin bulanan, override perubahan mendadak, generator sesi bulanan, dan generator pengingat WhatsApp
+  @purpose Antarmuka manajemen jadwal pengajian bertingkat (Desa & Kelompok), sinkronisasi tab aktif via URL query params, selector kelompok & desa tanpa refresh kasar, generator sesi bulanan, override mendadak, dan WhatsApp reminder
   @usedBy Route admin '/admin/jadwal'
-  @dependencies @lucide/svelte, $app/forms, $lib/components/SearchableSelect.svelte, $lib/jadwal (getNamaHari, getMingguKe, formatDateIndoFull, formatWhatsAppReminder, generateWhatsAppLink, NAMA_HARI_INDO, NAMA_BULAN_INDO), Svelte 5 Runes
-  @publicFunctions openCreateTemplateModal, openEditTemplateModal, openOverrideModal, openWaModal, openGenerateModal, copyWaText
-  @sideEffects Mengirim server action POST untuk template & sesi jadwal, dan menyalin format teks ke clipboard pengguna
+  @dependencies @lucide/svelte, $app/forms, $app/navigation, $app/state, $lib/components/SearchableSelect.svelte, $lib/jadwal (getNamaHari, getMingguKe, formatDateIndoFull, formatWhatsAppReminder, generateWhatsAppLink, NAMA_HARI_INDO, NAMA_BULAN_INDO), Svelte 5 Runes
+  @publicFunctions switchTab, handleSelectKelompok, handleSelectDesa, openCreateTemplateModal, openEditTemplateModal, openOverrideModal, openWaModal, openGenerateModal, copyWaText
+  @sideEffects Mengirim server action POST untuk template & sesi jadwal, navigasi query client-side, dan menyalin teks ke clipboard pengguna
 -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
 	import {
 		formatDateIndoFull,
@@ -45,8 +47,40 @@
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
-	// Mode Tab Aktif: 'desa' atau 'kelompok'
-	let activeTab = $state<'desa' | 'kelompok'>(data.canManageDesa ? 'desa' : 'kelompok');
+	// Mode Tab Aktif: 'desa' atau 'kelompok' (tersinkronisasi penuh dengan URL parameter data.currentTab)
+	let activeTab = $state<'desa' | 'kelompok'>(data.currentTab || (data.canManageDesa ? 'desa' : 'kelompok'));
+
+	$effect(() => {
+		if (data.currentTab) {
+			activeTab = data.currentTab;
+		}
+	});
+
+	function switchTab(newTab: 'desa' | 'kelompok') {
+		activeTab = newTab;
+		const targetUrl = new URL(page.url);
+		targetUrl.searchParams.set('tab', newTab);
+		if (newTab === 'kelompok' && data.selectedKelompokId) {
+			targetUrl.searchParams.set('kelompokId', String(data.selectedKelompokId));
+		} else if (newTab === 'desa' && data.selectedDesaId) {
+			targetUrl.searchParams.set('desaId', String(data.selectedDesaId));
+		}
+		goto(targetUrl.toString(), { keepFocus: true, noScroll: true });
+	}
+
+	function handleSelectKelompok(val: string | number) {
+		const targetUrl = new URL(page.url);
+		targetUrl.searchParams.set('tab', 'kelompok');
+		targetUrl.searchParams.set('kelompokId', String(val));
+		goto(targetUrl.toString(), { keepFocus: true, noScroll: true });
+	}
+
+	function handleSelectDesa(val: string | number) {
+		const targetUrl = new URL(page.url);
+		targetUrl.searchParams.set('tab', 'desa');
+		targetUrl.searchParams.set('desaId', String(val));
+		goto(targetUrl.toString(), { keepFocus: true, noScroll: true });
+	}
 
 	// State Modal Tambah/Edit Template
 	let showTemplateModal = $state(false);
@@ -58,11 +92,25 @@
 
 	// State Modal Buat Sesi Manual
 	let showCreateSesiModal = $state(false);
+	let createSesiScope = $state<'Desa' | 'Kelompok'>('Desa');
 
 	// State Modal Generate Sesi Bulanan
 	let showGenerateModal = $state(false);
+	let generateScope = $state<'Desa' | 'Kelompok'>('Desa');
 	let generateYear = $state(new Date().getFullYear());
 	let generateMonth = $state(new Date().getMonth() + 1);
+
+	function openCreateSesiModal(scope: 'Desa' | 'Kelompok') {
+		createSesiScope = scope;
+		showCreateSesiModal = true;
+	}
+
+	function openGenerateModal(scope: 'Desa' | 'Kelompok') {
+		generateScope = scope;
+		generateYear = new Date().getFullYear();
+		generateMonth = new Date().getMonth() + 1;
+		showGenerateModal = true;
+	}
 
 	// State Modal WhatsApp Reminder
 	let showWaModal = $state(false);
@@ -137,10 +185,6 @@
 	function openOverrideModal(sesi: any) {
 		editingSesi = { ...sesi };
 		showOverrideModal = true;
-	}
-
-	function openCreateSesiModal(scope: 'Desa' | 'Kelompok') {
-		showCreateSesiModal = true;
 	}
 
 	function openWaModal(sesi: any, scope: 'Desa' | 'Kelompok') {
@@ -237,8 +281,8 @@
 		<div class="flex items-center gap-2 border-b border-border pb-2">
 			<button
 				type="button"
-				onclick={() => (activeTab = 'desa')}
-				class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all {activeTab === 'desa'
+				onclick={() => switchTab('desa')}
+				class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer {activeTab === 'desa'
 					? 'bg-primary text-primary-foreground shadow-xs'
 					: 'bg-card border border-border text-foreground/70 hover:text-foreground hover:bg-secondary'}"
 			>
@@ -248,8 +292,8 @@
 
 			<button
 				type="button"
-				onclick={() => (activeTab = 'kelompok')}
-				class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all {activeTab === 'kelompok'
+				onclick={() => switchTab('kelompok')}
+				class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer {activeTab === 'kelompok'
 					? 'bg-primary text-primary-foreground shadow-xs'
 					: 'bg-card border border-border text-foreground/70 hover:text-foreground hover:bg-secondary'}"
 			>
@@ -271,11 +315,8 @@
 					<select
 						id="desaSelect"
 						value={data.selectedDesaId}
-						onchange={(e) => {
-							const val = e.currentTarget.value;
-							window.location.href = `/admin/jadwal?tab=desa&desaId=${val}`;
-						}}
-						class="bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
+						onchange={(e) => handleSelectDesa(e.currentTarget.value)}
+						class="bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary cursor-pointer"
 					>
 						{#each data.desaList as d}
 							<option value={d.id}>{d.nama} ({d.daerahNama || 'Daerah'})</option>
@@ -303,7 +344,7 @@
 						<button
 							type="button"
 							onclick={() => openCreateTemplateModal('Desa')}
-							class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold shadow-xs transition-all"
+							class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold shadow-xs transition-all cursor-pointer"
 						>
 							<Plus class="w-3.5 h-3.5" />
 							<span>Tambah Pola Rutin</span>
@@ -311,12 +352,8 @@
 
 						<button
 							type="button"
-							onclick={() => {
-								generateYear = new Date().getFullYear();
-								generateMonth = new Date().getMonth() + 1;
-								showGenerateModal = true;
-							}}
-							class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 border border-border text-foreground text-xs font-semibold transition-all"
+							onclick={() => openGenerateModal('Desa')}
+							class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 border border-border text-foreground text-xs font-semibold transition-all cursor-pointer"
 						>
 							<Sparkles class="w-3.5 h-3.5 text-primary" />
 							<span>Generate Sesi</span>
@@ -567,9 +604,7 @@
 							name="kelompokSelect"
 							options={kelompokOptions}
 							value={data.selectedKelompokId || ''}
-							onchange={(val) => {
-								window.location.href = `/admin/jadwal?tab=kelompok&kelompokId=${val}`;
-							}}
+							onchange={(val) => handleSelectKelompok(val)}
 							placeholder="-- Cari / Pilih Kelompok --"
 							searchPlaceholder="Ketik nama kelompok atau desa..."
 						/>
@@ -596,7 +631,7 @@
 						<button
 							type="button"
 							onclick={() => openCreateTemplateModal('Kelompok')}
-							class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold shadow-xs transition-all"
+							class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold shadow-xs transition-all cursor-pointer"
 						>
 							<Plus class="w-3.5 h-3.5" />
 							<span>Tambah Hari Rutin</span>
@@ -604,12 +639,8 @@
 
 						<button
 							type="button"
-							onclick={() => {
-								generateYear = new Date().getFullYear();
-								generateMonth = new Date().getMonth() + 1;
-								showGenerateModal = true;
-							}}
-							class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 border border-border text-foreground text-xs font-semibold transition-all"
+							onclick={() => openGenerateModal('Kelompok')}
+							class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 border border-border text-foreground text-xs font-semibold transition-all cursor-pointer"
 						>
 							<Sparkles class="w-3.5 h-3.5 text-primary" />
 							<span>Generate Sesi</span>
@@ -1231,13 +1262,13 @@
 						Tambah Sesi Jadwal Pengajian Manual
 					</h3>
 					<span class="text-[11px] text-foreground/60">
-						Tingkat: {activeTab === 'desa' ? 'Desa' : 'Kelompok'}
+						Tingkat: {createSesiScope} ({createSesiScope === 'Desa' ? (activeDesaObj?.nama || 'Desa') : (activeKelompokObj?.nama || 'Kelompok')})
 					</span>
 				</div>
 				<button
 					type="button"
 					onclick={() => (showCreateSesiModal = false)}
-					class="p-1 rounded-lg text-foreground/50 hover:text-foreground hover:bg-secondary"
+					class="p-1 rounded-lg text-foreground/50 hover:text-foreground hover:bg-secondary cursor-pointer"
 				>
 					<X class="w-4 h-4" />
 				</button>
@@ -1256,9 +1287,9 @@
 				}}
 				class="space-y-3.5 text-xs"
 			>
-				<input type="hidden" name="tingkatScope" value={activeTab === 'desa' ? 'Desa' : 'Kelompok'} />
-				<input type="hidden" name="desaId" value={data.selectedDesaId || ''} />
-				<input type="hidden" name="kelompokId" value={data.selectedKelompokId || ''} />
+				<input type="hidden" name="tingkatScope" value={createSesiScope} />
+				<input type="hidden" name="desaId" value={createSesiScope === 'Desa' ? (data.selectedDesaId || '') : ''} />
+				<input type="hidden" name="kelompokId" value={createSesiScope === 'Kelompok' ? (data.selectedKelompokId || '') : ''} />
 
 				<!-- Tanggal Sesi -->
 				<div>
@@ -1401,9 +1432,14 @@
 				</button>
 			</div>
 
-			<p class="text-xs text-foreground/70 leading-relaxed">
-				Sistem akan membuat seluruh tanggal sesi pengajian untuk bulan yang dipilih berdasarkan pola rutin yang telah diatur. Sesi yang sudah pernah dibuat tidak akan ditimpa.
-			</p>
+			<div class="space-y-1">
+				<p class="text-xs text-foreground/70 leading-relaxed">
+					Sistem akan membuat seluruh tanggal sesi pengajian untuk bulan yang dipilih berdasarkan pola rutin yang telah diatur. Sesi yang sudah pernah dibuat tidak akan ditimpa.
+				</p>
+				<p class="text-[11px] font-bold text-primary">
+					Tingkat: {generateScope} ({generateScope === 'Desa' ? (activeDesaObj?.nama || 'Desa') : (activeKelompokObj?.nama || 'Kelompok')})
+				</p>
+			</div>
 
 			<form
 				method="POST"
@@ -1418,9 +1454,9 @@
 				}}
 				class="space-y-3.5 text-xs"
 			>
-				<input type="hidden" name="tingkatScope" value={activeTab === 'desa' ? 'Desa' : 'Kelompok'} />
-				<input type="hidden" name="desaId" value={data.selectedDesaId || ''} />
-				<input type="hidden" name="kelompokId" value={data.selectedKelompokId || ''} />
+				<input type="hidden" name="tingkatScope" value={generateScope} />
+				<input type="hidden" name="desaId" value={generateScope === 'Desa' ? (data.selectedDesaId || '') : ''} />
+				<input type="hidden" name="kelompokId" value={generateScope === 'Kelompok' ? (data.selectedKelompokId || '') : ''} />
 
 				<div class="grid grid-cols-2 gap-2.5">
 					<div>
