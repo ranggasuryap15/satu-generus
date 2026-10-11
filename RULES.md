@@ -27,3 +27,4 @@
 - DILARANG KERAS menjalankan `npm run build` atau `npm run check` selama proses penulisan kode atau development lokal, kecuali diminta secara eksplisit.
 - Proses development hanya menggunakan `npm run dev` (Vite HMR).
 - Evaluasi kode cukup dilakukan dengan melihat perubahan langsung di browser atau melalui linter bawaan IDE, bukan dengan memicu proses kompilasi penuh.
+- Setelah tidak ada error, maka lakukan `git commit`, `git push`, agar terdokumentasi dengan
