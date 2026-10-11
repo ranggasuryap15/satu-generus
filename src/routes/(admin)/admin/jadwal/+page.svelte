@@ -11,6 +11,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
+	import DateInput from '$lib/components/DateInput.svelte';
 	import {
 		formatDateIndoFull,
 		formatWhatsAppReminder,
@@ -1475,10 +1476,9 @@
 					<label for="manualTgl" class="block font-semibold text-foreground/80 mb-1">
 						Tanggal Kegiatan <span class="text-destructive">*</span>
 					</label>
-					<input
+					<DateInput
 						id="manualTgl"
 						name="tanggal"
-						type="date"
 						required
 						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary"
 					/>

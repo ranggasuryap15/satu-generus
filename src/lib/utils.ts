@@ -48,12 +48,33 @@ export function formatDateDDMMYYYY(dateInput: string | number | Date | null | un
 			return `${day.padStart(2, '0')}-${month.padStart(2, '0')}-${year}`;
 		}
 
-		// Jika format YYYY-MM-DD (dengan atau tanpa time)
-		const datePart = cleanDate.split('T')[0].split(' ')[0];
-		const parts = datePart.split('-');
-		if (parts.length === 3 && parts[0].length === 4) {
-			const [year, month, day] = parts;
+		// Jika format YYYY-MM-DD atau YYYY/MM/DD (dengan atau tanpa time)
+		const ymdMatch = cleanDate.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+		if (ymdMatch) {
+			const [, year, month, day] = ymdMatch;
 			return `${day.padStart(2, '0')}-${month.padStart(2, '0')}-${year}`;
+		}
+
+		// Jika 8 digit angka murni (DDMMYYYY atau YYYYMMDD)
+		const pureDigits = cleanDate.replace(/\D/g, '');
+		if (pureDigits.length === 8) {
+			const possibleYear = parseInt(pureDigits.slice(0, 4), 10);
+			if (possibleYear >= 1900 && possibleYear <= 2100) {
+				const year = pureDigits.slice(0, 4);
+				const month = pureDigits.slice(4, 6);
+				const day = pureDigits.slice(6, 8);
+				return `${day}-${month}-${year}`;
+			} else {
+				const day = pureDigits.slice(0, 2);
+				const month = pureDigits.slice(2, 4);
+				const year = pureDigits.slice(4, 8);
+				return `${day}-${month}-${year}`;
+			}
+		}
+
+		// Jika bukan string tanggal lengkap (misal sedang diketik), jangan parse dengan new Date()
+		if (cleanDate.length < 8 || !/\d/.test(cleanDate)) {
+			return cleanDate;
 		}
 	}
 
@@ -67,7 +88,7 @@ export function formatDateDDMMYYYY(dateInput: string | number | Date | null | un
 }
 
 /**
- * Mengubah input tanggal string (DD-MM-YYYY, DD/MM/YYYY, atau ISO) menjadi format standar ISO YYYY-MM-DD
+ * Mengubah input tanggal string (DD-MM-YYYY, DD/MM/YYYY, 8 digit, atau ISO) menjadi format standar ISO YYYY-MM-DD
  * untuk penyimpanan konsisten di database SQLite.
  */
 export function normalizeDateToISO(dateInput: string | Date | null | undefined): string {
@@ -96,6 +117,23 @@ export function normalizeDateToISO(dateInput: string | Date | null | undefined):
 	if (ymdMatch) {
 		const [, year, month, day] = ymdMatch;
 		return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+	}
+
+	// Jika 8 digit angka murni DDMMYYYY atau YYYYMMDD
+	const pureDigits = clean.replace(/\D/g, '');
+	if (pureDigits.length === 8) {
+		const possibleYear = parseInt(pureDigits.slice(0, 4), 10);
+		if (possibleYear >= 1900 && possibleYear <= 2100) {
+			const year = pureDigits.slice(0, 4);
+			const month = pureDigits.slice(4, 6);
+			const day = pureDigits.slice(6, 8);
+			return `${year}-${month}-${day}`;
+		} else {
+			const day = pureDigits.slice(0, 2);
+			const month = pureDigits.slice(2, 4);
+			const year = pureDigits.slice(4, 8);
+			return `${year}-${month}-${day}`;
+		}
 	}
 
 	return clean;

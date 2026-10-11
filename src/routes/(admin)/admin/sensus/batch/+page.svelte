@@ -1,14 +1,15 @@
 <!--
   @file src/routes/(admin)/admin/sensus/batch/+page.svelte
-  @purpose Antarmuka batch insert sensus massal terstruktur: grouping keluarga hierarkis untuk KK (Kepala Keluarga & Anggota otomatis terikat ke KK yang sama) dan kartu baris tunggal datar untuk Jamaah Mandiri/Perantau (tanpa grouping), auto-kalkulasi generus, layout form responsif desktop & mobile, paste spreadsheet otomatis, pemilihan kelompok fleksibel (global single-kelompok terkunci vs mode 'ALL' beda-beda per keluarga dengan SearchableSelect), dan opsi pembuatan akun
+  @purpose Antarmuka batch insert sensus massal terstruktur: grouping keluarga hierarkis untuk KK dan kartu baris tunggal datar untuk Jamaah Mandiri/Perantau, DateInput dengan manual typing & kalender, auto-kalkulasi generus, layout form responsif desktop & mobile, paste spreadsheet otomatis, dan opsi pembuatan akun
   @usedBy Route admin '/admin/sensus/batch'
-  @dependencies @lucide/svelte, $app/forms, $lib/components/SearchableSelect.svelte, $lib/generus (hitungUmur, hitungStatusGenerus, getDaftarStatusKeluargaByGender, daftar konstanta), Svelte 5 Runes
+  @dependencies @lucide/svelte, $app/forms, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/generus (hitungUmur, hitungStatusGenerus, getDaftarStatusKeluargaByGender, daftar konstanta), Svelte 5 Runes
   @publicFunctions addFamily, addPerantauFamily, removeFamily, addMemberToFamily, removeMember, clearFamilies, convertToPerantau, convertToFamily, onGlobalKelompokChange, onJenisKelaminChange, onStatusKeluargaChange, onTanggalLahirOrMenikahChange, processPastedSpreadsheet, toggleAllBuatAkun
   @sideEffects Mengirim payload JSON batchData (FamilyBatchGroup[]) ke server action untuk transaksi database atomik
 -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
+	import DateInput from '$lib/components/DateInput.svelte';
 	import { confirmAction } from '$lib/confirm.svelte';
 	import {
 		DAFTAR_GOLONGAN_DARAH,
@@ -278,6 +279,19 @@
 		member.umur = hitungUmur(member.tanggalLahir);
 		member.statusGenerus = hitungStatusGenerus(member.umur, member.statusMenikah);
 	}
+
+	// Auto-kalkulasi umur dan status generus secara reaktif saat tanggal lahir berubah
+	$effect(() => {
+		for (const fam of families) {
+			for (const m of fam.members) {
+				const umur = hitungUmur(m.tanggalLahir);
+				if (m.umur !== umur) {
+					m.umur = umur;
+					m.statusGenerus = hitungStatusGenerus(m.umur, m.statusMenikah);
+				}
+			}
+		}
+	});
 
 	function onJenisKelaminChange(member: MemberRowData) {
 		const allowed = getDaftarStatusKeluargaByGender(member.jenisKelamin);
@@ -675,8 +689,8 @@
 					if (!m.tanggalLahir.trim()) {
 						alert(
 							fam.isPerantau
-								? `Baris Mandiri #${fIdx + 1} (${m.namaLengkap}): Tanggal lahir wajib diisi (YYYY-MM-DD)!`
-								: `Keluarga #${fIdx + 1} (${m.namaLengkap}): Tanggal lahir wajib diisi (YYYY-MM-DD)!`
+								? `Baris Mandiri #${fIdx + 1} (${m.namaLengkap}): Tanggal lahir wajib diisi!`
+								: `Keluarga #${fIdx + 1} (${m.namaLengkap}): Tanggal lahir wajib diisi!`
 						);
 						cancel();
 						return;
@@ -890,20 +904,18 @@
 							</div>
 
 							<!-- Tanggal Lahir * -->
-							<div class="w-[calc(50%-4px)] sm:w-32 shrink-0">
+							<div class="w-[calc(50%-4px)] sm:w-36 shrink-0">
 								<label
 									for="tgl-mandiri-{row.id}"
 									class="block text-[10px] font-semibold text-foreground/75 mb-1"
 								>
 									Tgl Lahir <span class="text-destructive">*</span>
 								</label>
-								<input
+								<DateInput
 									id="tgl-mandiri-{row.id}"
-									type="text"
 									required
 									bind:value={row.tanggalLahir}
-									onblur={() => onTanggalLahirOrMenikahChange(row)}
-									placeholder="YYYY-MM-DD"
+									placeholder="DD-MM-YYYY"
 									class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary"
 								/>
 							</div>
@@ -1357,17 +1369,15 @@
 											</div>
 
 											<!-- Tanggal Lahir * -->
-											<div class="w-[calc(50%-4px)] sm:w-32 shrink-0">
+											<div class="w-[calc(50%-4px)] sm:w-36 shrink-0">
 												<label for="tgl-{row.id}" class="block text-[10px] font-semibold text-foreground/75 mb-1">
 													Tgl Lahir <span class="text-destructive">*</span>
 												</label>
-												<input
+												<DateInput
 													id="tgl-{row.id}"
-													type="text"
 													required
 													bind:value={row.tanggalLahir}
-													onblur={() => onTanggalLahirOrMenikahChange(row)}
-													placeholder="YYYY-MM-DD"
+													placeholder="DD-MM-YYYY"
 													class="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary"
 												/>
 											</div>

@@ -1910,8 +1910,7 @@
 						<label for="edit-tanggalLahir" class="block font-semibold text-foreground mb-1">
 							Tanggal Lahir *
 						</label>
-						<input
-							type="date"
+						<DateInput
 							id="edit-tanggalLahir"
 							name="tanggalLahir"
 							bind:value={editAnggotaTanggalLahir}

@@ -1,10 +1,10 @@
 <!--
   @file src/lib/components/DateInput.svelte
-  @purpose Komponen input tanggal terstandarisasi format baku DD-MM-YYYY dengan auto-masking dan kalender pemilih
-  @usedBy Form sensus kartu keluarga, sensus mandiri, presensi, dan modal tambah/edit anggota
-  @dependencies @lucide/svelte (Calendar), Svelte 5 Runes ($state, $props, $bindable, $effect), $lib/utils (formatDateDDMMYYYY, normalizeDateToISO)
-  @publicFunctions handleInput, openCalendarPicker
-  @sideEffects Mengontrol input teks dan hidden input untuk sinkronisasi nilai tanggal DD-MM-YYYY / ISO
+  @purpose Komponen input tanggal fleksibel: mendukung pengetikan manual bebas tanpa interupsi, pemilih pop-up kalender instan saat diklik, dan normalisasi DD-MM-YYYY / ISO
+  @usedBy Form sensus kartu keluarga, sensus mandiri, presensi, jadwal, dan modal tambah/edit anggota
+  @dependencies @lucide/svelte (Calendar), Svelte 5 Runes ($state, $props, $bindable, $effect, $derived), $lib/utils (formatDateDDMMYYYY, normalizeDateToISO)
+  @publicFunctions handleInput, handleBlur, handlePickerChange, openPicker
+  @sideEffects Mengontrol input teks dan hidden input untuk sinkronisasi nilai tanggal DD-MM-YYYY / ISO form POST
 -->
 <script lang="ts">
 	import { Calendar } from '@lucide/svelte';
@@ -32,9 +32,12 @@
 
 	let displayValue = $state('');
 	let pickerRef: HTMLInputElement | null = $state(null);
+	let isUserTyping = $state(false);
 
-	// Sinkronisasi nilai awal atau perubahan dari luar ke tampilan DD-MM-YYYY
+	// Sinkronisasi hanya saat TIDAK sedang diketik aktif oleh user
 	$effect(() => {
+		if (isUserTyping) return;
+
 		if (value) {
 			const formatted = formatDateDDMMYYYY(value);
 			if (formatted !== '-' && formatted !== displayValue) {
@@ -45,26 +48,36 @@
 		}
 	});
 
-	// Nilai ISO untuk input form tersembunyi
+	// Nilai ISO standar (YYYY-MM-DD) untuk payload form server
 	const isoValue = $derived(normalizeDateToISO(displayValue || value));
 
 	function handleInput(e: Event) {
+		isUserTyping = true;
 		const target = e.target as HTMLInputElement;
-		// Hanya ambil karakter angka
-		let digits = target.value.replace(/\D/g, '');
-		if (digits.length > 8) digits = digits.slice(0, 8);
+		const raw = target.value;
 
-		let formatted = '';
-		if (digits.length > 4) {
-			formatted = `${digits.slice(0, 2)}-${digits.slice(2, 4)}-${digits.slice(4)}`;
-		} else if (digits.length > 2) {
-			formatted = `${digits.slice(0, 2)}-${digits.slice(2)}`;
-		} else {
-			formatted = digits;
+		// Izinkan angka dan pemisah strip (-) atau slash (/)
+		let clean = raw.replace(/[^\d\-/]/g, '');
+
+		// Jika user mengetik 8 digit angka murni berturut-turut, bantu beri pemisah DD-MM-YYYY
+		const digits = clean.replace(/\D/g, '');
+		if (digits.length === 8 && !clean.includes('-') && !clean.includes('/')) {
+			clean = `${digits.slice(0, 2)}-${digits.slice(2, 4)}-${digits.slice(4)}`;
 		}
 
-		displayValue = formatted;
-		value = formatted;
+		displayValue = clean;
+		value = clean;
+	}
+
+	function handleBlur() {
+		isUserTyping = false;
+		if (displayValue.trim()) {
+			const formatted = formatDateDDMMYYYY(displayValue);
+			if (formatted !== '-') {
+				displayValue = formatted;
+				value = formatted;
+			}
+		}
 	}
 
 	function handlePickerChange(e: Event) {
@@ -73,6 +86,7 @@
 			const formatted = formatDateDDMMYYYY(target.value);
 			displayValue = formatted;
 			value = formatted;
+			isUserTyping = false;
 		}
 	}
 
@@ -83,6 +97,7 @@
 				if (typeof pickerRef.showPicker === 'function') {
 					pickerRef.showPicker();
 				} else {
+					pickerRef.focus();
 					pickerRef.click();
 				}
 			} catch (_) {
@@ -92,24 +107,13 @@
 	}
 </script>
 
-<div class="relative w-full">
+<div class="relative w-full group">
 	<!-- Hidden input untuk native form POST bila prop 'name' diberikan -->
 	{#if name}
 		<input type="hidden" {name} value={isoValue} />
 	{/if}
 
-	<!-- Hidden native date picker untuk trigger kalender -->
-	<input
-		bind:this={pickerRef}
-		type="date"
-		tabindex="-1"
-		aria-hidden="true"
-		class="sr-only absolute pointer-events-none opacity-0"
-		value={isoValue}
-		onchange={handlePickerChange}
-	/>
-
-	<!-- Tampilan Input Teks Baku DD-MM-YYYY -->
+	<!-- Tampilan Input Teks: Bebas diketik manual atau dblclick untuk kalender -->
 	<input
 		{id}
 		type="text"
@@ -120,20 +124,33 @@
 		{placeholder}
 		value={displayValue}
 		oninput={handleInput}
-		class="w-full pr-9 {className}"
+		onblur={handleBlur}
+		ondblclick={openPicker}
+		class="w-full pr-10 {className}"
 	/>
 
-	<!-- Tombol Kalender -->
-	<button
-		type="button"
-		tabindex="-1"
-		onclick={openPicker}
-		{disabled}
-		class="absolute right-2.5 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-		title="Buka Kalender Pemilih Tanggal"
-		aria-label="Buka Kalender Pemilih Tanggal"
-	>
-		<Calendar class="w-4 h-4" />
-	</button>
+	<!-- Overlay Native Date Picker & Icon Kalender (Bisa diklik langsung untuk memunculkan kalender) -->
+	<div class="absolute right-0 top-0 h-full w-9 flex items-center justify-center">
+		<input
+			bind:this={pickerRef}
+			type="date"
+			tabindex="-1"
+			value={isoValue}
+			onchange={handlePickerChange}
+			class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 disabled:cursor-not-allowed"
+			title="Pilih tanggal dari kalender"
+			aria-label="Pilih tanggal dari kalender"
+			{disabled}
+		/>
+		<button
+			type="button"
+			tabindex="-1"
+			onclick={openPicker}
+			{disabled}
+			class="pointer-events-none text-foreground/40 group-hover:text-primary transition-colors disabled:opacity-40"
+			aria-hidden="true"
+		>
+			<Calendar class="w-4 h-4" />
+		</button>
+	</div>
 </div>
-

@@ -8,16 +8,24 @@
  */
 
 /**
- * Menghitung umur dalam tahun dari tanggal lahir ISO (YYYY-MM-DD) atau DD-MM-YYYY
+ * Menghitung umur dalam tahun dari tanggal lahir ISO (YYYY-MM-DD), DD-MM-YYYY, DD/MM/YYYY, atau 8 digit
  */
 export function hitungUmur(tanggalLahir: string): number {
 	if (!tanggalLahir) return 0;
 
 	let tglStr = tanggalLahir.trim();
-	// Jika format DD-MM-YYYY, ubah ke YYYY-MM-DD untuk parsing standar
-	if (/^\d{2}-\d{2}-\d{4}$/.test(tglStr)) {
-		const parts = tglStr.split('-');
-		tglStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
+	// Jika format DD-MM-YYYY atau DD/MM/YYYY, ubah ke YYYY-MM-DD untuk parsing standar
+	const dmyMatch = tglStr.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+	if (dmyMatch) {
+		const [, d, m, y] = dmyMatch;
+		tglStr = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+	} else if (/^\d{8}$/.test(tglStr)) {
+		const possibleYear = parseInt(tglStr.slice(0, 4), 10);
+		if (possibleYear >= 1900 && possibleYear <= 2100) {
+			tglStr = `${tglStr.slice(0, 4)}-${tglStr.slice(4, 6)}-${tglStr.slice(6, 8)}`;
+		} else {
+			tglStr = `${tglStr.slice(4, 8)}-${tglStr.slice(2, 4)}-${tglStr.slice(0, 2)}`;
+		}
 	}
 
 	const birthDate = new Date(tglStr);
