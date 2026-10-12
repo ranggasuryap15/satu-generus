@@ -3,7 +3,7 @@
   @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri, dashboard statistik, penugasan dapukan pengurus KK, modal detail lengkap (hapus sensus, pindah kelompok, toggle status jamaah), modal edit anggota/KK, dan pembuatan akun
   @usedBy Route admin '/admin/sensus'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/confirm.svelte, $lib/utils (formatDateDDMMYYYY)
-  @publicFunctions requestUnmask, openCreateModal, closeCreateModal, openAddMemberModal, closeAddMemberModal, openCreateAccountModal, openEditAnggotaModal, closeEditAnggotaModal, openEditKeluargaModal, closeEditKeluargaModal, openPindahKelompokModal, closePindahKelompokModal, openAssignDapukanModal, closeAssignDapukanModal, handleHapusSensus, handleToggleStatusJamaah, resetFilters, toggleMobileFilter
+  @publicFunctions openDetailModal, closeDetailModal, requestUnmask, openCreateModal, closeCreateModal, openAddMemberModal, closeAddMemberModal, openCreateAccountModal, openEditAnggotaModal, closeEditAnggotaModal, openEditKeluargaModal, closeEditKeluargaModal, openPindahKelompokModal, closePindahKelompokModal, openAssignDapukanModal, closeAssignDapukanModal, handleHapusSensus, handleToggleStatusJamaah, resetFilters, toggleMobileFilter
   @sideEffects Menampilkan metrik, unmask data sensitif, submit actions (createSensus, addAnggotaKeluarga, updateAnggota, updateKeluarga, deleteSensus, pindahKelompok, toggleStatusJamaah, createMemberAccount, assignDapukan)
 -->
 <script lang="ts">
@@ -60,7 +60,21 @@
 	);
 
 	// State Modal Detail & Unmasking
-	let selectedKeluarga = $state<(typeof data.daftarKeluarga)[0] | null>(null);
+	let selectedKeluargaId = $state<string | null>(null);
+	const selectedKeluarga = $derived(
+		selectedKeluargaId
+			? (data.daftarKeluarga || []).find((item: (typeof data.daftarKeluarga)[number]) => item.id === selectedKeluargaId) || null
+			: null
+	);
+
+	function openDetailModal(k: (typeof data.daftarKeluarga)[number]) {
+		selectedKeluargaId = k.id;
+	}
+
+	function closeDetailModal() {
+		selectedKeluargaId = null;
+	}
+
 	let showUnmaskModal = $state(false);
 	let unmaskLoading = $state(false);
 	let unmaskedData = $state<{ label: string; value: string } | null>(null);
@@ -168,8 +182,8 @@
 
 		if (ok) {
 			deleteTargetKeluargaId = k.id;
-			if (selectedKeluarga?.id === k.id) {
-				selectedKeluarga = null;
+			if (selectedKeluargaId === k.id) {
+				closeDetailModal();
 			}
 			setTimeout(() => {
 				deleteSensusForm?.requestSubmit();
@@ -204,16 +218,6 @@
 			}, 30);
 		}
 	}
-
-	// Sinkronisasi reaktif selectedKeluarga ketika data mutasi berhasil
-	$effect(() => {
-		if (selectedKeluarga) {
-			const fresh = data.daftarKeluarga.find((item: any) => item.id === selectedKeluarga?.id);
-			if (fresh) {
-				selectedKeluarga = fresh;
-			}
-		}
-	});
 
 	// State Modal Tambah Sensus Baru (Akun + KK/Mandiri + Anggota)
 	let showCreateModal = $state(false);
@@ -1003,7 +1007,7 @@
 
 						<button
 							type="button"
-							onclick={() => (selectedKeluarga = k)}
+							onclick={() => openDetailModal(k)}
 							class="flex-1 py-2 px-2.5 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground font-semibold text-xs transition-colors border border-border/60 text-center cursor-pointer"
 						>
 							Detail
@@ -1145,7 +1149,7 @@
 
 										<button
 											type="button"
-											onclick={() => (selectedKeluarga = k)}
+											onclick={() => openDetailModal(k)}
 											class="px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground font-semibold text-xs transition-colors cursor-pointer"
 										>
 											Detail
@@ -1780,7 +1784,7 @@
 		role="dialog"
 		aria-modal="true"
 		onclick={(e) => {
-			if (e.target === e.currentTarget) selectedKeluarga = null;
+			if (e.target === e.currentTarget) closeDetailModal();
 		}}
 	>
 		<div class="bg-card border border-border rounded-2xl max-w-2xl w-full p-4 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
@@ -1800,7 +1804,7 @@
 				</div>
 				<button
 					type="button"
-					onclick={() => (selectedKeluarga = null)}
+					onclick={closeDetailModal}
 					class="p-1 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground cursor-pointer"
 				>
 					<X class="w-5 h-5" />
@@ -2030,7 +2034,7 @@
 						type="button"
 						onclick={() => {
 							const target = selectedKeluarga;
-							selectedKeluarga = null;
+							closeDetailModal();
 							if (target) openAddMemberModal(target);
 						}}
 						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-semibold text-foreground hover:bg-secondary cursor-pointer"
@@ -2044,7 +2048,7 @@
 
 				<button
 					type="button"
-					onclick={() => (selectedKeluarga = null)}
+					onclick={closeDetailModal}
 					class="px-4 py-1.5 rounded-lg bg-secondary text-foreground text-xs font-semibold hover:bg-secondary/80 cursor-pointer"
 				>
 					Tutup
