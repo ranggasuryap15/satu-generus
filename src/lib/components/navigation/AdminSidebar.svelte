@@ -1,6 +1,6 @@
 <!--
   @file src/lib/components/navigation/AdminSidebar.svelte
-  @purpose Komponen Sidebar navigasi admin responsif dengan pengelompokan menu (Dashboard & Profil Wilayah, Pusat Data, Pengajian, Sistem), penanda rute aktif, dan badge permohonan pending
+  @purpose Komponen Sidebar navigasi admin responsif dengan pengelompokan menu (Dashboard & Profil Wilayah, Keuangan/KU bagi Kyai/KU/Aghnia, Pusat Data, Pengajian, Sistem), penanda rute aktif, dan badge permohonan pending
   @usedBy src/routes/(admin)/+layout.svelte
   @dependencies $app/state (page), @lucide/svelte
   @publicFunctions isItemActive
@@ -13,10 +13,12 @@
 		CalendarDays,
 		ExternalLink,
 		FileSpreadsheet,
+		HandCoins,
 		Landmark,
 		LayoutDashboard,
 		MapPin,
 		ShieldCheck,
+		TrendingUp,
 		Users,
 		X
 	} from '@lucide/svelte';
@@ -38,14 +40,27 @@
 	}>();
 
 	const totalPending = $derived(Number(page.data.totalPendingApprovals) || 0);
+	const canAccessKeuangan = $derived(Boolean(page.data.canAccessKeuangan));
 
-	const menuGroups: NavGroup[] = [
+	const menuGroups = $derived<NavGroup[]>([
 		{
 			items: [
 				{ href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
 				{ href: '/admin/profil-wilayah', label: 'Profil Wilayah', icon: Landmark }
 			]
 		},
+		...(canAccessKeuangan
+			? [
+					{
+						title: 'Keuangan / KU',
+						items: [
+							{ href: '/admin/keuangan', label: 'Dashboard Keuangan', icon: TrendingUp },
+							{ href: '/admin/keuangan/laporan-fr', label: 'Laporan FR', icon: FileSpreadsheet },
+							{ href: '/admin/keuangan/fr-jamaah', label: 'FR Jamaah', icon: HandCoins }
+						]
+					}
+				]
+			: []),
 		{
 			title: 'Pusat Data',
 			items: [
@@ -68,7 +83,7 @@
 				{ href: '/admin/dapukan', label: 'Dapukan & RBAC', icon: ShieldCheck }
 			]
 		}
-	];
+	]);
 
 	function isItemActive(href: string): boolean {
 		if (href === '/admin') {

@@ -1,9 +1,9 @@
 /**
  * @file src/lib/db/schema.ts
- * @purpose Definisi schema tabel Drizzle ORM untuk SQLite sesuai SCHEMA.md (termasuk titik lokasi & radius pada kelompok, desa, daerah, rekening shodaqoh/QRIS per wilayah, kontak no_telepon user, sub-kelompok wilayah, serta rincian lengkap anggota keluarga)
+ * @purpose Definisi schema tabel Drizzle ORM untuk SQLite sesuai SCHEMA.md (termasuk wilayah, rekening/QRIS wilayah, anggota keluarga, sensus, presensi pengajian, dan transaksi setoran bulanan FR jamaah)
  * @usedBy src/lib/db/index.ts, queries/actions di routes dan services
  * @dependencies drizzle-orm/sqlite-core, @paralleldrive/cuid2
- * @publicFunctions daerah, desa, kelompok, subKelompok, users, dapukan, userDapukan, keluarga, anggotaKeluarga, jadwalPengajianTemplate, presensiJadwal, presensiKehadiran, rekeningWilayah
+ * @publicFunctions daerah, desa, kelompok, subKelompok, users, dapukan, userDapukan, keluarga, anggotaKeluarga, jadwalPengajianTemplate, presensiJadwal, presensiKehadiran, rekeningWilayah, transaksiFr
  * @sideEffects Mendefinisikan struktur tabel, relasi foreign key, dan indeks database SQLite
  */
 
@@ -314,5 +314,48 @@ export const rekeningWilayah = sqliteTable(
 		index('rekening_wilayah_kelompok_id_idx').on(table.kelompokId)
 	]
 );
+
+// ==========================================
+// 7. TRANSAKSI & SETORAN FR JAMAAH
+// ==========================================
+
+export const transaksiFr = sqliteTable(
+	'transaksi_fr',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => createId()),
+		anggotaKeluargaId: text('anggota_keluarga_id')
+			.notNull()
+			.references(() => anggotaKeluarga.id, { onDelete: 'cascade' }),
+		kelompokId: integer('kelompok_id')
+			.notNull()
+			.references(() => kelompok.id, { onDelete: 'cascade' }),
+		desaId: integer('desa_id').references(() => desa.id, { onDelete: 'cascade' }),
+		daerahId: integer('daerah_id').references(() => daerah.id, { onDelete: 'cascade' }),
+		tahun: integer('tahun').notNull(),
+		bulan: integer('bulan').notNull(),
+		nominal: integer('nominal').notNull().default(0),
+		statusBayar: text('status_bayar').notNull().default('Lunas'),
+		catatan: text('catatan'),
+		updatedByUserId: text('updated_by_user_id').references(() => users.id, {
+			onDelete: 'set null'
+		}),
+		createdAt: integer('created_at').notNull(),
+		updatedAt: integer('updated_at').notNull()
+	},
+	(table) => [
+		index('transaksi_fr_anggota_idx').on(table.anggotaKeluargaId),
+		index('transaksi_fr_kelompok_idx').on(table.kelompokId),
+		index('transaksi_fr_periode_idx').on(table.tahun, table.bulan),
+		index('transaksi_fr_desa_periode_idx').on(table.desaId, table.tahun, table.bulan),
+		uniqueIndex('transaksi_fr_unik_periode_idx').on(
+			table.anggotaKeluargaId,
+			table.tahun,
+			table.bulan
+		)
+	]
+);
+
 
 

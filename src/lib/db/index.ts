@@ -4,7 +4,7 @@
  * @usedBy Backend server routes (+page.server.ts, +server.ts, hooks.server.ts, scripts migrasi/seed)
  * @dependencies better-sqlite3, drizzle-orm/better-sqlite3, src/lib/db/schema.ts
  * @publicFunctions db, sqlite
- * @sideEffects Membuka koneksi file database SQLite, mengaktifkan PRAGMA WAL & foreign_keys, auto-migrasi kolom & tabel skema (sub_kelompok, users, anggota_keluarga, jadwal_pengajian_template, presensi_jadwal, presensi_kehadiran, kelompok, desa, daerah, dan rekening_wilayah), auto-sinkronisasi user_id & default isrun Kepala Keluarga
+ * @sideEffects Membuka koneksi file database SQLite, mengaktifkan PRAGMA WAL & foreign_keys, auto-migrasi kolom & tabel skema (sub_kelompok, users, anggota_keluarga, jadwal_pengajian_template, presensi_jadwal, presensi_kehadiran, kelompok, desa, daerah, rekening_wilayah, dan transaksi_fr), auto-sinkronisasi user_id & default isrun Kepala Keluarga
  */
 
 import Database from 'better-sqlite3';
@@ -398,6 +398,30 @@ try {
 		CREATE INDEX IF NOT EXISTS rekening_wilayah_daerah_id_idx ON rekening_wilayah (daerah_id);
 		CREATE INDEX IF NOT EXISTS rekening_wilayah_desa_id_idx ON rekening_wilayah (desa_id);
 		CREATE INDEX IF NOT EXISTS rekening_wilayah_kelompok_id_idx ON rekening_wilayah (kelompok_id);
+	`);
+
+	// Auto-heal / migrasi tabel transaksi_fr untuk setoran FR bulanan jamaah
+	sqlite.exec(`
+		CREATE TABLE IF NOT EXISTS transaksi_fr (
+			id TEXT PRIMARY KEY NOT NULL,
+			anggota_keluarga_id TEXT NOT NULL REFERENCES anggota_keluarga(id) ON DELETE CASCADE,
+			kelompok_id INTEGER NOT NULL REFERENCES kelompok(id) ON DELETE CASCADE,
+			desa_id INTEGER REFERENCES desa(id) ON DELETE CASCADE,
+			daerah_id INTEGER REFERENCES daerah(id) ON DELETE CASCADE,
+			tahun INTEGER NOT NULL,
+			bulan INTEGER NOT NULL,
+			nominal INTEGER NOT NULL DEFAULT 0,
+			status_bayar TEXT NOT NULL DEFAULT 'Lunas',
+			catatan TEXT,
+			updated_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
+		);
+		CREATE INDEX IF NOT EXISTS transaksi_fr_anggota_idx ON transaksi_fr (anggota_keluarga_id);
+		CREATE INDEX IF NOT EXISTS transaksi_fr_kelompok_idx ON transaksi_fr (kelompok_id);
+		CREATE INDEX IF NOT EXISTS transaksi_fr_periode_idx ON transaksi_fr (tahun, bulan);
+		CREATE INDEX IF NOT EXISTS transaksi_fr_desa_periode_idx ON transaksi_fr (desa_id, tahun, bulan);
+		CREATE UNIQUE INDEX IF NOT EXISTS transaksi_fr_unik_periode_idx ON transaksi_fr (anggota_keluarga_id, tahun, bulan);
 	`);
 } catch (migErr) {
 	console.error('[DB Auto-Migration] Gagal memeriksa atau memperbarui kolom skema SQLite:', migErr);

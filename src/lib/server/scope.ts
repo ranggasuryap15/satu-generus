@@ -1,9 +1,9 @@
 /**
  * @file src/lib/server/scope.ts
- * @purpose Evaluasi wewenang administratif berjenjang (Pusat, Daerah, Desa, Kelompok), filter wilayah RBAC, validasi hak mutasi dapukan, dan proteksi CRUD rekening/QRIS shodaqoh KU & Superadmin
- * @usedBy src/routes/(admin)/admin/sensus/+page.server.ts, src/routes/(admin)/admin/wilayah/+page.server.ts, src/routes/(admin)/admin/wilayah/batch/+page.server.ts, src/routes/(admin)/admin/dapukan/+page.server.ts, src/routes/(admin)/admin/profil-wilayah/+page.server.ts
+ * @purpose Evaluasi wewenang administratif berjenjang (Pusat, Daerah, Desa, Kelompok), filter wilayah RBAC, validasi hak mutasi dapukan, proteksi CRUD rekening/QRIS KU & Superadmin, serta otorisasi modul Keuangan/KU (Dashboard, Laporan FR, & FR Jamaah)
+ * @usedBy src/routes/(admin)/admin/sensus/+page.server.ts, src/routes/(admin)/admin/wilayah/+page.server.ts, src/routes/(admin)/admin/wilayah/batch/+page.server.ts, src/routes/(admin)/admin/dapukan/+page.server.ts, src/routes/(admin)/admin/profil-wilayah/+page.server.ts, src/routes/(admin)/admin/keuangan/*
  * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm
- * @publicFunctions getAdminScope, getAccessibleWilayah, isKelompokAllowed, canManageDapukan, canManageRekening
+ * @publicFunctions getAdminScope, getAccessibleWilayah, isKelompokAllowed, canManageDapukan, canManageRekening, canAccessKeuangan, canManageFr
  * @sideEffects Membaca data relasi master daerah, desa, dan kelompok dari SQLite
  */
 
@@ -330,5 +330,44 @@ export function canManageRekening(
 		return false;
 	});
 }
+
+/**
+ * Memeriksa apakah user berwenang melihat grup menu & modul Keuangan/KU
+ * - Kyai, KU/Bendahara, Aghnia: Berwenang
+ * - Superadmin / Tingkat Pusat: Selalu berwenang
+ * - Peran lain: Tidak berwenang
+ */
+export function canAccessKeuangan(roles: App.UserRole[]): boolean {
+	const adminScope = getAdminScope(roles);
+	if (adminScope.isPusat) return true;
+
+	return roles.some((r) => {
+		const dapukanNama = (r.namaDapukan || r.namaDapukanCustom || '').toLowerCase();
+		return (
+			dapukanNama.includes('kyai') ||
+			dapukanNama.includes('ketua') ||
+			dapukanNama.includes('ku') ||
+			dapukanNama.includes('bendahara') ||
+			dapukanNama.includes('keuangan') ||
+			dapukanNama.includes('aghnia') ||
+			dapukanNama.includes('agniya')
+		);
+	});
+}
+
+/**
+ * Memeriksa apakah user berwenang mengedit/menyimpan angka setoran FR Jamaah
+ * - Superadmin / Pusat: Selalu berwenang
+ * - KU / Bendahara: Berwenang jika berada pada scope wilayah terkait (atau tingkat di atasnya)
+ * - Kyai & Aghnia: Read-Only (Hanya melihat)
+ */
+export function canManageFr(
+	roles: App.UserRole[],
+	scopeLevel?: 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok',
+	targetId?: number
+): boolean {
+	return canManageRekening(roles, scopeLevel, targetId);
+}
+
 
 
