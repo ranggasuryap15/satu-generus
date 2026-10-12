@@ -1,9 +1,9 @@
 <!--
   @file src/routes/(admin)/admin/wilayah/+page.svelte
-  @purpose Halaman manajemen Data Wilayah lengkap dengan dual presentation (compact cards mobile & table desktop) di tab Kelompok, Desa, & Sub-Kelompok, 1 tombol Tambah Wilayah cerdas (hierarki Daerah -> Desa -> Kelompok -> Sub-Kelompok), modal detail desa & kelompok dengan Leaflet LocationPicker, fitur 'Hubungkan ke Lokasi', kontrol RBAC visual, checklist hapus massal & single delete
+  @purpose Halaman manajemen Data Wilayah lengkap dengan dual presentation (compact cards mobile & table desktop) di tab Kelompok, Desa, & Sub-Kelompok, 1 tombol Tambah Wilayah cerdas (hierarki Daerah -> Desa -> Kelompok -> Sub-Kelompok), modal edit unit wilayah (Kelompok, Desa, Sub-Kelompok), modal detail desa & kelompok dengan Leaflet LocationPicker, fitur 'Hubungkan ke Lokasi', kontrol RBAC visual, checklist hapus massal & single delete
   @usedBy Route admin '/admin/wilayah'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/LocationPicker.svelte, $app/forms (enhance)
-  @publicFunctions openUnifiedAddModal, closeUnifiedAddModal, openKelompokDetail, closeKelompokDetail, openDesaDetail, closeDesaDetail, handleConnectToKelompok, handleDisconnectKelompok, resetFilter, toggleSelectKelompok, toggleSelectAllKelompok, openDeleteSingleKelompok, openDeleteBatchKelompok, closeDeleteModal
+  @publicFunctions openUnifiedAddModal, closeUnifiedAddModal, openEditKelompok, closeEditKelompok, openEditDesa, closeEditDesa, openEditSubKelompok, closeEditSubKelompok, openKelompokDetail, closeKelompokDetail, openDesaDetail, closeDesaDetail, handleConnectToKelompok, handleDisconnectKelompok, resetFilter, toggleSelectKelompok, toggleSelectAllKelompok, openDeleteSingleKelompok, openDeleteBatchKelompok, closeDeleteModal
   @sideEffects Menampilkan data wilayah sesuai scope RBAC, menyaring data, mengelola lokasi kelompok & desa dengan Leaflet, dan mengirim update/create/delete ke server via enhance
 -->
 <script lang="ts">
@@ -32,7 +32,8 @@
 		CheckSquare,
 		Check,
 		Link2,
-		Link2Off
+		Link2Off,
+		Pencil
 	} from '@lucide/svelte';
 	import type { ActionData, PageData } from './$types';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
@@ -134,6 +135,66 @@
 	function closeKelompokDetail() {
 		showKelompokDetailModal = false;
 		selectedKelompok = null;
+	}
+
+	// State Modal Edit Data Kelompok
+	let showEditKelompokModal = $state(false);
+	let selectedKelompokToEdit = $state<(typeof data.kelompokList)[number] | null>(null);
+	let editKelompokNama = $state('');
+	let editKelompokKelurahan = $state('');
+	let editKelompokDesaId = $state<number>(0);
+
+	function openEditKelompok(k: (typeof data.kelompokList)[number]) {
+		selectedKelompokToEdit = k;
+		editKelompokNama = k.nama;
+		editKelompokKelurahan = k.kelurahan || '';
+		editKelompokDesaId = k.desaId;
+		showEditKelompokModal = true;
+	}
+
+	function closeEditKelompok() {
+		showEditKelompokModal = false;
+		selectedKelompokToEdit = null;
+	}
+
+	// State Modal Edit Data Desa
+	let showEditDesaModal = $state(false);
+	let selectedDesaToEdit = $state<(typeof data.desaList)[number] | null>(null);
+	let editDesaNama = $state('');
+	let editDesaKecamatan = $state('');
+	let editDesaDaerahId = $state<number>(0);
+
+	function openEditDesa(d: (typeof data.desaList)[number]) {
+		selectedDesaToEdit = d;
+		editDesaNama = d.nama;
+		editDesaKecamatan = d.kecamatan || '';
+		editDesaDaerahId = d.daerahId;
+		showEditDesaModal = true;
+	}
+
+	function closeEditDesa() {
+		showEditDesaModal = false;
+		selectedDesaToEdit = null;
+	}
+
+	// State Modal Edit Data Sub-Kelompok
+	let showEditSubKelompokModal = $state(false);
+	let selectedSubKelompokToEdit = $state<(typeof data.subKelompokList)[number] | null>(null);
+	let editSubKelompokNama = $state('');
+	let editSubKelompokKeterangan = $state('');
+	let editSubKelompokKelompokId = $state<number>(0);
+
+	function openEditSubKelompok(sk: (typeof data.subKelompokList)[number]) {
+		selectedSubKelompokToEdit = sk;
+		editSubKelompokNama = sk.nama;
+		editSubKelompokKeterangan = sk.keterangan || '';
+		editSubKelompokKelompokId = sk.kelompokId;
+		showEditSubKelompokModal = true;
+	}
+
+	function closeEditSubKelompok() {
+		showEditSubKelompokModal = false;
+		selectedSubKelompokToEdit = null;
 	}
 
 	// State Modal Detail & Lokasi Desa
@@ -595,6 +656,12 @@
 			selectedKelompokIds = [];
 			selectedSubKelompokIds = [];
 			showKelompokDetailModal = false;
+			showEditKelompokModal = false;
+			selectedKelompokToEdit = null;
+			showEditDesaModal = false;
+			selectedDesaToEdit = null;
+			showEditSubKelompokModal = false;
+			selectedSubKelompokToEdit = null;
 		}
 	});
 </script>
@@ -1043,6 +1110,15 @@
 						<div class="flex items-center gap-2 pt-2 border-t border-border/50">
 							<button
 								type="button"
+								onclick={() => openEditKelompok(k)}
+								class="py-1.5 px-2.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1"
+								title="Ubah Data Kelompok"
+							>
+								<Pencil class="w-3.5 h-3.5" />
+								<span>Edit</span>
+							</button>
+							<button
+								type="button"
 								onclick={() => openKelompokDetail(k)}
 								class="flex-1 py-1.5 px-3 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold transition-colors cursor-pointer text-center"
 							>
@@ -1166,6 +1242,16 @@
 										<div class="flex items-center justify-center gap-1.5" onclick={(e) => e.stopPropagation()}>
 											<button
 												type="button"
+												onclick={() => openEditKelompok(k)}
+												class="px-2 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 text-[10.5px] font-bold transition-colors cursor-pointer flex items-center gap-1"
+												title="Ubah Data Kelompok"
+											>
+												<Pencil class="w-3 h-3" />
+												<span>Edit</span>
+											</button>
+
+											<button
+												type="button"
 												onclick={() => openKelompokDetail(k)}
 												class="px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-[10.5px] font-bold transition-colors cursor-pointer"
 											>
@@ -1254,16 +1340,26 @@
 									</p>
 								</div>
 							</div>
-							{#if data.permissions?.canDeleteSubKelompok}
+							<div class="flex items-center gap-1 shrink-0">
 								<button
 									type="button"
-									onclick={() => openDeleteSingleSubKelompok(sk)}
-									class="p-2 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors cursor-pointer shrink-0"
-									title="Hapus Sub-Kelompok"
+									onclick={() => openEditSubKelompok(sk)}
+									class="p-2 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-colors cursor-pointer"
+									title="Ubah Sub-Kelompok"
 								>
-									<Trash2 class="w-3.5 h-3.5" />
+									<Pencil class="w-3.5 h-3.5" />
 								</button>
-							{/if}
+								{#if data.permissions?.canDeleteSubKelompok}
+									<button
+										type="button"
+										onclick={() => openDeleteSingleSubKelompok(sk)}
+										class="p-2 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors cursor-pointer"
+										title="Hapus Sub-Kelompok"
+									>
+										<Trash2 class="w-3.5 h-3.5" />
+									</button>
+								{/if}
+							</div>
 						</div>
 
 						<div class="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-border/50">
@@ -1303,9 +1399,7 @@
 								<th class="py-3 px-4 font-semibold">Keterangan / Rukun</th>
 								<th class="py-3 px-4 font-semibold">Desa Induk</th>
 								<th class="py-3 px-4 font-semibold">Daerah Induk</th>
-								{#if data.permissions?.canDeleteSubKelompok}
-									<th class="py-3 px-4 font-semibold text-center">Aksi</th>
-								{/if}
+								<th class="py-3 px-4 font-semibold text-center">Aksi</th>
 							</tr>
 						</thead>
 						<tbody class="divide-y divide-border">
@@ -1333,18 +1427,30 @@
 									<td class="py-3.5 px-4 text-foreground/70">{sk.desaNama || '-'}</td>
 									<td class="py-3.5 px-4 text-foreground/60">{sk.daerahNama || '-'}</td>
 
-									{#if data.permissions?.canDeleteSubKelompok}
-										<td class="py-3.5 px-4 text-center">
+									<td class="py-3.5 px-4 text-center">
+										<div class="flex items-center justify-center gap-1.5" onclick={(e) => e.stopPropagation()}>
 											<button
 												type="button"
-												onclick={() => openDeleteSingleSubKelompok(sk)}
-												class="p-1 rounded-lg hover:bg-destructive/10 text-foreground/50 hover:text-destructive transition-colors cursor-pointer"
-												title="Hapus Sub-Kelompok"
+												onclick={() => openEditSubKelompok(sk)}
+												class="px-2 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 text-[10.5px] font-bold transition-colors cursor-pointer flex items-center gap-1"
+												title="Ubah Sub-Kelompok"
 											>
-												<Trash2 class="w-3.5 h-3.5" />
+												<Pencil class="w-3 h-3" />
+												<span>Edit</span>
 											</button>
-										</td>
-									{/if}
+
+											{#if data.permissions?.canDeleteSubKelompok}
+												<button
+													type="button"
+													onclick={() => openDeleteSingleSubKelompok(sk)}
+													class="p-1 rounded-lg hover:bg-destructive/10 text-foreground/50 hover:text-destructive transition-colors cursor-pointer"
+													title="Hapus Sub-Kelompok"
+												>
+													<Trash2 class="w-3.5 h-3.5" />
+												</button>
+											{/if}
+										</div>
+									</td>
 								</tr>
 							{/each}
 						</tbody>
@@ -1406,14 +1512,26 @@
 							</div>
 						</div>
 
-						<div class="pt-2 border-t border-border/50">
+						<div class="flex items-center gap-2 pt-2 border-t border-border/50">
+							<button
+								type="button"
+								onclick={(e) => {
+									e.stopPropagation();
+									openEditDesa(d);
+								}}
+								class="py-1.5 px-3 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1"
+								title="Ubah Data Desa"
+							>
+								<Pencil class="w-3.5 h-3.5" />
+								<span>Edit</span>
+							</button>
 							<button
 								type="button"
 								onclick={(e) => {
 									e.stopPropagation();
 									openDesaDetail(d);
 								}}
-								class="w-full py-1.5 px-3 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold transition-colors cursor-pointer text-center"
+								class="flex-1 py-1.5 px-3 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold transition-colors cursor-pointer text-center"
 							>
 								Detail & Lokasi
 							</button>
@@ -1480,16 +1598,30 @@
 									</td>
 
 									<td class="py-3.5 px-4 text-right">
-										<button
-											type="button"
-											onclick={(e) => {
-												e.stopPropagation();
-												openDesaDetail(d);
-											}}
-											class="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-colors cursor-pointer"
-										>
-											Detail & Lokasi
-										</button>
+										<div class="flex items-center justify-end gap-1.5" onclick={(e) => e.stopPropagation()}>
+											<button
+												type="button"
+												onclick={(e) => {
+													e.stopPropagation();
+													openEditDesa(d);
+												}}
+												class="px-2 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 text-[10.5px] font-bold transition-colors cursor-pointer flex items-center gap-1"
+												title="Ubah Data Desa"
+											>
+												<Pencil class="w-3 h-3" />
+												<span>Edit</span>
+											</button>
+											<button
+												type="button"
+												onclick={(e) => {
+													e.stopPropagation();
+													openDesaDetail(d);
+												}}
+												class="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-colors cursor-pointer"
+											>
+												Detail & Lokasi
+											</button>
+										</div>
 									</td>
 								</tr>
 							{/each}
@@ -1800,14 +1932,30 @@
 					</div>
 				</div>
 
-				<button
-					type="button"
-					onclick={closeKelompokDetail}
-					class="p-1.5 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground cursor-pointer transition-colors"
-					aria-label="Tutup detail kelompok"
-				>
-					<X class="w-4 h-4" />
-				</button>
+				<div class="flex items-center gap-1.5">
+					<button
+						type="button"
+						onclick={() => {
+							const target = selectedKelompok;
+							closeKelompokDetail();
+							if (target) openEditKelompok(target);
+						}}
+						class="px-2.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer"
+						title="Ubah Data Kelompok"
+					>
+						<Pencil class="w-3.5 h-3.5" />
+						<span>Edit Data</span>
+					</button>
+
+					<button
+						type="button"
+						onclick={closeKelompokDetail}
+						class="p-1.5 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground cursor-pointer transition-colors"
+						aria-label="Tutup detail kelompok"
+					>
+						<X class="w-4 h-4" />
+					</button>
+				</div>
 			</div>
 
 			<!-- Modal Body (Scrollable) -->
@@ -1950,14 +2098,30 @@
 					</div>
 				</div>
 
-				<button
-					type="button"
-					onclick={closeDesaDetail}
-					class="p-1.5 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground cursor-pointer transition-colors"
-					aria-label="Tutup detail desa"
-				>
-					<X class="w-4 h-4" />
-				</button>
+				<div class="flex items-center gap-1.5">
+					<button
+						type="button"
+						onclick={() => {
+							const target = selectedDesa;
+							closeDesaDetail();
+							if (target) openEditDesa(target);
+						}}
+						class="px-2.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer"
+						title="Ubah Data Desa"
+					>
+						<Pencil class="w-3.5 h-3.5" />
+						<span>Edit Data</span>
+					</button>
+
+					<button
+						type="button"
+						onclick={closeDesaDetail}
+						class="p-1.5 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground cursor-pointer transition-colors"
+						aria-label="Tutup detail desa"
+					>
+						<X class="w-4 h-4" />
+					</button>
+				</div>
 			</div>
 
 			<!-- Modal Body (Scrollable) -->
@@ -2204,6 +2368,312 @@
 					<Trash2 class="w-3.5 h-3.5" />
 					<span>Ya, Hapus Sekarang</span>
 				</button>
+			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- Modal Edit Data Kelompok -->
+{#if showEditKelompokModal && selectedKelompokToEdit}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-background/80 backdrop-blur-sm overflow-y-auto"
+		role="dialog"
+		aria-modal="true"
+	>
+		<div
+			class="bg-card border border-border rounded-2xl max-w-lg w-full flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+		>
+			<div class="p-4 sm:p-5 border-b border-border flex items-center justify-between">
+				<div class="flex items-center gap-2.5">
+					<div class="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+						<Pencil class="w-4 h-4" />
+					</div>
+					<div>
+						<h3 class="font-bold text-foreground text-sm">Ubah Data Kelompok</h3>
+						<p class="text-[11px] text-foreground/60">Perbarui nama kelompok, kelurahan, dan desa induk</p>
+					</div>
+				</div>
+				<button
+					type="button"
+					onclick={closeEditKelompok}
+					class="p-1.5 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground cursor-pointer transition-colors"
+					aria-label="Tutup modal edit kelompok"
+				>
+					<X class="w-4 h-4" />
+				</button>
+			</div>
+
+			<form method="POST" action="?/updateKelompok" use:enhance class="p-4 sm:p-6 space-y-4 text-xs">
+				<input type="hidden" name="kelompokId" value={selectedKelompokToEdit.id} />
+
+				<div class="space-y-1.5">
+					<label for="edit-nama-kelompok" class="font-semibold text-foreground flex items-center gap-1">
+						<span>Nama Kelompok</span>
+						<span class="text-destructive">*</span>
+					</label>
+					<input
+						id="edit-nama-kelompok"
+						type="text"
+						name="nama"
+						bind:value={editKelompokNama}
+						required
+						placeholder="Contoh: Kelompok 1, Tambun 4"
+						class="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-xs text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary outline-hidden"
+					/>
+				</div>
+
+				<div class="space-y-1.5">
+					<label for="edit-kelurahan-kelompok" class="font-semibold text-foreground">
+						Kelurahan / Domisili
+					</label>
+					<input
+						id="edit-kelurahan-kelompok"
+						type="text"
+						name="kelurahan"
+						bind:value={editKelompokKelurahan}
+						placeholder="Contoh: Karang Rahayu, Mangunjaya"
+						class="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-xs text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary outline-hidden"
+					/>
+				</div>
+
+				<div class="space-y-1.5">
+					<label for="edit-desa-kelompok" class="font-semibold text-foreground flex items-center gap-1">
+						<span>Desa Induk</span>
+						<span class="text-destructive">*</span>
+					</label>
+					<select
+						id="edit-desa-kelompok"
+						name="desaId"
+						bind:value={editKelompokDesaId}
+						required
+						class="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-xs text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary outline-hidden cursor-pointer"
+					>
+						<option value="" disabled>-- Pilih Desa Induk --</option>
+						{#each data.desaList as d}
+							<option value={d.id}>{d.nama} ({d.daerahNama || 'Daerah'})</option>
+						{/each}
+					</select>
+				</div>
+
+				<div class="flex items-center justify-end gap-2 pt-3 border-t border-border">
+					<button
+						type="button"
+						onclick={closeEditKelompok}
+						class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary cursor-pointer transition-colors"
+					>
+						Batal
+					</button>
+					<button
+						type="submit"
+						class="px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold transition-all shadow-xs cursor-pointer"
+					>
+						Simpan Perubahan
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- Modal Edit Data Desa -->
+{#if showEditDesaModal && selectedDesaToEdit}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-background/80 backdrop-blur-sm overflow-y-auto"
+		role="dialog"
+		aria-modal="true"
+	>
+		<div
+			class="bg-card border border-border rounded-2xl max-w-lg w-full flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+		>
+			<div class="p-4 sm:p-5 border-b border-border flex items-center justify-between">
+				<div class="flex items-center gap-2.5">
+					<div class="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+						<Pencil class="w-4 h-4" />
+					</div>
+					<div>
+						<h3 class="font-bold text-foreground text-sm">Ubah Data Desa</h3>
+						<p class="text-[11px] text-foreground/60">Perbarui nama desa, kecamatan, dan daerah induk</p>
+					</div>
+				</div>
+				<button
+					type="button"
+					onclick={closeEditDesa}
+					class="p-1.5 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground cursor-pointer transition-colors"
+					aria-label="Tutup modal edit desa"
+				>
+					<X class="w-4 h-4" />
+				</button>
+			</div>
+
+			<form method="POST" action="?/updateDesa" use:enhance class="p-4 sm:p-6 space-y-4 text-xs">
+				<input type="hidden" name="desaId" value={selectedDesaToEdit.id} />
+
+				<div class="space-y-1.5">
+					<label for="edit-nama-desa" class="font-semibold text-foreground flex items-center gap-1">
+						<span>Nama Desa</span>
+						<span class="text-destructive">*</span>
+					</label>
+					<input
+						id="edit-nama-desa"
+						type="text"
+						name="nama"
+						bind:value={editDesaNama}
+						required
+						placeholder="Contoh: Karang Rahayu, Tambun"
+						class="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-xs text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary outline-hidden"
+					/>
+				</div>
+
+				<div class="space-y-1.5">
+					<label for="edit-kecamatan-desa" class="font-semibold text-foreground">
+						Kecamatan
+					</label>
+					<input
+						id="edit-kecamatan-desa"
+						type="text"
+						name="kecamatan"
+						bind:value={editDesaKecamatan}
+						placeholder="Contoh: Tambun Selatan, Cikarang Utara"
+						class="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-xs text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary outline-hidden"
+					/>
+				</div>
+
+				<div class="space-y-1.5">
+					<label for="edit-daerah-desa" class="font-semibold text-foreground flex items-center gap-1">
+						<span>Daerah Induk</span>
+						<span class="text-destructive">*</span>
+					</label>
+					<select
+						id="edit-daerah-desa"
+						name="daerahId"
+						bind:value={editDesaDaerahId}
+						required
+						class="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-xs text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary outline-hidden cursor-pointer"
+					>
+						<option value="" disabled>-- Pilih Daerah Induk --</option>
+						{#each data.daerahList as dr}
+							<option value={dr.id}>{dr.nama} ({dr.kotaKabupaten}, {dr.provinsi})</option>
+						{/each}
+					</select>
+				</div>
+
+				<div class="flex items-center justify-end gap-2 pt-3 border-t border-border">
+					<button
+						type="button"
+						onclick={closeEditDesa}
+						class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary cursor-pointer transition-colors"
+					>
+						Batal
+					</button>
+					<button
+						type="submit"
+						class="px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold transition-all shadow-xs cursor-pointer"
+					>
+						Simpan Perubahan
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- Modal Edit Data Sub-Kelompok -->
+{#if showEditSubKelompokModal && selectedSubKelompokToEdit}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-background/80 backdrop-blur-sm overflow-y-auto"
+		role="dialog"
+		aria-modal="true"
+	>
+		<div
+			class="bg-card border border-border rounded-2xl max-w-lg w-full flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+		>
+			<div class="p-4 sm:p-5 border-b border-border flex items-center justify-between">
+				<div class="flex items-center gap-2.5">
+					<div class="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+						<Pencil class="w-4 h-4" />
+					</div>
+					<div>
+						<h3 class="font-bold text-foreground text-sm">Ubah Data Sub-Kelompok</h3>
+						<p class="text-[11px] text-foreground/60">Perbarui nama sub-kelompok, keterangan/rukun, dan kelompok induk</p>
+					</div>
+				</div>
+				<button
+					type="button"
+					onclick={closeEditSubKelompok}
+					class="p-1.5 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground cursor-pointer transition-colors"
+					aria-label="Tutup modal edit sub-kelompok"
+				>
+					<X class="w-4 h-4" />
+				</button>
+			</div>
+
+			<form method="POST" action="?/updateSubKelompok" use:enhance class="p-4 sm:p-6 space-y-4 text-xs">
+				<input type="hidden" name="subKelompokId" value={selectedSubKelompokToEdit.id} />
+
+				<div class="space-y-1.5">
+					<label for="edit-nama-subkelompok" class="font-semibold text-foreground flex items-center gap-1">
+						<span>Nama Sub-Kelompok</span>
+						<span class="text-destructive">*</span>
+					</label>
+					<input
+						id="edit-nama-subkelompok"
+						type="text"
+						name="nama"
+						bind:value={editSubKelompokNama}
+						required
+						placeholder="Contoh: Rukun 1, RW 05"
+						class="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-xs text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary outline-hidden"
+					/>
+				</div>
+
+				<div class="space-y-1.5">
+					<label for="edit-keterangan-subkelompok" class="font-semibold text-foreground">
+						Keterangan / Rukun
+					</label>
+					<input
+						id="edit-keterangan-subkelompok"
+						type="text"
+						name="keterangan"
+						bind:value={editSubKelompokKeterangan}
+						placeholder="Contoh: Wilayah Blok B, RT 01-04"
+						class="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-xs text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary outline-hidden"
+					/>
+				</div>
+
+				<div class="space-y-1.5">
+					<label for="edit-kelompok-subkelompok" class="font-semibold text-foreground flex items-center gap-1">
+						<span>Kelompok Induk</span>
+						<span class="text-destructive">*</span>
+					</label>
+					<select
+						id="edit-kelompok-subkelompok"
+						name="kelompokId"
+						bind:value={editSubKelompokKelompokId}
+						required
+						class="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-xs text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary outline-hidden cursor-pointer"
+					>
+						<option value="" disabled>-- Pilih Kelompok Induk --</option>
+						{#each data.kelompokList as kl}
+							<option value={kl.id}>{kl.nama} (Desa {kl.desaNama || '-'})</option>
+						{/each}
+					</select>
+				</div>
+
+				<div class="flex items-center justify-end gap-2 pt-3 border-t border-border">
+					<button
+						type="button"
+						onclick={closeEditSubKelompok}
+						class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary cursor-pointer transition-colors"
+					>
+						Batal
+					</button>
+					<button
+						type="submit"
+						class="px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold transition-all shadow-xs cursor-pointer"
+					>
+						Simpan Perubahan
+					</button>
+				</div>
 			</form>
 		</div>
 	</div>

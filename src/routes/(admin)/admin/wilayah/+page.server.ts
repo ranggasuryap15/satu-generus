@@ -1,9 +1,9 @@
 /**
  * @file src/routes/(admin)/admin/wilayah/+page.server.ts
- * @purpose Memuat data wilayah administratif berjenjang sesuai scope admin (Pusat, Daerah, Desa, Kelompok) dan otorisasi ketat aksi CRUD unit wilayah (termasuk pembuatan wilayah tunggal cerdas/creatable dropdown, update titik lokasi desa & kelompok, serta hapus single & batch untuk Pusat, Daerah, Desa)
+ * @purpose Memuat data wilayah administratif berjenjang sesuai scope admin (Pusat, Daerah, Desa, Kelompok) dan otorisasi ketat aksi CRUD unit wilayah (termasuk pembuatan wilayah tunggal cerdas/creatable dropdown, update data wilayah kelompok, desa, & sub-kelompok, update titik lokasi desa & kelompok, serta hapus single & batch untuk Pusat, Daerah, Desa)
  * @usedBy src/routes/(admin)/admin/wilayah/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm
- * @publicFunctions load, actions.createWilayah, actions.createDaerah, actions.createDesa, actions.createKelompok, actions.createSubKelompok, actions.updateKelompokLocation, actions.updateDesaLocation, actions.deleteKelompok, actions.batchDeleteKelompok, actions.deleteSubKelompok, actions.batchDeleteSubKelompok
+ * @publicFunctions load, actions.createWilayah, actions.createDaerah, actions.createDesa, actions.createKelompok, actions.createSubKelompok, actions.updateKelompok, actions.updateDesa, actions.updateSubKelompok, actions.updateKelompokLocation, actions.updateDesaLocation, actions.deleteKelompok, actions.batchDeleteKelompok, actions.deleteSubKelompok, actions.batchDeleteSubKelompok
  * @sideEffects Insert/Update/Delete data daerah/desa/kelompok/sub_kelompok ke SQLite dalam transaksi atomik, verifikasi hierarki RBAC
  */
 
@@ -516,6 +516,163 @@ export const actions: Actions = {
 		}
 
 		return { success: true };
+	},
+
+	updateKelompok: async ({ request, locals }) => {
+		if (!locals.user || !locals.isAdmin) {
+			return fail(403, { error: 'Akses ditolak.' });
+		}
+
+		const adminScope = getAdminScope(locals.roles);
+		const accessibleWilayah = getAccessibleWilayah(adminScope);
+		const formData = await request.formData();
+		const kelompokId = parseInt(formData.get('kelompokId')?.toString() || '0', 10);
+		const nama = formData.get('nama')?.toString()?.trim() || '';
+		const kelurahan = formData.get('kelurahan')?.toString()?.trim() || null;
+		const desaId = parseInt(formData.get('desaId')?.toString() || '0', 10);
+
+		if (!kelompokId || isNaN(kelompokId)) {
+			return fail(400, { error: 'ID Kelompok tidak valid.' });
+		}
+		if (!nama) {
+			return fail(400, { error: 'Nama kelompok wajib diisi.' });
+		}
+		if (!desaId || isNaN(desaId)) {
+			return fail(400, { error: 'Desa induk wajib dipilih.' });
+		}
+
+		if (!isKelompokAllowed(kelompokId, accessibleWilayah.allowedKelompokIdSet, adminScope.isPusat)) {
+			return fail(403, {
+				error: 'Akses ditolak: Kelompok berada di luar cakupan wewenang Anda.'
+			});
+		}
+
+		// Validasi apakah desa tujuan berada di dalam cakupan admin
+		if (!adminScope.isPusat) {
+			const allowedDesaIds = new Set(accessibleWilayah.desaList.map((d) => d.id));
+			if (!allowedDesaIds.has(desaId)) {
+				return fail(403, {
+					error: 'Akses ditolak: Desa induk target berada di luar wewenang Anda.'
+				});
+			}
+		}
+
+		try {
+			db.update(kelompok)
+				.set({
+					nama,
+					kelurahan,
+					desaId
+				})
+				.where(eq(kelompok.id, kelompokId))
+				.run();
+
+			return { success: true, message: `Data kelompok "${nama}" berhasil diperbarui.` };
+		} catch (error: any) {
+			console.error('Gagal memperbarui kelompok:', error);
+			return fail(500, { error: `Terjadi kesalahan sistem: ${error.message}` });
+		}
+	},
+
+	updateDesa: async ({ request, locals }) => {
+		if (!locals.user || !locals.isAdmin) {
+			return fail(403, { error: 'Akses ditolak.' });
+		}
+
+		const adminScope = getAdminScope(locals.roles);
+		const accessibleWilayah = getAccessibleWilayah(adminScope);
+		const formData = await request.formData();
+		const desaId = parseInt(formData.get('desaId')?.toString() || '0', 10);
+		const nama = formData.get('nama')?.toString()?.trim() || '';
+		const kecamatan = formData.get('kecamatan')?.toString()?.trim() || null;
+		const daerahId = parseInt(formData.get('daerahId')?.toString() || '0', 10);
+
+		if (!desaId || isNaN(desaId)) {
+			return fail(400, { error: 'ID Desa tidak valid.' });
+		}
+		if (!nama) {
+			return fail(400, { error: 'Nama desa wajib diisi.' });
+		}
+		if (!daerahId || isNaN(daerahId)) {
+			return fail(400, { error: 'Daerah induk wajib dipilih.' });
+		}
+
+		if (!adminScope.isPusat) {
+			const allowedDesaIds = new Set(accessibleWilayah.desaList.map((d) => d.id));
+			if (!allowedDesaIds.has(desaId)) {
+				return fail(403, {
+					error: 'Akses ditolak: Desa berada di luar cakupan wewenang Anda.'
+				});
+			}
+			const allowedDaerahIds = new Set(accessibleWilayah.daerahList.map((d) => d.id));
+			if (!allowedDaerahIds.has(daerahId)) {
+				return fail(403, {
+					error: 'Akses ditolak: Daerah induk target berada di luar wewenang Anda.'
+				});
+			}
+		}
+
+		try {
+			db.update(desa)
+				.set({
+					nama,
+					kecamatan,
+					daerahId
+				})
+				.where(eq(desa.id, desaId))
+				.run();
+
+			return { success: true, message: `Data desa "${nama}" berhasil diperbarui.` };
+		} catch (error: any) {
+			console.error('Gagal memperbarui desa:', error);
+			return fail(500, { error: `Terjadi kesalahan sistem: ${error.message}` });
+		}
+	},
+
+	updateSubKelompok: async ({ request, locals }) => {
+		if (!locals.user || !locals.isAdmin) {
+			return fail(403, { error: 'Akses ditolak.' });
+		}
+
+		const adminScope = getAdminScope(locals.roles);
+		const accessibleWilayah = getAccessibleWilayah(adminScope);
+		const formData = await request.formData();
+		const subKelompokId = parseInt(formData.get('subKelompokId')?.toString() || '0', 10);
+		const nama = formData.get('nama')?.toString()?.trim() || '';
+		const keterangan = formData.get('keterangan')?.toString()?.trim() || null;
+		const kelompokId = parseInt(formData.get('kelompokId')?.toString() || '0', 10);
+
+		if (!subKelompokId || isNaN(subKelompokId)) {
+			return fail(400, { error: 'ID Sub-Kelompok tidak valid.' });
+		}
+		if (!nama) {
+			return fail(400, { error: 'Nama sub-kelompok wajib diisi.' });
+		}
+		if (!kelompokId || isNaN(kelompokId)) {
+			return fail(400, { error: 'Kelompok induk wajib dipilih.' });
+		}
+
+		if (!isKelompokAllowed(kelompokId, accessibleWilayah.allowedKelompokIdSet, adminScope.isPusat)) {
+			return fail(403, {
+				error: 'Akses ditolak: Kelompok induk berada di luar cakupan wewenang Anda.'
+			});
+		}
+
+		try {
+			db.update(subKelompok)
+				.set({
+					nama,
+					keterangan,
+					kelompokId
+				})
+				.where(eq(subKelompok.id, subKelompokId))
+				.run();
+
+			return { success: true, message: `Data sub-kelompok "${nama}" berhasil diperbarui.` };
+		} catch (error: any) {
+			console.error('Gagal memperbarui sub-kelompok:', error);
+			return fail(500, { error: `Terjadi kesalahan sistem: ${error.message}` });
+		}
 	},
 
 	updateKelompokLocation: async ({ request, locals }) => {
