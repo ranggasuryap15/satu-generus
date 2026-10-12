@@ -1,10 +1,10 @@
 /**
  * @file src/routes/(admin)/admin/sensus/+page.server.ts
- * @purpose Rekapitulasi sensus KK & Mandiri, metrik dashboard, penugasan dapukan pengurus KK, serta form actions sensus (create, add anggota, edit, delete sensus, pindah kelompok, toggle keaktifan jamaah, buat akun, assign dapukan)
+ * @purpose Rekapitulasi sensus KK & Mandiri, metrik dashboard, penugasan dapukan pengurus KK, resolusi effectiveUserId Kepala Keluarga, serta form actions sensus (create, add anggota, edit, delete sensus, pindah kelompok, toggle keaktifan jamaah, buat akun, assign dapukan)
  * @usedBy src/routes/(admin)/admin/sensus/+page.svelte
- * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/auth, src/lib/server/scope, src/lib/utils (normalizeDateToISO), src/lib/generus (hitungUmur, hitungStatusGenerus, isStatusHubunganMenikah, resolveStatusPernikahan), drizzle-orm
+ * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/auth, src/lib/server/scope, src/lib/utils (normalizeDateToISO), src/lib/generus (hitungUmur, hitungStatusGenerus, isStatusHubunganMenikah, resolveStatusPernikahan, isStatusGenerusBelumMenikah), drizzle-orm
  * @publicFunctions load, actions.createSensus, actions.addAnggotaKeluarga, actions.updateAnggota, actions.updateKeluarga, actions.deleteSensus, actions.pindahKelompok, actions.toggleStatusJamaah, actions.createMemberAccount, actions.assignDapukan
- * @sideEffects Transaksi penulisan database tabel users, keluarga, anggota_keluarga, user_dapukan; query join multi-tabel terindeks
+ * @sideEffects Transaksi penulisan database tabel users, keluarga, anggota_keluarga, user_dapukan; query join multi-tabel terindeks; sinkronisasi user_id Kepala Keluarga
  */
 
 import { fail, redirect } from '@sveltejs/kit';
@@ -158,7 +158,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 					}
 				}
 
-				const aRoles = a.userId ? roleByUserIdMap.get(a.userId) || [] : [];
+				const effectiveUserId = a.userId || (a.statusHubungan === 'Kepala Keluarga' ? k.kepalaKeluargaId : null);
+				const effectiveUserEmail = a.userEmail || (a.statusHubungan === 'Kepala Keluarga' ? k.kepalaKeluargaEmail : null);
+
+				const aRoles = effectiveUserId ? roleByUserIdMap.get(effectiveUserId) || [] : [];
 				const aIsPengurus = aRoles.length > 0;
 				const aIs4S = aRoles.some((r) => r.is4S === true);
 				const aPrimaryRole = aRoles[0];
@@ -173,8 +176,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 				return {
 					id: a.id,
-					userId: a.userId,
-					userEmail: a.userEmail || null,
+					userId: effectiveUserId,
+					userEmail: effectiveUserEmail || null,
 					namaLengkap:
 						a.namaLengkap ||
 						(a.statusHubungan === 'Kepala Keluarga' ? k.kepalaKeluargaNama || 'Kepala Keluarga' : a.statusHubungan),
@@ -567,6 +570,7 @@ export const actions: Actions = {
 		const targetKeluarga = db
 			.select({
 				id: keluarga.id,
+				kepalaKeluargaId: keluarga.kepalaKeluargaId,
 				kelompokId: users.kelompokId
 			})
 			.from(keluarga)
@@ -613,6 +617,7 @@ export const actions: Actions = {
 			db.insert(anggotaKeluarga)
 				.values({
 					keluargaId,
+					userId: statusHubungan === 'Kepala Keluarga' ? targetKeluarga.kepalaKeluargaId : null,
 					namaLengkap,
 					nikEncrypted: cleanNik ? encryptSensitive(cleanNik) : null,
 					statusHubungan,
@@ -841,6 +846,10 @@ export const actions: Actions = {
 					.where(eq(users.id, existingAnggota.userId))
 					.run();
 			} else if (parentKeluarga?.kepalaKeluargaId && existingAnggota.statusHubungan === 'Kepala Keluarga') {
+				db.update(anggotaKeluarga)
+					.set({ userId: parentKeluarga.kepalaKeluargaId })
+					.where(eq(anggotaKeluarga.id, anggotaId))
+					.run();
 				db.update(users)
 					.set({
 						namaLengkap,

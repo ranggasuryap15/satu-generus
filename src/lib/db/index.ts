@@ -4,7 +4,7 @@
  * @usedBy Backend server routes (+page.server.ts, +server.ts, hooks.server.ts, scripts migrasi/seed)
  * @dependencies better-sqlite3, drizzle-orm/better-sqlite3, src/lib/db/schema.ts
  * @publicFunctions db, sqlite
- * @sideEffects Membuka koneksi file database SQLite, mengaktifkan PRAGMA WAL & foreign_keys, auto-migrasi kolom & tabel skema (sub_kelompok, users, anggota_keluarga, jadwal_pengajian_template, presensi_jadwal, presensi_kehadiran, kelompok, dan desa)
+ * @sideEffects Membuka koneksi file database SQLite, mengaktifkan PRAGMA WAL & foreign_keys, auto-migrasi kolom & tabel skema (sub_kelompok, users, anggota_keluarga, jadwal_pengajian_template, presensi_jadwal, presensi_kehadiran, kelompok, dan desa), auto-sinkronisasi user_id Kepala Keluarga
  */
 
 import Database from 'better-sqlite3';
@@ -125,6 +125,15 @@ try {
 			}
 		}
 		sqlite.exec('CREATE INDEX IF NOT EXISTS anggota_keluarga_status_generus_idx ON anggota_keluarga (status_generus)');
+
+		// Auto-heal: Sinkronisasi Kepala Keluarga yang belum memiliki user_id ke kepala_keluarga_id dari tabel keluarga
+		sqlite.exec(`
+			UPDATE anggota_keluarga
+			SET user_id = (SELECT kepala_keluarga_id FROM keluarga WHERE keluarga.id = anggota_keluarga.keluarga_id)
+			WHERE status_hubungan = 'Kepala Keluarga'
+			  AND user_id IS NULL
+			  AND keluarga_id IN (SELECT id FROM keluarga WHERE kepala_keluarga_id IS NOT NULL)
+		`);
 	}
 
 	// Auto-heal / migrasi kolom users jika belum memiliki no_telepon
