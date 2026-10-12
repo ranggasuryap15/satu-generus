@@ -379,15 +379,16 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 };
 
 export const actions: Actions = {
-	approve: async ({ request, locals }) => {
+	approve: async ({ request, url, locals }) => {
 		if (!locals.user || !locals.isAdmin) {
 			return fail(401, { message: 'Akses tidak sah' });
 		}
 
 		const formData = await request.formData();
 		const id = formData.get('id') as string;
-		const scope = formData.get('scope') as 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok';
-		const targetId = Number(formData.get('targetId'));
+		const scope = (formData.get('scope') as 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok') || (url.searchParams.get('scope') as any);
+		const targetId = Number(formData.get('targetId') || url.searchParams.get('id'));
+		const tab = (formData.get('tab') as string) || url.searchParams.get('tab') || 'transaksi';
 
 		if (!canManageShodaqoh(locals.roles || [], scope, targetId)) {
 			return fail(403, { message: 'Hanya KU dan Kyai yang dapat menyetujui transaksi shodaqoh' });
@@ -408,18 +409,19 @@ export const actions: Actions = {
 			.where(eq(transaksiShodaqoh.id, id))
 			.run();
 
-		return { success: true, message: 'Laporan shodaqoh berhasil disetujui', scope, id: targetId };
+		return { success: true, message: 'Laporan shodaqoh berhasil disetujui', scope, id: targetId, tab };
 	},
 
-	reject: async ({ request, locals }) => {
+	reject: async ({ request, url, locals }) => {
 		if (!locals.user || !locals.isAdmin) {
 			return fail(401, { message: 'Akses tidak sah' });
 		}
 
 		const formData = await request.formData();
 		const id = formData.get('id') as string;
-		const scope = formData.get('scope') as 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok';
-		const targetId = Number(formData.get('targetId'));
+		const scope = (formData.get('scope') as 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok') || (url.searchParams.get('scope') as any);
+		const targetId = Number(formData.get('targetId') || url.searchParams.get('id'));
+		const tab = (formData.get('tab') as string) || url.searchParams.get('tab') || 'transaksi';
 		const alasanPenolakan = (formData.get('alasanPenolakan') as string) || 'Bukti transfer tidak valid';
 
 		if (!canManageShodaqoh(locals.roles || [], scope, targetId)) {
@@ -441,17 +443,18 @@ export const actions: Actions = {
 			.where(eq(transaksiShodaqoh.id, id))
 			.run();
 
-		return { success: true, message: 'Laporan shodaqoh ditolak', scope, id: targetId };
+		return { success: true, message: 'Laporan shodaqoh ditolak', scope, id: targetId, tab };
 	},
 
-	addJenis: async ({ request, locals }) => {
+	addJenis: async ({ request, url, locals }) => {
 		if (!locals.user || !locals.isAdmin) {
 			return fail(401, { message: 'Akses tidak sah' });
 		}
 
 		const formData = await request.formData();
-		const scope = formData.get('scope') as 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok';
-		const targetId = Number(formData.get('targetId'));
+		const scope = (formData.get('scope') as 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok') || (url.searchParams.get('scope') as any);
+		const targetId = Number(formData.get('targetId') || url.searchParams.get('id'));
+		const tab = (formData.get('tab') as string) || url.searchParams.get('tab') || 'jenis';
 		const nama = ((formData.get('nama') as string) || '').trim();
 		const deskripsi = ((formData.get('deskripsi') as string) || '').trim();
 
@@ -480,18 +483,19 @@ export const actions: Actions = {
 			})
 			.run();
 
-		return { success: true, message: `Jenis shodaqoh "${nama}" berhasil ditambahkan`, scope, id: targetId };
+		return { success: true, message: `Jenis shodaqoh "${nama}" berhasil ditambahkan`, scope, id: targetId, tab };
 	},
 
-	deleteJenis: async ({ request, locals }) => {
+	deleteJenis: async ({ request, url, locals }) => {
 		if (!locals.user || !locals.isAdmin) {
 			return fail(401, { message: 'Akses tidak sah' });
 		}
 
 		const formData = await request.formData();
 		const id = formData.get('id') as string;
-		const scope = formData.get('scope') as 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok';
-		const targetId = Number(formData.get('targetId'));
+		const scope = (formData.get('scope') as 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok') || (url.searchParams.get('scope') as any);
+		const targetId = Number(formData.get('targetId') || url.searchParams.get('id'));
+		const tab = (formData.get('tab') as string) || url.searchParams.get('tab') || 'jenis';
 
 		if (!canManageShodaqoh(locals.roles || [], scope, targetId)) {
 			return fail(403, { message: 'Hanya KU dan Kyai yang dapat menghapus jenis shodaqoh' });
@@ -505,17 +509,18 @@ export const actions: Actions = {
 
 		db.delete(jenisShodaqoh).where(eq(jenisShodaqoh.id, id)).run();
 
-		return { success: true, message: 'Jenis shodaqoh berhasil dihapus', scope, id: targetId };
+		return { success: true, message: 'Jenis shodaqoh berhasil dihapus', scope, id: targetId, tab };
 	},
 
-	saveRekening: async ({ request, locals }) => {
+	saveRekening: async ({ request, url, locals }) => {
 		if (!locals.user || !locals.isAdmin) {
 			return fail(401, { message: 'Akses tidak sah' });
 		}
 
 		const formData = await request.formData();
-		const scope = formData.get('scope') as 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok';
-		const targetId = Number(formData.get('targetId'));
+		const scope = (formData.get('scope') as 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok') || (url.searchParams.get('scope') as any);
+		const targetId = Number(formData.get('targetId') || url.searchParams.get('id'));
+		const tab = (formData.get('tab') as string) || url.searchParams.get('tab') || 'rekening';
 		const metodeTipe = formData.get('metodeTipe') as 'bank' | 'qris'; // 'bank' | 'qris'
 		const namaBank = ((formData.get('namaBank') as string) || (metodeTipe === 'qris' ? 'QRIS' : '')).trim();
 		const nomorRekening = ((formData.get('nomorRekening') as string) || (metodeTipe === 'qris' ? '-' : '')).trim();
@@ -559,18 +564,19 @@ export const actions: Actions = {
 			})
 			.run();
 
-		return { success: true, message: `Rekening/QRIS ${namaBank} berhasil disimpan`, scope, id: targetId };
+		return { success: true, message: `Rekening/QRIS ${namaBank} berhasil disimpan`, scope, id: targetId, tab };
 	},
 
-	deleteRekening: async ({ request, locals }) => {
+	deleteRekening: async ({ request, url, locals }) => {
 		if (!locals.user || !locals.isAdmin) {
 			return fail(401, { message: 'Akses tidak sah' });
 		}
 
 		const formData = await request.formData();
 		const id = formData.get('id') as string;
-		const scope = formData.get('scope') as 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok';
-		const targetId = Number(formData.get('targetId'));
+		const scope = (formData.get('scope') as 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok') || (url.searchParams.get('scope') as any);
+		const targetId = Number(formData.get('targetId') || url.searchParams.get('id'));
+		const tab = (formData.get('tab') as string) || url.searchParams.get('tab') || 'rekening';
 
 		if (!canManageShodaqoh(locals.roles || [], scope, targetId)) {
 			return fail(403, { message: 'Hanya KU dan Kyai yang dapat menghapus rekening/QRIS' });
@@ -578,7 +584,7 @@ export const actions: Actions = {
 
 		db.delete(rekeningWilayah).where(eq(rekeningWilayah.id, id)).run();
 
-		return { success: true, message: 'Rekening/QRIS berhasil dihapus', scope, id: targetId };
+		return { success: true, message: 'Rekening/QRIS berhasil dihapus', scope, id: targetId, tab };
 	}
 };
 
