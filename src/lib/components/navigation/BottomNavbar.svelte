@@ -1,6 +1,6 @@
 <!--
   @file src/lib/components/navigation/BottomNavbar.svelte
-  @purpose Komponen navigasi bawah (Bottom Navbar) mobile client dengan grid 4 kolom seragam, alignment presisi, pill aktif modern, dan safe area padding
+  @purpose Komponen navigasi bawah (Bottom Navbar) mobile client bergaya floating bar modern yang terangkat simetris dari bawah layar HP untuk mencegah tabrakan dengan tombol navigasi sistem Android/iOS
   @usedBy src/routes/(app)/+layout.svelte
   @dependencies $app/state (page), @lucide/svelte (Home, Users, QrCode, User)
   @publicFunctions isItemActive
@@ -38,30 +38,30 @@
 </script>
 
 <nav
-	class="fixed bottom-0 left-0 right-0 z-40 bg-card/95 backdrop-blur-md border-t border-border px-1 pb-safe"
+	class="fixed bottom-3 inset-x-3 z-40 max-w-md mx-auto bg-card/95 backdrop-blur-md border border-border/90 rounded-2xl md:hidden shadow-xl px-1.5 py-1"
 	aria-label="Navigasi Utama Mobile"
 >
-	<div class="max-w-md mx-auto grid grid-cols-4 h-16 items-center">
+	<div class="grid grid-cols-4 h-14 items-center">
 		{#each navItems as item}
 			{@const active = isItemActive(item)}
 			<a
 				href={item.href}
-				class="flex flex-col items-center justify-center h-full py-1.5 transition-all group relative select-none"
+				class="flex flex-col items-center justify-center h-full py-0.5 transition-all group relative select-none"
 				aria-current={active ? 'page' : undefined}
 			>
 				<!-- Active Pill Background & Icon Container -->
 				<div
-					class="w-12 h-7 rounded-full flex items-center justify-center transition-all duration-200 {active
+					class="w-12 h-6.5 rounded-full flex items-center justify-center transition-all duration-200 relative {active
 						? 'bg-primary/15 text-primary scale-105'
 						: 'text-foreground/60 group-hover:text-foreground group-hover:bg-secondary/60'}"
 				>
-					<item.icon class="w-5 h-5 transition-transform duration-200 {active ? 'stroke-[2.3]' : 'stroke-[1.8]'}" />
+					<item.icon class="w-4.5 h-4.5 transition-transform duration-200 {active ? 'stroke-[2.3]' : 'stroke-[1.8]'}" />
 				</div>
 
 				<!-- Menu Label -->
 				<span
-					class="text-xs mt-0.5 tracking-tight transition-colors duration-150 {active
-						? 'font-semibold text-primary'
+					class="text-[10px] mt-0.5 tracking-tight transition-colors duration-150 {active
+						? 'font-bold text-primary'
 						: 'font-medium text-foreground/60 group-hover:text-foreground'}"
 				>
 					{item.label}
