@@ -152,7 +152,7 @@
 			nik: '',
 			statusJamaah: 'Aktif',
 			isrun: 'Tidak',
-			golonganDarah: '-',
+			golonganDarah: '',
 			buatAkun: false,
 			email: '',
 			password: ''
@@ -317,13 +317,51 @@
 		let currentFamily: FamilyGroupData | null = null;
 		const kkMap = new Map<string, FamilyGroupData>();
 
-		for (let i = 0; i < lines.length; i++) {
-			const line = lines[i];
-			const cols = line.split('\t').map((c) => c.trim());
+		// Deteksi header kolom jika baris pertama adalah judul kolom
+		const headerMap: Record<string, number> = {};
+		let hasHeader = false;
 
-			if (i === 0 && (cols[0]?.toLowerCase() === 'no' || cols[1]?.toLowerCase() === 'kelompok')) {
-				continue;
+		if (lines.length > 0) {
+			const firstLine = lines[0];
+			const firstCols = firstLine.split('\t').map((c) => c.trim().toLowerCase());
+			if (
+				firstCols.some(
+					(c) =>
+						c === 'no' ||
+						c.includes('nama') ||
+						c.includes('kelompok') ||
+						c.includes('lahir') ||
+						c.includes('kk')
+				)
+			) {
+				hasHeader = true;
+				firstCols.forEach((c, idx) => {
+					if (c.includes('nama') && !c.includes('keluarga')) headerMap['nama'] = idx;
+					else if (c === 'jk' || c.includes('kelamin') || c.includes('gender')) headerMap['jk'] = idx;
+					else if (c.includes('tempat')) headerMap['tempat'] = idx;
+					else if (c.includes('tgl') || c.includes('tanggal') || (c.includes('lahir') && !c.includes('tempat')))
+						headerMap['tgl'] = idx;
+					else if (c.includes('alamat') || c.includes('domisili')) headerMap['alamat'] = idx;
+					else if (c.includes('profesi') || c.includes('pekerjaan')) headerMap['profesi'] = idx;
+					else if (c.includes('hp') || c.includes('telp') || c.includes('wa') || c.includes('telepon'))
+						headerMap['telp'] = idx;
+					else if (c.includes('menikah') || c.includes('nikah') || c.includes('perkawinan'))
+						headerMap['menikah'] = idx;
+					else if (c.includes('keluarga') || c.includes('hubungan')) headerMap['keluarga'] = idx;
+					else if (c.includes('kk')) headerMap['kk'] = idx;
+					else if (c.includes('isrun')) headerMap['isrun'] = idx;
+					else if (c.includes('jamaah')) headerMap['statusJam'] = idx;
+					else if (c.includes('darah') || c.includes('gol')) headerMap['goldar'] = idx;
+				});
 			}
+		}
+
+		const startIndex = hasHeader ? 1 : 0;
+
+		for (let i = startIndex; i < lines.length; i++) {
+			const line = lines[i];
+			if (!line.trim()) continue;
+			const cols = line.split('\t').map((c) => c.trim());
 
 			let rNama = '';
 			let rJk: 'L' | 'P' = 'L';
@@ -332,15 +370,44 @@
 			let rAlamat = '';
 			let rProfesi = '';
 			let rTelp = '';
-			let rGenerus = '';
 			let rMenikah: 'Belum Menikah' | 'Sudah Menikah' = 'Belum Menikah';
 			let rKeluarga = '';
 			let rKk = '';
 			let rStatusJam: 'Aktif' | 'Tidak Aktif' = 'Aktif';
 			let rIsrun: 'Ya' | 'Tidak' = 'Tidak';
-			let rGoldar = '-';
+			let rGoldar = '';
 
-			if (cols.length >= 14) {
+			if (hasHeader && headerMap['nama'] !== undefined) {
+				// 1. Parsing otomatis berbasis nama header spreadsheet
+				rNama = cols[headerMap['nama']] || '';
+				const jkRaw = (headerMap['jk'] !== undefined ? cols[headerMap['jk']] || '' : '').trim().toUpperCase();
+				rJk = jkRaw === 'P' || jkRaw.startsWith('PEREMPUAN') || jkRaw.startsWith('WANITA') ? 'P' : 'L';
+				rTempat = headerMap['tempat'] !== undefined ? cols[headerMap['tempat']] || '' : '';
+				rTgl = headerMap['tgl'] !== undefined ? cols[headerMap['tgl']] || '' : '';
+				rAlamat = headerMap['alamat'] !== undefined ? cols[headerMap['alamat']] || '' : '';
+				rProfesi = headerMap['profesi'] !== undefined ? cols[headerMap['profesi']] || '' : '';
+				rTelp = headerMap['telp'] !== undefined ? cols[headerMap['telp']] || '' : '';
+				rMenikah =
+					headerMap['menikah'] !== undefined && cols[headerMap['menikah']]?.toLowerCase().includes('sudah')
+						? 'Sudah Menikah'
+						: 'Belum Menikah';
+				rKeluarga = headerMap['keluarga'] !== undefined ? cols[headerMap['keluarga']]?.trim() || '' : '';
+				rKk =
+					headerMap['kk'] !== undefined ? (cols[headerMap['kk']] || '').replace(/\D/g, '').slice(0, 16) : '';
+				rStatusJam =
+					headerMap['statusJam'] !== undefined && cols[headerMap['statusJam']]?.toLowerCase().includes('tidak')
+						? 'Tidak Aktif'
+						: 'Aktif';
+				rIsrun =
+					headerMap['isrun'] !== undefined && cols[headerMap['isrun']]?.toLowerCase().includes('ya')
+						? 'Ya'
+						: 'Tidak';
+				rGoldar =
+					headerMap['goldar'] !== undefined && cols[headerMap['goldar']] && cols[headerMap['goldar']] !== '-'
+						? cols[headerMap['goldar']]
+						: '';
+			} else if (cols.length >= 15) {
+				// 2. Format 16-17 kolom lama (dengan kolom Umur di col 6 & Generus di col 10)
 				rNama = cols[2] || '';
 				const jkRaw = (cols[3] || '').trim().toUpperCase();
 				rJk = jkRaw === 'P' || jkRaw.startsWith('PEREMPUAN') || jkRaw.startsWith('WANITA') ? 'P' : 'L';
@@ -349,14 +416,30 @@
 				rAlamat = cols[7] || '';
 				rProfesi = cols[8] || '';
 				rTelp = cols[9] || '';
-				rGenerus = cols[10] || '';
 				rMenikah = cols[11]?.toLowerCase().includes('sudah') ? 'Sudah Menikah' : 'Belum Menikah';
 				rKeluarga = cols[12]?.trim() || '';
 				rKk = (cols[13] || '').replace(/\D/g, '').slice(0, 16);
 				rStatusJam = cols[14]?.toLowerCase().includes('tidak') ? 'Tidak Aktif' : 'Aktif';
 				rIsrun = cols[15]?.toLowerCase().includes('ya') ? 'Ya' : 'Tidak';
-				rGoldar = cols[16] || '-';
+				rGoldar = cols[16] && cols[16] !== '-' ? cols[16] : '';
+			} else if (cols.length >= 10) {
+				// 3. Format Ringkas Praktis: No | Kelompok | Nama | JK | Tempat | Tgl | Alamat | Profesi | HP | Menikah | Keluarga | KK | Isrun
+				rNama = cols[2] || '';
+				const jkRaw = (cols[3] || '').trim().toUpperCase();
+				rJk = jkRaw === 'P' || jkRaw.startsWith('PEREMPUAN') || jkRaw.startsWith('WANITA') ? 'P' : 'L';
+				rTempat = cols[4] || '';
+				rTgl = cols[5] || '';
+				rAlamat = cols[6] || '';
+				rProfesi = cols[7] || '';
+				rTelp = cols[8] || '';
+				rMenikah = cols[9]?.toLowerCase().includes('sudah') ? 'Sudah Menikah' : 'Belum Menikah';
+				rKeluarga = cols[10]?.trim() || '';
+				rKk = (cols[11] || '').replace(/\D/g, '').slice(0, 16);
+				rIsrun = cols[12]?.toLowerCase().includes('ya') ? 'Ya' : 'Tidak';
+				rStatusJam = 'Aktif';
+				rGoldar = '';
 			} else if (cols.length >= 4) {
+				// 4. Format Minimal
 				rNama = cols[0] || '';
 				const jkRaw = (cols[1] || '').trim().toUpperCase();
 				rJk = jkRaw === 'P' || jkRaw.startsWith('PEREMPUAN') || jkRaw.startsWith('WANITA') ? 'P' : 'L';
@@ -392,8 +475,10 @@
 				finalKeluarga = 'Mandiri / Perantau';
 			}
 
+			// Umur otomatis dihitung dari Tanggal Lahir
 			const umurCalc = hitungUmur(rTgl);
-			const finalGenerus = rGenerus || hitungStatusGenerus(umurCalc, rMenikah);
+			// Status Generus selalu otomatis mengikuti Umur & Status Menikah
+			const finalGenerus = hitungStatusGenerus(umurCalc, rMenikah);
 
 			const newMemberData: MemberRowData = {
 				id: Math.random().toString(36).substring(2, 9),
@@ -903,14 +988,21 @@
 								/>
 							</div>
 
-							<!-- Tanggal Lahir * -->
-							<div class="w-[calc(50%-4px)] sm:w-36 shrink-0">
-								<label
-									for="tgl-mandiri-{row.id}"
-									class="block text-[10px] font-semibold text-foreground/75 mb-1"
-								>
-									Tgl Lahir <span class="text-destructive">*</span>
-								</label>
+							<!-- Tanggal Lahir (Dengan Auto Umur & Generus Badge) -->
+							<div class="w-[calc(50%-4px)] sm:w-44 shrink-0">
+								<div class="flex items-center justify-between mb-1">
+									<label
+										for="tgl-mandiri-{row.id}"
+										class="block text-[10px] font-semibold text-foreground/75"
+									>
+										Tgl Lahir <span class="text-destructive">*</span>
+									</label>
+									{#if row.umur > 0}
+										<span class="text-[9.5px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
+											{row.umur} Thn • {row.statusGenerus}
+										</span>
+									{/if}
+								</div>
 								<DateInput
 									id="tgl-mandiri-{row.id}"
 									required
@@ -918,35 +1010,6 @@
 									placeholder="DD-MM-YYYY"
 									class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary"
 								/>
-							</div>
-
-							<!-- Umur (Calculated) -->
-							<div class="w-14 shrink-0 text-center">
-								<span class="block text-[10px] font-semibold text-foreground/75 mb-1">Umur</span>
-								<div
-									class="w-full py-1.5 bg-secondary/80 text-foreground rounded-lg font-mono font-bold text-xs flex items-center justify-center border border-border/50"
-								>
-									{row.umur || 0}
-								</div>
-							</div>
-
-							<!-- Status Generus (Auto & Editable) -->
-							<div class="w-[calc(50%-4px)] sm:w-32 shrink-0">
-								<label
-									for="generus-mandiri-{row.id}"
-									class="block text-[10px] font-semibold text-foreground/75 mb-1"
-								>
-									Status Generus
-								</label>
-								<select
-									id="generus-mandiri-{row.id}"
-									bind:value={row.statusGenerus}
-									class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs font-semibold text-primary focus:ring-1 focus:ring-primary"
-								>
-									{#each DAFTAR_STATUS_GENERUS as g}
-										<option value={g}>{g}</option>
-									{/each}
-								</select>
 							</div>
 
 							<!-- Status Pernikahan -->
@@ -1023,43 +1086,6 @@
 								/>
 							</div>
 
-							<!-- Golongan Darah -->
-							<div class="w-16 shrink-0">
-								<label
-									for="goldar-mandiri-{row.id}"
-									class="block text-[10px] font-semibold text-foreground/75 mb-1 text-center"
-								>
-									Gol. Darah
-								</label>
-								<select
-									id="goldar-mandiri-{row.id}"
-									bind:value={row.golonganDarah}
-									class="w-full bg-background border border-border rounded-lg px-1.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary text-center"
-								>
-									{#each DAFTAR_GOLONGAN_DARAH as gd}
-										<option value={gd}>{gd}</option>
-									{/each}
-								</select>
-							</div>
-
-							<!-- Status Jamaah (Admin Only) -->
-							<div class="w-[calc(50%-4px)] sm:w-24 shrink-0">
-								<label
-									for="statusjam-mandiri-{row.id}"
-									class="block text-[10px] font-semibold text-foreground/75 mb-1"
-								>
-									Status
-								</label>
-								<select
-									id="statusjam-mandiri-{row.id}"
-									bind:value={row.statusJamaah}
-									class="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
-								>
-									{#each DAFTAR_STATUS_JAMAAH as sj}
-										<option value={sj}>{sj}</option>
-									{/each}
-								</select>
-							</div>
 
 							<!-- Isrun (Admin Only) -->
 							<div class="w-[calc(50%-4px)] sm:w-20 shrink-0">
@@ -1368,11 +1394,18 @@
 												/>
 											</div>
 
-											<!-- Tanggal Lahir * -->
-											<div class="w-[calc(50%-4px)] sm:w-36 shrink-0">
-												<label for="tgl-{row.id}" class="block text-[10px] font-semibold text-foreground/75 mb-1">
-													Tgl Lahir <span class="text-destructive">*</span>
-												</label>
+											<!-- Tanggal Lahir (Dengan Auto Umur & Generus Badge) -->
+											<div class="w-[calc(50%-4px)] sm:w-44 shrink-0">
+												<div class="flex items-center justify-between mb-1">
+													<label for="tgl-{row.id}" class="block text-[10px] font-semibold text-foreground/75">
+														Tgl Lahir <span class="text-destructive">*</span>
+													</label>
+													{#if row.umur > 0}
+														<span class="text-[9.5px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
+															{row.umur} Thn • {row.statusGenerus}
+														</span>
+													{/if}
+												</div>
 												<DateInput
 													id="tgl-{row.id}"
 													required
@@ -1380,32 +1413,6 @@
 													placeholder="DD-MM-YYYY"
 													class="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary"
 												/>
-											</div>
-
-											<!-- Umur (Calculated) -->
-											<div class="w-14 shrink-0 text-center">
-												<span class="block text-[10px] font-semibold text-foreground/75 mb-1">Umur</span>
-												<div
-													class="w-full py-1.5 bg-secondary/80 text-foreground rounded-lg font-mono font-bold text-xs flex items-center justify-center border border-border/50"
-												>
-													{row.umur || 0}
-												</div>
-											</div>
-
-											<!-- Status Generus (Auto & Editable) -->
-											<div class="w-[calc(50%-4px)] sm:w-32 shrink-0">
-												<label for="generus-{row.id}" class="block text-[10px] font-semibold text-foreground/75 mb-1">
-													Status Generus
-												</label>
-												<select
-													id="generus-{row.id}"
-													bind:value={row.statusGenerus}
-													class="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-xs font-semibold text-primary focus:ring-1 focus:ring-primary"
-												>
-													{#each DAFTAR_STATUS_GENERUS as g}
-														<option value={g}>{g}</option>
-													{/each}
-												</select>
 											</div>
 
 											<!-- Status Pernikahan -->
@@ -1470,43 +1477,6 @@
 												/>
 											</div>
 
-											<!-- Golongan Darah -->
-											<div class="w-16 shrink-0">
-												<label
-													for="goldar-{row.id}"
-													class="block text-[10px] font-semibold text-foreground/75 mb-1 text-center"
-												>
-													Gol. Darah
-												</label>
-												<select
-													id="goldar-{row.id}"
-													bind:value={row.golonganDarah}
-													class="w-full bg-card border border-border rounded-lg px-1.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary text-center"
-												>
-													{#each DAFTAR_GOLONGAN_DARAH as gd}
-														<option value={gd}>{gd}</option>
-													{/each}
-												</select>
-											</div>
-
-											<!-- Status Jamaah (Admin Only) -->
-											<div class="w-[calc(50%-4px)] sm:w-24 shrink-0">
-												<label
-													for="statusjam-{row.id}"
-													class="block text-[10px] font-semibold text-foreground/75 mb-1"
-												>
-													Status
-												</label>
-												<select
-													id="statusjam-{row.id}"
-													bind:value={row.statusJamaah}
-													class="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
-												>
-													{#each DAFTAR_STATUS_JAMAAH as sj}
-														<option value={sj}>{sj}</option>
-													{/each}
-												</select>
-											</div>
 
 											<!-- Isrun (Admin Only) -->
 											<div class="w-[calc(50%-4px)] sm:w-20 shrink-0">
@@ -1660,13 +1630,19 @@
 
 			<div class="space-y-2">
 				<div
-					class="text-[11px] text-foreground/70 bg-secondary/50 p-2.5 rounded-lg border border-border space-y-1"
+					class="text-[11px] text-foreground/70 bg-secondary/50 p-3 rounded-xl border border-border space-y-1.5"
 				>
-					<p class="font-semibold text-foreground">💡 Tips Urutan Kolom Sesuai Spreadsheet:</p>
-					<p class="font-mono text-[10px] text-foreground/60 overflow-x-auto">
-						No | Kelompok | Nama Lengkap | JK | Tempat Lahir | Tgl Lahir | Umur | Alamat | Profesi | No HP | Status Generus | Status Menikah | Status Keluarga | No KK | Status Jamaah | Isrun | Gol. Darah
+					<p class="font-bold text-foreground">💡 Tips Urutan Kolom Spreadsheet Praktis:</p>
+					<p class="font-mono text-[10.5px] bg-card p-2 rounded-lg border border-border/60 text-primary font-semibold overflow-x-auto select-all">
+						No | Kelompok | Nama Lengkap | JK | Tempat Lahir | Tgl Lahir | Alamat | Profesi | No HP | Status Menikah | Status Keluarga | No KK | Isrun
 					</p>
-					<p class="text-[10.5px] text-primary pt-0.5">
+					<div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[10.5px] text-foreground/70 pt-1 border-t border-border/40">
+						<div>✨ <strong>Umur:</strong> Otomatis dihitung dari Tanggal Lahir</div>
+						<div>✨ <strong>Status Generus:</strong> Otomatis mengikuti Umur & Pernikahan</div>
+						<div>✨ <strong>Status Jamaah:</strong> Default otomatis <strong>Aktif</strong></div>
+						<div>✨ <strong>Golongan Darah:</strong> Default kosong / null (opsional)</div>
+					</div>
+					<p class="text-[10px] text-foreground/50 pt-0.5">
 						Baris Mandiri otomatis dibuatkan kartu tunggal, sedangkan baris keluarga otomatis dikelompokkan ke KK yang sama.
 					</p>
 				</div>

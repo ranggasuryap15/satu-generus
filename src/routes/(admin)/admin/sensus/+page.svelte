@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(admin)/admin/sensus/+page.svelte
-  @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri/Perantau, dashboard statistik, modal detail lengkap, modal ubah data manual versi admin (anggota, isrun, keaktifan, KK), dan pembuatan akun login mandiri
+  @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri, dashboard statistik, modal detail lengkap (hapus sensus, pindah kelompok, toggle status jamaah), modal edit anggota/KK, dan pembuatan akun
   @usedBy Route admin '/admin/sensus'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/utils (formatDateDDMMYYYY)
-  @publicFunctions requestUnmask, openCreateModal, closeCreateModal, openAddMemberModal, closeAddMemberModal, openCreateAccountModal, openEditAnggotaModal, closeEditAnggotaModal, openEditKeluargaModal, closeEditKeluargaModal, resetFilters, toggleMobileFilter
-  @sideEffects Menampilkan metrik, unmask data sensitif via /api/sensus/unmask, submit createSensus, addAnggotaKeluarga, updateAnggota, updateKeluarga, createMemberAccount
+  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/confirm.svelte, $lib/utils (formatDateDDMMYYYY)
+  @publicFunctions requestUnmask, openCreateModal, closeCreateModal, openAddMemberModal, closeAddMemberModal, openCreateAccountModal, openEditAnggotaModal, closeEditAnggotaModal, openEditKeluargaModal, closeEditKeluargaModal, openPindahKelompokModal, closePindahKelompokModal, handleHapusSensus, handleToggleStatusJamaah, resetFilters, toggleMobileFilter
+  @sideEffects Menampilkan metrik, unmask data sensitif, submit actions (createSensus, addAnggotaKeluarga, updateAnggota, updateKeluarga, deleteSensus, pindahKelompok, toggleStatusJamaah, createMemberAccount)
 -->
 <script lang="ts">
 	import DateInput from '$lib/components/DateInput.svelte';
@@ -12,6 +12,7 @@
 	import { formatDateDDMMYYYY } from '$lib/utils';
 	import {
 	  AlertCircle,
+	  ArrowRightLeft,
 	  CheckCircle2,
 	  ChevronDown,
 	  ChevronUp,
@@ -31,6 +32,7 @@
 	  UserCheck,
 	  UserPlus,
 	  Users,
+	  UserX,
 	  X
 	} from '@lucide/svelte';
 	import { enhance } from '$app/forms';
@@ -130,6 +132,76 @@
 
 	function closeEditKeluargaModal() {
 		editingKeluarga = null;
+	}
+
+	// State Modal Pindah Kelompok Sensus
+	let pindahKelompokTarget = $state<(typeof data.daftarKeluarga)[number] | null>(null);
+	let pindahTargetKelompokId = $state<number | string>('');
+	let isPindahKelompokSubmitting = $state(false);
+
+	function openPindahKelompokModal(k: (typeof data.daftarKeluarga)[number]) {
+		pindahKelompokTarget = k;
+		pindahTargetKelompokId = k.kelompokId || (data.wilayahOptions.kelompokList[0]?.id ?? '');
+	}
+
+	function closePindahKelompokModal() {
+		pindahKelompokTarget = null;
+	}
+
+	// Form References untuk Aksi Admin Cepat
+	let deleteSensusForm: HTMLFormElement | null = $state(null);
+	let deleteTargetKeluargaId = $state('');
+
+	async function handleHapusSensus(k: (typeof data.daftarKeluarga)[number]) {
+		const label = k.isKk
+			? `Kartu Keluarga (${k.noKkMasked}) atas nama "${k.kepalaKeluargaNama}"`
+			: `Sensus Mandiri atas nama "${k.kepalaKeluargaNama}"`;
+
+		const ok = await confirmAction({
+			title: 'Hapus Data Sensus?',
+			message: `Apakah Anda yakin ingin menghapus data ${label} beserta seluruh ${k.anggota.length} jiwa di dalamnya? Tindakan ini permanen dan menghapus data dari seluruh riwayat sensus.`,
+			confirmText: 'Ya, Hapus Sensus',
+			cancelText: 'Batal',
+			variant: 'danger'
+		});
+
+		if (ok) {
+			deleteTargetKeluargaId = k.id;
+			if (selectedKeluarga?.id === k.id) {
+				selectedKeluarga = null;
+			}
+			setTimeout(() => {
+				deleteSensusForm?.requestSubmit();
+			}, 30);
+		}
+	}
+
+	let toggleStatusForm: HTMLFormElement | null = $state(null);
+	let toggleTargetAnggotaId = $state('');
+	let toggleTargetStatus = $state<'Aktif' | 'Tidak Aktif'>('Aktif');
+
+	async function handleToggleStatusJamaah(
+		a: (typeof data.daftarKeluarga)[0]['anggota'][0],
+		newStatus: 'Aktif' | 'Tidak Aktif'
+	) {
+		const isDeactivating = newStatus === 'Tidak Aktif';
+		const ok = await confirmAction({
+			title: isDeactivating ? 'Nonaktifkan Jamaah?' : 'Aktifkan Kembali Jamaah?',
+			message: isDeactivating
+				? `Apakah Anda yakin ingin menonaktifkan status jamaah "${a.namaLengkap}" (${a.statusHubungan}) dari KK ini?`
+				: `Apakah Anda yakin ingin mengaktifkan kembali status jamaah "${a.namaLengkap}" (${a.statusHubungan})?`,
+			confirmText: isDeactivating ? 'Ya, Nonaktifkan' : 'Ya, Aktifkan',
+			cancelText: 'Batal',
+			variant: isDeactivating ? 'warning' : 'primary'
+		});
+
+		if (ok) {
+			toggleTargetAnggotaId = a.id;
+			toggleTargetStatus = newStatus;
+			setTimeout(() => {
+				toggleStatusForm?.requestSubmit();
+			}, 30);
+		}
 	}
 
 	// Sinkronisasi reaktif selectedKeluarga ketika data mutasi berhasil
@@ -817,14 +889,14 @@
 					{/if}
 
 					<!-- Tombol Aksi Thumb-Friendly -->
-					<div class="flex items-center gap-2 pt-1 border-t border-border/50">
+					<div class="flex items-center gap-1.5 pt-1 border-t border-border/50">
 						{#if k.isKk}
 							<button
 								type="button"
 								onclick={() => openAddMemberModal(k)}
-								class="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border border-border hover:bg-secondary text-foreground text-xs font-semibold transition-colors"
+								class="flex-1 inline-flex items-center justify-center gap-1 py-2 px-2.5 rounded-xl border border-border hover:bg-secondary text-foreground text-xs font-semibold transition-colors cursor-pointer"
 							>
-								<UserPlus class="w-4 h-4 text-primary" />
+								<UserPlus class="w-3.5 h-3.5 text-primary" />
 								<span>+ Anggota</span>
 							</button>
 						{/if}
@@ -832,9 +904,27 @@
 						<button
 							type="button"
 							onclick={() => (selectedKeluarga = k)}
-							class="flex-1 py-2 px-3 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground font-semibold text-xs transition-colors border border-border/60 text-center"
+							class="flex-1 py-2 px-2.5 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground font-semibold text-xs transition-colors border border-border/60 text-center cursor-pointer"
 						>
-							Lihat Detail
+							Detail
+						</button>
+
+						<button
+							type="button"
+							onclick={() => openPindahKelompokModal(k)}
+							class="p-2 rounded-xl border border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition-colors cursor-pointer"
+							title="Pindahkan Sensus ke Kelompok Lain"
+						>
+							<ArrowRightLeft class="w-4 h-4" />
+						</button>
+
+						<button
+							type="button"
+							onclick={() => handleHapusSensus(k)}
+							class="p-2 rounded-xl border border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors cursor-pointer"
+							title="Hapus Data Sensus"
+						>
+							<Trash2 class="w-4 h-4" />
 						</button>
 					</div>
 				</div>
@@ -945,9 +1035,28 @@
 										<button
 											type="button"
 											onclick={() => (selectedKeluarga = k)}
-											class="px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground font-semibold text-xs transition-colors"
+											class="px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground font-semibold text-xs transition-colors cursor-pointer"
 										>
 											Detail
+										</button>
+
+										<button
+											type="button"
+											onclick={() => openPindahKelompokModal(k)}
+											class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 font-semibold text-xs transition-colors cursor-pointer"
+											title="Pindahkan Sensus ke Kelompok Lain"
+										>
+											<ArrowRightLeft class="w-3.5 h-3.5" />
+											<span class="hidden lg:inline">Pindah</span>
+										</button>
+
+										<button
+											type="button"
+											onclick={() => handleHapusSensus(k)}
+											class="inline-flex items-center p-1.5 rounded-lg border border-destructive/30 bg-destructive/10 hover:bg-destructive/20 text-destructive font-semibold text-xs transition-colors cursor-pointer"
+											title="Hapus Data Sensus"
+										>
+											<Trash2 class="w-3.5 h-3.5" />
 										</button>
 									</div>
 								</td>
@@ -1590,17 +1699,43 @@
 							</span>
 						{/if}
 					</div>
-					<button
-						type="button"
-						onclick={() => {
-							const target = selectedKeluarga;
-							if (target) openEditKeluargaModal(target);
-						}}
-						class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-semibold text-[11px] border border-primary/30 transition-colors cursor-pointer"
-					>
-						<Pencil class="w-3 h-3" />
-						<span>Edit KK & Domisili</span>
-					</button>
+					<div class="flex items-center gap-1.5 flex-wrap">
+						<button
+							type="button"
+							onclick={() => {
+								const target = selectedKeluarga;
+								if (target) openEditKeluargaModal(target);
+							}}
+							class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-semibold text-[11px] border border-primary/30 transition-colors cursor-pointer"
+						>
+							<Pencil class="w-3 h-3" />
+							<span>Edit KK & Domisili</span>
+						</button>
+
+						<button
+							type="button"
+							onclick={() => {
+								const target = selectedKeluarga;
+								if (target) openPindahKelompokModal(target);
+							}}
+							class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 font-semibold text-[11px] border border-blue-500/30 transition-colors cursor-pointer"
+						>
+							<ArrowRightLeft class="w-3 h-3" />
+							<span>Pindah Kelompok</span>
+						</button>
+
+						<button
+							type="button"
+							onclick={() => {
+								const target = selectedKeluarga;
+								if (target) handleHapusSensus(target);
+							}}
+							class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-destructive/10 hover:bg-destructive/20 text-destructive font-semibold text-[11px] border border-destructive/30 transition-colors cursor-pointer"
+						>
+							<Trash2 class="w-3 h-3" />
+							<span>Hapus Sensus</span>
+						</button>
+					</div>
 				</div>
 				<div class="flex items-center gap-4 text-[11px] text-foreground/70 flex-wrap">
 					<div class="flex items-center gap-1">
@@ -1674,6 +1809,28 @@
 									<Pencil class="w-3 h-3 text-primary" />
 									<span>Edit Data</span>
 								</button>
+
+								{#if a.statusJamaah === 'Aktif'}
+									<button
+										type="button"
+										onclick={() => handleToggleStatusJamaah(a, 'Tidak Aktif')}
+										class="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-semibold transition-colors cursor-pointer shadow-xs"
+										title="Nonaktifkan status jamaah ini dari KK"
+									>
+										<UserX class="w-3 h-3" />
+										<span>Nonaktifkan</span>
+									</button>
+								{:else}
+									<button
+										type="button"
+										onclick={() => handleToggleStatusJamaah(a, 'Aktif')}
+										class="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-semibold transition-colors cursor-pointer shadow-xs"
+										title="Aktifkan kembali status jamaah ini"
+									>
+										<UserCheck class="w-3 h-3" />
+										<span>Aktifkan</span>
+									</button>
+								{/if}
 
 								{#if a.userId}
 									<span class="inline-flex items-center gap-1 text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded-lg font-semibold border border-emerald-500/20">
@@ -2330,3 +2487,142 @@
 		</div>
 	</div>
 {/if}
+
+<!-- MODAL PINDAH KELOMPOK SENSUS -->
+{#if pindahKelompokTarget}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150"
+		role="dialog"
+		aria-modal="true"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) closePindahKelompokModal();
+		}}
+	>
+		<div class="bg-card border border-border rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-2xl space-y-4">
+			<div class="flex items-center justify-between pb-3 border-b border-border">
+				<div>
+					<h3 class="text-sm font-bold text-foreground flex items-center gap-2">
+						<ArrowRightLeft class="w-4 h-4 text-blue-500" />
+						<span>Pindahkan Sensus ke Kelompok Lain</span>
+					</h3>
+					<p class="text-[11px] text-foreground/60 mt-0.5">
+						Alihkan basis wilayah KK dan seluruh anggota keluarga yang terdaftar.
+					</p>
+				</div>
+				<button
+					type="button"
+					onclick={closePindahKelompokModal}
+					class="p-1 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground cursor-pointer"
+				>
+					<X class="w-5 h-5" />
+				</button>
+			</div>
+
+			<!-- Ringkasan Info Sensus -->
+			<div class="p-3 bg-secondary/40 border border-border rounded-xl space-y-1.5 text-xs">
+				<div class="flex justify-between items-center">
+					<span class="text-foreground/60 font-medium">Kepala Keluarga:</span>
+					<span class="font-bold text-foreground">{pindahKelompokTarget.kepalaKeluargaNama}</span>
+				</div>
+				{#if pindahKelompokTarget.isKk}
+					<div class="flex justify-between items-center font-mono text-[11px]">
+						<span class="text-foreground/60 font-sans">No. KK:</span>
+						<span class="text-foreground/80">{pindahKelompokTarget.noKkMasked}</span>
+					</div>
+				{/if}
+				<div class="flex justify-between items-center">
+					<span class="text-foreground/60 font-medium">Kelompok Saat Ini:</span>
+					<span class="font-semibold text-primary">{pindahKelompokTarget.kelompokNama}</span>
+				</div>
+				<div class="flex justify-between items-center text-[11px] text-foreground/50">
+					<span>Wilayah:</span>
+					<span>Desa {pindahKelompokTarget.desaNama} • {pindahKelompokTarget.daerahNama}</span>
+				</div>
+			</div>
+
+			<form
+				method="POST"
+				action="?/pindahKelompok"
+				use:enhance={() => {
+					isPindahKelompokSubmitting = true;
+					return async ({ update }) => {
+						await update();
+						isPindahKelompokSubmitting = false;
+						closePindahKelompokModal();
+					};
+				}}
+				class="space-y-3.5 text-xs"
+			>
+				<input type="hidden" name="keluargaId" value={pindahKelompokTarget.id} />
+
+				<div>
+					<label for="pindah-kelompokId" class="block font-semibold text-foreground mb-1.5">
+						Pilih Kelompok Tujuan *
+					</label>
+					<select
+						id="pindah-kelompokId"
+						name="kelompokId"
+						bind:value={pindahTargetKelompokId}
+						required
+						class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-primary"
+					>
+						{#each (data.wilayahOptions.kelompokList || []) as k}
+							<option value={k.id}>
+								{k.nama} ({k.desaNama} - {k.daerahNama})
+							</option>
+						{/each}
+					</select>
+					<p class="text-[10.5px] text-foreground/50 mt-1.5 leading-relaxed">
+						Seluruh akun login anggota keluarga yang terdaftar dalam KK ini akan otomatis dimutasi ke kelompok yang dipilih.
+					</p>
+				</div>
+
+				<div class="flex items-center justify-end gap-2 pt-3 border-t border-border">
+					<button
+						type="button"
+						onclick={closePindahKelompokModal}
+						class="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-secondary font-semibold transition-colors cursor-pointer"
+					>
+						Batal
+					</button>
+					<button
+						type="submit"
+						disabled={isPindahKelompokSubmitting}
+						class="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50"
+					>
+						{#if isPindahKelompokSubmitting}
+							<div class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+							<span>Memindahkan...</span>
+						{:else}
+							<ArrowRightLeft class="w-3.5 h-3.5" />
+							<span>Pindahkan Sensus</span>
+						{/if}
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- Form Tersembunyi untuk Eksekusi Hapus Sensus -->
+<form
+	bind:this={deleteSensusForm}
+	method="POST"
+	action="?/deleteSensus"
+	use:enhance
+	class="hidden"
+>
+	<input type="hidden" name="keluargaId" value={deleteTargetKeluargaId} />
+</form>
+
+<!-- Form Tersembunyi untuk Eksekusi Toggle Status Keaktifan Jamaah -->
+<form
+	bind:this={toggleStatusForm}
+	method="POST"
+	action="?/toggleStatusJamaah"
+	use:enhance
+	class="hidden"
+>
+	<input type="hidden" name="anggotaId" value={toggleTargetAnggotaId} />
+	<input type="hidden" name="statusJamaah" value={toggleTargetStatus} />
+</form>

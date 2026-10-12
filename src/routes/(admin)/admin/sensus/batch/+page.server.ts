@@ -278,8 +278,8 @@ export const actions: Actions = {
 					for (let i = 0; i < fam.members.length; i++) {
 						const m = fam.members[i];
 						const umurCalc = hitungUmur(m.tanggalLahir);
-						const statusGenerusFinal =
-							m.statusGenerus || hitungStatusGenerus(umurCalc, m.statusMenikah);
+						// Status Generus selalu otomatis mengikuti umur & status pernikahan
+						const statusGenerusFinal = hitungStatusGenerus(umurCalc, m.statusMenikah);
 
 						const rawNik = m.nik ? m.nik.trim().replace(/\D/g, '').slice(0, 16) : '';
 						const nikEncrypted = rawNik ? encryptSensitive(rawNik) : null;
@@ -300,7 +300,7 @@ export const actions: Actions = {
 								statusPernikahan: m.statusMenikah || 'Belum Menikah',
 								statusJamaah: m.statusJamaah || 'Aktif',
 								isrun: m.isrun || 'Tidak',
-								golonganDarah: m.golonganDarah || '-'
+								golonganDarah: m.golonganDarah && m.golonganDarah !== '-' ? m.golonganDarah.trim() : null
 							})
 							.run();
 

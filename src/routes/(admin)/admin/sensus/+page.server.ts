@@ -1,17 +1,17 @@
 /**
  * @file src/routes/(admin)/admin/sensus/+page.server.ts
- * @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri/Perantau, metrik dashboard, serta form actions penambahan sensus, anggota, edit anggota/keluarga, dan pembuatan akun mandiri (createMemberAccount)
+ * @purpose Rekapitulasi sensus KK & Mandiri, metrik dashboard, serta form actions sensus (create, add anggota, edit, delete sensus, pindah kelompok, toggle keaktifan jamaah, buat akun)
  * @usedBy src/routes/(admin)/admin/sensus/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/auth, src/lib/server/scope, src/lib/utils (normalizeDateToISO), drizzle-orm
- * @publicFunctions load, actions.createSensus, actions.addAnggotaKeluarga, actions.updateAnggota, actions.updateKeluarga, actions.createMemberAccount
+ * @publicFunctions load, actions.createSensus, actions.addAnggotaKeluarga, actions.updateAnggota, actions.updateKeluarga, actions.deleteSensus, actions.pindahKelompok, actions.toggleStatusJamaah, actions.createMemberAccount
  * @sideEffects Transaksi penulisan database tabel users, keluarga, anggota_keluarga; query join multi-tabel terindeks
  */
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '$lib/db';
-import { keluarga, anggotaKeluarga, users, kelompok, desa, daerah, userDapukan, dapukan } from '$lib/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { keluarga, anggotaKeluarga, users, kelompok, desa, daerah, userDapukan, dapukan, presensiKehadiran } from '$lib/db/schema';
+import { eq, desc, inArray, and, isNotNull } from 'drizzle-orm';
 import { decryptSensitive, encryptSensitive, maskSensitive } from '$lib/server/crypto';
 import { hashPassword } from '$lib/server/auth';
 import { getAdminScope, getAccessibleWilayah, isKelompokAllowed } from '$lib/server/scope';
@@ -814,11 +814,29 @@ export const actions: Actions = {
 				.where(eq(keluarga.id, keluargaId))
 				.run();
 
-			if (newKelompokId !== null && targetKeluarga.kepalaKeluargaId) {
-				db.update(users)
-					.set({ kelompokId: newKelompokId })
-					.where(eq(users.id, targetKeluarga.kepalaKeluargaId))
-					.run();
+			if (newKelompokId !== null) {
+				const rawAnggotaWithUser = db
+					.select({ userId: anggotaKeluarga.userId })
+					.from(anggotaKeluarga)
+					.where(and(eq(anggotaKeluarga.keluargaId, keluargaId), isNotNull(anggotaKeluarga.userId)))
+					.all();
+
+				const userIdsToUpdate: string[] = [];
+				if (targetKeluarga.kepalaKeluargaId) {
+					userIdsToUpdate.push(targetKeluarga.kepalaKeluargaId);
+				}
+				for (const a of rawAnggotaWithUser) {
+					if (a.userId && !userIdsToUpdate.includes(a.userId)) {
+						userIdsToUpdate.push(a.userId);
+					}
+				}
+
+				if (userIdsToUpdate.length > 0) {
+					db.update(users)
+						.set({ kelompokId: newKelompokId })
+						.where(inArray(users.id, userIdsToUpdate))
+						.run();
+				}
 			}
 
 			return {
@@ -827,6 +845,251 @@ export const actions: Actions = {
 		} catch (err) {
 			console.error('Gagal memperbarui Kartu Keluarga:', err);
 			return fail(500, { error: 'Terjadi kesalahan sistem saat memperbarui data keluarga.' });
+		}
+	},
+
+	/**
+	 * Menghapus Sensus (Kartu Keluarga atau Jamaah Mandiri/Perantau)
+	 * Menghapus record anggota_keluarga, keluarga, dan akun user terkait
+	 */
+	deleteSensus: async ({ request, locals }) => {
+		if (!locals.user || !locals.isAdmin) {
+			return fail(403, { error: 'Akses ditolak.' });
+		}
+
+		const adminScope = getAdminScope(locals.roles);
+		const accessibleWilayah = getAccessibleWilayah(adminScope);
+
+		const formData = await request.formData();
+		const keluargaId = formData.get('keluargaId')?.toString() || '';
+
+		if (!keluargaId) {
+			return fail(400, { error: 'ID Sensus tidak valid.' });
+		}
+
+		const targetKeluarga = db
+			.select({
+				id: keluarga.id,
+				isKk: keluarga.isKk,
+				kepalaKeluargaId: keluarga.kepalaKeluargaId,
+				kelompokId: users.kelompokId,
+				namaKepala: users.namaLengkap
+			})
+			.from(keluarga)
+			.leftJoin(users, eq(keluarga.kepalaKeluargaId, users.id))
+			.where(eq(keluarga.id, keluargaId))
+			.get();
+
+		if (!targetKeluarga) {
+			return fail(404, { error: 'Data sensus tidak ditemukan.' });
+		}
+
+		if (
+			targetKeluarga.kelompokId &&
+			!isKelompokAllowed(targetKeluarga.kelompokId, accessibleWilayah.allowedKelompokIdSet, adminScope.isPusat)
+		) {
+			return fail(403, { error: 'Akses ditolak: Data sensus berada di luar cakupan wewenang Anda.' });
+		}
+
+		if (targetKeluarga.kepalaKeluargaId && targetKeluarga.kepalaKeluargaId === locals.user.id) {
+			return fail(400, { error: 'Anda tidak dapat menghapus sensus akun Anda sendiri saat sedang login.' });
+		}
+
+		try {
+			// Kumpulkan semua userId yang terkait dengan KK ini
+			const rawAnggotaWithUser = db
+				.select({ userId: anggotaKeluarga.userId })
+				.from(anggotaKeluarga)
+				.where(and(eq(anggotaKeluarga.keluargaId, keluargaId), isNotNull(anggotaKeluarga.userId)))
+				.all();
+
+			const userIdsToDelete: string[] = [];
+			if (targetKeluarga.kepalaKeluargaId && targetKeluarga.kepalaKeluargaId !== locals.user.id) {
+				userIdsToDelete.push(targetKeluarga.kepalaKeluargaId);
+			}
+			for (const a of rawAnggotaWithUser) {
+				if (a.userId && a.userId !== locals.user.id && !userIdsToDelete.includes(a.userId)) {
+					userIdsToDelete.push(a.userId);
+				}
+			}
+
+			db.transaction((tx) => {
+				// Bersihkan presensi & peran jika ada
+				if (userIdsToDelete.length > 0) {
+					tx.delete(userDapukan).where(inArray(userDapukan.userId, userIdsToDelete)).run();
+					tx.delete(presensiKehadiran).where(inArray(presensiKehadiran.userId, userIdsToDelete)).run();
+				}
+
+				// Hapus seluruh anggota keluarga
+				tx.delete(anggotaKeluarga).where(eq(anggotaKeluarga.keluargaId, keluargaId)).run();
+
+				// Hapus record keluarga
+				tx.delete(keluarga).where(eq(keluarga.id, keluargaId)).run();
+
+				// Hapus akun user
+				if (userIdsToDelete.length > 0) {
+					tx.delete(users).where(inArray(users.id, userIdsToDelete)).run();
+				}
+			});
+
+			return {
+				success: 'Data sensus berhasil dihapus secara permanen.'
+			};
+		} catch (err) {
+			console.error('Gagal menghapus sensus:', err);
+			return fail(500, { error: 'Terjadi kesalahan sistem saat menghapus data sensus.' });
+		}
+	},
+
+	/**
+	 * Memindahkan Sensus ke kelompok lain yang terdaftar dalam wewenang admin
+	 */
+	pindahKelompok: async ({ request, locals }) => {
+		if (!locals.user || !locals.isAdmin) {
+			return fail(403, { error: 'Akses ditolak.' });
+		}
+
+		const adminScope = getAdminScope(locals.roles);
+		const accessibleWilayah = getAccessibleWilayah(adminScope);
+
+		const formData = await request.formData();
+		const keluargaId = formData.get('keluargaId')?.toString() || '';
+		const targetKelompokIdStr = formData.get('kelompokId')?.toString()?.trim() || '';
+
+		const targetKelompokId = parseInt(targetKelompokIdStr, 10);
+		if (!keluargaId || isNaN(targetKelompokId)) {
+			return fail(400, { error: 'ID Sensus dan Kelompok tujuan wajib dipilih.' });
+		}
+
+		// Validasi apakah kelompok tujuan ada dan dalam scope
+		if (!isKelompokAllowed(targetKelompokId, accessibleWilayah.allowedKelompokIdSet, adminScope.isPusat)) {
+			return fail(403, { error: 'Kelompok tujuan berada di luar cakupan wewenang Anda.' });
+		}
+
+		const targetKeluarga = db
+			.select({
+				id: keluarga.id,
+				kepalaKeluargaId: keluarga.kepalaKeluargaId,
+				kelompokId: users.kelompokId
+			})
+			.from(keluarga)
+			.leftJoin(users, eq(keluarga.kepalaKeluargaId, users.id))
+			.where(eq(keluarga.id, keluargaId))
+			.get();
+
+		if (!targetKeluarga) {
+			return fail(404, { error: 'Data sensus tidak ditemukan.' });
+		}
+
+		// Validasi kelompok asal
+		if (
+			targetKeluarga.kelompokId &&
+			!isKelompokAllowed(targetKeluarga.kelompokId, accessibleWilayah.allowedKelompokIdSet, adminScope.isPusat)
+		) {
+			return fail(403, { error: 'Akses ditolak: Data sensus saat ini berada di luar wewenang Anda.' });
+		}
+
+		const targetKelompokRow = db
+			.select({ id: kelompok.id, nama: kelompok.nama })
+			.from(kelompok)
+			.where(eq(kelompok.id, targetKelompokId))
+			.get();
+
+		if (!targetKelompokRow) {
+			return fail(404, { error: 'Kelompok tujuan tidak ditemukan di database.' });
+		}
+
+		try {
+			// Ambil semua anggota keluarga yang punya akun user
+			const rawAnggotaWithUser = db
+				.select({ userId: anggotaKeluarga.userId })
+				.from(anggotaKeluarga)
+				.where(and(eq(anggotaKeluarga.keluargaId, keluargaId), isNotNull(anggotaKeluarga.userId)))
+				.all();
+
+			const userIdsToUpdate: string[] = [];
+			if (targetKeluarga.kepalaKeluargaId) {
+				userIdsToUpdate.push(targetKeluarga.kepalaKeluargaId);
+			}
+			for (const a of rawAnggotaWithUser) {
+				if (a.userId && !userIdsToUpdate.includes(a.userId)) {
+					userIdsToUpdate.push(a.userId);
+				}
+			}
+
+			db.transaction((tx) => {
+				if (userIdsToUpdate.length > 0) {
+					tx.update(users)
+						.set({ kelompokId: targetKelompokId })
+						.where(inArray(users.id, userIdsToUpdate))
+						.run();
+				}
+			});
+
+			return {
+				success: `Sensus berhasil dipindahkan ke kelompok ${targetKelompokRow.nama}.`
+			};
+		} catch (err) {
+			console.error('Gagal memindahkan kelompok sensus:', err);
+			return fail(500, { error: 'Terjadi kesalahan sistem saat memindahkan kelompok sensus.' });
+		}
+	},
+
+	/**
+	 * Mengubah status keaktifan jamaah (Aktif / Tidak Aktif) untuk satu individu di dalam KK
+	 */
+	toggleStatusJamaah: async ({ request, locals }) => {
+		if (!locals.user || !locals.isAdmin) {
+			return fail(403, { error: 'Akses ditolak.' });
+		}
+
+		const adminScope = getAdminScope(locals.roles);
+		const accessibleWilayah = getAccessibleWilayah(adminScope);
+
+		const formData = await request.formData();
+		const anggotaId = formData.get('anggotaId')?.toString() || '';
+		const statusJamaah = formData.get('statusJamaah')?.toString()?.trim() || '';
+
+		if (!anggotaId || (statusJamaah !== 'Aktif' && statusJamaah !== 'Tidak Aktif')) {
+			return fail(400, { error: 'ID anggota atau status keaktifan tidak valid (harus Aktif atau Tidak Aktif).' });
+		}
+
+		const targetAnggota = db
+			.select({
+				id: anggotaKeluarga.id,
+				namaLengkap: anggotaKeluarga.namaLengkap,
+				keluargaId: anggotaKeluarga.keluargaId,
+				kelompokId: users.kelompokId
+			})
+			.from(anggotaKeluarga)
+			.innerJoin(keluarga, eq(anggotaKeluarga.keluargaId, keluarga.id))
+			.leftJoin(users, eq(keluarga.kepalaKeluargaId, users.id))
+			.where(eq(anggotaKeluarga.id, anggotaId))
+			.get();
+
+		if (!targetAnggota) {
+			return fail(404, { error: 'Data anggota keluarga tidak ditemukan.' });
+		}
+
+		if (
+			targetAnggota.kelompokId &&
+			!isKelompokAllowed(targetAnggota.kelompokId, accessibleWilayah.allowedKelompokIdSet, adminScope.isPusat)
+		) {
+			return fail(403, { error: 'Akses ditolak: Anggota keluarga berada di luar cakupan wewenang Anda.' });
+		}
+
+		try {
+			db.update(anggotaKeluarga)
+				.set({ statusJamaah })
+				.where(eq(anggotaKeluarga.id, anggotaId))
+				.run();
+
+			return {
+				success: `Status ${targetAnggota.namaLengkap || 'anggota'} berhasil diubah menjadi ${statusJamaah}.`
+			};
+		} catch (err) {
+			console.error('Gagal memperbarui status keaktifan jamaah:', err);
+			return fail(500, { error: 'Terjadi kesalahan sistem saat memperbarui status keaktifan jamaah.' });
 		}
 	}
 };

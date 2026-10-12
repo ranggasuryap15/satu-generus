@@ -7,162 +7,174 @@
  * @sideEffects Menulis record terenkripsi ke tabel keluarga dan anggota_keluarga dalam satu transaksi SQLite atomik
  */
 
-import { fail, redirect } from '@sveltejs/kit';
-import type { Actions, PageServerLoad } from './$types';
-import { db } from '$lib/db';
-import { keluarga, anggotaKeluarga } from '$lib/db/schema';
-import { encryptSensitive } from '$lib/server/crypto';
-import { getKeluargaForUser } from '$lib/server/sensus';
-import { normalizeDateToISO } from '$lib/utils';
-import { eq } from 'drizzle-orm';
+import { db } from "$lib/db";
+import { anggotaKeluarga, keluarga } from "$lib/db/schema";
+import { encryptSensitive } from "$lib/server/crypto";
+import { getKeluargaForUser } from "$lib/server/sensus";
+import { normalizeDateToISO } from "$lib/utils";
+import { fail, redirect } from "@sveltejs/kit";
+import { eq } from "drizzle-orm";
+import type { Actions, PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ locals }) => {
-	if (!locals.user) {
-		throw redirect(303, '/login?redirectTo=/sensus/tambah');
-	}
+  if (!locals.user) {
+    throw redirect(303, "/login?redirectTo=/sensus/tambah");
+  }
 
-	// Jika user sudah memiliki KK sendiri, arahkan langsung ke halaman sensus KK miliknya dengan modal tambah anggota aktif
-	const userKeluarga = getKeluargaForUser(locals.user.id);
-	if (userKeluarga) {
-		throw redirect(303, '/sensus?tambah=1');
-	}
+  // Jika user sudah memiliki KK sendiri, arahkan langsung ke halaman sensus KK miliknya dengan modal tambah anggota aktif
+  const userKeluarga = getKeluargaForUser(locals.user.id);
+  if (userKeluarga) {
+    throw redirect(303, "/sensus?tambah=1");
+  }
 
-	return {
-		user: locals.user
-	};
+  return {
+    user: locals.user,
+  };
 };
 
 export const actions: Actions = {
-	default: async ({ request, locals }) => {
-		if (!locals.user) {
-			throw redirect(303, '/login');
-		}
+  default: async ({ request, locals }) => {
+    if (!locals.user) {
+      throw redirect(303, "/login");
+    }
 
-		const formData = await request.formData();
-		const noKk = formData.get('noKk')?.toString()?.trim() || '';
-		const alamatLengkap = formData.get('alamatLengkap')?.toString()?.trim() || '';
-		const anggotaJson = formData.get('anggotaData')?.toString() || '[]';
+    const formData = await request.formData();
+    const noKk = formData.get("noKk")?.toString()?.trim() || "";
+    const alamatLengkap =
+      formData.get("alamatLengkap")?.toString()?.trim() || "";
+    const anggotaJson = formData.get("anggotaData")?.toString() || "[]";
 
-		// Validasi Nomor KK (opsional, jika diisi wajib 16 digit angka)
-		if (noKk) {
-			if (noKk.length !== 16 || !/^\d+$/.test(noKk)) {
-				return fail(400, {
-					error: 'Nomor Kartu Keluarga harus 16 digit angka.',
-					noKk,
-					alamatLengkap
-				});
-			}
-		}
+    // Validasi Nomor KK (opsional, jika diisi wajib 16 digit angka)
+    if (noKk) {
+      if (noKk.length !== 16 || !/^\d+$/.test(noKk)) {
+        return fail(400, {
+          error: "Nomor Kartu Keluarga harus 16 digit angka.",
+          noKk,
+          alamatLengkap,
+        });
+      }
+    }
 
-		let anggotaList: Array<{
-			namaLengkap?: string;
-			nik?: string;
-			statusHubungan: string;
-			tanggalLahir: string;
-			jenisKelamin: string;
-		}> = [];
+    let anggotaList: Array<{
+      namaLengkap?: string;
+      nik?: string;
+      statusHubungan: string;
+      tanggalLahir: string;
+      jenisKelamin: string;
+    }> = [];
 
-		try {
-			anggotaList = JSON.parse(anggotaJson);
-		} catch (_) {
-			return fail(400, {
-				error: 'Format data anggota keluarga tidak valid.',
-				noKk,
-				alamatLengkap
-			});
-		}
+    try {
+      anggotaList = JSON.parse(anggotaJson);
+    } catch (_) {
+      return fail(400, {
+        error: "Format data anggota keluarga tidak valid.",
+        noKk,
+        alamatLengkap,
+      });
+    }
 
-		if (!Array.isArray(anggotaList) || anggotaList.length === 0) {
-			return fail(400, {
-				error: 'Minimal 1 anggota keluarga wajib didaftarkan.',
-				noKk,
-				alamatLengkap
-			});
-		}
+    if (!Array.isArray(anggotaList) || anggotaList.length === 0) {
+      return fail(400, {
+        error: "Minimal 1 anggota keluarga wajib didaftarkan.",
+        noKk,
+        alamatLengkap,
+      });
+    }
 
-		// Validasi setiap anggota
-		for (let i = 0; i < anggotaList.length; i++) {
-			const a = anggotaList[i];
-			const nikVal = a.nik ? a.nik.trim() : '';
-			if (nikVal) {
-				if (nikVal.length !== 16 || !/^\d+$/.test(nikVal)) {
-					return fail(400, {
-						error: `NIK anggota ke-${i + 1} harus 16 digit angka.`,
-						noKk,
-						alamatLengkap
-					});
-				}
-			}
-			if (!a.statusHubungan || !a.tanggalLahir || !a.jenisKelamin) {
-				return fail(400, {
-					error: `Data anggota ke-${i + 1} belum lengkap.`,
-					noKk,
-					alamatLengkap
-				});
-			}
-		}
+    // Validasi setiap anggota
+    for (let i = 0; i < anggotaList.length; i++) {
+      const a = anggotaList[i];
+      const nikVal = a.nik ? a.nik.trim() : "";
+      if (nikVal) {
+        if (nikVal.length !== 16 || !/^\d+$/.test(nikVal)) {
+          return fail(400, {
+            error: `NIK anggota ke-${i + 1} harus 16 digit angka.`,
+            noKk,
+            alamatLengkap,
+          });
+        }
+      }
+      if (!a.statusHubungan || !a.tanggalLahir || !a.jenisKelamin) {
+        return fail(400, {
+          error: `Data anggota ke-${i + 1} belum lengkap.`,
+          noKk,
+          alamatLengkap,
+        });
+      }
+    }
 
-		// Eksekusi enkripsi data sensitif (Zero Plaintext di DB)
-		const noKkEncrypted = noKk ? encryptSensitive(noKk) : null;
+    // Eksekusi enkripsi data sensitif (Zero Plaintext di DB)
+    const noKkEncrypted = noKk ? encryptSensitive(noKk) : null;
 
-		// Cek apakah user sudah memiliki KK (agar masuk ke KK dia sendiri, bukan buat KK baru ganda)
-		const existingKeluarga = getKeluargaForUser(locals.user.id);
+    // Cek apakah user sudah memiliki KK (agar masuk ke KK dia sendiri, bukan buat KK baru ganda)
+    const existingKeluarga = getKeluargaForUser(locals.user.id);
 
-		// Transaksi database: Minimum Lock & Atomicity
-		try {
-			db.transaction((tx) => {
-				let targetKeluargaId: string;
+    // Transaksi database: Minimum Lock & Atomicity
+    try {
+      db.transaction((tx) => {
+        let targetKeluargaId: string;
 
-				if (!existingKeluarga) {
-					// Jika user belum punya KK, buat kartu keluarga baru
-					const [newKeluarga] = tx
-						.insert(keluarga)
-						.values({
-							noKkEncrypted,
-							kepalaKeluargaId: locals.user?.id,
-							alamatLengkap
-						})
-						.returning()
-						.all();
-					targetKeluargaId = newKeluarga.id;
-				} else {
-					targetKeluargaId = existingKeluarga.id;
-					// Jika sudah punya KK, perbarui No KK / alamat jika sebelumnya belum terisi
-					const updates: { noKkEncrypted?: string | null; alamatLengkap?: string } = {};
-					if (noKkEncrypted && !existingKeluarga.noKkEncrypted) {
-						updates.noKkEncrypted = noKkEncrypted;
-					}
-					if (alamatLengkap && (!existingKeluarga.alamatLengkap || existingKeluarga.alamatLengkap === '-')) {
-						updates.alamatLengkap = alamatLengkap;
-					}
-					if (Object.keys(updates).length > 0) {
-						tx.update(keluarga).set(updates).where(eq(keluarga.id, targetKeluargaId)).run();
-					}
-				}
+        if (!existingKeluarga) {
+          // Jika user belum punya KK, buat kartu keluarga baru
+          const [newKeluarga] = tx
+            .insert(keluarga)
+            .values({
+              noKkEncrypted,
+              kepalaKeluargaId: locals.user?.id,
+              alamatLengkap,
+            })
+            .returning()
+            .all();
+          targetKeluargaId = newKeluarga.id;
+        } else {
+          targetKeluargaId = existingKeluarga.id;
+          // Jika sudah punya KK, perbarui No KK / alamat jika sebelumnya belum terisi
+          const updates: {
+            noKkEncrypted?: string | null;
+            alamatLengkap?: string;
+          } = {};
+          if (noKkEncrypted && !existingKeluarga.noKkEncrypted) {
+            updates.noKkEncrypted = noKkEncrypted;
+          }
+          if (
+            alamatLengkap &&
+            (!existingKeluarga.alamatLengkap ||
+              existingKeluarga.alamatLengkap === "-")
+          ) {
+            updates.alamatLengkap = alamatLengkap;
+          }
+          if (Object.keys(updates).length > 0) {
+            tx.update(keluarga)
+              .set(updates)
+              .where(eq(keluarga.id, targetKeluargaId))
+              .run();
+          }
+        }
 
-				for (const a of anggotaList) {
-					const nikVal = a.nik ? a.nik.trim() : '';
-					tx.insert(anggotaKeluarga)
-						.values({
-							keluargaId: targetKeluargaId,
-							namaLengkap: a.namaLengkap?.trim() || locals.user?.namaLengkap || 'Anggota',
-							nikEncrypted: nikVal ? encryptSensitive(nikVal) : null,
-							statusHubungan: a.statusHubungan,
-							tanggalLahir: normalizeDateToISO(a.tanggalLahir),
-							jenisKelamin: a.jenisKelamin
-						})
-						.run();
-				}
-			});
-		} catch (error) {
-			console.error('Gagal menyimpan sensus keluarga:', error);
-			return fail(500, {
-				error: 'Terjadi kesalahan sistem saat menyimpan data sensus.',
-				noKk,
-				alamatLengkap
-			});
-		}
+        for (const a of anggotaList) {
+          const nikVal = a.nik ? a.nik.trim() : "";
+          tx.insert(anggotaKeluarga)
+            .values({
+              keluargaId: targetKeluargaId,
+              namaLengkap:
+                a.namaLengkap?.trim() || locals.user?.namaLengkap || "Anggota",
+              nikEncrypted: nikVal ? encryptSensitive(nikVal) : null,
+              statusHubungan: a.statusHubungan,
+              tanggalLahir: normalizeDateToISO(a.tanggalLahir),
+              jenisKelamin: a.jenisKelamin,
+            })
+            .run();
+        }
+      });
+    } catch (error) {
+      console.error("Gagal menyimpan sensus keluarga:", error);
+      return fail(500, {
+        error: "Terjadi kesalahan sistem saat menyimpan data sensus.",
+        noKk,
+        alamatLengkap,
+      });
+    }
 
-		throw redirect(303, '/sensus');
-	}
+    throw redirect(303, "/sensus");
+  },
 };
