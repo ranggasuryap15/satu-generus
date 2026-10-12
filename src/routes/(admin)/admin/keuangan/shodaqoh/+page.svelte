@@ -2,7 +2,7 @@
   @file src/routes/(admin)/admin/keuangan/shodaqoh/+page.svelte
   @purpose Halaman manajemen shodaqoh wilayah untuk admin (KU & Kyai): rekapitulasi metrik, visualisasi grafik donasi bulanan, verifikasi & approval bukti transfer, CRUD rekening/QRIS, serta isolasi alokasi jenis shodaqoh
   @usedBy Route admin '/admin/keuangan/shodaqoh'
-  @dependencies @lucide/svelte, $app/navigation, Svelte 5 Runes, formatRupiah
+  @dependencies @lucide/svelte, $app/navigation, Svelte 5 Runes, formatRupiah, $lib/components/SearchableSelect.svelte
   @publicFunctions N/A (Svelte Component)
   @sideEffects Melakukan approval/penolakan transaksi shodaqoh, mutasi jenis shodaqoh, dan pembaruan rekening/QRIS via form actions
 -->
@@ -10,6 +10,7 @@
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
 	import {
 		AlertCircle,
 		ArrowRight,
@@ -113,6 +114,27 @@
 	const maxMonthlyTotal = $derived(
 		Math.max(...(data.monthlyTrend || []).map((m: { bulan: string; total: number }) => m.total), 1)
 	);
+	// Opsi Dropdown Searchable Wilayah
+	const kelompokOptions = $derived(
+		(data.accessibleWilayah?.kelompokList || []).map((k: any) => ({
+			value: k.id,
+			label: `${k.nama}${k.desaNama ? ` (${k.desaNama})` : ""}`
+		}))
+	);
+
+	const desaOptions = $derived(
+		(data.accessibleWilayah?.desaList || []).map((d: any) => ({
+			value: d.id,
+			label: `${d.nama}${d.daerahNama ? ` (${d.daerahNama})` : ""}`
+		}))
+	);
+
+	const daerahOptions = $derived(
+		(data.accessibleWilayah?.daerahList || []).map((dr: any) => ({
+			value: dr.id,
+			label: dr.nama
+		}))
+	);
 </script>
 
 <svelte:head>
@@ -180,38 +202,37 @@
 				{/if}
 			</div>
 
-			<!-- Dropdown Wilayah Spesifik -->
-			{#if data.activeScope === 'Kelompok'}
-				<select
-					value={data.activeId}
-					onchange={(e) => changeWilayah('Kelompok', Number(e.currentTarget.value))}
-					class="bg-secondary/70 border border-border text-xs rounded-xl px-3 py-2 text-foreground font-medium focus:ring-1 focus:ring-primary outline-none max-w-xs"
-				>
-					{#each data.accessibleWilayah.kelompokList as k}
-						<option value={k.id}>{k.nama} ({k.desaNama || 'Desa'})</option>
-					{/each}
-				</select>
-			{:else if data.activeScope === 'Desa'}
-				<select
-					value={data.activeId}
-					onchange={(e) => changeWilayah('Desa', Number(e.currentTarget.value))}
-					class="bg-secondary/70 border border-border text-xs rounded-xl px-3 py-2 text-foreground font-medium focus:ring-1 focus:ring-primary outline-none max-w-xs"
-				>
-					{#each data.accessibleWilayah.desaList as d}
-						<option value={d.id}>{d.nama} ({d.daerahNama || 'Daerah'})</option>
-					{/each}
-				</select>
-			{:else if data.activeScope === 'Daerah'}
-				<select
-					value={data.activeId}
-					onchange={(e) => changeWilayah('Daerah', Number(e.currentTarget.value))}
-					class="bg-secondary/70 border border-border text-xs rounded-xl px-3 py-2 text-foreground font-medium focus:ring-1 focus:ring-primary outline-none max-w-xs"
-				>
-					{#each data.accessibleWilayah.daerahList as dr}
-						<option value={dr.id}>{dr.nama}</option>
-					{/each}
-				</select>
-			{/if}
+			<!-- Dropdown Wilayah Spesifik dengan Fitur Pencarian Real-Time -->
+			<div class="w-60 sm:w-72">
+				{#if data.activeScope === 'Kelompok'}
+					<SearchableSelect
+						name="selectKelompok"
+						options={kelompokOptions}
+						value={data.activeId}
+						onchange={(val: string | number) => changeWilayah('Kelompok', Number(val))}
+						placeholder="-- Cari Kelompok --"
+						searchPlaceholder="Ketik nama kelompok..."
+					/>
+				{:else if data.activeScope === 'Desa'}
+					<SearchableSelect
+						name="selectDesa"
+						options={desaOptions}
+						value={data.activeId}
+						onchange={(val: string | number) => changeWilayah('Desa', Number(val))}
+						placeholder="-- Cari Desa --"
+						searchPlaceholder="Ketik nama desa..."
+					/>
+				{:else if data.activeScope === 'Daerah'}
+					<SearchableSelect
+						name="selectDaerah"
+						options={daerahOptions}
+						value={data.activeId}
+						onchange={(val: string | number) => changeWilayah('Daerah', Number(val))}
+						placeholder="-- Cari Daerah --"
+						searchPlaceholder="Ketik nama daerah..."
+					/>
+				{/if}
+			</div>
 
 			<!-- Badge Otoritas -->
 			{#if data.canManage}
