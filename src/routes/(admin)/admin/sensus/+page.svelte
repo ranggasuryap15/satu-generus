@@ -156,6 +156,9 @@
 				editAnggotaJenisKelamin = 'P';
 			}
 		}
+		if (editAnggotaHubungan === 'Kepala Keluarga' && (selectedKeluarga?.isKk ?? true)) {
+			editAnggotaIsrun = true;
+		}
 		if (editAnggotaTanggalLahir) {
 			editAnggotaStatusGenerus = hitungStatusGenerus(
 				hitungUmur(editAnggotaTanggalLahir),
@@ -329,6 +332,7 @@
 		jenisKelamin: string;
 		statusPernikahan: string;
 		statusGenerus: string;
+		isrun?: string;
 		_lastTglLahir?: string;
 		_lastStatusHubungan?: string;
 		_lastStatusPernikahan?: string;
@@ -348,6 +352,7 @@
 			jenisKelamin,
 			statusPernikahan,
 			statusGenerus: '',
+			isrun: statusHubungan === 'Kepala Keluarga' ? 'Ya' : 'Tidak',
 			_lastTglLahir: '',
 			_lastStatusHubungan: statusHubungan,
 			_lastStatusPernikahan: statusPernikahan

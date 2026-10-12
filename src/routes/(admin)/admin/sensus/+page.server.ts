@@ -1,10 +1,10 @@
 /**
  * @file src/routes/(admin)/admin/sensus/+page.server.ts
- * @purpose Rekapitulasi sensus KK & Mandiri, metrik dashboard, penugasan dapukan pengurus KK, resolusi effectiveUserId Kepala Keluarga, serta form actions sensus (create, add anggota, edit, delete sensus, pindah kelompok, toggle keaktifan jamaah, buat akun, assign dapukan)
+ * @purpose Rekapitulasi sensus KK & Mandiri, metrik dashboard, penugasan dapukan pengurus KK, resolusi effectiveUserId & default isrun Kepala Keluarga, serta form actions sensus (create, add anggota, edit, delete sensus, pindah kelompok, toggle keaktifan jamaah, buat akun, assign dapukan)
  * @usedBy src/routes/(admin)/admin/sensus/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/auth, src/lib/server/scope, src/lib/utils (normalizeDateToISO), src/lib/generus (hitungUmur, hitungStatusGenerus, isStatusHubunganMenikah, resolveStatusPernikahan, isStatusGenerusBelumMenikah), drizzle-orm
  * @publicFunctions load, actions.createSensus, actions.addAnggotaKeluarga, actions.updateAnggota, actions.updateKeluarga, actions.deleteSensus, actions.pindahKelompok, actions.toggleStatusJamaah, actions.createMemberAccount, actions.assignDapukan
- * @sideEffects Transaksi penulisan database tabel users, keluarga, anggota_keluarga, user_dapukan; query join multi-tabel terindeks; sinkronisasi user_id Kepala Keluarga
+ * @sideEffects Transaksi penulisan database tabel users, keluarga, anggota_keluarga, user_dapukan; query join multi-tabel terindeks; sinkronisasi user_id & default isrun Kepala Keluarga
  */
 
 import { fail, redirect } from '@sveltejs/kit';
@@ -197,7 +197,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 					statusPernikahan: statusPernikahanResolved || '-',
 					statusPernikahanRaw: statusPernikahanResolved || '',
 					statusJamaah: a.statusJamaah || 'Aktif',
-					isrun: a.isrun || 'Tidak',
+					isrun: a.isrun || ((isKk && a.statusHubungan === 'Kepala Keluarga') ? 'Ya' : 'Tidak'),
 					golonganDarah: a.golonganDarah || '-',
 					golonganDarahRaw: a.golonganDarah || '',
 					isPengurus: aIsPengurus,
@@ -522,7 +522,7 @@ export const actions: Actions = {
 							statusPernikahan: memberPernikahan,
 							statusGenerus: memberGenerus || null,
 							statusJamaah: 'Aktif',
-							isrun: 'Tidak'
+							isrun: (!isMandiri && a.statusHubungan === 'Kepala Keluarga') ? 'Ya' : ((a as any).isrun || 'Tidak')
 						})
 						.run();
 				}
@@ -570,6 +570,7 @@ export const actions: Actions = {
 		const targetKeluarga = db
 			.select({
 				id: keluarga.id,
+				isKk: keluarga.isKk,
 				kepalaKeluargaId: keluarga.kepalaKeluargaId,
 				kelompokId: users.kelompokId
 			})
@@ -627,7 +628,7 @@ export const actions: Actions = {
 					statusPernikahan: resolvedPernikahan,
 					statusGenerus: resolvedGenerus,
 					statusJamaah: 'Aktif',
-					isrun: 'Tidak'
+					isrun: (statusHubungan === 'Kepala Keluarga' && (targetKeluarga.isKk ?? true)) ? 'Ya' : 'Tidak'
 				})
 				.run();
 		} catch (err) {

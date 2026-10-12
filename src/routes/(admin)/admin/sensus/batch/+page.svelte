@@ -153,7 +153,7 @@
 			statusKeluarga: statusKeluargaDefault,
 			nik: '',
 			statusJamaah: 'Aktif',
-			isrun: 'Tidak',
+			isrun: statusKeluargaDefault === 'Kepala Keluarga' ? 'Ya' : 'Tidak',
 			golonganDarah: '',
 			buatAkun: false,
 			email: '',
@@ -506,7 +506,9 @@
 				statusKeluarga: finalKeluarga,
 				nik: '',
 				statusJamaah: rStatusJam,
-				isrun: rIsrun,
+				isrun: (!isPerantauDetected && finalKeluarga === 'Kepala Keluarga' && (rIsrun === 'Tidak' || !rIsrun))
+					? 'Ya'
+					: rIsrun,
 				golonganDarah: rGoldar,
 				buatAkun: false,
 				email: '',

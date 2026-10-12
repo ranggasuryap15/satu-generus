@@ -271,7 +271,7 @@ export const actions: Actions = {
 					statusPernikahan,
 					statusGenerus,
 					statusJamaah: 'Aktif',
-					isrun: 'Tidak'
+					isrun: statusHubungan === 'Kepala Keluarga' ? 'Ya' : 'Tidak'
 				})
 				.run();
 		} catch (error) {

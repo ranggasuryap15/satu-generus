@@ -4,7 +4,7 @@
  * @usedBy Backend server routes (+page.server.ts, +server.ts, hooks.server.ts, scripts migrasi/seed)
  * @dependencies better-sqlite3, drizzle-orm/better-sqlite3, src/lib/db/schema.ts
  * @publicFunctions db, sqlite
- * @sideEffects Membuka koneksi file database SQLite, mengaktifkan PRAGMA WAL & foreign_keys, auto-migrasi kolom & tabel skema (sub_kelompok, users, anggota_keluarga, jadwal_pengajian_template, presensi_jadwal, presensi_kehadiran, kelompok, dan desa), auto-sinkronisasi user_id Kepala Keluarga
+ * @sideEffects Membuka koneksi file database SQLite, mengaktifkan PRAGMA WAL & foreign_keys, auto-migrasi kolom & tabel skema (sub_kelompok, users, anggota_keluarga, jadwal_pengajian_template, presensi_jadwal, presensi_kehadiran, kelompok, dan desa), auto-sinkronisasi user_id & default isrun Kepala Keluarga
  */
 
 import Database from 'better-sqlite3';
@@ -134,6 +134,19 @@ try {
 			  AND user_id IS NULL
 			  AND keluarga_id IN (SELECT id FROM keluarga WHERE kepala_keluarga_id IS NOT NULL)
 		`);
+
+		// Auto-heal migrasi v1: Secara default, jika KK dan Kepala Keluarga, maka kewajiban isrun ('Ya')
+		const userVer = (sqlite.prepare('PRAGMA user_version').get() as { user_version: number })?.user_version ?? 0;
+		if (userVer < 1) {
+			sqlite.exec(`
+				UPDATE anggota_keluarga
+				SET isrun = 'Ya'
+				WHERE status_hubungan = 'Kepala Keluarga'
+				  AND (isrun IS NULL OR isrun = 'Tidak')
+				  AND keluarga_id IN (SELECT id FROM keluarga WHERE is_kk = 1 OR is_kk IS NULL);
+				PRAGMA user_version = 1;
+			`);
+		}
 	}
 
 	// Auto-heal / migrasi kolom users jika belum memiliki no_telepon

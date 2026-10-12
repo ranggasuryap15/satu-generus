@@ -162,6 +162,7 @@ export const actions: Actions = {
           tx.insert(anggotaKeluarga)
             .values({
               keluargaId: targetKeluargaId,
+              userId: a.statusHubungan === "Kepala Keluarga" ? locals.user?.id : null,
               namaLengkap:
                 a.namaLengkap?.trim() || locals.user?.namaLengkap || "Anggota",
               nikEncrypted: nikVal ? encryptSensitive(nikVal) : null,
@@ -171,7 +172,7 @@ export const actions: Actions = {
               statusPernikahan,
               statusGenerus,
               statusJamaah: "Aktif",
-              isrun: "Tidak"
+              isrun: a.statusHubungan === "Kepala Keluarga" ? "Ya" : "Tidak"
             })
             .run();
         }
