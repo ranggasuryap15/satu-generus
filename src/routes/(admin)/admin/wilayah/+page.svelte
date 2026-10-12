@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(admin)/admin/wilayah/+page.svelte
-  @purpose Halaman manajemen Data Wilayah lengkap dengan dual presentation (compact cards mobile & table desktop) di tab Kelompok, Desa, & Sub-Kelompok, 1 tombol Tambah Wilayah cerdas (hierarki Daerah -> Desa -> Kelompok -> Sub-Kelompok), modal edit unit wilayah (Kelompok, Desa, Sub-Kelompok), modal detail desa & kelompok dengan Leaflet LocationPicker, fitur 'Hubungkan ke Lokasi', kontrol RBAC visual, checklist hapus massal & single delete
+  @purpose Halaman manajemen Data Wilayah lengkap dengan dual presentation (compact cards mobile & table desktop) di tab Kelompok, Desa, & Sub-Kelompok, 1 tombol Tambah Wilayah cerdas (hierarki Daerah -> Desa -> Kelompok -> Sub-Kelompok), modal edit unit wilayah (Kelompok, Desa, Sub-Kelompok), modal detail desa & kelompok dengan Leaflet LocationPicker, fitur 'Hubungkan ke Lokasi', kontrol RBAC visual, checklist hapus massal & single delete, serta scroll retention (mencegah loncat ke atas saat edit/hapus)
   @usedBy Route admin '/admin/wilayah'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/LocationPicker.svelte, $app/forms (enhance)
+  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/LocationPicker.svelte, $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
   @publicFunctions openUnifiedAddModal, closeUnifiedAddModal, openEditKelompok, closeEditKelompok, openEditDesa, closeEditDesa, openEditSubKelompok, closeEditSubKelompok, openKelompokDetail, closeKelompokDetail, openDesaDetail, closeDesaDetail, handleConnectToKelompok, handleDisconnectKelompok, resetFilter, toggleSelectKelompok, toggleSelectAllKelompok, openDeleteSingleKelompok, openDeleteBatchKelompok, closeDeleteModal
-  @sideEffects Menampilkan data wilayah sesuai scope RBAC, menyaring data, mengelola lokasi kelompok & desa dengan Leaflet, dan mengirim update/create/delete ke server via enhance
+  @sideEffects Menampilkan data wilayah sesuai scope RBAC, menyaring data, mengelola lokasi kelompok & desa dengan Leaflet, dan mengirim update/create/delete ke server via enhance dengan retensi scroll
 -->
 <script lang="ts">
 	import {
@@ -39,6 +39,7 @@
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
 	import LocationPicker from '$lib/components/LocationPicker.svelte';
 	import { enhance } from '$app/forms';
+	import { keepScrollSubmit } from '$lib/keepScroll';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -1668,7 +1669,12 @@
 			</div>
 
 			<!-- Form Submission -->
-			<form method="POST" action="?/createWilayah" use:enhance class="space-y-3.5">
+			<form
+				method="POST"
+				action="?/createWilayah"
+				use:enhance={keepScrollSubmit({ onSuccess: () => closeUnifiedAddModal() })}
+				class="space-y-3.5"
+			>
 				<!-- LEVEL 1: DAERAH -->
 				<div class="space-y-1.5 p-3 rounded-xl bg-secondary/20 border border-border/60">
 					<div class="flex items-center justify-between">
@@ -2008,7 +2014,12 @@
 						{/if}
 					</div>
 
-					<form method="POST" action="?/updateKelompokLocation" use:enhance class="space-y-4">
+					<form
+						method="POST"
+						action="?/updateKelompokLocation"
+						use:enhance={keepScrollSubmit({ onSuccess: () => closeKelompokDetail() })}
+						class="space-y-4"
+					>
 						<input type="hidden" name="kelompokId" value={selectedKelompok.id} />
 						<input type="hidden" name="lokasiNama" value={editLokasiNama} />
 						<input type="hidden" name="latitude" value={editLatitude} />
@@ -2170,7 +2181,12 @@
 						{/if}
 					</div>
 
-					<form method="POST" action="?/updateDesaLocation" use:enhance class="space-y-4">
+					<form
+						method="POST"
+						action="?/updateDesaLocation"
+						use:enhance={keepScrollSubmit({ onSuccess: () => closeDesaDetail() })}
+						class="space-y-4"
+					>
 						<input type="hidden" name="desaId" value={selectedDesa.id} />
 						<input type="hidden" name="lokasiNama" value={editDesaLokasiNama} />
 						<input type="hidden" name="latitude" value={editDesaLatitude} />
@@ -2341,7 +2357,7 @@
 						: deleteTarget.type === 'singleSubKelompok'
 							? '?/deleteSubKelompok'
 							: '?/batchDeleteSubKelompok'}
-				use:enhance
+				use:enhance={keepScrollSubmit({ onSuccess: () => closeDeleteModal() })}
 				class="flex items-center justify-end gap-2 pt-3 border-t border-border"
 			>
 				{#if deleteTarget.type === 'singleKelompok'}
@@ -2403,7 +2419,12 @@
 				</button>
 			</div>
 
-			<form method="POST" action="?/updateKelompok" use:enhance class="p-4 sm:p-6 space-y-4 text-xs">
+			<form
+				method="POST"
+				action="?/updateKelompok"
+				use:enhance={keepScrollSubmit({ onSuccess: () => closeEditKelompok() })}
+				class="p-4 sm:p-6 space-y-4 text-xs"
+			>
 				<input type="hidden" name="kelompokId" value={selectedKelompokToEdit.id} />
 
 				<div class="space-y-1.5">
@@ -2505,7 +2526,12 @@
 				</button>
 			</div>
 
-			<form method="POST" action="?/updateDesa" use:enhance class="p-4 sm:p-6 space-y-4 text-xs">
+			<form
+				method="POST"
+				action="?/updateDesa"
+				use:enhance={keepScrollSubmit({ onSuccess: () => closeEditDesa() })}
+				class="p-4 sm:p-6 space-y-4 text-xs"
+			>
 				<input type="hidden" name="desaId" value={selectedDesaToEdit.id} />
 
 				<div class="space-y-1.5">
@@ -2607,7 +2633,12 @@
 				</button>
 			</div>
 
-			<form method="POST" action="?/updateSubKelompok" use:enhance class="p-4 sm:p-6 space-y-4 text-xs">
+			<form
+				method="POST"
+				action="?/updateSubKelompok"
+				use:enhance={keepScrollSubmit({ onSuccess: () => closeEditSubKelompok() })}
+				class="p-4 sm:p-6 space-y-4 text-xs"
+			>
 				<input type="hidden" name="subKelompokId" value={selectedSubKelompokToEdit.id} />
 
 				<div class="space-y-1.5">

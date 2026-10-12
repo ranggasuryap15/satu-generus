@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(app)/sensus/+page.svelte
-  @purpose Tampilan status dan rincian Kartu Keluarga serta Jamaah Mandiri/Perantau dengan fitur unmasking, ubah data domisili, NIK (opsional), dan penambahan anggota ke KK sendiri
+  @purpose Tampilan status dan rincian Kartu Keluarga serta Jamaah Mandiri/Perantau dengan fitur unmasking, ubah data domisili, NIK (opsional), penambahan/edit/hapus anggota ke KK sendiri dengan retensi scroll (mencegah jumping ke atas)
   @usedBy Route client '/sensus'
-  @dependencies @lucide/svelte, $app/forms (enhance), $app/state (page), $lib/components/DateInput.svelte, $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
+  @dependencies @lucide/svelte, $app/forms (enhance), $app/state (page), $lib/components/DateInput.svelte, $lib/utils (formatDateDDMMYYYY), $lib/keepScroll.ts (keepScrollSubmit), Svelte 5 Runes
   @publicFunctions toggleKk, copyKk, toggleNik, copyNik, openEditKk, closeEditKkModal, openEditAnggota, closeEditAnggotaModal, openTambahAnggota, closeTambahAnggotaModal
-  @sideEffects Mengirim HTTP POST ke /api/sensus/unmask serta server actions updateKeluarga/updateAnggota/tambahAnggota/hapusAnggota
+  @sideEffects Mengirim HTTP POST ke /api/sensus/unmask serta server actions updateKeluarga/updateAnggota/tambahAnggota/hapusAnggota via enhance dengan posisi scroll terjaga
 -->
 <script lang="ts">
 	import {
@@ -30,6 +30,7 @@
 	import DateInput from '$lib/components/DateInput.svelte';
 	import { formatDateDDMMYYYY } from '$lib/utils';
 	import { confirmAction } from '$lib/confirm.svelte';
+	import { keepScrollSubmit } from '$lib/keepScroll';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -579,23 +580,24 @@
 									<form
 										method="POST"
 										action="?/hapusAnggota"
-										use:enhance
+										use:enhance={keepScrollSubmit()}
 									>
 										<input type="hidden" name="anggotaId" value={anggota.id} />
 										<button
 											type="button"
 											onclick={async (e) => {
+												const formEl = (e.currentTarget as HTMLButtonElement).closest('form');
 												const ok = await confirmAction({
 													title: 'Hapus Anggota Keluarga?',
 													message: `Apakah Anda yakin ingin menghapus data anggota ${anggota.namaLengkap || 'ini'}?`,
 													confirmText: 'Ya, Hapus',
 													variant: 'danger'
 												});
-												if (ok) {
-													(e.currentTarget as HTMLButtonElement).closest('form')?.requestSubmit();
+												if (ok && formEl) {
+													formEl.requestSubmit();
 												}
 											}}
-											class="p-1.5 rounded-lg text-destructive/60 hover:text-destructive hover:bg-destructive/10 transition-colors inline-flex items-center justify-center"
+											class="p-1.5 rounded-lg text-destructive/60 hover:text-destructive hover:bg-destructive/10 transition-colors inline-flex items-center justify-center cursor-pointer"
 											title="Hapus Anggota"
 											aria-label="Hapus Anggota"
 										>
@@ -642,13 +644,11 @@
 			<form
 				method="POST"
 				action="?/updateKeluarga"
-				use:enhance={() => {
-					isSubmitting = true;
-					return async ({ update }) => {
-						isSubmitting = false;
-						await update();
-					};
-				}}
+				use:enhance={keepScrollSubmit({
+					beforeSubmit: () => { isSubmitting = true; },
+					onFinally: () => { isSubmitting = false; },
+					onSuccess: () => { closeEditKkModal(); }
+				})}
 				class="space-y-4 text-xs"
 			>
 				<input type="hidden" name="keluargaId" value={data.keluarga?.id} />
@@ -735,13 +735,11 @@
 			<form
 				method="POST"
 				action="?/updateAnggota"
-				use:enhance={() => {
-					isSubmitting = true;
-					return async ({ update }) => {
-						isSubmitting = false;
-						await update();
-					};
-				}}
+				use:enhance={keepScrollSubmit({
+					beforeSubmit: () => { isSubmitting = true; },
+					onFinally: () => { isSubmitting = false; },
+					onSuccess: () => { closeEditAnggotaModal(); }
+				})}
 				class="space-y-4 text-xs"
 			>
 				<input type="hidden" name="anggotaId" value={selectedAnggota.id} />
@@ -873,13 +871,11 @@
 			<form
 				method="POST"
 				action="?/tambahAnggota"
-				use:enhance={() => {
-					isSubmitting = true;
-					return async ({ update }) => {
-						isSubmitting = false;
-						await update();
-					};
-				}}
+				use:enhance={keepScrollSubmit({
+					beforeSubmit: () => { isSubmitting = true; },
+					onFinally: () => { isSubmitting = false; },
+					onSuccess: () => { closeTambahAnggotaModal(); }
+				})}
 				class="space-y-4 text-xs"
 			>
 				<input type="hidden" name="keluargaId" value={data.keluarga?.id} />

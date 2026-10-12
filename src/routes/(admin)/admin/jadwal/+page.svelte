@@ -1,8 +1,8 @@
 <!--
   @file src/routes/(admin)/admin/jadwal/+page.svelte
-  @purpose Antarmuka manajemen jadwal pengajian bertingkat (Desa & Kelompok), sinkronisasi tab aktif via URL query params & cookies persisten tanpa refresh merusak state, helper getActionUrl penjaga query params form submit (?/actionName&params), selector kelompok & desa tanpa refresh kasar, generator sesi bulanan, override mendadak, pewarisan lokasi default Desa & Kelompok pada sesi manual, penghapusan sesi & template dengan modal konfirmasi aman, dan WhatsApp reminder
+  @purpose Antarmuka manajemen jadwal pengajian bertingkat (Desa & Kelompok), sinkronisasi tab aktif via URL query params & cookies persisten tanpa refresh merusak state, helper getActionUrl penjaga query params form submit (?/actionName&params), selector kelompok & desa tanpa refresh kasar, generator sesi bulanan, override mendadak, pewarisan lokasi default Desa & Kelompok pada sesi manual, penghapusan sesi & template dengan modal konfirmasi aman serta scroll retention (tanpa jumping ke atas)
   @usedBy Route admin '/admin/jadwal'
-  @dependencies @lucide/svelte, $app/forms, $app/navigation, $app/state, $lib/confirm.svelte, $lib/components/SearchableSelect.svelte, $lib/jadwal (getNamaHari, getMingguKe, formatDateIndoFull, formatWhatsAppReminder, generateWhatsAppLink, NAMA_HARI_INDO, NAMA_BULAN_INDO), Svelte 5 Runes
+  @dependencies @lucide/svelte, $app/forms, $app/navigation, $app/state, $lib/confirm.svelte, $lib/keepScroll.ts, $lib/components/SearchableSelect.svelte, $lib/jadwal (getNamaHari, getMingguKe, formatDateIndoFull, formatWhatsAppReminder, generateWhatsAppLink, NAMA_HARI_INDO, NAMA_BULAN_INDO), Svelte 5 Runes
   @publicFunctions getActionUrl, switchTab, handleSelectKelompok, handleSelectDesa, openCreateTemplateModal, openEditTemplateModal, openOverrideModal, openWaModal, openGenerateModal, copyWaText
   @sideEffects Mengirim server action POST untuk template & sesi jadwal, navigasi query client-side, dan menyalin teks ke clipboard pengguna
 -->
@@ -10,6 +10,7 @@
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import { keepScrollSubmit } from '$lib/keepScroll';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
 	import DateInput from '$lib/components/DateInput.svelte';
 	import {
@@ -536,11 +537,7 @@
 									<form
 										method="POST"
 										action={getActionUrl('deleteTemplate', 'Desa')}
-										use:enhance={() => {
-											return async ({ update }) => {
-												await update({ reset: false });
-											};
-										}}
+										use:enhance={keepScrollSubmit()}
 									>
 										<input type="hidden" name="id" value={tmpl.id} />
 										<button
@@ -689,11 +686,7 @@
 									<form
 										method="POST"
 										action={getActionUrl('deleteSesi', 'Desa')}
-										use:enhance={() => {
-											return async ({ update }) => {
-												await update({ reset: false });
-											};
-										}}
+										use:enhance={keepScrollSubmit()}
 									>
 										<input type="hidden" name="id" value={sesi.id} />
 										<button
@@ -857,11 +850,7 @@
 									<form
 										method="POST"
 										action={getActionUrl('deleteTemplate', 'Kelompok')}
-										use:enhance={() => {
-											return async ({ update }) => {
-												await update({ reset: false });
-											};
-										}}
+										use:enhance={keepScrollSubmit()}
 									>
 										<input type="hidden" name="id" value={tmpl.id} />
 										<button
@@ -1010,11 +999,7 @@
 									<form
 										method="POST"
 										action={getActionUrl('deleteSesi', 'Kelompok')}
-										use:enhance={() => {
-											return async ({ update }) => {
-												await update({ reset: false });
-											};
-										}}
+										use:enhance={keepScrollSubmit()}
 									>
 										<input type="hidden" name="id" value={sesi.id} />
 										<button
@@ -1074,16 +1059,11 @@
 			<form
 				method="POST"
 				action={getActionUrl('saveTemplate', editingTemplate?.tingkatScope)}
-				use:enhance={() => {
-					isSubmitting = true;
-					return async ({ update, result }) => {
-						isSubmitting = false;
-						if (result.type === 'success') {
-							showTemplateModal = false;
-						}
-						await update({ reset: false });
-					};
-				}}
+				use:enhance={keepScrollSubmit({
+					beforeSubmit: () => { isSubmitting = true; },
+					onFinally: () => { isSubmitting = false; },
+					onSuccess: () => { showTemplateModal = false; }
+				})}
 				class="space-y-3.5 text-xs"
 			>
 				{#if editingTemplate.id}
@@ -1286,16 +1266,11 @@
 			<form
 				method="POST"
 				action={getActionUrl('updateSesiOverride', editingSesi?.tingkatScope)}
-				use:enhance={() => {
-					isSubmitting = true;
-					return async ({ update, result }) => {
-						isSubmitting = false;
-						if (result.type === 'success') {
-							showOverrideModal = false;
-						}
-						await update({ reset: false });
-					};
-				}}
+				use:enhance={keepScrollSubmit({
+					beforeSubmit: () => { isSubmitting = true; },
+					onFinally: () => { isSubmitting = false; },
+					onSuccess: () => { showOverrideModal = false; }
+				})}
 				class="space-y-3.5 text-xs"
 			>
 				<input type="hidden" name="id" value={editingSesi.id} />
@@ -1460,16 +1435,11 @@
 			<form
 				method="POST"
 				action={getActionUrl('createSesiManual', createSesiScope)}
-				use:enhance={() => {
-					isSubmitting = true;
-					return async ({ update, result }) => {
-						isSubmitting = false;
-						if (result.type === 'success') {
-							showCreateSesiModal = false;
-						}
-						await update({ reset: false });
-					};
-				}}
+				use:enhance={keepScrollSubmit({
+					beforeSubmit: () => { isSubmitting = true; },
+					onFinally: () => { isSubmitting = false; },
+					onSuccess: () => { showCreateSesiModal = false; }
+				})}
 				class="space-y-3.5 text-xs"
 			>
 				<input type="hidden" name="tingkatScope" value={createSesiScope} />
@@ -1648,16 +1618,11 @@
 			<form
 				method="POST"
 				action={getActionUrl('generateSesiBulanan', generateScope)}
-				use:enhance={() => {
-					isSubmitting = true;
-					return async ({ update, result }) => {
-						isSubmitting = false;
-						if (result.type === 'success') {
-							showGenerateModal = false;
-						}
-						await update({ reset: false });
-					};
-				}}
+				use:enhance={keepScrollSubmit({
+					beforeSubmit: () => { isSubmitting = true; },
+					onFinally: () => { isSubmitting = false; },
+					onSuccess: () => { showGenerateModal = false; }
+				})}
 				class="space-y-3.5 text-xs"
 			>
 				<input type="hidden" name="tingkatScope" value={generateScope} />

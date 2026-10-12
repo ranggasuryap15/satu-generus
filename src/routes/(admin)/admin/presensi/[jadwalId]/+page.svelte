@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(admin)/admin/presensi/[jadwalId]/+page.svelte
-  @purpose Halaman checklist absensi jamaah per jadwal: verifikasi presensi mandiri (offline GPS + foto kamera, online SS SDC) dan modal peninjauan approval izin/sakit jamaah
+  @purpose Halaman checklist absensi jamaah per jadwal: verifikasi presensi mandiri (offline GPS + foto kamera, online SS SDC) dan modal peninjauan approval izin/sakit jamaah dengan retensi scroll (tanpa reload jumping ke atas)
   @usedBy Route admin '/admin/presensi/[jadwalId]'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/utils (formatDateDDMMYYYY), $app/state (page)
+  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/utils (formatDateDDMMYYYY), $app/state (page), $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
   @publicFunctions N/A (Svelte Component)
-  @sideEffects Mengirim form update status, approve izin, dan reject izin ke server actions
+  @sideEffects Mengirim form update status, approve izin, dan reject izin ke server actions via enhance dengan mempertahankan posisi scroll
 -->
 <script lang="ts">
 	import {
@@ -27,6 +27,8 @@
 	} from '@lucide/svelte';
 	import { formatDateDDMMYYYY } from '$lib/utils';
 	import { page } from '$app/state';
+	import { enhance } from '$app/forms';
+	import { keepScrollSubmit } from '$lib/keepScroll';
 	import type { PageData } from './$types';
 
 	let { data } = $props<{ data: PageData }>();
@@ -308,7 +310,7 @@
 
 					<!-- 4 Tombol Cepat Ubah Status Sentuh Nyaman di Mobile -->
 					<div class="grid grid-cols-4 gap-1.5 pt-1 border-t border-border/50">
-						<form method="POST" action="?/updateStatus" class="w-full">
+						<form method="POST" action="?/updateStatus" use:enhance={keepScrollSubmit()} class="w-full">
 							<input type="hidden" name="userId" value={peserta.id} />
 							<input type="hidden" name="status" value="Hadir" />
 							<button
@@ -321,7 +323,7 @@
 							</button>
 						</form>
 
-						<form method="POST" action="?/updateStatus" class="w-full">
+						<form method="POST" action="?/updateStatus" use:enhance={keepScrollSubmit()} class="w-full">
 							<input type="hidden" name="userId" value={peserta.id} />
 							<input type="hidden" name="status" value="Izin" />
 							<button
@@ -334,7 +336,7 @@
 							</button>
 						</form>
 
-						<form method="POST" action="?/updateStatus" class="w-full">
+						<form method="POST" action="?/updateStatus" use:enhance={keepScrollSubmit()} class="w-full">
 							<input type="hidden" name="userId" value={peserta.id} />
 							<input type="hidden" name="status" value="Sakit" />
 							<button
@@ -347,7 +349,7 @@
 							</button>
 						</form>
 
-						<form method="POST" action="?/updateStatus" class="w-full">
+						<form method="POST" action="?/updateStatus" use:enhance={keepScrollSubmit()} class="w-full">
 							<input type="hidden" name="userId" value={peserta.id} />
 							<input type="hidden" name="status" value="Alpa" />
 							<button
@@ -499,7 +501,7 @@
 								<!-- Kolom Tombol Ubah Status Manual -->
 								<td class="py-3 px-4 text-right">
 									<div class="inline-flex items-center gap-1">
-										<form method="POST" action="?/updateStatus" class="inline">
+										<form method="POST" action="?/updateStatus" use:enhance={keepScrollSubmit()} class="inline">
 											<input type="hidden" name="userId" value={peserta.id} />
 											<input type="hidden" name="status" value="Hadir" />
 											<button
@@ -513,7 +515,7 @@
 											</button>
 										</form>
 
-										<form method="POST" action="?/updateStatus" class="inline">
+										<form method="POST" action="?/updateStatus" use:enhance={keepScrollSubmit()} class="inline">
 											<input type="hidden" name="userId" value={peserta.id} />
 											<input type="hidden" name="status" value="Izin" />
 											<button
@@ -527,7 +529,7 @@
 											</button>
 										</form>
 
-										<form method="POST" action="?/updateStatus" class="inline">
+										<form method="POST" action="?/updateStatus" use:enhance={keepScrollSubmit()} class="inline">
 											<input type="hidden" name="userId" value={peserta.id} />
 											<input type="hidden" name="status" value="Sakit" />
 											<button
@@ -541,7 +543,7 @@
 											</button>
 										</form>
 
-										<form method="POST" action="?/updateStatus" class="inline">
+										<form method="POST" action="?/updateStatus" use:enhance={keepScrollSubmit()} class="inline">
 											<input type="hidden" name="userId" value={peserta.id} />
 											<input type="hidden" name="status" value="Alpa" />
 											<button
@@ -723,7 +725,7 @@
 								{/if}
 
 								<div class="flex items-center gap-2 self-end sm:self-auto">
-									<form method="POST" action="?/rejectIzin">
+									<form method="POST" action="?/rejectIzin" use:enhance={keepScrollSubmit()}>
 										<input type="hidden" name="userId" value={p.id} />
 										<button
 											type="submit"
@@ -733,7 +735,7 @@
 										</button>
 									</form>
 
-									<form method="POST" action="?/approveIzin">
+									<form method="POST" action="?/approveIzin" use:enhance={keepScrollSubmit()}>
 										<input type="hidden" name="userId" value={p.id} />
 										<button
 											type="submit"

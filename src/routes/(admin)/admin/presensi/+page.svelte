@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(admin)/admin/presensi/+page.svelte
-  @purpose Halaman rekapitulasi jadwal pengajian dan pembuat jadwal baru bagi admin dengan pemilihan lokasi interaktif (geser pinpoint, cari tempat, link Google Maps)
+  @purpose Halaman rekapitulasi jadwal pengajian dan pembuat jadwal baru bagi admin dengan pemilihan lokasi interaktif serta scroll retention
   @usedBy Route admin '/admin/presensi'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/components/LocationPicker.svelte, $lib/utils (formatDateDDMMYYYY)
+  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/components/LocationPicker.svelte, $lib/utils (formatDateDDMMYYYY), $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
   @publicFunctions openAddModal, closeAddModal, resetAddForm, isAddFormDirty
-  @sideEffects Menampilkan data jadwal dan mengirim form pembuatan jadwal ke server
+  @sideEffects Menampilkan data jadwal dan mengirim form pembuatan jadwal ke server via enhance dengan retensi scroll
 -->
 <script lang="ts">
 	import { Calendar, MapPin, Plus, QrCode, SquareCheck, Search, X, Users } from '@lucide/svelte';
@@ -14,6 +14,8 @@
 	import LocationPicker from '$lib/components/LocationPicker.svelte';
 	import { formatDateDDMMYYYY } from '$lib/utils';
 	import { confirmAction } from '$lib/confirm.svelte';
+	import { enhance } from '$app/forms';
+	import { keepScrollSubmit } from '$lib/keepScroll';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -298,7 +300,12 @@
 				</button>
 			</div>
 
-			<form method="POST" action="?/createJadwal" class="space-y-4">
+			<form
+				method="POST"
+				action="?/createJadwal"
+				use:enhance={keepScrollSubmit({ onSuccess: () => closeAddModal() })}
+				class="space-y-4"
+			>
 				<div>
 					<label for="namaKegiatan" class="block text-xs font-semibold text-foreground mb-1.5">
 						Nama Kegiatan Pengajian *

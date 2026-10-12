@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(admin)/admin/dapukan/+page.svelte
-  @purpose Halaman manajemen struktur dapukan dan penugasan RBAC pengurus dengan proteksi wewenang 4S (Kyai/Penerobos di tingkat kelompok) serta penguncian scope wilayah
+  @purpose Halaman manajemen struktur dapukan dan penugasan RBAC pengurus dengan proteksi wewenang 4S (Kyai/Penerobos di tingkat kelompok), penguncian scope wilayah, serta scroll retention (mencegah loncat ke atas saat assign/update/cabut penugasan)
   @usedBy Route admin '/admin/dapukan'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte
+  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
   @publicFunctions openAssignModal, closeAssignModal, resetAssignForm, openEditModal, closeEditModal, confirmRemove
-  @sideEffects Menampilkan data dapukan/pengurus dan mengirim form mutasi pengurus ke server
+  @sideEffects Menampilkan data dapukan/pengurus dan mengirim form mutasi pengurus ke server tanpa refresh kasar dan menjaga posisi scroll
 -->
 <script lang="ts">
 	import {
@@ -22,6 +22,8 @@
 	import type { PageData, ActionData } from './$types';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
 	import { confirmAction } from '$lib/confirm.svelte';
+	import { enhance } from '$app/forms';
+	import { keepScrollSubmit } from '$lib/keepScroll';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -679,7 +681,12 @@
 				</button>
 			</div>
 
-			<form method="POST" action="?/assignDapukan" class="space-y-4">
+			<form
+				method="POST"
+				action="?/assignDapukan"
+				use:enhance={keepScrollSubmit({ onSuccess: () => closeAssignModal() })}
+				class="space-y-4"
+			>
 				<!-- Pilih User Jamaah -->
 				<div>
 					<label for="userId" class="block text-xs font-semibold text-foreground mb-1.5">
@@ -955,7 +962,12 @@
 				</button>
 			</div>
 
-			<form method="POST" action="?/updateDapukan" class="space-y-4">
+			<form
+				method="POST"
+				action="?/updateDapukan"
+				use:enhance={keepScrollSubmit({ onSuccess: () => closeEditModal() })}
+				class="space-y-4"
+			>
 				<input type="hidden" name="id" value={editingPengurus.id} />
 
 				<!-- Informasi Pengurus & Basis Wilayah -->
@@ -1194,7 +1206,17 @@
 				</p>
 			</div>
 
-			<form method="POST" action="?/removeDapukan" class="flex items-center justify-center gap-2 pt-2">
+			<form
+				method="POST"
+				action="?/removeDapukan"
+				use:enhance={keepScrollSubmit({
+					onSuccess: () => {
+						showRemoveModal = false;
+						selectedPengurusToRemove = null;
+					}
+				})}
+				class="flex items-center justify-center gap-2 pt-2"
+			>
 				<input type="hidden" name="id" value={selectedPengurusToRemove.id} />
 
 				<button

@@ -1,15 +1,16 @@
 <!--
   @file src/routes/(admin)/admin/sensus/+page.svelte
-  @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri, dashboard statistik, penugasan dapukan pengurus KK, modal detail lengkap (hapus sensus, pindah kelompok, toggle status jamaah), modal edit anggota/KK, dan pembuatan akun
+  @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri, dashboard statistik, penugasan dapukan pengurus KK, modal detail lengkap (hapus sensus, pindah kelompok, toggle status jamaah), modal edit anggota/KK, dan pembuatan akun dengan retensi scroll (mencegah loncat ke atas)
   @usedBy Route admin '/admin/sensus'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/confirm.svelte, $lib/utils (formatDateDDMMYYYY), $lib/generus (isStatusHubunganMenikah, hitungUmur, hitungStatusGenerus, resolveStatusPernikahan, isStatusGenerusBelumMenikah, resolvePernikahanFromGenerus, DAFTAR_STATUS_GENERUS)
+  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/confirm.svelte, $lib/keepScroll.ts (keepScrollSubmit), $lib/utils (formatDateDDMMYYYY), $lib/generus (isStatusHubunganMenikah, hitungUmur, hitungStatusGenerus, resolveStatusPernikahan, isStatusGenerusBelumMenikah, resolvePernikahanFromGenerus, DAFTAR_STATUS_GENERUS)
   @publicFunctions openDetailModal, closeDetailModal, requestUnmask, openCreateModal, closeCreateModal, openAddMemberModal, closeAddMemberModal, openCreateAccountModal, openEditAnggotaModal, closeEditAnggotaModal, openEditKeluargaModal, closeEditKeluargaModal, openPindahKelompokModal, closePindahKelompokModal, openAssignDapukanModal, closeAssignDapukanModal, handleHapusSensus, handleToggleStatusJamaah, resetFilters, toggleMobileFilter
-  @sideEffects Menampilkan metrik, unmask data sensitif, submit actions (createSensus, addAnggotaKeluarga, updateAnggota, updateKeluarga, deleteSensus, pindahKelompok, toggleStatusJamaah, createMemberAccount, assignDapukan)
+  @sideEffects Menampilkan metrik, unmask data sensitif, submit actions (createSensus, addAnggotaKeluarga, updateAnggota, updateKeluarga, deleteSensus, pindahKelompok, toggleStatusJamaah, createMemberAccount, assignDapukan) dengan retensi posisi scroll
 -->
 <script lang="ts">
 	import DateInput from '$lib/components/DateInput.svelte';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
 	import { formatDateDDMMYYYY } from '$lib/utils';
+	import { keepScrollSubmit } from '$lib/keepScroll';
 	import {
 		isStatusHubunganMenikah,
 		hitungUmur,
@@ -2096,7 +2097,12 @@
 				</button>
 			</div>
 
-			<form method="POST" action="?/addAnggotaKeluarga" class="space-y-3 text-xs">
+			<form
+				method="POST"
+				action="?/addAnggotaKeluarga"
+				use:enhance={keepScrollSubmit({ onSuccess: () => closeAddMemberModal() })}
+				class="space-y-3 text-xs"
+			>
 				<input type="hidden" name="keluargaId" value={targetKeluargaForMember.id} />
 
 				<div>
@@ -2571,14 +2577,11 @@
 			<form
 				method="POST"
 				action="?/updateAnggota"
-				use:enhance={() => {
-					isEditAnggotaSubmitting = true;
-					return async ({ update }) => {
-						await update();
-						isEditAnggotaSubmitting = false;
-						closeEditAnggotaModal();
-					};
-				}}
+				use:enhance={keepScrollSubmit({
+					beforeSubmit: () => { isEditAnggotaSubmitting = true; },
+					onFinally: () => { isEditAnggotaSubmitting = false; },
+					onSuccess: () => { closeEditAnggotaModal(); }
+				})}
 				class="space-y-4 text-xs"
 			>
 				<input type="hidden" name="anggotaId" value={editingAnggota.id} />
@@ -2876,14 +2879,11 @@
 			<form
 				method="POST"
 				action="?/updateKeluarga"
-				use:enhance={() => {
-					isEditKeluargaSubmitting = true;
-					return async ({ update }) => {
-						await update();
-						isEditKeluargaSubmitting = false;
-						closeEditKeluargaModal();
-					};
-				}}
+				use:enhance={keepScrollSubmit({
+					beforeSubmit: () => { isEditKeluargaSubmitting = true; },
+					onFinally: () => { isEditKeluargaSubmitting = false; },
+					onSuccess: () => { closeEditKeluargaModal(); }
+				})}
 				class="space-y-3.5 text-xs"
 			>
 				<input type="hidden" name="keluargaId" value={editingKeluarga.id} />
@@ -2991,14 +2991,11 @@
 			<form
 				method="POST"
 				action="?/createMemberAccount"
-				use:enhance={() => {
-					isAccountSubmitting = true;
-					return async ({ update }) => {
-						isAccountSubmitting = false;
-						await update();
-						memberForAccount = null;
-					};
-				}}
+				use:enhance={keepScrollSubmit({
+					beforeSubmit: () => { isAccountSubmitting = true; },
+					onFinally: () => { isAccountSubmitting = false; },
+					onSuccess: () => { memberForAccount = null; }
+				})}
 				class="space-y-3 text-xs"
 			>
 				<input type="hidden" name="anggotaId" value={memberForAccount.id} />
@@ -3177,14 +3174,11 @@
 			<form
 				method="POST"
 				action="?/pindahKelompok"
-				use:enhance={() => {
-					isPindahKelompokSubmitting = true;
-					return async ({ update }) => {
-						await update();
-						isPindahKelompokSubmitting = false;
-						closePindahKelompokModal();
-					};
-				}}
+				use:enhance={keepScrollSubmit({
+					beforeSubmit: () => { isPindahKelompokSubmitting = true; },
+					onFinally: () => { isPindahKelompokSubmitting = false; },
+					onSuccess: () => { closePindahKelompokModal(); }
+				})}
 				class="space-y-3.5 text-xs"
 			>
 				<input type="hidden" name="keluargaId" value={pindahKelompokTarget.id} />
@@ -3266,7 +3260,12 @@
 				</button>
 			</div>
 
-			<form method="POST" action="?/assignDapukan" use:enhance class="space-y-4">
+			<form
+				method="POST"
+				action="?/assignDapukan"
+				use:enhance={keepScrollSubmit({ onSuccess: () => closeAssignDapukanModal() })}
+				class="space-y-4"
+			>
 				<!-- Pilih Akun dalam KK (Jika > 1 Akun, tampilkan pilihan kartu/radio) -->
 				{#if targetKeluargaForDapukan.akunList && targetKeluargaForDapukan.akunList.length > 1}
 					<div>
@@ -3527,7 +3526,7 @@
 	bind:this={deleteSensusForm}
 	method="POST"
 	action="?/deleteSensus"
-	use:enhance
+	use:enhance={keepScrollSubmit()}
 	class="hidden"
 >
 	<input type="hidden" name="keluargaId" value={deleteTargetKeluargaId} />
@@ -3538,7 +3537,7 @@
 	bind:this={toggleStatusForm}
 	method="POST"
 	action="?/toggleStatusJamaah"
-	use:enhance
+	use:enhance={keepScrollSubmit()}
 	class="hidden"
 >
 	<input type="hidden" name="anggotaId" value={toggleTargetAnggotaId} />
