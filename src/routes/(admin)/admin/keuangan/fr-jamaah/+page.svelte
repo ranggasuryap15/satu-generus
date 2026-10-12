@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(admin)/admin/keuangan/fr-jamaah/+page.svelte
-  @purpose Halaman FR Jamaah: daftar compact mobile + tabel desktop data jamaah wajib isrun dengan inline editing nominal shodaqoh, ekspor data CSV/Excel, dan sticky floating save bar di atas bottom navbar mobile, diproteksi khusus KU (read-only bagi Kyai & Aghnia)
+  @purpose Halaman FR Jamaah: daftar compact mobile + tabel desktop data jamaah wajib isrun dengan inline editing nominal shodaqoh (numeric keypad only), ekspor data CSV/Excel, dan sticky floating save bar di atas bottom navbar mobile (z-50 bottom-20), diproteksi khusus KU (read-only bagi Kyai & Aghnia)
   @usedBy Route admin '/admin/keuangan/fr-jamaah'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
   @publicFunctions handleNominalChange, handleCatatanChange, resetChanges, submitSave, exportToCsv
-  @sideEffects Mengirim form batch upsert transaksi FR via action ?/saveFr dengan menjaga scroll; ekspor CSV langsung di browser client; input nominal memakai keyboard numerik (inputmode=numeric)
+  @sideEffects Mengirim form batch upsert transaksi FR via action ?/saveFr dengan menjaga scroll; ekspor CSV langsung di browser client; input nominal membuka dial pad murni angka (inputmode=numeric, pattern=[0-9]*)
 -->
 <script lang="ts">
 	import {
@@ -240,7 +240,7 @@
 	}
 </script>
 
-<div class="space-y-6 pb-24">
+<div class="space-y-6 pb-36 md:pb-24">
 	<!-- HEADER HALAMAN -->
 	<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
 		<div>
@@ -472,6 +472,7 @@
 										<input
 											type="text"
 											inputmode="numeric"
+											pattern="[0-9]*"
 											autocomplete="off"
 											value={effNominal ? effNominal.toLocaleString('id-ID') : ''}
 											oninput={(e) => handleNominalInput(j.id, (e.target as HTMLInputElement).value)}
@@ -550,6 +551,7 @@
 												<input
 													type="text"
 													inputmode="numeric"
+													pattern="[0-9]*"
 													autocomplete="off"
 													value={effNominal ? effNominal.toLocaleString('id-ID') : ''}
 													oninput={(e) => handleNominalInput(j.id, (e.target as HTMLInputElement).value)}
@@ -604,7 +606,7 @@
 
 	<!-- STICKY FLOATING ACTION BAR (MENGIKUTI SCROLL SAAT ADA PERUBAHAN) -->
 	{#if dirtyCount > 0 && data.canEdit}
-		<div class="fixed left-4 right-4 bottom-[5.75rem] md:bottom-4 md:left-72 z-40 bg-card/95 backdrop-blur-md border border-primary/30 rounded-2xl p-3 shadow-2xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-3 duration-200">
+		<div class="fixed left-3 right-3 bottom-20 md:bottom-6 md:left-72 z-50 bg-card/95 backdrop-blur-md border border-primary/30 rounded-2xl p-3 shadow-2xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-3 duration-200">
 			<div class="flex items-center gap-2 pl-2">
 				<span class="w-2.5 h-2.5 rounded-full bg-primary animate-pulse"></span>
 				<div class="text-xs font-semibold text-foreground">
