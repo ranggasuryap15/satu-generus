@@ -324,7 +324,7 @@
 						<ArrowLeft class="w-3.5 h-3.5" />
 						<span>Kembali ke Daerah {data.profilData.daerahNama}</span>
 					</a>
-				{:else if data.activeScope === 'Daerah' && data.adminScope.isPusat}
+				{:else if data.activeScope === 'Daerah' && data.adminScope?.isPusat}
 					<a
 						href="/admin/profil-wilayah"
 						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground font-semibold transition-colors cursor-pointer"
@@ -368,7 +368,7 @@
 	{/if}
 
 	<!-- Selector Bertingkat (Tampil untuk Pusat / Superadmin atau jika admin memiliki akses multi-wilayah) -->
-	{#if data.adminScope.isPusat || data.accessibleWilayah.daerahList.length > 1 || data.accessibleWilayah.desaList.length > 1}
+	{#if data.adminScope?.isPusat || data.accessibleWilayah.daerahList.length > 1 || data.accessibleWilayah.desaList.length > 1}
 		<div class="bg-card border border-border rounded-xl p-4 shadow-xs space-y-3">
 			<div class="flex items-center justify-between">
 				<h2 class="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">

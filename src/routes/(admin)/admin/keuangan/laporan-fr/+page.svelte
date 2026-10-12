@@ -157,7 +157,7 @@
 			</div>
 
 			<!-- Pilihan Daerah (Bagi Admin Daerah / Pusat) -->
-			{#if data.adminScope.isPusat}
+			{#if data.adminScope?.isPusat}
 				<div>
 					<label for="filterDaerah" class="block text-xs font-semibold text-foreground mb-1">
 						Pilih Daerah
@@ -174,7 +174,7 @@
 			{/if}
 
 			<!-- Pilihan Desa (Bagi Admin Daerah / Pusat) -->
-			{#if data.adminScope.level === 'Daerah' || data.adminScope.isPusat}
+			{#if data.adminScope?.level === 'Daerah' || data.adminScope?.isPusat}
 				<div>
 					<label for="filterDesa" class="block text-xs font-semibold text-foreground mb-1">
 						Pilih Desa

@@ -186,7 +186,7 @@
 				</select>
 			</div>
 
-			{#if data.adminScope.isPusat}
+			{#if data.adminScope?.isPusat}
 				<div>
 					<label for="filterDaerah" class="block text-xs font-semibold text-foreground mb-1">
 						Daerah
@@ -202,7 +202,7 @@
 				</div>
 			{/if}
 
-			{#if data.adminScope.level === 'Daerah' || data.adminScope.isPusat}
+			{#if data.adminScope?.level === 'Daerah' || data.adminScope?.isPusat}
 				<div>
 					<label for="filterDesa" class="block text-xs font-semibold text-foreground mb-1">
 						Desa
