@@ -1,6 +1,6 @@
 <!--
   @file src/lib/components/navigation/AdminSidebar.svelte
-  @purpose Komponen Sidebar navigasi admin responsif dengan pengelompokan menu (Dashboard & Profil Wilayah, Keuangan/KU bagi Kyai/KU/Aghnia, Pusat Data, Pengajian, Sistem), penanda rute aktif, dan badge permohonan pending
+  @purpose Komponen Sidebar navigasi admin responsif dengan pengelompokan menu (Dashboard & Profil Wilayah, Keuangan/KU bagi Kyai/KU/Aghnia termasuk Shodaqoh Wilayah & Laporan FR, Pusat Data, Pengajian, Sistem), penanda rute aktif, dan badge permohonan pending
   @usedBy src/routes/(admin)/+layout.svelte
   @dependencies $app/state (page), @lucide/svelte
   @publicFunctions isItemActive
@@ -14,6 +14,7 @@
 		ExternalLink,
 		FileSpreadsheet,
 		HandCoins,
+		HeartHandshake,
 		Landmark,
 		LayoutDashboard,
 		MapPin,
@@ -55,6 +56,7 @@
 						title: 'Keuangan / KU',
 						items: [
 							{ href: '/admin/keuangan', label: 'Dashboard Keuangan', icon: TrendingUp },
+							{ href: '/admin/keuangan/shodaqoh', label: 'Shodaqoh Wilayah', icon: HeartHandshake },
 							{ href: '/admin/keuangan/laporan-fr', label: 'Laporan FR', icon: FileSpreadsheet },
 							{ href: '/admin/keuangan/fr-jamaah', label: 'FR Jamaah', icon: HandCoins }
 						]

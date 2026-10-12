@@ -1,9 +1,9 @@
 /**
  * @file src/lib/db/schema.ts
- * @purpose Definisi schema tabel Drizzle ORM untuk SQLite sesuai SCHEMA.md (termasuk wilayah, rekening/QRIS wilayah, anggota keluarga, sensus, presensi pengajian, dan transaksi setoran bulanan FR jamaah)
+ * @purpose Definisi schema tabel Drizzle ORM untuk SQLite sesuai SCHEMA.md (termasuk wilayah, rekening/QRIS wilayah, anggota keluarga, sensus, presensi pengajian, transaksi setoran FR, jenis shodaqoh wilayah, dan transaksi shodaqoh jamaah)
  * @usedBy src/lib/db/index.ts, queries/actions di routes dan services
  * @dependencies drizzle-orm/sqlite-core, @paralleldrive/cuid2
- * @publicFunctions daerah, desa, kelompok, subKelompok, users, dapukan, userDapukan, keluarga, anggotaKeluarga, jadwalPengajianTemplate, presensiJadwal, presensiKehadiran, rekeningWilayah, transaksiFr
+ * @publicFunctions daerah, desa, kelompok, subKelompok, users, dapukan, userDapukan, keluarga, anggotaKeluarga, jadwalPengajianTemplate, presensiJadwal, presensiKehadiran, rekeningWilayah, transaksiFr, jenisShodaqoh, transaksiShodaqoh
  * @sideEffects Mendefinisikan struktur tabel, relasi foreign key, dan indeks database SQLite
  */
 
@@ -354,6 +354,78 @@ export const transaksiFr = sqliteTable(
 			table.tahun,
 			table.bulan
 		)
+	]
+);
+
+// ==========================================
+// 8. SHODAQOH WILAYAH (Jenis & Transaksi Jamaah)
+// ==========================================
+
+export const jenisShodaqoh = sqliteTable(
+	'jenis_shodaqoh',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => createId()),
+		tingkatScope: text('tingkat_scope').notNull(), // 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok'
+		daerahId: integer('daerah_id').references(() => daerah.id, { onDelete: 'cascade' }),
+		desaId: integer('desa_id').references(() => desa.id, { onDelete: 'cascade' }),
+		kelompokId: integer('kelompok_id').references(() => kelompok.id, { onDelete: 'cascade' }),
+		nama: text('nama').notNull(), // e.g. 'Shodaqoh Kelompok', 'Shodaqoh Lainnya', 'Pembangunan', 'Forsgi', 'Asad'
+		deskripsi: text('deskripsi'),
+		isDefault: integer('is_default', { mode: 'boolean' }).notNull().default(false),
+		isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+		createdAt: integer('created_at').notNull(),
+		updatedAt: integer('updated_at').notNull()
+	},
+	(table) => [
+		index('jenis_shodaqoh_scope_idx').on(table.tingkatScope),
+		index('jenis_shodaqoh_kelompok_idx').on(table.kelompokId),
+		index('jenis_shodaqoh_desa_idx').on(table.desaId),
+		index('jenis_shodaqoh_daerah_idx').on(table.daerahId)
+	]
+);
+
+export const transaksiShodaqoh = sqliteTable(
+	'transaksi_shodaqoh',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => createId()),
+		userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+		namaPengirim: text('nama_pengirim').notNull(),
+		noTelepon: text('no_telepon'),
+		tingkatScope: text('tingkat_scope').notNull(), // 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok'
+		daerahId: integer('daerah_id').references(() => daerah.id, { onDelete: 'cascade' }),
+		desaId: integer('desa_id').references(() => desa.id, { onDelete: 'cascade' }),
+		kelompokId: integer('kelompok_id').references(() => kelompok.id, { onDelete: 'cascade' }),
+		rekeningWilayahId: text('rekening_wilayah_id').references(() => rekeningWilayah.id, {
+			onDelete: 'set null'
+		}),
+		jenisShodaqohId: text('jenis_shodaqoh_id').references(() => jenisShodaqoh.id, {
+			onDelete: 'set null'
+		}),
+		namaJenisShodaqoh: text('nama_jenis_shodaqoh').notNull(),
+		nominal: integer('nominal').notNull(),
+		tanggalTransfer: text('tanggal_transfer').notNull(), // YYYY-MM-DD
+		metodePembayaran: text('metode_pembayaran').notNull().default('Transfer Bank'), // 'Transfer Bank' | 'QRIS' | 'Tunai'
+		buktiTransferUrl: text('bukti_transfer_url'),
+		catatan: text('catatan'),
+		statusApproval: text('status_approval').notNull().default('Menunggu Persetujuan'), // 'Menunggu Persetujuan' | 'Disetujui' | 'Ditolak'
+		alasanPenolakan: text('alasan_penolakan'),
+		approvedByUserId: text('approved_by_user_id').references(() => users.id, {
+			onDelete: 'set null'
+		}),
+		approvedAt: integer('approved_at'),
+		createdAt: integer('created_at').notNull(),
+		updatedAt: integer('updated_at').notNull()
+	},
+	(table) => [
+		index('transaksi_shodaqoh_kelompok_idx').on(table.kelompokId),
+		index('transaksi_shodaqoh_desa_idx').on(table.desaId),
+		index('transaksi_shodaqoh_daerah_idx').on(table.daerahId),
+		index('transaksi_shodaqoh_status_idx').on(table.statusApproval),
+		index('transaksi_shodaqoh_tanggal_idx').on(table.tanggalTransfer)
 	]
 );
 

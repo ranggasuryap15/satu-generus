@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(app)/+page.svelte
-  @purpose Halaman beranda client/jamaah (Mobile-First) dengan launcher Quick Access, jadwal pengajian, modal ekosistem aplikasi, dan tautan pintar penambahan sensus ke KK sendiri
+  @purpose Halaman beranda client/jamaah (Mobile-First) dengan launcher Quick Access, pintasan Infaq & Shodaqoh, jadwal pengajian, modal ekosistem aplikasi, dan penambahan sensus
   @usedBy Route utama client '/'
   @dependencies @lucide/svelte, $lib/utils (formatDateDDMMYYYY), $lib/jadwal (formatDateIndoFull), Svelte 5 Runes
   @publicFunctions openAppDetail, closeModals
@@ -15,6 +15,7 @@
 		Compass,
 		ExternalLink,
 		GraduationCap,
+		HeartHandshake,
 		LayoutGrid,
 		MapPin,
 		QrCode,
@@ -159,6 +160,32 @@
 		</div>
 	</section>
 
+	<!-- Pintasan Infaq & Shodaqoh Jamaah -->
+	<a
+		href="/shodaqoh"
+		class="block p-3.5 rounded-2xl bg-gradient-to-r from-teal-500/10 via-emerald-500/10 to-teal-500/5 border border-teal-500/25 hover:border-teal-500/40 transition-all shadow-2xs group"
+	>
+		<div class="flex items-center justify-between gap-3">
+			<div class="flex items-center gap-3">
+				<div class="w-10 h-10 rounded-xl bg-teal-500/15 text-teal-600 dark:text-teal-400 flex items-center justify-center border border-teal-500/25 group-hover:scale-105 transition-transform">
+					<HeartHandshake class="w-5 h-5" />
+				</div>
+				<div>
+					<h3 class="text-xs sm:text-sm font-bold text-foreground flex items-center gap-1.5">
+						<span>Infaq & Shodaqoh Wilayah</span>
+						<span class="px-1.5 py-0.2 rounded-md bg-teal-500/20 text-teal-700 dark:text-teal-300 text-[9px] font-bold">QRIS & Bank</span>
+					</h3>
+					<p class="text-[11px] text-foreground/60 mt-0.5 line-clamp-1">
+						Salurkan shodaqoh kelompok & kirim bukti transfer secara mudah
+					</p>
+				</div>
+			</div>
+			<div class="w-7 h-7 rounded-lg bg-card border border-border flex items-center justify-center text-foreground/50 group-hover:text-teal-600 group-hover:translate-x-0.5 transition-all shrink-0">
+				<ChevronRight class="w-4 h-4" />
+			</div>
+		</div>
+	</a>
+
 	<!-- Jadwal Kegiatan Terdekat (Kelompok & Desa) -->
 	<section class="bg-card border border-border rounded-2xl p-4 sm:p-5 shadow-sm space-y-3.5">
 		<div class="flex items-center justify-between">
@@ -299,6 +326,21 @@
 					<div class="flex-1 min-w-0">
 						<h4 class="text-xs font-bold text-foreground">Data Keluarga (Sensus)</h4>
 						<p class="text-[11px] text-foreground/60 truncate">Kelola data KK & anggota keluarga</p>
+					</div>
+					<ChevronRight class="w-4 h-4 text-foreground/40 shrink-0" />
+				</a>
+
+				<a
+					href="/shodaqoh"
+					onclick={closeModals}
+					class="flex items-center gap-3 p-2.5 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/70 transition-colors"
+				>
+					<div class="w-10 h-10 rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0">
+						<HeartHandshake class="w-5 h-5" />
+					</div>
+					<div class="flex-1 min-w-0">
+						<h4 class="text-xs font-bold text-foreground">Infaq & Shodaqoh</h4>
+						<p class="text-[11px] text-foreground/60 truncate">QRIS, rekening bank & konfirmasi transfer</p>
 					</div>
 					<ChevronRight class="w-4 h-4 text-foreground/40 shrink-0" />
 				</a>

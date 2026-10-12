@@ -1,9 +1,9 @@
 /**
  * @file src/lib/server/scope.ts
- * @purpose Evaluasi wewenang administratif berjenjang (Pusat, Daerah, Desa, Kelompok), filter wilayah RBAC, validasi hak mutasi dapukan, proteksi CRUD rekening/QRIS KU & Superadmin, serta otorisasi modul Keuangan/KU (Dashboard, Laporan FR, & FR Jamaah)
- * @usedBy src/routes/(admin)/admin/sensus/+page.server.ts, src/routes/(admin)/admin/wilayah/+page.server.ts, src/routes/(admin)/admin/wilayah/batch/+page.server.ts, src/routes/(admin)/admin/dapukan/+page.server.ts, src/routes/(admin)/admin/profil-wilayah/+page.server.ts, src/routes/(admin)/admin/keuangan/*
+ * @purpose Evaluasi wewenang administratif berjenjang (Pusat, Daerah, Desa, Kelompok), filter wilayah RBAC, validasi hak mutasi dapukan, proteksi CRUD rekening/QRIS KU & Superadmin, otorisasi modul Keuangan/KU, serta otorisasi modifikasi shodaqoh khusus KU dan Kyai
+ * @usedBy src/routes/(admin)/admin/sensus/+page.server.ts, src/routes/(admin)/admin/wilayah/*, src/routes/(admin)/admin/dapukan/+page.server.ts, src/routes/(admin)/admin/profil-wilayah/+page.server.ts, src/routes/(admin)/admin/keuangan/*
  * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm
- * @publicFunctions getAdminScope, getAccessibleWilayah, isKelompokAllowed, canManageDapukan, canManageRekening, canAccessKeuangan, canManageFr
+ * @publicFunctions getAdminScope, getAccessibleWilayah, isKelompokAllowed, canManageDapukan, canManageRekening, canAccessKeuangan, canManageFr, canManageShodaqoh
  * @sideEffects Membaca data relasi master daerah, desa, dan kelompok dari SQLite
  */
 
@@ -367,6 +367,82 @@ export function canManageFr(
 	targetId?: number
 ): boolean {
 	return canManageRekening(roles, scopeLevel, targetId);
+}
+
+/**
+ * Memeriksa apakah user berwenang mengubah konfigurasi shodaqoh (detail rekening, QRIS, jenis shodaqoh, dan approval transaksi)
+ * - Khusus KU dan Kyai (serta Superadmin / Tingkat Pusat)
+ * - Admin selain itu tidak bisa (Read-Only)
+ */
+export function canManageShodaqoh(
+	roles: App.UserRole[],
+	scopeLevel?: 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok',
+	targetId?: number
+): boolean {
+	const adminScope = getAdminScope(roles);
+	if (adminScope.isPusat) return true;
+
+	return roles.some((r) => {
+		const dapukanNama = (r.namaDapukan || r.namaDapukanCustom || '').toLowerCase();
+		const isAuthorizedRole =
+			dapukanNama.includes('kyai') ||
+			dapukanNama.includes('ketua') ||
+			dapukanNama.includes('ku') ||
+			dapukanNama.includes('bendahara') ||
+			dapukanNama.includes('keuangan');
+		if (!isAuthorizedRole) return false;
+
+		// Jika tidak ada target spesifik, cukup pastikan peran KU atau Kyai
+		if (!scopeLevel || !targetId) return true;
+
+		// Jika target adalah Kelompok
+		if (scopeLevel === 'Kelompok') {
+			if (r.tingkatScope === 'Kelompok' && r.kelompokId === targetId) return true;
+			if (r.tingkatScope === 'Desa' && r.desaId) {
+				const k = db
+					.select({ desaId: kelompok.desaId })
+					.from(kelompok)
+					.where(eq(kelompok.id, targetId))
+					.get();
+				if (k && k.desaId === r.desaId) return true;
+			}
+			if (r.tingkatScope === 'Daerah' && r.daerahId) {
+				const k = db
+					.select({ desaId: kelompok.desaId })
+					.from(kelompok)
+					.where(eq(kelompok.id, targetId))
+					.get();
+				if (k && k.desaId) {
+					const d = db
+						.select({ daerahId: desa.daerahId })
+						.from(desa)
+						.where(eq(desa.id, k.desaId))
+						.get();
+					if (d && d.daerahId === r.daerahId) return true;
+				}
+			}
+		}
+
+		// Jika target adalah Desa
+		if (scopeLevel === 'Desa') {
+			if (r.tingkatScope === 'Desa' && r.desaId === targetId) return true;
+			if (r.tingkatScope === 'Daerah' && r.daerahId) {
+				const d = db
+					.select({ daerahId: desa.daerahId })
+					.from(desa)
+					.where(eq(desa.id, targetId))
+					.get();
+				if (d && d.daerahId === r.daerahId) return true;
+			}
+		}
+
+		// Jika target adalah Daerah
+		if (scopeLevel === 'Daerah') {
+			if (r.tingkatScope === 'Daerah' && r.daerahId === targetId) return true;
+		}
+
+		return false;
+	});
 }
 
 

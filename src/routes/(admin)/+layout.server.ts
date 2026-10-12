@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(admin)/+layout.server.ts
- * @purpose Layout server load untuk area admin: memvalidasi akses admin, memuat wewenang scope (adminScope), otorisasi menu Keuangan/KU (Kyai, KU, Aghnia), dan rekap notifikasi approval
+ * @purpose Layout server load untuk area admin: memvalidasi akses admin, memuat wewenang scope (adminScope), otorisasi menu Keuangan/KU, otorisasi modifikasi Shodaqoh KU & Kyai, dan rekap notifikasi approval
  * @usedBy src/routes/(admin)/+layout.svelte dan seluruh subhalaman admin
  * @dependencies @sveltejs/kit, src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm
  * @publicFunctions load
@@ -11,7 +11,7 @@ import { redirect } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
 import { db } from '$lib/db';
 import { presensiKehadiran, presensiJadwal, users, kelompok } from '$lib/db/schema';
-import { getAdminScope, canAccessKeuangan, canManageRekening } from '$lib/server/scope';
+import { getAdminScope, canAccessKeuangan, canManageRekening, canManageShodaqoh } from '$lib/server/scope';
 import { count, desc, eq } from 'drizzle-orm';
 
 export const load: LayoutServerLoad = async ({ locals }) => {
@@ -59,7 +59,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		totalPendingApprovals,
 		pendingApprovalList,
 		canAccessKeuangan: canAccessKeuangan(locals.roles || []),
-		canManageFinance: canManageRekening(locals.roles || [])
+		canManageFinance: canManageRekening(locals.roles || []),
+		canManageShodaqoh: canManageShodaqoh(locals.roles || [])
 	};
 };
 

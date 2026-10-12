@@ -13,6 +13,7 @@
 		CalendarCheck,
 		CalendarDays,
 		HandCoins,
+		HeartHandshake,
 		Home,
 		Landmark,
 		MapPin,
@@ -77,6 +78,14 @@
 						icon: HandCoins,
 						badge: 'KU/Kyai',
 						color: 'text-teal-600 dark:text-teal-400 bg-teal-500/10 border-teal-500/20'
+					},
+					{
+						href: '/admin/keuangan/shodaqoh',
+						title: 'Shodaqoh Wilayah',
+						description: 'Rekap transfer, QRIS & approval',
+						icon: HeartHandshake,
+						badge: 'KU/Kyai',
+						color: 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
 					}
 				]
 			: []),

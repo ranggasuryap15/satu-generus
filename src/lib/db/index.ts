@@ -4,7 +4,7 @@
  * @usedBy Backend server routes (+page.server.ts, +server.ts, hooks.server.ts, scripts migrasi/seed)
  * @dependencies better-sqlite3, drizzle-orm/better-sqlite3, src/lib/db/schema.ts
  * @publicFunctions db, sqlite
- * @sideEffects Membuka koneksi file database SQLite, mengaktifkan PRAGMA WAL & foreign_keys, auto-migrasi kolom & tabel skema (sub_kelompok, users, anggota_keluarga, jadwal_pengajian_template, presensi_jadwal, presensi_kehadiran, kelompok, desa, daerah, rekening_wilayah, dan transaksi_fr), auto-sinkronisasi user_id & default isrun Kepala Keluarga
+ * @sideEffects Membuka koneksi file database SQLite, mengaktifkan PRAGMA WAL & foreign_keys, auto-migrasi kolom & tabel skema (sub_kelompok, users, anggota_keluarga, jadwal_pengajian_template, presensi_jadwal, presensi_kehadiran, kelompok, desa, daerah, rekening_wilayah, transaksi_fr, jenis_shodaqoh, dan transaksi_shodaqoh), auto-sinkronisasi user_id & default isrun Kepala Keluarga
  */
 
 import Database from 'better-sqlite3';
@@ -422,6 +422,60 @@ try {
 		CREATE INDEX IF NOT EXISTS transaksi_fr_periode_idx ON transaksi_fr (tahun, bulan);
 		CREATE INDEX IF NOT EXISTS transaksi_fr_desa_periode_idx ON transaksi_fr (desa_id, tahun, bulan);
 		CREATE UNIQUE INDEX IF NOT EXISTS transaksi_fr_unik_periode_idx ON transaksi_fr (anggota_keluarga_id, tahun, bulan);
+	`);
+
+	// Auto-heal / migrasi tabel jenis_shodaqoh untuk kategori/alokasi shodaqoh per wilayah
+	sqlite.exec(`
+		CREATE TABLE IF NOT EXISTS jenis_shodaqoh (
+			id TEXT PRIMARY KEY NOT NULL,
+			tingkat_scope TEXT NOT NULL,
+			daerah_id INTEGER REFERENCES daerah(id) ON DELETE CASCADE,
+			desa_id INTEGER REFERENCES desa(id) ON DELETE CASCADE,
+			kelompok_id INTEGER REFERENCES kelompok(id) ON DELETE CASCADE,
+			nama TEXT NOT NULL,
+			deskripsi TEXT,
+			is_default INTEGER NOT NULL DEFAULT 0,
+			is_active INTEGER NOT NULL DEFAULT 1,
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
+		);
+		CREATE INDEX IF NOT EXISTS jenis_shodaqoh_scope_idx ON jenis_shodaqoh (tingkat_scope);
+		CREATE INDEX IF NOT EXISTS jenis_shodaqoh_kelompok_idx ON jenis_shodaqoh (kelompok_id);
+		CREATE INDEX IF NOT EXISTS jenis_shodaqoh_desa_idx ON jenis_shodaqoh (desa_id);
+		CREATE INDEX IF NOT EXISTS jenis_shodaqoh_daerah_idx ON jenis_shodaqoh (daerah_id);
+	`);
+
+	// Auto-heal / migrasi tabel transaksi_shodaqoh untuk laporan shodaqoh jamaah & approval pengurus
+	sqlite.exec(`
+		CREATE TABLE IF NOT EXISTS transaksi_shodaqoh (
+			id TEXT PRIMARY KEY NOT NULL,
+			user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+			nama_pengirim TEXT NOT NULL,
+			no_telepon TEXT,
+			tingkat_scope TEXT NOT NULL,
+			daerah_id INTEGER REFERENCES daerah(id) ON DELETE CASCADE,
+			desa_id INTEGER REFERENCES desa(id) ON DELETE CASCADE,
+			kelompok_id INTEGER REFERENCES kelompok(id) ON DELETE CASCADE,
+			rekening_wilayah_id TEXT REFERENCES rekening_wilayah(id) ON DELETE SET NULL,
+			jenis_shodaqoh_id TEXT REFERENCES jenis_shodaqoh(id) ON DELETE SET NULL,
+			nama_jenis_shodaqoh TEXT NOT NULL,
+			nominal INTEGER NOT NULL,
+			tanggal_transfer TEXT NOT NULL,
+			metode_pembayaran TEXT NOT NULL DEFAULT 'Transfer Bank',
+			bukti_transfer_url TEXT,
+			catatan TEXT,
+			status_approval TEXT NOT NULL DEFAULT 'Menunggu Persetujuan',
+			alasan_penolakan TEXT,
+			approved_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+			approved_at INTEGER,
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
+		);
+		CREATE INDEX IF NOT EXISTS transaksi_shodaqoh_kelompok_idx ON transaksi_shodaqoh (kelompok_id);
+		CREATE INDEX IF NOT EXISTS transaksi_shodaqoh_desa_idx ON transaksi_shodaqoh (desa_id);
+		CREATE INDEX IF NOT EXISTS transaksi_shodaqoh_daerah_idx ON transaksi_shodaqoh (daerah_id);
+		CREATE INDEX IF NOT EXISTS transaksi_shodaqoh_status_idx ON transaksi_shodaqoh (status_approval);
+		CREATE INDEX IF NOT EXISTS transaksi_shodaqoh_tanggal_idx ON transaksi_shodaqoh (tanggal_transfer);
 	`);
 } catch (migErr) {
 	console.error('[DB Auto-Migration] Gagal memeriksa atau memperbarui kolom skema SQLite:', migErr);
