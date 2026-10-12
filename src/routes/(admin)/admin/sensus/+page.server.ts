@@ -613,11 +613,13 @@ export const actions: Actions = {
 		}
 
 		try {
+			const tempatLahir = formData.get('tempatLahir')?.toString()?.trim() || '';
+			const statusGenerusInput = formData.get('statusGenerus')?.toString()?.trim() || '';
 			const statusPernikahanInput = formData.get('statusPernikahan')?.toString()?.trim() || '';
 			const resolvedPernikahan = resolveStatusPernikahan(statusHubungan, statusPernikahanInput);
 			const isoTgl = normalizeDateToISO(tanggalLahir);
 			const umur = isoTgl ? hitungUmur(isoTgl) : 0;
-			const resolvedGenerus = isoTgl ? hitungStatusGenerus(umur, resolvedPernikahan) : null;
+			const resolvedGenerus = statusGenerusInput || (isoTgl ? hitungStatusGenerus(umur, resolvedPernikahan) : null);
 
 			db.insert(anggotaKeluarga)
 				.values({
@@ -627,6 +629,7 @@ export const actions: Actions = {
 					statusHubungan,
 					tanggalLahir: isoTgl,
 					jenisKelamin,
+					tempatLahir: tempatLahir || null,
 					statusPernikahan: resolvedPernikahan,
 					statusGenerus: resolvedGenerus,
 					statusJamaah: 'Aktif',

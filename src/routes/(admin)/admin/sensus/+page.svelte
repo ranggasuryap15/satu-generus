@@ -10,7 +10,13 @@
 	import DateInput from '$lib/components/DateInput.svelte';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
 	import { formatDateDDMMYYYY } from '$lib/utils';
-	import { isStatusHubunganMenikah, hitungUmur, hitungStatusGenerus } from '$lib/generus';
+	import {
+		isStatusHubunganMenikah,
+		hitungUmur,
+		hitungStatusGenerus,
+		resolveStatusPernikahan,
+		DAFTAR_STATUS_GENERUS
+	} from '$lib/generus';
 	import {
 	  AlertCircle,
 	  ArrowRightLeft,
@@ -279,8 +285,13 @@
 	let memberNamaLengkap = $state('');
 	let memberNik = $state('');
 	let memberStatus = $state('Anak');
+	let memberTempatLahir = $state('');
 	let memberTanggalLahir = $state('');
 	let memberJenisKelamin = $state('Laki-laki');
+	let memberStatusGenerus = $state('');
+	let lastCalculatedTanggalLahir = '';
+
+	const memberUmur = $derived(memberTanggalLahir ? hitungUmur(memberTanggalLahir) : 0);
 
 	function onMemberStatusChange() {
 		if (memberStatus === 'Kepala Keluarga' || memberStatus === 'Suami') {
@@ -288,7 +299,25 @@
 		} else if (memberStatus === 'Istri') {
 			memberJenisKelamin = 'Perempuan';
 		}
+		if (memberTanggalLahir) {
+			const umur = hitungUmur(memberTanggalLahir);
+			const pernikahan = resolveStatusPernikahan(memberStatus);
+			memberStatusGenerus = hitungStatusGenerus(umur, pernikahan);
+		}
 	}
+
+	$effect(() => {
+		if (memberTanggalLahir !== lastCalculatedTanggalLahir) {
+			lastCalculatedTanggalLahir = memberTanggalLahir;
+			if (memberTanggalLahir) {
+				const umur = hitungUmur(memberTanggalLahir);
+				const pernikahan = resolveStatusPernikahan(memberStatus);
+				memberStatusGenerus = hitungStatusGenerus(umur, pernikahan);
+			} else {
+				memberStatusGenerus = '';
+			}
+		}
+	});
 
 	function onNewAnggotaStatusChange(idx: number) {
 		const row = newAnggotaList[idx];
@@ -611,6 +640,7 @@
 		return !!(
 			memberNamaLengkap.trim() ||
 			memberNik.trim() ||
+			memberTempatLahir.trim() ||
 			memberTanggalLahir
 		);
 	}
@@ -619,8 +649,11 @@
 		memberNamaLengkap = '';
 		memberNik = '';
 		memberStatus = 'Anak';
+		memberTempatLahir = '';
 		memberTanggalLahir = '';
 		memberJenisKelamin = 'Laki-laki';
+		memberStatusGenerus = '';
+		lastCalculatedTanggalLahir = '';
 	}
 
 	function openAddMemberModal(k: (typeof data.daftarKeluarga)[number]) {
@@ -1778,32 +1811,83 @@
 				</div>
 
 				<div>
-					<label for="memberTgl" class="block font-semibold text-foreground mb-1">
-						Tanggal Lahir (DD-MM-YYYY) *
+					<label for="memberTempatLahir" class="block font-semibold text-foreground mb-1">
+						Tempat Lahir
 					</label>
-					<DateInput
-						id="memberTgl"
-						name="tanggalLahir"
-						required
-						bind:value={memberTanggalLahir}
-						class="bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+					<input
+						id="memberTempatLahir"
+						name="tempatLahir"
+						type="text"
+						bind:value={memberTempatLahir}
+						placeholder="Kota / Kabupaten Lahir"
+						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 					/>
 				</div>
 
-				<div>
-					<label for="memberJk" class="block font-semibold text-foreground mb-1">
-						Jenis Kelamin *
-					</label>
-					<select
-						id="memberJk"
-						name="jenisKelamin"
-						required
-						bind:value={memberJenisKelamin}
-						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-					>
-						<option value="Laki-laki">Laki-laki</option>
-						<option value="Perempuan">Perempuan</option>
-					</select>
+				<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+					<div>
+						<label for="memberTgl" class="block font-semibold text-foreground mb-1">
+							Tanggal Lahir (DD-MM-YYYY) *
+						</label>
+						<DateInput
+							id="memberTgl"
+							name="tanggalLahir"
+							required
+							bind:value={memberTanggalLahir}
+							class="bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+						/>
+					</div>
+
+					<div>
+						<label for="memberUmur" class="block font-semibold text-foreground mb-1">
+							Umur (Otomatis)
+						</label>
+						<input
+							id="memberUmur"
+							type="text"
+							disabled
+							value={memberTanggalLahir ? `${memberUmur} Tahun` : '-'}
+							class="w-full bg-secondary/70 border border-border/80 rounded-lg px-3 py-2 text-xs text-foreground/70 font-semibold cursor-not-allowed select-none"
+						/>
+					</div>
+				</div>
+
+				<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+					<div>
+						<label for="memberGenerus" class="block font-semibold text-foreground mb-1">
+							Status Generus
+						</label>
+						<select
+							id="memberGenerus"
+							name="statusGenerus"
+							bind:value={memberStatusGenerus}
+							class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+						>
+							<option value="">-- Otomatis Mengikuti Umur --</option>
+							{#each DAFTAR_STATUS_GENERUS as g}
+								<option value={g}>{g}</option>
+							{/each}
+						</select>
+						<p class="text-[10px] text-foreground/50 mt-0.5">
+							Otomatis sesuai umur, bisa disesuaikan manual
+						</p>
+					</div>
+
+					<div>
+						<label for="memberJk" class="block font-semibold text-foreground mb-1">
+							Jenis Kelamin *
+						</label>
+						<select
+							id="memberJk"
+							name="jenisKelamin"
+							required
+							bind:value={memberJenisKelamin}
+							class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+						>
+							<option value="Laki-laki">Laki-laki</option>
+							<option value="Perempuan">Perempuan</option>
+						</select>
+					</div>
 				</div>
 
 				<div class="flex items-center justify-end gap-2 pt-3 border-t border-border">
@@ -2490,20 +2574,17 @@
 
 				<div>
 					<label for="edit-kelompokId" class="block font-semibold text-foreground mb-1">
-						Kelompok Basis Wilayah
+						Kelompok Basis Wilayah *
 					</label>
-					<select
+					<SearchableSelect
 						id="edit-kelompokId"
 						name="kelompokId"
+						options={pindahKelompokOptions}
 						bind:value={editKeluargaKelompokId}
-						class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-primary"
-					>
-						{#each (data.wilayahOptions.kelompokList || []) as k}
-							<option value={k.id}>
-								{k.nama} ({k.desaNama} - {k.daerahNama})
-							</option>
-						{/each}
-					</select>
+						required
+						placeholder="-- Pilih Kelompok Basis Wilayah --"
+						searchPlaceholder="Cari kelompok, desa, atau daerah..."
+					/>
 				</div>
 
 				<div class="flex items-center justify-end gap-2 pt-3 border-t border-border">
