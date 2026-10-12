@@ -395,6 +395,15 @@
 		}))
 	);
 
+	// Opsi Pilihan Kelompok saat Pindah Kelompok Sensus
+	const pindahKelompokOptions = $derived(
+		(data.wilayahOptions.kelompokList || []).map((k: (typeof data.wilayahOptions.kelompokList)[number]) => ({
+			value: k.id,
+			label: k.nama,
+			sublabel: `${k.desaNama ? `Desa ${k.desaNama}` : ''}${k.daerahNama ? ` • ${k.daerahNama}` : ''}`
+		}))
+	);
+
 	// Opsi Filter Kategori Peran / 4S
 	const peranFilterOptions = [
 		{ value: 'ALL', label: 'Semua Kategori (All)' },
@@ -2699,19 +2708,15 @@
 					<label for="pindah-kelompokId" class="block font-semibold text-foreground mb-1.5">
 						Pilih Kelompok Tujuan *
 					</label>
-					<select
+					<SearchableSelect
 						id="pindah-kelompokId"
 						name="kelompokId"
+						options={pindahKelompokOptions}
 						bind:value={pindahTargetKelompokId}
 						required
-						class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-primary"
-					>
-						{#each (data.wilayahOptions.kelompokList || []) as k}
-							<option value={k.id}>
-								{k.nama} ({k.desaNama} - {k.daerahNama})
-							</option>
-						{/each}
-					</select>
+						placeholder="-- Pilih Kelompok Tujuan --"
+						searchPlaceholder="Cari kelompok, desa, atau daerah..."
+					/>
 					<p class="text-[10.5px] text-foreground/50 mt-1.5 leading-relaxed">
 						Seluruh akun login anggota keluarga yang terdaftar dalam KK ini akan otomatis dimutasi ke kelompok yang dipilih.
 					</p>
