@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(admin)/admin/keuangan/shodaqoh/+page.server.ts
- * @purpose Backend controller manajemen shodaqoh berjenjang wilayah (Kelompok, Desa, Daerah): rekapitulasi statistik & grafik transaksi, approval bukti transfer, CRUD rekening & QRIS, serta isolasi jenis shodaqoh khusus KU dan Kyai
+ * @purpose Backend controller manajemen shodaqoh berjenjang wilayah (Kelompok, Desa, Daerah): rekapitulasi statistik & grafik transaksi, approval bukti transfer, CRUD rekening & QRIS, serta isolasi jenis shodaqoh khusus KU dan Kyai. Semua action mengembalikan scope & id wilayah aktif agar URL tidak ter-reset ke wilayah default
  * @usedBy src/routes/(admin)/admin/keuangan/shodaqoh/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm, @sveltejs/kit, node:fs, node:path
  * @publicFunctions load, actions (approve, reject, addJenis, deleteJenis, saveRekening, deleteRekening)
@@ -408,7 +408,7 @@ export const actions: Actions = {
 			.where(eq(transaksiShodaqoh.id, id))
 			.run();
 
-		return { success: true, message: 'Laporan shodaqoh berhasil disetujui' };
+		return { success: true, message: 'Laporan shodaqoh berhasil disetujui', scope, id: targetId };
 	},
 
 	reject: async ({ request, locals }) => {
@@ -441,7 +441,7 @@ export const actions: Actions = {
 			.where(eq(transaksiShodaqoh.id, id))
 			.run();
 
-		return { success: true, message: 'Laporan shodaqoh ditolak' };
+		return { success: true, message: 'Laporan shodaqoh ditolak', scope, id: targetId };
 	},
 
 	addJenis: async ({ request, locals }) => {
@@ -480,7 +480,7 @@ export const actions: Actions = {
 			})
 			.run();
 
-		return { success: true, message: `Jenis shodaqoh "${nama}" berhasil ditambahkan` };
+		return { success: true, message: `Jenis shodaqoh "${nama}" berhasil ditambahkan`, scope, id: targetId };
 	},
 
 	deleteJenis: async ({ request, locals }) => {
@@ -505,7 +505,7 @@ export const actions: Actions = {
 
 		db.delete(jenisShodaqoh).where(eq(jenisShodaqoh.id, id)).run();
 
-		return { success: true, message: 'Jenis shodaqoh berhasil dihapus' };
+		return { success: true, message: 'Jenis shodaqoh berhasil dihapus', scope, id: targetId };
 	},
 
 	saveRekening: async ({ request, locals }) => {
@@ -559,7 +559,7 @@ export const actions: Actions = {
 			})
 			.run();
 
-		return { success: true, message: `Rekening/QRIS ${namaBank} berhasil disimpan` };
+		return { success: true, message: `Rekening/QRIS ${namaBank} berhasil disimpan`, scope, id: targetId };
 	},
 
 	deleteRekening: async ({ request, locals }) => {
@@ -578,7 +578,7 @@ export const actions: Actions = {
 
 		db.delete(rekeningWilayah).where(eq(rekeningWilayah.id, id)).run();
 
-		return { success: true, message: 'Rekening/QRIS berhasil dihapus' };
+		return { success: true, message: 'Rekening/QRIS berhasil dihapus', scope, id: targetId };
 	}
 };
 

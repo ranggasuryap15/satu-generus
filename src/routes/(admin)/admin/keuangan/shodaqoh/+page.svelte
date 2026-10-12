@@ -2,9 +2,9 @@
   @file src/routes/(admin)/admin/keuangan/shodaqoh/+page.svelte
   @purpose Halaman manajemen shodaqoh wilayah untuk admin (KU & Kyai): rekapitulasi metrik, visualisasi grafik donasi bulanan, verifikasi & approval bukti transfer, CRUD rekening/QRIS, serta isolasi alokasi jenis shodaqoh
   @usedBy Route admin '/admin/keuangan/shodaqoh'
-  @dependencies @lucide/svelte, $app/navigation, Svelte 5 Runes, formatRupiah, $lib/components/SearchableSelect.svelte
+  @dependencies @lucide/svelte, $app/navigation, $app/forms (enhance), $app/state, Svelte 5 Runes, formatRupiah, $lib/components/SearchableSelect.svelte
   @publicFunctions N/A (Svelte Component)
-  @sideEffects Melakukan approval/penolakan transaksi shodaqoh, mutasi jenis shodaqoh, dan pembaruan rekening/QRIS via form actions
+  @sideEffects Melakukan approval/penolakan transaksi shodaqoh, mutasi jenis shodaqoh, dan pembaruan rekening/QRIS via form actions, sekaligus mempertahankan query param scope & id wilayah aktif agar tidak kembali ke wilayah default
 -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
@@ -42,9 +42,9 @@
 		X,
 		XCircle
 	} from '@lucide/svelte';
-	import type { PageData } from './$types';
+	import type { PageData, ActionData } from './$types';
 
-	let { data } = $props<{ data: PageData }>();
+	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
 	function formatRupiah(val: number): string {
 		return 'Rp ' + Number(val || 0).toLocaleString('id-ID');
@@ -109,6 +109,22 @@
 		}
 		goto(url.toString());
 	}
+
+	// Pastikan URL tetap menunjuk wilayah aktif setelah action sukses, sehingga tidak
+	// ter-reset ke wilayah default ketika result.location menghapus query scope & id.
+	$effect(() => {
+		if (form?.success && form?.scope && form?.id && typeof window !== 'undefined') {
+			const currentUrl = new URL(window.location.href);
+			if (
+				currentUrl.searchParams.get('scope') !== String(form.scope) ||
+				currentUrl.searchParams.get('id') !== String(form.id)
+			) {
+				currentUrl.searchParams.set('scope', String(form.scope));
+				currentUrl.searchParams.set('id', String(form.id));
+				window.history.replaceState({}, '', currentUrl.toString());
+			}
+		}
+	});
 
 	// Hitung max value untuk grafik bulanan
 	const maxMonthlyTotal = $derived(
@@ -542,7 +558,7 @@
 										{#if t.statusApproval === 'Menunggu Persetujuan'}
 											{#if data.canManage}
 												<div class="flex items-center justify-end gap-1.5">
-													<form method="POST" action="?/approve" use:enhance>
+													<form method="POST" action={`?/approve&scope=${data.activeScope}&id=${data.activeId}`} use:enhance>
 														<input type="hidden" name="id" value={t.id} />
 														<input type="hidden" name="scope" value={data.activeScope} />
 														<input type="hidden" name="targetId" value={data.activeId} />
@@ -627,7 +643,7 @@
 						<div class="flex items-center justify-between pt-2 border-t border-border/60 text-[10px] text-foreground/50">
 							<span>Scope: {j.tingkatScope}</span>
 							{#if !j.isDefault && data.canManage}
-								<form method="POST" action="?/deleteJenis" use:enhance>
+								<form method="POST" action={`?/deleteJenis&scope=${data.activeScope}&id=${data.activeId}`} use:enhance>
 									<input type="hidden" name="id" value={j.id} />
 									<input type="hidden" name="scope" value={data.activeScope} />
 									<input type="hidden" name="targetId" value={data.activeId} />
@@ -722,7 +738,7 @@
 
 							{#if data.canManage}
 								<div class="pt-2 border-t border-border flex justify-end">
-									<form method="POST" action="?/deleteRekening" use:enhance>
+									<form method="POST" action={`?/deleteRekening&scope=${data.activeScope}&id=${data.activeId}`} use:enhance>
 										<input type="hidden" name="id" value={rek.id} />
 										<input type="hidden" name="scope" value={data.activeScope} />
 										<input type="hidden" name="targetId" value={data.activeId} />
@@ -795,7 +811,7 @@
 				</button>
 			</div>
 
-			<form method="POST" action="?/reject" use:enhance={() => {
+			<form method="POST" action={`?/reject&scope=${data.activeScope}&id=${data.activeId}`} use:enhance={() => {
 				rejectModalOpen = false;
 			}}>
 				<input type="hidden" name="id" value={rejectTargetId} />
@@ -850,7 +866,7 @@
 				</button>
 			</div>
 
-			<form method="POST" action="?/addJenis" use:enhance={() => {
+			<form method="POST" action={`?/addJenis&scope=${data.activeScope}&id=${data.activeId}`} use:enhance={() => {
 				isAddJenisOpen = false;
 				jenisNama = '';
 				jenisDeskripsi = '';
@@ -920,7 +936,7 @@
 				</button>
 			</div>
 
-			<form method="POST" action="?/saveRekening" enctype="multipart/form-data" use:enhance={() => {
+			<form method="POST" action={`?/saveRekening&scope=${data.activeScope}&id=${data.activeId}`} enctype="multipart/form-data" use:enhance={() => {
 				isAddRekeningOpen = false;
 				rekeningNomor = '';
 				rekeningAtasNama = '';
