@@ -1,8 +1,8 @@
 <!--
   @file src/routes/(admin)/admin/profil-wilayah/+page.svelte
-  @purpose Halaman dedicated profil wilayah (Kelompok/Desa/Daerah) untuk manajemen lokasi geotagging tempat pengajian, rekening/QRIS shodaqoh berotoritas KU/Superadmin, dan hierarki sub-wilayah dengan scroll retention
+  @purpose Halaman dedicated profil wilayah (Kelompok/Desa/Daerah) untuk manajemen lokasi geotagging tempat pengajian, rekening/QRIS shodaqoh berotoritas KU/Superadmin, dan hierarki sub-wilayah dengan dropdown pencarian interaktif dan scroll retention
   @usedBy Route admin '/admin/profil-wilayah'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/LocationPicker.svelte, $lib/components/Pagination.svelte, $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
+  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/LocationPicker.svelte, $lib/components/Pagination.svelte, $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
   @publicFunctions openLocationModal, closeLocationModal, openAddRekeningModal, closeAddRekeningModal, openEditRekeningModal, closeEditRekeningModal, copyToClipboard
   @sideEffects Mengirim form updateLokasi, addRekening, updateRekening, deleteRekening via enhance tanpa reload kasar dan menjaga scroll
 -->
@@ -28,6 +28,7 @@
 		Layers
 	} from '@lucide/svelte';
 	import type { PageData, ActionData } from './$types';
+	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
 	import LocationPicker from '$lib/components/LocationPicker.svelte';
 	import Pagination from '$lib/components/Pagination.svelte';
 	import { enhance } from '$app/forms';
@@ -144,7 +145,7 @@
 		}
 	});
 
-	// Opsi filter bertingkat untuk Superadmin
+	// Opsi filter bertingkat untuk Superadmin / Multi-Wilayah
 	const availableDesaList = $derived(
 		selectedDaerahId
 			? data.accessibleWilayah.desaList.filter((d: any) => String(d.daerahId) === String(selectedDaerahId))
@@ -156,6 +157,54 @@
 			? data.accessibleWilayah.kelompokList.filter((k: any) => String(k.desaId) === String(selectedDesaId))
 			: []
 	);
+
+	const daerahOptions = $derived(
+		(data.accessibleWilayah.daerahList || []).map((dr: any) => ({
+			value: dr.id,
+			label: dr.nama,
+			sublabel: dr.kotaKabupaten ? `${dr.kotaKabupaten}, ${dr.provinsi}` : dr.provinsi
+		}))
+	);
+
+	const desaOptions = $derived(
+		availableDesaList.map((d: any) => ({
+			value: d.id,
+			label: d.nama,
+			sublabel: d.kecamatan ? `Kec. ${d.kecamatan}` : undefined
+		}))
+	);
+
+	const kelompokOptions = $derived(
+		availableKelompokList.map((k: any) => ({
+			value: k.id,
+			label: k.nama,
+			sublabel: k.lokasiNama || undefined
+		}))
+	);
+
+	function onSelectDaerah(val: string | number) {
+		selectedDaerahId = val;
+		selectedDesaId = '';
+		selectedKelompokId = '';
+		if (val) {
+			window.location.href = `/admin/profil-wilayah?scope=Daerah&id=${val}`;
+		}
+	}
+
+	function onSelectDesa(val: string | number) {
+		selectedDesaId = val;
+		selectedKelompokId = '';
+		if (val) {
+			window.location.href = `/admin/profil-wilayah?scope=Desa&id=${val}`;
+		}
+	}
+
+	function onSelectKelompok(val: string | number) {
+		selectedKelompokId = val;
+		if (val) {
+			window.location.href = `/admin/profil-wilayah?scope=Kelompok&id=${val}`;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -198,67 +247,46 @@
 			<div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
 				<!-- Pilih Daerah -->
 				<div>
-					<label for="pilihDaerah" class="block text-xs font-medium text-foreground/70 mb-1">Daerah</label>
-					<select
-						id="pilihDaerah"
-						bind:value={selectedDaerahId}
-						onchange={() => {
-							selectedDesaId = '';
-							selectedKelompokId = '';
-							if (selectedDaerahId) {
-								window.location.href = `/admin/profil-wilayah?scope=Daerah&id=${selectedDaerahId}`;
-							}
-						}}
-						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-					>
-						<option value="">-- Pilih Daerah --</option>
-						{#each data.accessibleWilayah.daerahList as dr}
-							<option value={dr.id}>{dr.nama} ({dr.kotaKabupaten})</option>
-						{/each}
-					</select>
+					<label for="select-daerah" class="block text-xs font-medium text-foreground/70 mb-1">Pilih Daerah</label>
+					<SearchableSelect
+						id="select-daerah"
+						name="pilihDaerah"
+						options={daerahOptions}
+						value={selectedDaerahId}
+						placeholder="-- Cari / Pilih Daerah --"
+						searchPlaceholder="Ketik nama daerah atau kota..."
+						onchange={onSelectDaerah}
+					/>
 				</div>
 
 				<!-- Pilih Desa -->
 				<div>
-					<label for="pilihDesa" class="block text-xs font-medium text-foreground/70 mb-1">Desa</label>
-					<select
-						id="pilihDesa"
-						bind:value={selectedDesaId}
+					<label for="select-desa" class="block text-xs font-medium text-foreground/70 mb-1">Pilih Desa</label>
+					<SearchableSelect
+						id="select-desa"
+						name="pilihDesa"
+						options={desaOptions}
+						value={selectedDesaId}
 						disabled={!selectedDaerahId}
-						onchange={() => {
-							selectedKelompokId = '';
-							if (selectedDesaId) {
-								window.location.href = `/admin/profil-wilayah?scope=Desa&id=${selectedDesaId}`;
-							}
-						}}
-						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
-					>
-						<option value="">-- Pilih Desa --</option>
-						{#each availableDesaList as d}
-							<option value={d.id}>{d.nama}</option>
-						{/each}
-					</select>
+						placeholder={selectedDaerahId ? '-- Cari / Pilih Desa --' : '-- Pilih Daerah Dahulu --'}
+						searchPlaceholder="Ketik nama desa..."
+						onchange={onSelectDesa}
+					/>
 				</div>
 
 				<!-- Pilih Kelompok -->
 				<div>
-					<label for="pilihKelompok" class="block text-xs font-medium text-foreground/70 mb-1">Kelompok</label>
-					<select
-						id="pilihKelompok"
-						bind:value={selectedKelompokId}
+					<label for="select-kelompok" class="block text-xs font-medium text-foreground/70 mb-1">Pilih Kelompok</label>
+					<SearchableSelect
+						id="select-kelompok"
+						name="pilihKelompok"
+						options={kelompokOptions}
+						value={selectedKelompokId}
 						disabled={!selectedDesaId}
-						onchange={() => {
-							if (selectedKelompokId) {
-								window.location.href = `/admin/profil-wilayah?scope=Kelompok&id=${selectedKelompokId}`;
-							}
-						}}
-						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
-					>
-						<option value="">-- Pilih Kelompok --</option>
-						{#each availableKelompokList as k}
-							<option value={k.id}>{k.nama}</option>
-						{/each}
-					</select>
+						placeholder={selectedDesaId ? '-- Cari / Pilih Kelompok --' : '-- Pilih Desa Dahulu --'}
+						searchPlaceholder="Ketik nama kelompok..."
+						onchange={onSelectKelompok}
+					/>
 				</div>
 			</div>
 		</div>
