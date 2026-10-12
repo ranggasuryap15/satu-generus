@@ -379,7 +379,7 @@
 		<div>
 			<h1 class="text-xl font-bold text-foreground tracking-tight">Manajemen Dapukan & RBAC</h1>
 			<p class="text-xs text-foreground/60 mt-0.5">
-				Kelola dapukan baku (4S) dan dapukan tentatif serta lingkup wewenang administratif pengurus.
+				Kelola struktur dapukan 4S dan dapukan tentatif serta lingkup wewenang administratif pengurus.
 			</p>
 		</div>
 
@@ -415,7 +415,7 @@
 		</div>
 	{/if}
 
-	<!-- Section: Master Dapukan Baku (4S) -->
+	<!-- Section: Struktur Dapukan 4S -->
 	<div class="bg-card border border-border rounded-xl p-5 shadow-sm space-y-3">
 		<div class="flex items-center justify-between">
 			<div class="flex items-center gap-2">

@@ -59,7 +59,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			return accessibleWilayah.allowedKelompokIdSet.has(k.kelompokId);
 		});
 
-		// 3. Master Dapukan Baku 4S & Hak Kelola Dapukan
+		// 3. Struktur Dapukan 4S & Hak Kelola Dapukan
 		const masterDapukan = db.select().from(dapukan).all();
 		const canManageDapukanVal = canManageDapukan(locals.roles || []);
 
