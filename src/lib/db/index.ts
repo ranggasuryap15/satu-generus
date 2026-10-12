@@ -4,7 +4,7 @@
  * @usedBy Backend server routes (+page.server.ts, +server.ts, hooks.server.ts, scripts migrasi/seed)
  * @dependencies better-sqlite3, drizzle-orm/better-sqlite3, src/lib/db/schema.ts
  * @publicFunctions db, sqlite
- * @sideEffects Membuka koneksi file database SQLite, mengaktifkan PRAGMA WAL & foreign_keys, auto-migrasi kolom & tabel skema (sub_kelompok, users, anggota_keluarga, jadwal_pengajian_template, presensi_jadwal, presensi_kehadiran, kelompok, dan desa), auto-sinkronisasi user_id & default isrun Kepala Keluarga
+ * @sideEffects Membuka koneksi file database SQLite, mengaktifkan PRAGMA WAL & foreign_keys, auto-migrasi kolom & tabel skema (sub_kelompok, users, anggota_keluarga, jadwal_pengajian_template, presensi_jadwal, presensi_kehadiran, kelompok, desa, daerah, dan rekening_wilayah), auto-sinkronisasi user_id & default isrun Kepala Keluarga
  */
 
 import Database from 'better-sqlite3';
@@ -355,6 +355,50 @@ try {
 			}
 		}
 	}
+
+	// Auto-heal / migrasi kolom daerah untuk data lokasi, koordinat GPS, radius, dan link GMaps
+	const tableDaerah = sqlite
+		.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='daerah'")
+		.get();
+	if (tableDaerah) {
+		const rawDaerahInfo = sqlite.prepare('PRAGMA table_info(daerah)').all() as Array<{ name: string }>;
+		const daerahCols = rawDaerahInfo.map((c) => c.name);
+		const newDaerahCols: Record<string, string> = {
+			lokasi_nama: 'TEXT',
+			latitude: 'TEXT',
+			longitude: 'TEXT',
+			radius_meter: 'INTEGER DEFAULT 100',
+			gmaps_url: 'TEXT'
+		};
+		for (const [colName, colDef] of Object.entries(newDaerahCols)) {
+			if (!daerahCols.includes(colName)) {
+				sqlite.exec(`ALTER TABLE daerah ADD COLUMN ${colName} ${colDef}`);
+			}
+		}
+	}
+
+	// Auto-heal / migrasi tabel rekening_wilayah untuk data rekening bank dan QRIS shodaqoh
+	sqlite.exec(`
+		CREATE TABLE IF NOT EXISTS rekening_wilayah (
+			id TEXT PRIMARY KEY NOT NULL,
+			tingkat_scope TEXT NOT NULL,
+			daerah_id INTEGER REFERENCES daerah(id) ON DELETE CASCADE,
+			desa_id INTEGER REFERENCES desa(id) ON DELETE CASCADE,
+			kelompok_id INTEGER REFERENCES kelompok(id) ON DELETE CASCADE,
+			nama_bank TEXT NOT NULL,
+			nomor_rekening TEXT NOT NULL,
+			atas_nama TEXT NOT NULL,
+			tipe_tujuan TEXT NOT NULL DEFAULT 'Infaq & Shodaqoh',
+			qris_image_url TEXT,
+			keterangan TEXT,
+			is_active INTEGER NOT NULL DEFAULT 1,
+			created_at INTEGER NOT NULL
+		);
+		CREATE INDEX IF NOT EXISTS rekening_wilayah_scope_idx ON rekening_wilayah (tingkat_scope);
+		CREATE INDEX IF NOT EXISTS rekening_wilayah_daerah_id_idx ON rekening_wilayah (daerah_id);
+		CREATE INDEX IF NOT EXISTS rekening_wilayah_desa_id_idx ON rekening_wilayah (desa_id);
+		CREATE INDEX IF NOT EXISTS rekening_wilayah_kelompok_id_idx ON rekening_wilayah (kelompok_id);
+	`);
 } catch (migErr) {
 	console.error('[DB Auto-Migration] Gagal memeriksa atau memperbarui kolom skema SQLite:', migErr);
 }

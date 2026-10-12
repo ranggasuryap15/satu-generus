@@ -1,6 +1,6 @@
 <!--
   @file src/lib/components/navigation/AdminSidebar.svelte
-  @purpose Komponen Sidebar navigasi admin responsif dengan pengelompokan menu (Ikhtisar, Pusat Data, Pengajian, Sistem), penanda rute aktif, dan badge permohonan pending
+  @purpose Komponen Sidebar navigasi admin responsif dengan pengelompokan menu (Dashboard & Profil Wilayah, Pusat Data, Pengajian, Sistem), penanda rute aktif, dan badge permohonan pending
   @usedBy src/routes/(admin)/+layout.svelte
   @dependencies $app/state (page), @lucide/svelte
   @publicFunctions isItemActive
@@ -13,6 +13,7 @@
 		CalendarDays,
 		ExternalLink,
 		FileSpreadsheet,
+		Landmark,
 		LayoutDashboard,
 		MapPin,
 		ShieldCheck,
@@ -40,7 +41,10 @@
 
 	const menuGroups: NavGroup[] = [
 		{
-			items: [{ href: '/admin', label: 'Dashboard', icon: LayoutDashboard }]
+			items: [
+				{ href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
+				{ href: '/admin/profil-wilayah', label: 'Profil Wilayah', icon: Landmark }
+			]
 		},
 		{
 			title: 'Pusat Data',

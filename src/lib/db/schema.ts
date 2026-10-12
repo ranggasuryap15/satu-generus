@@ -1,9 +1,9 @@
 /**
  * @file src/lib/db/schema.ts
- * @purpose Definisi schema tabel Drizzle ORM untuk SQLite sesuai SCHEMA.md (termasuk titik lokasi & radius pada kelompok dan desa, kontak no_telepon user, sub-kelompok wilayah, serta rincian lengkap anggota keluarga)
+ * @purpose Definisi schema tabel Drizzle ORM untuk SQLite sesuai SCHEMA.md (termasuk titik lokasi & radius pada kelompok, desa, daerah, rekening shodaqoh/QRIS per wilayah, kontak no_telepon user, sub-kelompok wilayah, serta rincian lengkap anggota keluarga)
  * @usedBy src/lib/db/index.ts, queries/actions di routes dan services
  * @dependencies drizzle-orm/sqlite-core, @paralleldrive/cuid2
- * @publicFunctions daerah, desa, kelompok, subKelompok, users, dapukan, userDapukan, keluarga, anggotaKeluarga, jadwalPengajianTemplate, presensiJadwal, presensiKehadiran
+ * @publicFunctions daerah, desa, kelompok, subKelompok, users, dapukan, userDapukan, keluarga, anggotaKeluarga, jadwalPengajianTemplate, presensiJadwal, presensiKehadiran, rekeningWilayah
  * @sideEffects Mendefinisikan struktur tabel, relasi foreign key, dan indeks database SQLite
  */
 
@@ -18,7 +18,12 @@ export const daerah = sqliteTable('daerah', {
 	id: integer('id').primaryKey({ autoIncrement: true }),
 	nama: text('nama').notNull(),
 	provinsi: text('provinsi').notNull(),
-	kotaKabupaten: text('kota_kabupaten').notNull()
+	kotaKabupaten: text('kota_kabupaten').notNull(),
+	lokasiNama: text('lokasi_nama'),
+	latitude: text('latitude'),
+	longitude: text('longitude'),
+	radiusMeter: integer('radius_meter').default(100),
+	gmapsUrl: text('gmaps_url')
 });
 
 export const desa = sqliteTable(
@@ -278,4 +283,36 @@ export const presensiKehadiran = sqliteTable(
 		uniqueIndex('presensi_kehadiran_jadwal_user_uniq').on(table.jadwalId, table.userId)
 	]
 );
+
+// ==========================================
+// 6. KEUANGAN & SHODAQOH WILAYAH (Rekening & QRIS)
+// ==========================================
+
+export const rekeningWilayah = sqliteTable(
+	'rekening_wilayah',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => createId()),
+		tingkatScope: text('tingkat_scope').notNull(), // 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok'
+		daerahId: integer('daerah_id').references(() => daerah.id, { onDelete: 'cascade' }),
+		desaId: integer('desa_id').references(() => desa.id, { onDelete: 'cascade' }),
+		kelompokId: integer('kelompok_id').references(() => kelompok.id, { onDelete: 'cascade' }),
+		namaBank: text('nama_bank').notNull(), // e.g. 'Bank Syariah Indonesia (BSI)', 'BCA', 'QRIS', dll
+		nomorRekening: text('nomor_rekening').notNull(),
+		atasNama: text('atas_nama').notNull(),
+		tipeTujuan: text('tipe_tujuan').notNull().default('Infaq & Shodaqoh'), // e.g. 'Infaq Operasional', 'Pembangunan', 'Kas Sosial'
+		qrisImageUrl: text('qris_image_url'),
+		keterangan: text('keterangan'),
+		isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+		createdAt: integer('created_at').notNull()
+	},
+	(table) => [
+		index('rekening_wilayah_scope_idx').on(table.tingkatScope),
+		index('rekening_wilayah_daerah_id_idx').on(table.daerahId),
+		index('rekening_wilayah_desa_id_idx').on(table.desaId),
+		index('rekening_wilayah_kelompok_id_idx').on(table.kelompokId)
+	]
+);
+
 

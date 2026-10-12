@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(admin)/admin/wilayah/+page.svelte
-  @purpose Halaman manajemen Data Wilayah lengkap dengan dual presentation (compact cards mobile & table desktop) di tab Kelompok, Desa, & Sub-Kelompok, pagination di setiap tab, 1 tombol Tambah Wilayah cerdas (hierarki Daerah -> Desa -> Kelompok -> Sub-Kelompok), modal edit unit wilayah (Kelompok, Desa, Sub-Kelompok), modal detail desa & kelompok dengan Leaflet LocationPicker, fitur 'Hubungkan ke Lokasi', kontrol RBAC visual, checklist hapus massal & single delete, serta scroll retention (mencegah loncat ke atas saat edit/hapus)
+  @purpose Halaman manajemen Data Wilayah lengkap dengan dual presentation (compact cards mobile & table desktop) di tab Kelompok, Desa, & Sub-Kelompok, pagination di setiap tab, tautan cepat ke halaman dedicated Profil & Rekening Wilayah, 1 tombol Tambah Wilayah cerdas (hierarki Daerah -> Desa -> Kelompok -> Sub-Kelompok), modal edit unit wilayah (Kelompok, Desa, Sub-Kelompok), modal detail desa & kelompok dengan Leaflet LocationPicker, fitur 'Hubungkan ke Lokasi', kontrol RBAC visual, checklist hapus massal & single delete, serta scroll retention (mencegah loncat ke atas saat edit/hapus)
   @usedBy Route admin '/admin/wilayah'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/LocationPicker.svelte, $lib/components/Pagination.svelte, $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
   @publicFunctions openUnifiedAddModal, closeUnifiedAddModal, openEditKelompok, closeEditKelompok, openEditDesa, closeEditDesa, openEditSubKelompok, closeEditSubKelompok, openKelompokDetail, closeKelompokDetail, openDesaDetail, closeDesaDetail, handleConnectToKelompok, handleDisconnectKelompok, resetFilter, toggleSelectKelompok, toggleSelectAllKelompok, openDeleteSingleKelompok, openDeleteBatchKelompok, closeDeleteModal
@@ -33,6 +33,7 @@
 		Check,
 		Link2,
 		Link2Off,
+		Landmark,
 		Pencil
 	} from '@lucide/svelte';
 	import type { ActionData, PageData } from './$types';
@@ -1153,10 +1154,18 @@
 							<button
 								type="button"
 								onclick={() => openKelompokDetail(k)}
-								class="flex-1 py-1.5 px-3 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold transition-colors cursor-pointer text-center"
+								class="py-1.5 px-2.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold transition-colors cursor-pointer text-center"
 							>
-								Detail & Lokasi
+								Lokasi
 							</button>
+							<a
+								href={`/admin/profil-wilayah?scope=Kelompok&id=${k.id}`}
+								class="flex-1 py-1.5 px-2.5 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground text-xs font-bold transition-colors inline-flex items-center justify-center gap-1 border border-border/50"
+								title="Buka Profil & Rekening Shodaqoh"
+							>
+								<Landmark class="w-3.5 h-3.5 text-primary" />
+								<span>Profil & Rekening</span>
+							</a>
 							{#if data.permissions?.canDeleteKelompok}
 								<button
 									type="button"
@@ -1290,10 +1299,19 @@
 											<button
 												type="button"
 												onclick={() => openKelompokDetail(k)}
-												class="px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-[10.5px] font-bold transition-colors cursor-pointer"
+												class="px-2 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-[10.5px] font-bold transition-colors cursor-pointer"
 											>
-												Detail & Lokasi
+												Lokasi
 											</button>
+
+											<a
+												href={`/admin/profil-wilayah?scope=Kelompok&id=${k.id}`}
+												class="px-2 py-1 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground text-[10.5px] font-bold transition-colors inline-flex items-center gap-1 border border-border/50"
+												title="Buka Profil & Rekening Shodaqoh"
+											>
+												<Landmark class="w-3 h-3 text-primary" />
+												<span>Profil & Rekening</span>
+											</a>
 
 											{#if data.permissions?.canDeleteKelompok}
 												<button
@@ -1574,10 +1592,18 @@
 									e.stopPropagation();
 									openDesaDetail(d);
 								}}
-								class="flex-1 py-1.5 px-3 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold transition-colors cursor-pointer text-center"
+								class="py-1.5 px-2.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold transition-colors cursor-pointer text-center"
 							>
-								Detail & Lokasi
+								Lokasi
 							</button>
+							<a
+								href={`/admin/profil-wilayah?scope=Desa&id=${d.id}`}
+								class="flex-1 py-1.5 px-2.5 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground text-xs font-bold transition-colors inline-flex items-center justify-center gap-1 border border-border/50"
+								title="Buka Profil & Rekening Shodaqoh"
+							>
+								<Landmark class="w-3.5 h-3.5 text-primary" />
+								<span>Profil & Rekening</span>
+							</a>
 						</div>
 					</div>
 				{/each}
@@ -1664,10 +1690,18 @@
 													e.stopPropagation();
 													openDesaDetail(d);
 												}}
-												class="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-colors cursor-pointer"
+												class="px-2 py-1 text-[10.5px] font-bold rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors cursor-pointer"
 											>
-												Detail & Lokasi
+												Lokasi
 											</button>
+											<a
+												href={`/admin/profil-wilayah?scope=Desa&id=${d.id}`}
+												class="px-2 py-1 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground text-[10.5px] font-bold transition-colors inline-flex items-center gap-1 border border-border/50"
+												title="Buka Profil & Rekening Shodaqoh"
+											>
+												<Landmark class="w-3 h-3 text-primary" />
+												<span>Profil & Rekening</span>
+											</a>
 										</div>
 									</td>
 								</tr>
