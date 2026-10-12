@@ -2,9 +2,9 @@
  * @file src/routes/(app)/shodaqoh/+page.server.ts
  * @purpose Backend controller halaman shodaqoh jamaah mobile-first: menampilkan info rekening/QRIS wilayah, daftar jenis shodaqoh aktif scoped, pelaporan konfirmasi transfer shodaqoh, dan riwayat donasi jamaah
  * @usedBy src/routes/(app)/shodaqoh/+page.svelte
- * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm, @sveltejs/kit, node:fs, node:path
+ * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm, @sveltejs/kit, src/lib/server/upload
  * @publicFunctions load, actions (laporShodaqoh)
- * @sideEffects Menyimpan file bukti transfer ke static/uploads/bukti-transfer dan mencatat transaksi shodaqoh baru di tabel SQLite
+ * @sideEffects Menyimpan file bukti transfer ke root uploads/bukti-transfer dan mencatat transaksi shodaqoh baru di tabel SQLite
  */
 
 import { fail } from '@sveltejs/kit';
@@ -20,41 +20,10 @@ import {
 	users
 } from '$lib/db/schema';
 import { and, desc, eq } from 'drizzle-orm';
-import fs from 'node:fs';
-import path from 'node:path';
+import { saveUploadedFile } from '$lib/server/upload';
 
 async function saveUploadedBukti(fileOrBase64OrUrl: any): Promise<string | null> {
-	if (!fileOrBase64OrUrl) return null;
-	const uploadDir = path.resolve(process.cwd(), 'static/uploads/bukti-transfer');
-	if (!fs.existsSync(uploadDir)) {
-		fs.mkdirSync(uploadDir, { recursive: true });
-	}
-
-	if (fileOrBase64OrUrl instanceof File && fileOrBase64OrUrl.size > 0) {
-		const rawExt = fileOrBase64OrUrl.type.split('/')[1] || 'jpg';
-		const ext = rawExt === 'jpeg' ? 'jpg' : rawExt;
-		const filename = `bukti_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
-		const arrayBuffer = await fileOrBase64OrUrl.arrayBuffer();
-		fs.writeFileSync(path.join(uploadDir, filename), Buffer.from(arrayBuffer));
-		return `/uploads/bukti-transfer/${filename}`;
-	}
-
-	if (typeof fileOrBase64OrUrl === 'string') {
-		const trimmed = fileOrBase64OrUrl.trim();
-		if (trimmed.startsWith('data:image/')) {
-			const matches = trimmed.match(/^data:image\/([a-zA-Z0-9-+]+);base64,(.+)$/);
-			if (matches) {
-				const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
-				const buffer = Buffer.from(matches[2], 'base64');
-				const filename = `bukti_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
-				fs.writeFileSync(path.join(uploadDir, filename), buffer);
-				return `/uploads/bukti-transfer/${filename}`;
-			}
-		}
-		return trimmed || null;
-	}
-
-	return null;
+	return saveUploadedFile(fileOrBase64OrUrl, 'bukti-transfer', 'bukti');
 }
 
 export const load: PageServerLoad = async ({ locals, url }) => {

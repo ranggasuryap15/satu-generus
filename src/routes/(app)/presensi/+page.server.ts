@@ -2,9 +2,9 @@
  * @file src/routes/(app)/presensi/+page.server.ts
  * @purpose Memuat jadwal pengajian dengan fallback lokasi kelompok, QR token, dan validasi radius lokasi GPS offline / wajib bukti gambar jika di luar radius
  * @usedBy src/routes/(app)/presensi/+page.svelte
- * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm, node:fs, node:path
+ * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm, src/lib/server/upload
  * @publicFunctions load, actions.presensiMandiri, actions.ajukanIzin
- * @sideEffects Validasi jarak radius Haversine lokasi kelompok, menyimpan file foto ke static/uploads/presensi, dan menulis presensi_kehadiran ke SQLite
+ * @sideEffects Validasi jarak radius Haversine lokasi kelompok, menyimpan file foto ke root uploads/presensi, dan menulis presensi_kehadiran ke SQLite
  */
 
 import { fail, redirect } from '@sveltejs/kit';
@@ -12,46 +12,13 @@ import type { Actions, PageServerLoad } from './$types';
 import { db } from '$lib/db';
 import { presensiJadwal, presensiKehadiran, kelompok } from '$lib/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
-import fs from 'node:fs';
-import path from 'node:path';
+import { saveUploadedFile } from '$lib/server/upload';
 
 async function saveUploadedFoto(
 	fileOrBase64: File | string | null | undefined,
 	prefix: string
 ): Promise<string | null> {
-	if (!fileOrBase64) return null;
-
-	const uploadDir = path.resolve(process.cwd(), 'static/uploads/presensi');
-	if (!fs.existsSync(uploadDir)) {
-		fs.mkdirSync(uploadDir, { recursive: true });
-	}
-
-	// 1. Jika dikirim sebagai Base64 Data URL (dari kamera client-side canvas)
-	if (typeof fileOrBase64 === 'string') {
-		if (fileOrBase64.startsWith('data:image/')) {
-			const matches = fileOrBase64.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
-			if (matches) {
-				const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
-				const buffer = Buffer.from(matches[2], 'base64');
-				const filename = `${prefix}_${Date.now()}.${ext}`;
-				fs.writeFileSync(path.join(uploadDir, filename), buffer);
-				return `/uploads/presensi/${filename}`;
-			}
-		}
-		return fileOrBase64.trim() ? fileOrBase64 : null;
-	}
-
-	// 2. Jika dikirim sebagai File multipart
-	if (fileOrBase64 instanceof File && fileOrBase64.size > 0) {
-		const rawExt = fileOrBase64.type.split('/')[1] || 'jpg';
-		const ext = rawExt === 'jpeg' ? 'jpg' : rawExt;
-		const filename = `${prefix}_${Date.now()}.${ext}`;
-		const arrayBuffer = await fileOrBase64.arrayBuffer();
-		fs.writeFileSync(path.join(uploadDir, filename), Buffer.from(arrayBuffer));
-		return `/uploads/presensi/${filename}`;
-	}
-
-	return null;
+	return saveUploadedFile(fileOrBase64, 'presensi', prefix);
 }
 
 export const load: PageServerLoad = async ({ locals }) => {
