@@ -1,16 +1,16 @@
 /**
  * @file src/routes/(admin)/admin/jadwal/+page.server.ts
- * @purpose Server load & actions untuk pengelolaan jadwal pengajian bertingkat (Desa & Kelompok), persistensi state tab & ID terpilih via URL parameter & cookies agar tidak ter-reset, template siklus rutin, generator sesi bulanan dengan pewarisan lokasi default Desa & Kelompok, serta override perubahan jadwal insidental
+ * @purpose Server load & actions untuk pengelolaan jadwal pengajian bertingkat (Desa & Kelompok), persistensi state tab & ID terpilih via URL parameter & cookies agar tidak ter-reset, template siklus rutin, generator sesi bulanan dengan pewarisan lokasi default Desa & Kelompok, serta penghapusan aman sesi pengajian (beserta presensi kehadiran terkait)
  * @usedBy src/routes/(admin)/admin/jadwal/+page.svelte
- * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, src/lib/jadwal, drizzle-orm
+ * @dependencies src/lib/db, src/lib/db/schema (jadwalPengajianTemplate, presensiJadwal, presensiKehadiran, kelompok, desa), src/lib/server/scope, src/lib/jadwal, drizzle-orm
  * @publicFunctions load, actions.saveTemplate, actions.deleteTemplate, actions.generateSesiBulanan, actions.createSesiManual, actions.updateSesiOverride, actions.deleteSesi
- * @sideEffects Menulis dan membaca tabel jadwal_pengajian_template dan presensi_jadwal di SQLite, serta menyimpan preferensi tab aktif di cookies
+ * @sideEffects Menulis dan membaca tabel jadwal_pengajian_template, presensi_jadwal, dan presensi_kehadiran di SQLite, serta menyimpan preferensi tab aktif di cookies
  */
 
 import { fail, redirect, type Cookies } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '$lib/db';
-import { jadwalPengajianTemplate, presensiJadwal, kelompok, desa } from '$lib/db/schema';
+import { jadwalPengajianTemplate, presensiJadwal, presensiKehadiran, kelompok, desa } from '$lib/db/schema';
 import { getAdminScope, getAccessibleWilayah, isKelompokAllowed } from '$lib/server/scope';
 import { hitungTanggalSesiBulanan } from '$lib/jadwal';
 import { normalizeDateToISO } from '$lib/utils';
@@ -629,7 +629,7 @@ export const actions: Actions = {
 	},
 
 	/**
-	 * Menghapus satu sesi pengajian
+	 * Menghapus satu sesi pengajian beserta data presensi kehadiran yang terkait
 	 */
 	deleteSesi: async ({ request, locals, cookies }) => {
 		if (!locals.user || !locals.isAdmin) return fail(401, { error: 'Unauthorized' });
@@ -643,6 +643,8 @@ export const actions: Actions = {
 			if (existing) {
 				syncJadwalCookies(cookies, existing.tingkatScope, existing.desaId, existing.kelompokId);
 			}
+			// Hapus kehadiran terkait lebih dulu untuk integritas data terjamin
+			db.delete(presensiKehadiran).where(eq(presensiKehadiran.jadwalId, id)).run();
 			db.delete(presensiJadwal).where(eq(presensiJadwal.id, id)).run();
 			return { success: true, message: 'Sesi jadwal berhasil dihapus.' };
 		} catch (err) {

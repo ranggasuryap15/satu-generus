@@ -1,8 +1,8 @@
 <!--
   @file src/routes/(admin)/admin/jadwal/+page.svelte
-  @purpose Antarmuka manajemen jadwal pengajian bertingkat (Desa & Kelompok), sinkronisasi tab aktif via URL query params & cookies persisten tanpa refresh merusak state, helper getActionUrl penjaga query params form submit, selector kelompok & desa tanpa refresh kasar, generator sesi bulanan, override mendadak, pewarisan lokasi default Desa & Kelompok pada sesi manual, dan WhatsApp reminder
+  @purpose Antarmuka manajemen jadwal pengajian bertingkat (Desa & Kelompok), sinkronisasi tab aktif via URL query params & cookies persisten tanpa refresh merusak state, helper getActionUrl penjaga query params form submit (?/actionName&params), selector kelompok & desa tanpa refresh kasar, generator sesi bulanan, override mendadak, pewarisan lokasi default Desa & Kelompok pada sesi manual, penghapusan sesi & template dengan modal konfirmasi aman, dan WhatsApp reminder
   @usedBy Route admin '/admin/jadwal'
-  @dependencies @lucide/svelte, $app/forms, $app/navigation, $app/state, $lib/components/SearchableSelect.svelte, $lib/jadwal (getNamaHari, getMingguKe, formatDateIndoFull, formatWhatsAppReminder, generateWhatsAppLink, NAMA_HARI_INDO, NAMA_BULAN_INDO), Svelte 5 Runes
+  @dependencies @lucide/svelte, $app/forms, $app/navigation, $app/state, $lib/confirm.svelte, $lib/components/SearchableSelect.svelte, $lib/jadwal (getNamaHari, getMingguKe, formatDateIndoFull, formatWhatsAppReminder, generateWhatsAppLink, NAMA_HARI_INDO, NAMA_BULAN_INDO), Svelte 5 Runes
   @publicFunctions getActionUrl, switchTab, handleSelectKelompok, handleSelectDesa, openCreateTemplateModal, openEditTemplateModal, openOverrideModal, openWaModal, openGenerateModal, copyWaText
   @sideEffects Mengirim server action POST untuk template & sesi jadwal, navigasi query client-side, dan menyalin teks ke clipboard pengguna
 -->
@@ -67,7 +67,8 @@
 		} else if (targetTab === 'desa' && data.selectedDesaId) {
 			params.set('desaId', String(data.selectedDesaId));
 		}
-		return `?${params.toString()}&/${actionName}`;
+		const qs = params.toString();
+		return qs ? `?/${actionName}&${qs}` : `?/${actionName}`;
 	}
 
 	function switchTab(newTab: 'desa' | 'kelompok') {
@@ -545,14 +546,15 @@
 										<button
 											type="button"
 											onclick={async (e) => {
+												const formEl = (e.currentTarget as HTMLButtonElement).closest('form');
 												const ok = await confirmAction({
 													title: 'Hapus Pola Jadwal?',
 													message: 'Apakah Anda yakin ingin menghapus pola jadwal rutin ini?',
 													confirmText: 'Ya, Hapus',
 													variant: 'danger'
 												});
-												if (ok) {
-													(e.currentTarget as HTMLButtonElement).closest('form')?.requestSubmit();
+												if (ok && formEl) {
+													formEl.requestSubmit();
 												}
 											}}
 											class="p-1.5 text-foreground/50 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
@@ -697,14 +699,15 @@
 										<button
 											type="button"
 											onclick={async (e) => {
+												const formEl = (e.currentTarget as HTMLButtonElement).closest('form');
 												const ok = await confirmAction({
 													title: 'Hapus Sesi Pengajian?',
 													message: 'Apakah Anda yakin ingin menghapus sesi pengajian tanggal ini?',
 													confirmText: 'Ya, Hapus Sesi',
 													variant: 'danger'
 												});
-												if (ok) {
-													(e.currentTarget as HTMLButtonElement).closest('form')?.requestSubmit();
+												if (ok && formEl) {
+													formEl.requestSubmit();
 												}
 											}}
 											class="p-2 text-foreground/50 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
@@ -864,14 +867,15 @@
 										<button
 											type="button"
 											onclick={async (e) => {
+												const formEl = (e.currentTarget as HTMLButtonElement).closest('form');
 												const ok = await confirmAction({
 													title: 'Hapus Pola Jadwal?',
 													message: 'Apakah Anda yakin ingin menghapus pola jadwal rutin ini?',
 													confirmText: 'Ya, Hapus',
 													variant: 'danger'
 												});
-												if (ok) {
-													(e.currentTarget as HTMLButtonElement).closest('form')?.requestSubmit();
+												if (ok && formEl) {
+													formEl.requestSubmit();
 												}
 											}}
 											class="p-1.5 text-foreground/50 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
@@ -1016,14 +1020,15 @@
 										<button
 											type="button"
 											onclick={async (e) => {
+												const formEl = (e.currentTarget as HTMLButtonElement).closest('form');
 												const ok = await confirmAction({
 													title: 'Hapus Sesi Pengajian?',
 													message: 'Apakah Anda yakin ingin menghapus sesi pengajian tanggal ini?',
 													confirmText: 'Ya, Hapus Sesi',
 													variant: 'danger'
 												});
-												if (ok) {
-													(e.currentTarget as HTMLButtonElement).closest('form')?.requestSubmit();
+												if (ok && formEl) {
+													formEl.requestSubmit();
 												}
 											}}
 											class="p-2 text-foreground/50 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
