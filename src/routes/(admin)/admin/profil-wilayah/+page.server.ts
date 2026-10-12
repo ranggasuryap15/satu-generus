@@ -2,7 +2,7 @@
  * @file src/routes/(admin)/admin/profil-wilayah/+page.server.ts
  * @purpose Backend controller halaman dedicated Profil Wilayah: hanya dapat diakses/dilihat oleh seluruh jajaran 4S & Superadmin, dengan hak modifikasi rekening/QRIS shodaqoh khusus KU dan Superadmin, serta pelestarian state scope & id wilayah pada setiap action
  * @usedBy src/routes/(admin)/admin/profil-wilayah/+page.svelte
- * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm, @sveltejs/kit, node:fs, node:path
+ * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm, @sveltejs/kit, src/lib/server/upload
  * @publicFunctions load, actions (updateLokasi, addRekening, updateRekening, deleteRekening)
  * @sideEffects Query dan mutasi SQLite pada tabel kelompok, desa, daerah, dan rekening_wilayah (minimum I/O & index-optimized)
  */
@@ -13,43 +13,10 @@ import { db } from '$lib/db';
 import { daerah, desa, kelompok, subKelompok, rekeningWilayah } from '$lib/db/schema';
 import { and, desc, eq } from 'drizzle-orm';
 import { getAdminScope, getAccessibleWilayah, canManageRekening } from '$lib/server/scope';
-import fs from 'node:fs';
-import path from 'node:path';
+import { saveUploadedFile } from '$lib/server/upload';
 
 async function saveUploadedQris(fileOrBase64OrUrl: any): Promise<string | null> {
-	if (!fileOrBase64OrUrl) return null;
-	const uploadDir = path.resolve(process.cwd(), 'static/uploads/qris');
-	if (!fs.existsSync(uploadDir)) {
-		fs.mkdirSync(uploadDir, { recursive: true });
-	}
-
-	// 1. Jika file multipart File
-	if (fileOrBase64OrUrl instanceof File && fileOrBase64OrUrl.size > 0) {
-		const rawExt = fileOrBase64OrUrl.type.split('/')[1] || 'png';
-		const ext = rawExt === 'jpeg' ? 'jpg' : rawExt;
-		const filename = `qris_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
-		const arrayBuffer = await fileOrBase64OrUrl.arrayBuffer();
-		fs.writeFileSync(path.join(uploadDir, filename), Buffer.from(arrayBuffer));
-		return `/uploads/qris/${filename}`;
-	}
-
-	// 2. Jika string base64 data URL
-	if (typeof fileOrBase64OrUrl === 'string') {
-		const trimmed = fileOrBase64OrUrl.trim();
-		if (trimmed.startsWith('data:image/')) {
-			const matches = trimmed.match(/^data:image\/([a-zA-Z0-9-+]+);base64,(.+)$/);
-			if (matches) {
-				const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
-				const buffer = Buffer.from(matches[2], 'base64');
-				const filename = `qris_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
-				fs.writeFileSync(path.join(uploadDir, filename), buffer);
-				return `/uploads/qris/${filename}`;
-			}
-		}
-		return trimmed || null;
-	}
-
-	return null;
+	return saveUploadedFile(fileOrBase64OrUrl, 'qris', 'qris');
 }
 
 export const load: PageServerLoad = async ({ locals, url }) => {

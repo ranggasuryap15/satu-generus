@@ -2,7 +2,7 @@
  * @file src/routes/(admin)/admin/keuangan/shodaqoh/+page.server.ts
  * @purpose Backend controller manajemen shodaqoh berjenjang wilayah (Kelompok, Desa, Daerah): rekapitulasi statistik & grafik transaksi, approval bukti transfer, CRUD rekening & QRIS, serta isolasi jenis shodaqoh khusus KU dan Kyai. Semua action mengembalikan scope, id wilayah, dan tab aktif agar URL dan state tab tidak ter-reset ke tab default
  * @usedBy src/routes/(admin)/admin/keuangan/shodaqoh/+page.svelte
- * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm, @sveltejs/kit, node:fs, node:path
+ * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm, @sveltejs/kit, src/lib/server/upload
  * @publicFunctions load, actions (approve, reject, addJenis, deleteJenis, saveRekening, deleteRekening)
  * @sideEffects Mutasi status approval transaksi shodaqoh, pembuatan jenis shodaqoh scoped, dan modifikasi data rekening/QRIS di SQLite
  */
@@ -26,41 +26,10 @@ import {
 	canManageShodaqoh
 } from '$lib/server/scope';
 import { and, desc, eq, sql } from 'drizzle-orm';
-import fs from 'node:fs';
-import path from 'node:path';
+import { saveUploadedFile } from '$lib/server/upload';
 
 async function saveUploadedQris(fileOrBase64OrUrl: any): Promise<string | null> {
-	if (!fileOrBase64OrUrl) return null;
-	const uploadDir = path.resolve(process.cwd(), 'static/uploads/qris');
-	if (!fs.existsSync(uploadDir)) {
-		fs.mkdirSync(uploadDir, { recursive: true });
-	}
-
-	if (fileOrBase64OrUrl instanceof File && fileOrBase64OrUrl.size > 0) {
-		const rawExt = fileOrBase64OrUrl.type.split('/')[1] || 'png';
-		const ext = rawExt === 'jpeg' ? 'jpg' : rawExt;
-		const filename = `qris_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
-		const arrayBuffer = await fileOrBase64OrUrl.arrayBuffer();
-		fs.writeFileSync(path.join(uploadDir, filename), Buffer.from(arrayBuffer));
-		return `/uploads/qris/${filename}`;
-	}
-
-	if (typeof fileOrBase64OrUrl === 'string') {
-		const trimmed = fileOrBase64OrUrl.trim();
-		if (trimmed.startsWith('data:image/')) {
-			const matches = trimmed.match(/^data:image\/([a-zA-Z0-9-+]+);base64,(.+)$/);
-			if (matches) {
-				const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
-				const buffer = Buffer.from(matches[2], 'base64');
-				const filename = `qris_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
-				fs.writeFileSync(path.join(uploadDir, filename), buffer);
-				return `/uploads/qris/${filename}`;
-			}
-		}
-		return trimmed || null;
-	}
-
-	return null;
+	return saveUploadedFile(fileOrBase64OrUrl, 'qris', 'qris');
 }
 
 export const load: PageServerLoad = async ({ locals, url }) => {

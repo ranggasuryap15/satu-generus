@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(app)/shodaqoh/+page.svelte
-  @purpose Halaman shodaqoh & infaq mobile-first untuk jamaah: scan QRIS, salin nomor rekening bank, pengiriman konfirmasi transfer beserta bukti transfer, serta pemantauan riwayat status verifikasi lengkap dengan alasan penolakan transparan
+  @purpose Halaman shodaqoh & infaq mobile-first untuk jamaah: scan QRIS, salin nomor rekening bank, pengiriman konfirmasi transfer beserta bukti transfer, pemantauan riwayat status verifikasi, dan struk digital resmi (e-receipt)
   @usedBy Route client '/shodaqoh'
   @dependencies @lucide/svelte, $app/forms, Svelte 5 Runes
-  @publicFunctions N/A (Svelte Component)
-  @sideEffects Mengirim laporan shodaqoh baru beserta file bukti transfer ke server via action ?/laporShodaqoh
+  @publicFunctions printReceipt
+  @sideEffects Mengirim laporan shodaqoh baru beserta file bukti transfer ke server via action ?/laporShodaqoh, membuka modal struk dan mencetak dokumen struk resmi
 -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
@@ -21,8 +21,10 @@
 		Coins,
 		Copy,
 		ExternalLink,
+		FileText,
 		HeartHandshake,
 		Image as ImageIcon,
+		Printer,
 		QrCode,
 		Send,
 		ShieldCheck,
@@ -40,6 +42,13 @@
 
 	let isFormOpen = $state(false);
 	let copiedId = $state<string | null>(null);
+	let selectedReceipt = $state<(typeof data.riwayatSaya)[number] | null>(null);
+
+	function printReceipt() {
+		if (typeof window !== 'undefined') {
+			window.print();
+		}
+	}
 
 	// Form State
 	let formNama = $state(data.user?.namaLengkap || '');
@@ -255,9 +264,19 @@
 
 							<div class="shrink-0">
 								{#if rw.statusApproval === 'Disetujui'}
-									<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-										<CheckCircle2 class="w-3 h-3" /> Disetujui
-									</span>
+									<div class="flex items-center gap-1.5">
+										<button
+											type="button"
+											onclick={() => (selectedReceipt = rw)}
+											class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-secondary hover:bg-secondary/80 text-foreground border border-border transition-colors active:scale-95"
+											title="Lihat tanda terima resmi"
+										>
+											<FileText class="w-3 h-3 text-primary" /> Struk
+										</button>
+										<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+											<CheckCircle2 class="w-3 h-3" /> Disetujui
+										</span>
+									</div>
 								{:else if rw.statusApproval === 'Ditolak'}
 									<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
 										<XCircle class="w-3 h-3" /> Ditolak
@@ -491,6 +510,103 @@
 			<p class="text-[11px] text-foreground/60">
 				Buka aplikasi mobile banking Anda, lalu scan QRIS di atas untuk melakukan transfer infaq.
 			</p>
+		</div>
+	</div>
+{/if}
+
+<!-- MODAL STRUK DIGITAL / TANDA TERIMA RESMI (E-RECEIPT) -->
+{#if selectedReceipt}
+	<div class="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+		<div class="bg-card border border-border rounded-3xl max-w-sm w-full p-5 sm:p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 relative print:shadow-none print:border-none print:m-0 print:p-4">
+			<!-- Header Struk & Tombol Tutup -->
+			<div class="flex items-center justify-between pb-3 border-b border-border print:border-gray-200">
+				<div class="flex items-center gap-2">
+					<div class="w-8 h-8 rounded-xl bg-primary text-primary-foreground font-bold flex items-center justify-center text-xs shadow-xs">
+						SG
+					</div>
+					<div>
+						<h3 class="text-xs font-bold text-foreground leading-tight">Satu Generus</h3>
+						<p class="text-[10px] text-foreground/60">Tanda Terima Shodaqoh Resmi</p>
+					</div>
+				</div>
+
+				<button
+					type="button"
+					onclick={() => (selectedReceipt = null)}
+					class="p-1.5 rounded-xl text-foreground/50 hover:text-foreground hover:bg-secondary print:hidden"
+					aria-label="Tutup Struk"
+				>
+					<X class="w-4 h-4" />
+				</button>
+			</div>
+
+			<!-- Badan Struk / Invoice Card -->
+			<div class="space-y-3.5 text-xs">
+				<!-- Nominal Besar -->
+				<div class="bg-secondary/60 rounded-2xl p-4 text-center space-y-1 border border-border/80">
+					<span class="text-[10px] font-semibold text-foreground/60 uppercase tracking-wider">Total Shodaqoh</span>
+					<div class="text-2xl font-extrabold text-primary font-mono tracking-tight">
+						{formatRupiah(selectedReceipt.nominal)}
+					</div>
+					<div class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 mt-1">
+						<CheckCircle2 class="w-3 h-3" /> Berhasil Diverifikasi
+					</div>
+				</div>
+
+				<!-- Detail Data Transaksi -->
+				<div class="divide-y divide-border/60 text-[11px]">
+					<div class="py-2 flex items-center justify-between">
+						<span class="text-foreground/60">No. Referensi</span>
+						<span class="font-mono font-bold text-foreground">SG-SHD-{selectedReceipt.id.substring(0, 8).toUpperCase()}</span>
+					</div>
+					<div class="py-2 flex items-center justify-between">
+						<span class="text-foreground/60">Tanggal & Waktu</span>
+						<span class="font-medium text-foreground">{selectedReceipt.tanggalTransfer || '-'}</span>
+					</div>
+					<div class="py-2 flex items-center justify-between">
+						<span class="text-foreground/60">Nama Donatur</span>
+						<span class="font-bold text-foreground">{selectedReceipt.namaPengirim}</span>
+					</div>
+					<div class="py-2 flex items-center justify-between">
+						<span class="text-foreground/60">Alokasi / Jenis</span>
+						<span class="font-semibold text-foreground">{selectedReceipt.namaJenisShodaqoh}</span>
+					</div>
+					<div class="py-2 flex items-center justify-between">
+						<span class="text-foreground/60">Metode</span>
+						<span class="font-medium text-foreground">{selectedReceipt.metodePembayaran}</span>
+					</div>
+					{#if selectedReceipt.catatan}
+						<div class="py-2 flex items-start justify-between gap-3">
+							<span class="text-foreground/60 shrink-0">Niat / Doa</span>
+							<span class="text-right italic text-foreground/80">{selectedReceipt.catatan}</span>
+						</div>
+					{/if}
+				</div>
+
+				<!-- Pesan Doa / Footer Struk -->
+				<div class="p-3 rounded-xl bg-primary/5 border border-primary/15 text-center text-[10.5px] text-foreground/70 leading-relaxed italic">
+					"Alhamdulillah Jazakumullahu Khoiro atas shodaqoh dan infaq yang telah disalurkan. Semoga menjadi amal jariyah yang barokah."
+				</div>
+			</div>
+
+			<!-- Tombol Aksi Struk -->
+			<div class="flex items-center gap-2 pt-2 print:hidden">
+				<button
+					type="button"
+					onclick={() => (selectedReceipt = null)}
+					class="flex-1 py-2 rounded-xl text-xs font-semibold bg-secondary hover:bg-secondary/80 text-foreground transition-colors"
+				>
+					Tutup
+				</button>
+				<button
+					type="button"
+					onclick={printReceipt}
+					class="flex-1 py-2 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-xs flex items-center justify-center gap-1.5 active:scale-95"
+				>
+					<Printer class="w-3.5 h-3.5" />
+					<span>Cetak / PDF</span>
+				</button>
+			</div>
 		</div>
 	</div>
 {/if}

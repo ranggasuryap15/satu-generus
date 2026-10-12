@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(admin)/admin/keuangan/shodaqoh/+page.svelte
-  @purpose Halaman manajemen shodaqoh wilayah untuk admin (KU & Kyai): rekapitulasi metrik, ekspor CSV transaksi, visualisasi grafik donasi bulanan, verifikasi & approval bukti transfer, CRUD rekening/QRIS, serta isolasi alokasi jenis shodaqoh dengan preservasi tab & URL wilayah
+  @purpose Halaman manajemen shodaqoh wilayah untuk admin (KU & Kyai): rekapitulasi metrik, ekspor CSV transaksi, tanda terima/struk digital resmi, visualisasi grafik donasi bulanan, verifikasi & approval bukti transfer, CRUD rekening/QRIS, serta isolasi alokasi jenis shodaqoh dengan preservasi tab & URL wilayah
   @usedBy Route admin '/admin/keuangan/shodaqoh'
   @dependencies @lucide/svelte, $app/navigation, $app/forms (enhance), $app/state, Svelte 5 Runes, formatRupiah, $lib/components/SearchableSelect.svelte, $lib/keepScroll.ts (keepScrollSubmit)
-  @publicFunctions exportToCsv, switchTab, changeWilayah, changeStatusFilter
-  @sideEffects Melakukan approval/penolakan transaksi shodaqoh, mutasi jenis shodaqoh, pembaruan rekening/QRIS via form actions dengan menjaga scroll position dan URL tab/scope/id agar tidak terlempar ke halaman awal
+  @publicFunctions exportToCsv, switchTab, changeWilayah, changeStatusFilter, printReceiptAdmin
+  @sideEffects Melakukan approval/penolakan transaksi shodaqoh, mutasi jenis shodaqoh, pembaruan rekening/QRIS via form actions dengan menjaga scroll position dan URL tab/scope/id, ekspor CSV, serta cetak tanda terima/struk resmi
 -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
@@ -26,6 +26,7 @@
 		ExternalLink,
 		Eye,
 		FileSpreadsheet,
+		FileText,
 		Filter,
 		HandCoins,
 		HeartHandshake,
@@ -33,6 +34,7 @@
 		Landmark,
 		Layers,
 		Plus,
+		Printer,
 		QrCode,
 		Search,
 		ShieldAlert,
@@ -59,8 +61,15 @@
 	let filterStatus = $state(data.filterStatus || 'Semua');
 	let searchQuery = $state('');
 
-	// Modal Bukti Transfer Preview
+	// Modal Bukti Transfer Preview & Modal Struk Resmi
 	let previewBuktiUrl = $state<string | null>(null);
+	let selectedReceiptAdmin = $state<(typeof data.transaksiList)[number] | null>(null);
+
+	function printReceiptAdmin() {
+		if (typeof window !== 'undefined') {
+			window.print();
+		}
+	}
 
 	// Modal Form Tambah Jenis
 	let isAddJenisOpen = $state(false);
@@ -674,7 +683,21 @@
 												<span class="text-[10px] text-foreground/40 italic">Hanya KU/Kyai</span>
 											{/if}
 										{:else}
-											<span class="text-[10px] text-foreground/40">Selesai</span>
+											<div class="flex items-center justify-end gap-1.5">
+												{#if t.statusApproval === 'Disetujui'}
+													<button
+														type="button"
+														onclick={() => (selectedReceiptAdmin = t)}
+														class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-secondary hover:bg-secondary/80 text-foreground border border-border transition-colors active:scale-95"
+														title="Cetak Tanda Terima Resmi"
+													>
+														<FileText class="w-3.5 h-3.5 text-primary" />
+														<span>Struk</span>
+													</button>
+												{:else}
+													<span class="text-[10px] text-foreground/40">Ditolak</span>
+												{/if}
+											</div>
 										{/if}
 									</td>
 								</tr>
@@ -1164,6 +1187,103 @@
 					</button>
 				</div>
 			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- MODAL STRUK DIGITAL / TANDA TERIMA RESMI ADMIN (E-RECEIPT) -->
+{#if selectedReceiptAdmin}
+	<div class="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+		<div class="bg-card border border-border rounded-3xl max-w-sm w-full p-5 sm:p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 relative print:shadow-none print:border-none print:m-0 print:p-4">
+			<!-- Header Struk & Tombol Tutup -->
+			<div class="flex items-center justify-between pb-3 border-b border-border print:border-gray-200">
+				<div class="flex items-center gap-2">
+					<div class="w-8 h-8 rounded-xl bg-primary text-primary-foreground font-bold flex items-center justify-center text-xs shadow-xs">
+						SG
+					</div>
+					<div>
+						<h3 class="text-xs font-bold text-foreground leading-tight">Satu Generus</h3>
+						<p class="text-[10px] text-foreground/60">Tanda Terima Shodaqoh Resmi</p>
+					</div>
+				</div>
+
+				<button
+					type="button"
+					onclick={() => (selectedReceiptAdmin = null)}
+					class="p-1.5 rounded-xl text-foreground/50 hover:text-foreground hover:bg-secondary print:hidden"
+					aria-label="Tutup Struk"
+				>
+					<X class="w-4 h-4" />
+				</button>
+			</div>
+
+			<!-- Badan Struk / Invoice Card -->
+			<div class="space-y-3.5 text-xs">
+				<!-- Nominal Besar -->
+				<div class="bg-secondary/60 rounded-2xl p-4 text-center space-y-1 border border-border/80">
+					<span class="text-[10px] font-semibold text-foreground/60 uppercase tracking-wider">Total Shodaqoh</span>
+					<div class="text-2xl font-extrabold text-primary font-mono tracking-tight">
+						{formatRupiah(selectedReceiptAdmin.nominal)}
+					</div>
+					<div class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 mt-1">
+						<CheckCircle2 class="w-3 h-3" /> Berhasil Diverifikasi
+					</div>
+				</div>
+
+				<!-- Detail Data Transaksi -->
+				<div class="divide-y divide-border/60 text-[11px]">
+					<div class="py-2 flex items-center justify-between">
+						<span class="text-foreground/60">No. Referensi</span>
+						<span class="font-mono font-bold text-foreground">SG-SHD-{selectedReceiptAdmin.id.substring(0, 8).toUpperCase()}</span>
+					</div>
+					<div class="py-2 flex items-center justify-between">
+						<span class="text-foreground/60">Tanggal & Waktu</span>
+						<span class="font-medium text-foreground">{selectedReceiptAdmin.tanggalTransfer || '-'}</span>
+					</div>
+					<div class="py-2 flex items-center justify-between">
+						<span class="text-foreground/60">Nama Donatur</span>
+						<span class="font-bold text-foreground">{selectedReceiptAdmin.namaPengirim}</span>
+					</div>
+					<div class="py-2 flex items-center justify-between">
+						<span class="text-foreground/60">Alokasi / Jenis</span>
+						<span class="font-semibold text-foreground">{selectedReceiptAdmin.namaJenisShodaqoh}</span>
+					</div>
+					<div class="py-2 flex items-center justify-between">
+						<span class="text-foreground/60">Metode</span>
+						<span class="font-medium text-foreground">{selectedReceiptAdmin.metodePembayaran}</span>
+					</div>
+					{#if selectedReceiptAdmin.catatan}
+						<div class="py-2 flex items-start justify-between gap-3">
+							<span class="text-foreground/60 shrink-0">Niat / Doa</span>
+							<span class="text-right italic text-foreground/80">{selectedReceiptAdmin.catatan}</span>
+						</div>
+					{/if}
+				</div>
+
+				<!-- Pesan Doa / Footer Struk -->
+				<div class="p-3 rounded-xl bg-primary/5 border border-primary/15 text-center text-[10.5px] text-foreground/70 leading-relaxed italic">
+					"Alhamdulillah Jazakumullahu Khoiro atas shodaqoh dan infaq yang telah disalurkan. Semoga menjadi amal jariyah yang barokah."
+				</div>
+			</div>
+
+			<!-- Tombol Aksi Struk -->
+			<div class="flex items-center gap-2 pt-2 print:hidden">
+				<button
+					type="button"
+					onclick={() => (selectedReceiptAdmin = null)}
+					class="flex-1 py-2 rounded-xl text-xs font-semibold bg-secondary hover:bg-secondary/80 text-foreground transition-colors"
+				>
+					Tutup
+				</button>
+				<button
+					type="button"
+					onclick={printReceiptAdmin}
+					class="flex-1 py-2 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-xs flex items-center justify-center gap-1.5 active:scale-95"
+				>
+					<Printer class="w-3.5 h-3.5" />
+					<span>Cetak / PDF</span>
+				</button>
+			</div>
 		</div>
 	</div>
 {/if}
