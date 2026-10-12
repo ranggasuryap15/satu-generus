@@ -27,4 +27,13 @@
 - DILARANG KERAS menjalankan `npm run build` atau `npm run check` selama proses penulisan kode atau development lokal, kecuali diminta secara eksplisit.
 - Proses development hanya menggunakan `npm run dev` (Vite HMR).
 - Evaluasi kode cukup dilakukan dengan melihat perubahan langsung di browser atau melalui linter bawaan IDE, bukan dengan memicu proses kompilasi penuh.
-- Setelah tidak ada error, maka lakukan `git commit`, `git push`, agar terdokumentasi dengan
+- Setelah tidak ada error, maka lakukan `git commit`, `git push`, agar terdokumentasi dengan baik.
+
+## 6. Hal yang harus diperhatikan
+
+### SvelteKit Form Actions & State Management
+
+- **NO AUTO-REDIRECT:** Jangan pernah menggunakan `throw redirect(...)` atau `goto(...)` setelah eksekusi aksi CRUD (Create, Read, Update, Delete) berhasil dilakukan, kecuali saya secara spesifik memintanya. Pengguna harus tetap berada di halaman aktif.
+- **MANDATORY use:enhance:** Selalu pasang atribut `use:enhance` pada setiap tag `<form>` untuk mencegah _full page reload_ saat data dikirim.
+- **RETURN DATA, NOT REDIRECT:** Setiap fungsi di `+page.server.js` harus mengembalikan objek status/pesan (contoh: `return { success: true, message: 'Sukses' }`), bukan melempar rute baru.
+- **REACTIVE UPDATES:** Gunakan data kembalian (_ActionData_ atau _stores_) untuk memperbarui UI di halaman yang sama secara instan (contoh: menutup modal, me-reset _form_, atau memunculkan notifikasi).
