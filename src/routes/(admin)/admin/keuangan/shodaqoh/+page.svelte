@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(admin)/admin/keuangan/shodaqoh/+page.svelte
-  @purpose Halaman manajemen shodaqoh wilayah untuk admin (KU & Kyai): rekapitulasi metrik, visualisasi grafik donasi bulanan, verifikasi & approval bukti transfer, CRUD rekening/QRIS, serta isolasi alokasi jenis shodaqoh
+  @purpose Halaman manajemen shodaqoh wilayah untuk admin (KU & Kyai): rekapitulasi metrik, ekspor CSV transaksi, visualisasi grafik donasi bulanan, verifikasi & approval bukti transfer, CRUD rekening/QRIS, serta isolasi alokasi jenis shodaqoh
   @usedBy Route admin '/admin/keuangan/shodaqoh'
   @dependencies @lucide/svelte, $app/navigation, $app/forms (enhance), $app/state, Svelte 5 Runes, formatRupiah, $lib/components/SearchableSelect.svelte
-  @publicFunctions N/A (Svelte Component)
-  @sideEffects Melakukan approval/penolakan transaksi shodaqoh, mutasi jenis shodaqoh, dan pembaruan rekening/QRIS via form actions, sekaligus mempertahankan query param scope & id wilayah aktif agar tidak kembali ke wilayah default
+  @publicFunctions exportToCsv
+  @sideEffects Melakukan approval/penolakan transaksi shodaqoh, mutasi jenis shodaqoh, pembaruan rekening/QRIS via form actions, serta ekspor CSV transaksi di browser client
 -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
@@ -21,6 +21,7 @@
 		ChevronRight,
 		Clock,
 		Coins,
+		Download,
 		ExternalLink,
 		Eye,
 		FileSpreadsheet,
@@ -108,6 +109,38 @@
 			url.searchParams.set('status', status);
 		}
 		goto(url.toString());
+	}
+
+	function exportToCsv() {
+		if (!data.transaksiList || data.transaksiList.length === 0) return;
+
+		const rows: string[][] = [
+			['No', 'Tanggal Transfer', 'Nama Pengirim', 'No Telepon', 'Jenis Shodaqoh', 'Nominal (Rp)', 'Status', 'Catatan']
+		];
+
+		filteredTransaksi.forEach((t: (typeof data.transaksiList)[number], idx: number) => {
+			rows.push([
+				String(idx + 1),
+				`"${t.tanggalTransfer || '-'}"`,
+				`"${(t.namaPengirim || '').replace(/"/g, '""')}"`,
+				`"${(t.noTelepon || '-').replace(/"/g, '""')}"`,
+				`"${(t.namaJenisShodaqoh || '').replace(/"/g, '""')}"`,
+				String(t.nominal || 0),
+				t.statusApproval,
+				`"${(t.catatan || '').replace(/"/g, '""')}"`
+			]);
+		});
+
+		const csvContent = '\uFEFF' + rows.map((r) => r.join(',')).join('\r\n');
+		const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+		const url = URL.createObjectURL(blob);
+		const link = document.createElement('a');
+		link.href = url;
+		link.setAttribute('download', `Mutasi-Shodaqoh-${data.activeScope}-${(data.activeWilayahName || 'Wilayah').replace(/\s+/g, '_')}-${new Date().toISOString().slice(0, 10)}.csv`);
+		document.body.appendChild(link);
+		link.click();
+		document.body.removeChild(link);
+		URL.revokeObjectURL(url);
 	}
 
 	// Pastikan URL tetap menunjuk wilayah aktif setelah action sukses, sehingga tidak
@@ -466,14 +499,27 @@
 					{/each}
 				</div>
 
-				<div class="relative w-full sm:w-64">
-					<Search class="w-4 h-4 text-foreground/40 absolute left-3 top-1/2 -translate-y-1/2" />
-					<input
-						type="search"
-						bind:value={searchQuery}
-						placeholder="Cari pengirim, jenis..."
-						class="w-full bg-secondary/60 border border-border rounded-xl pl-9 pr-3 py-1.5 text-xs text-foreground placeholder:text-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary"
-					/>
+				<div class="flex items-center gap-2 w-full sm:w-auto">
+					<div class="relative flex-1 sm:w-60">
+						<Search class="w-4 h-4 text-foreground/40 absolute left-3 top-1/2 -translate-y-1/2" />
+						<input
+							type="search"
+							bind:value={searchQuery}
+							placeholder="Cari pengirim, jenis..."
+							class="w-full bg-secondary/60 border border-border rounded-xl pl-9 pr-3 py-1.5 text-xs text-foreground placeholder:text-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary"
+						/>
+					</div>
+
+					<button
+						type="button"
+						onclick={exportToCsv}
+						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-card hover:bg-secondary text-foreground text-xs font-semibold shrink-0 transition-colors shadow-xs"
+						title="Unduh data transaksi shodaqoh dalam format CSV / Excel"
+					>
+						<Download class="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+						<span class="hidden sm:inline">Ekspor CSV</span>
+						<span class="sm:hidden">CSV</span>
+					</button>
 				</div>
 			</div>
 

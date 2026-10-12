@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(admin)/admin/keuangan/fr-jamaah/+page.svelte
-  @purpose Halaman FR Jamaah: daftar compact mobile + tabel desktop data jamaah wajib isrun dengan inline editing nominal shodaqoh, dan sticky floating save bar di atas bottom navbar mobile, diproteksi khusus KU (read-only bagi Kyai & Aghnia)
+  @purpose Halaman FR Jamaah: daftar compact mobile + tabel desktop data jamaah wajib isrun dengan inline editing nominal shodaqoh, ekspor data CSV/Excel, dan sticky floating save bar di atas bottom navbar mobile, diproteksi khusus KU (read-only bagi Kyai & Aghnia)
   @usedBy Route admin '/admin/keuangan/fr-jamaah'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
-  @publicFunctions handleNominalChange, handleCatatanChange, resetChanges, submitSave
-  @sideEffects Mengirim form batch upsert transaksi FR via action ?/saveFr dengan menjaga scroll; input nominal memakai keyboard numerik (inputmode=numeric)
+  @publicFunctions handleNominalChange, handleCatatanChange, resetChanges, submitSave, exportToCsv
+  @sideEffects Mengirim form batch upsert transaksi FR via action ?/saveFr dengan menjaga scroll; ekspor CSV langsung di browser client; input nominal memakai keyboard numerik (inputmode=numeric)
 -->
 <script lang="ts">
 	import {
@@ -12,6 +12,7 @@
 		Calendar,
 		Check,
 		ChevronDown,
+		Download,
 		Filter,
 		HandCoins,
 		Lock,
@@ -201,6 +202,42 @@
 			isSaving = false;
 		}
 	});
+
+	function exportToCsv() {
+		if (!data.jamaahList || data.jamaahList.length === 0) return;
+
+		const namaBulan = bulanNames[data.bulan - 1] || `Bulan ${data.bulan}`;
+		const rows: string[][] = [
+			['No', 'Nama Jamaah', 'Status Hubungan', 'Generus', 'Kepala Keluarga', 'Periode', 'Nominal FR (Rp)', 'Status Bayar', 'Catatan']
+		];
+
+		filteredJamaah.forEach((j: JamaahItem, idx: number) => {
+			const effNominal = getEffectiveNominal(j);
+			const effCatatan = getEffectiveCatatan(j);
+			rows.push([
+				String(idx + 1),
+				`"${(j.namaLengkap || '').replace(/"/g, '""')}"`,
+				`"${(j.statusHubungan || '').replace(/"/g, '""')}"`,
+				`"${(j.statusGenerus || '-').replace(/"/g, '""')}"`,
+				`"${(j.kepalaKeluargaNama || '-').replace(/"/g, '""')}"`,
+				`"${namaBulan} ${data.tahun}"`,
+				String(effNominal || 0),
+				effNominal > 0 ? 'Lunas' : 'Belum',
+				`"${(effCatatan || '').replace(/"/g, '""')}"`
+			]);
+		});
+
+		const csvContent = '\uFEFF' + rows.map((r) => r.join(',')).join('\r\n');
+		const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+		const url = URL.createObjectURL(blob);
+		const link = document.createElement('a');
+		link.href = url;
+		link.setAttribute('download', `FR-Jamaah-${(data.selectedKelompokNama || 'Kelompok').replace(/\s+/g, '_')}-${namaBulan}-${data.tahun}.csv`);
+		document.body.appendChild(link);
+		link.click();
+		document.body.removeChild(link);
+		URL.revokeObjectURL(url);
+	}
 </script>
 
 <div class="space-y-6 pb-24">
@@ -372,15 +409,28 @@
 					</p>
 				</div>
 
-				<!-- Pencarian Cepat Nama Jamaah -->
-				<div class="relative w-full sm:w-64">
-					<Search class="w-4 h-4 text-foreground/40 absolute left-3 top-1/2 -translate-y-1/2" />
-					<input
-						type="text"
-						bind:value={searchQuery}
-						placeholder="Cari nama jamaah / KK..."
-						class="w-full bg-secondary/50 border border-border rounded-xl pl-9 pr-3.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-					/>
+				<!-- Pencarian Cepat Nama Jamaah & Tombol Ekspor -->
+				<div class="flex items-center gap-2 w-full sm:w-auto">
+					<div class="relative flex-1 sm:w-60">
+						<Search class="w-4 h-4 text-foreground/40 absolute left-3 top-1/2 -translate-y-1/2" />
+						<input
+							type="text"
+							bind:value={searchQuery}
+							placeholder="Cari nama jamaah / KK..."
+							class="w-full bg-secondary/50 border border-border rounded-xl pl-9 pr-3.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+						/>
+					</div>
+
+					<button
+						type="button"
+						onclick={exportToCsv}
+						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-card hover:bg-secondary text-foreground text-xs font-semibold shrink-0 transition-colors shadow-xs"
+						title="Unduh daftar FR Jamaah dalam format CSV / Excel"
+					>
+						<Download class="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+						<span class="hidden sm:inline">Ekspor CSV</span>
+						<span class="sm:hidden">CSV</span>
+					</button>
 				</div>
 			</div>
 

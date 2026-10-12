@@ -1,16 +1,17 @@
 <!--
   @file src/routes/(admin)/admin/keuangan/laporan-fr/+page.svelte
-  @purpose Halaman Laporan FR: menyajikan rekapitulasi real-time angka shodaqoh FR jamaah berjenjang (Desa, Kelompok, Daerah) dengan tombol langsung menuju detail input FR Jamaah
+  @purpose Halaman Laporan FR: menyajikan rekapitulasi real-time angka shodaqoh FR jamaah berjenjang (Desa, Kelompok, Daerah) dengan tombol ekspor CSV dan tautan langsung ke detail input FR Jamaah
   @usedBy Route admin '/admin/keuangan/laporan-fr'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte
-  @publicFunctions applyFilter, formatRupiah
-  @sideEffects Navigasi antar periode atau tingkat wilayah via URL query parameter
+  @publicFunctions applyFilter, formatRupiah, exportToCsv
+  @sideEffects Navigasi antar periode via URL query parameter dan pengunduhan file CSV di browser client
 -->
 <script lang="ts">
 	import {
 		Building2,
 		Calendar,
 		ChevronRight,
+		Download,
 		ExternalLink,
 		FileSpreadsheet,
 		Filter,
@@ -89,6 +90,51 @@
 			? (data.bulananList || []).reduce((acc: number, b: any) => acc + b.totalNominal, 0)
 			: (data.targetKelompokList || []).reduce((acc: number, k: any) => acc + k.totalNominal, 0)
 	);
+
+	function exportToCsv() {
+		let rows: string[][] = [];
+		const namaBulan = bulanNames[selectedBulan - 1] || `Bulan ${selectedBulan}`;
+
+		if (data.scopeLevel === 'Kelompok') {
+			rows.push(['No', 'Bulan', 'Tahun', 'Total Jamaah Lunas', 'Total Nominal (Rp)']);
+			(data.bulananList || []).forEach((b: any, idx: number) => {
+				rows.push([
+					String(idx + 1),
+					b.namaBulan,
+					String(data.tahun),
+					String(b.totalWajib || 0),
+					String(b.totalNominal || 0)
+				]);
+			});
+		} else {
+			rows.push(['No', 'Kelompok', 'Desa', 'Daerah', 'Periode', 'Target Jamaah', 'Jamaah Lunas', 'Persentase', 'Total Nominal (Rp)']);
+			(data.targetKelompokList || []).forEach((k: any, idx: number) => {
+				const pct = k.totalWajib > 0 ? Math.round((k.totalLunas / k.totalWajib) * 100) : 0;
+				rows.push([
+					String(idx + 1),
+					`"${(k.nama || '').replace(/"/g, '""')}"`,
+					`"${(k.desaNama || '').replace(/"/g, '""')}"`,
+					`"${(k.daerahNama || '').replace(/"/g, '""')}"`,
+					`"${namaBulan} ${data.tahun}"`,
+					String(k.totalWajib || 0),
+					String(k.totalLunas || 0),
+					`${pct}%`,
+					String(k.totalNominal || 0)
+				]);
+			});
+		}
+
+		const csvContent = '\uFEFF' + rows.map((r) => r.join(',')).join('\r\n');
+		const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+		const url = URL.createObjectURL(blob);
+		const link = document.createElement('a');
+		link.href = url;
+		link.setAttribute('download', `Laporan-FR-${data.scopeLevel}-${namaBulan}-${data.tahun}.csv`);
+		document.body.appendChild(link);
+		link.click();
+		document.body.removeChild(link);
+		URL.revokeObjectURL(url);
+	}
 </script>
 
 <div class="space-y-6 pb-20">
@@ -104,14 +150,26 @@
 			</p>
 		</div>
 
-		<!-- Tombol Cepat ke FR Jamaah -->
-		<a
-			href="/admin/keuangan/fr-jamaah"
-			class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 transition-colors shadow-xs w-fit"
-		>
-			<HandCoins class="w-4 h-4" />
-			<span>Kelola FR Jamaah</span>
-		</a>
+		<!-- Tombol Aksi Header -->
+		<div class="flex items-center gap-2 flex-wrap">
+			<button
+				type="button"
+				onclick={exportToCsv}
+				class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-border bg-card hover:bg-secondary/80 text-foreground font-semibold text-xs transition-colors shadow-xs"
+				title="Unduh rekap dalam format CSV / Excel"
+			>
+				<Download class="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+				<span>Ekspor CSV</span>
+			</button>
+
+			<a
+				href="/admin/keuangan/fr-jamaah"
+				class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 transition-colors shadow-xs"
+			>
+				<HandCoins class="w-4 h-4" />
+				<span>Kelola FR Jamaah</span>
+			</a>
+		</div>
 	</div>
 
 	<!-- FILTER PERIODE & WILAYAH -->

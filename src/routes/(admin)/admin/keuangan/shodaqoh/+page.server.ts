@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(admin)/admin/keuangan/shodaqoh/+page.server.ts
- * @purpose Backend controller manajemen shodaqoh berjenjang wilayah (Kelompok, Desa, Daerah): rekapitulasi statistik & grafik transaksi, approval bukti transfer, CRUD rekening & QRIS, serta isolasi jenis shodaqoh khusus KU dan Kyai. Semua action mengembalikan scope & id wilayah aktif agar URL tidak ter-reset ke wilayah default
+ * @purpose Backend controller manajemen shodaqoh berjenjang wilayah (Kelompok, Desa, Daerah): rekapitulasi statistik & grafik transaksi, approval bukti transfer, CRUD rekening & QRIS, serta isolasi jenis shodaqoh khusus KU dan Kyai. Semua action mengembalikan scope, id wilayah, dan tab aktif agar URL dan state tab tidak ter-reset ke tab default
  * @usedBy src/routes/(admin)/admin/keuangan/shodaqoh/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm, @sveltejs/kit, node:fs, node:path
  * @publicFunctions load, actions (approve, reject, addJenis, deleteJenis, saveRekening, deleteRekening)
