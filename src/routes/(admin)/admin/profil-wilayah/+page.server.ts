@@ -1,8 +1,8 @@
 /**
  * @file src/routes/(admin)/admin/profil-wilayah/+page.server.ts
- * @purpose Backend controller halaman dedicated Profil Wilayah: memuat data lokasi, sub-wilayah, dan rekening/QRIS shodaqoh dengan proteksi wewenang KU/Superadmin untuk transaksi finansial
+ * @purpose Backend controller halaman dedicated Profil Wilayah: memuat data lokasi, sub-wilayah, rekening/QRIS shodaqoh (Transfer Bank / QRIS upload file/tautan), dan alokasi kustom terlindungi scope wilayah dengan wewenang KU, Kyai, Sekretaris, & Superadmin
  * @usedBy src/routes/(admin)/admin/profil-wilayah/+page.svelte
- * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm, @sveltejs/kit
+ * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm, @sveltejs/kit, node:fs, node:path
  * @publicFunctions load, actions (updateLokasi, addRekening, updateRekening, deleteRekening)
  * @sideEffects Query dan mutasi SQLite pada tabel kelompok, desa, daerah, dan rekening_wilayah (minimum I/O & index-optimized)
  */
@@ -13,6 +13,44 @@ import { db } from '$lib/db';
 import { daerah, desa, kelompok, subKelompok, rekeningWilayah } from '$lib/db/schema';
 import { and, desc, eq } from 'drizzle-orm';
 import { getAdminScope, getAccessibleWilayah, canManageRekening } from '$lib/server/scope';
+import fs from 'node:fs';
+import path from 'node:path';
+
+async function saveUploadedQris(fileOrBase64OrUrl: any): Promise<string | null> {
+	if (!fileOrBase64OrUrl) return null;
+	const uploadDir = path.resolve(process.cwd(), 'static/uploads/qris');
+	if (!fs.existsSync(uploadDir)) {
+		fs.mkdirSync(uploadDir, { recursive: true });
+	}
+
+	// 1. Jika file multipart File
+	if (fileOrBase64OrUrl instanceof File && fileOrBase64OrUrl.size > 0) {
+		const rawExt = fileOrBase64OrUrl.type.split('/')[1] || 'png';
+		const ext = rawExt === 'jpeg' ? 'jpg' : rawExt;
+		const filename = `qris_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
+		const arrayBuffer = await fileOrBase64OrUrl.arrayBuffer();
+		fs.writeFileSync(path.join(uploadDir, filename), Buffer.from(arrayBuffer));
+		return `/uploads/qris/${filename}`;
+	}
+
+	// 2. Jika string base64 data URL
+	if (typeof fileOrBase64OrUrl === 'string') {
+		const trimmed = fileOrBase64OrUrl.trim();
+		if (trimmed.startsWith('data:image/')) {
+			const matches = trimmed.match(/^data:image\/([a-zA-Z0-9-+]+);base64,(.+)$/);
+			if (matches) {
+				const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
+				const buffer = Buffer.from(matches[2], 'base64');
+				const filename = `qris_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
+				fs.writeFileSync(path.join(uploadDir, filename), buffer);
+				return `/uploads/qris/${filename}`;
+			}
+		}
+		return trimmed || null;
+	}
+
+	return null;
+}
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	if (!locals.user || !locals.isAdmin) {
@@ -185,6 +223,16 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		}
 	}
 
+	// Ambil alokasi kustom unik yang sudah tersimpan di wilayah ini (hanya scope wilayah ini, tidak bocor ke wilayah lain)
+	const standardAlokasi = ['Infaq/Shodaqoh', 'Pembangunan', 'Lainnya'];
+	const customAlokasiList = Array.from(
+		new Set(
+			daftarRekening
+				.map((r) => r.tipeTujuan?.trim())
+				.filter((t): t is string => Boolean(t && !standardAlokasi.includes(t)))
+		)
+	);
+
 	return {
 		adminScope,
 		accessibleWilayah,
@@ -192,6 +240,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		activeId,
 		profilData,
 		daftarRekening,
+		customAlokasiList,
 		subWilayahList,
 		canManageFinance
 	};
@@ -258,7 +307,7 @@ export const actions: Actions = {
 	},
 
 	/**
-	 * Menambahkan rekening shodaqoh atau QRIS baru (Khusus KU / Superadmin)
+	 * Menambahkan rekening shodaqoh atau QRIS baru (Khusus KU / Kyai / Sekretaris / Superadmin)
 	 */
 	addRekening: async ({ request, locals }) => {
 		if (!locals.user || !locals.isAdmin) {
@@ -272,19 +321,44 @@ export const actions: Actions = {
 		const canManage = canManageRekening(locals.roles || [], scope, id);
 		if (!canManage) {
 			return fail(403, {
-				error: 'Akses ditolak: Hanya pengurus KU/Bendahara atau Superadmin yang berwenang menambah rekening shodaqoh.'
+				error: 'Akses ditolak: Hanya pengurus KU/Bendahara, Kyai, Sekretaris, atau Superadmin yang berwenang menambah rekening shodaqoh.'
 			});
 		}
 
-		const namaBank = String(formData.get('namaBank') || '').trim();
-		const nomorRekening = String(formData.get('nomorRekening') || '').trim();
+		const metode = String(formData.get('metode') || 'bank'); // 'bank' | 'qris'
 		const atasNama = String(formData.get('atasNama') || '').trim();
-		const tipeTujuan = String(formData.get('tipeTujuan') || 'Infaq & Shodaqoh').trim();
-		const qrisImageUrl = String(formData.get('qrisImageUrl') || '').trim() || null;
+		const tipeTujuan = String(formData.get('tipeTujuan') || 'Infaq/Shodaqoh').trim();
 		const keterangan = String(formData.get('keterangan') || '').trim() || null;
 
-		if (!namaBank || !nomorRekening || !atasNama) {
-			return fail(400, { error: 'Nama bank, nomor rekening, dan atas nama rekening wajib diisi.' });
+		let namaBank = '';
+		let nomorRekening = '';
+		let qrisImageUrl: string | null = null;
+
+		if (metode === 'qris') {
+			namaBank = String(formData.get('namaBank') || 'QRIS').trim() || 'QRIS';
+			nomorRekening = String(formData.get('nomorRekening') || '-').trim() || '-';
+
+			if (!atasNama) {
+				return fail(400, { error: 'Atas nama QRIS wajib diisi.' });
+			}
+
+			const qrisFile = formData.get('qrisFile');
+			const qrisUrlText = String(formData.get('qrisImageUrl') || '').trim();
+			qrisImageUrl = await saveUploadedQris(
+				qrisFile instanceof File && qrisFile.size > 0 ? qrisFile : qrisUrlText
+			);
+
+			if (!qrisImageUrl) {
+				return fail(400, { error: 'Gambar QRIS wajib diunggah atau diisi tautan gambarnya.' });
+			}
+		} else {
+			// Transfer Bank
+			namaBank = String(formData.get('namaBank') || '').trim();
+			nomorRekening = String(formData.get('nomorRekening') || '').trim();
+
+			if (!namaBank || !nomorRekening || !atasNama) {
+				return fail(400, { error: 'Nama bank, nomor rekening, dan atas nama rekening wajib diisi.' });
+			}
 		}
 
 		db.insert(rekeningWilayah)
@@ -304,11 +378,11 @@ export const actions: Actions = {
 			})
 			.run();
 
-		return { success: true, message: 'Rekening shodaqoh berhasil ditambahkan.' };
+		return { success: true, message: 'Rekening/QRIS shodaqoh berhasil ditambahkan.' };
 	},
 
 	/**
-	 * Memperbarui rekening shodaqoh atau QRIS (Khusus KU / Superadmin)
+	 * Memperbarui rekening shodaqoh atau QRIS (Khusus KU / Kyai / Sekretaris / Superadmin)
 	 */
 	updateRekening: async ({ request, locals }) => {
 		if (!locals.user || !locals.isAdmin) {
@@ -323,7 +397,7 @@ export const actions: Actions = {
 		const canManage = canManageRekening(locals.roles || [], scope, id);
 		if (!canManage) {
 			return fail(403, {
-				error: 'Akses ditolak: Hanya pengurus KU/Bendahara atau Superadmin yang berwenang memperbarui rekening shodaqoh.'
+				error: 'Akses ditolak: Hanya pengurus KU/Bendahara, Kyai, Sekretaris, atau Superadmin yang berwenang memperbarui rekening shodaqoh.'
 			});
 		}
 
@@ -332,16 +406,44 @@ export const actions: Actions = {
 			return fail(404, { error: 'Data rekening tidak ditemukan.' });
 		}
 
-		const namaBank = String(formData.get('namaBank') || '').trim();
-		const nomorRekening = String(formData.get('nomorRekening') || '').trim();
+		const metode = String(formData.get('metode') || 'bank');
 		const atasNama = String(formData.get('atasNama') || '').trim();
-		const tipeTujuan = String(formData.get('tipeTujuan') || 'Infaq & Shodaqoh').trim();
-		const qrisImageUrl = String(formData.get('qrisImageUrl') || '').trim() || null;
+		const tipeTujuan = String(formData.get('tipeTujuan') || 'Infaq/Shodaqoh').trim();
 		const keterangan = String(formData.get('keterangan') || '').trim() || null;
 		const isActive = formData.get('isActive') === '1' || formData.get('isActive') === 'true';
 
-		if (!namaBank || !nomorRekening || !atasNama) {
-			return fail(400, { error: 'Nama bank, nomor rekening, dan atas nama rekening wajib diisi.' });
+		let namaBank = '';
+		let nomorRekening = '';
+		let qrisImageUrl: string | null = existing.qrisImageUrl;
+
+		if (metode === 'qris') {
+			namaBank = String(formData.get('namaBank') || 'QRIS').trim() || 'QRIS';
+			nomorRekening = String(formData.get('nomorRekening') || '-').trim() || '-';
+
+			if (!atasNama) {
+				return fail(400, { error: 'Atas nama QRIS wajib diisi.' });
+			}
+
+			const qrisFile = formData.get('qrisFile');
+			const qrisUrlText = String(formData.get('qrisImageUrl') || '').trim();
+			if ((qrisFile instanceof File && qrisFile.size > 0) || qrisUrlText) {
+				qrisImageUrl = await saveUploadedQris(
+					qrisFile instanceof File && qrisFile.size > 0 ? qrisFile : qrisUrlText
+				);
+			}
+
+			if (!qrisImageUrl) {
+				return fail(400, { error: 'Gambar QRIS wajib diunggah atau diisi tautan gambarnya.' });
+			}
+		} else {
+			// Transfer Bank
+			namaBank = String(formData.get('namaBank') || '').trim();
+			nomorRekening = String(formData.get('nomorRekening') || '').trim();
+			qrisImageUrl = null;
+
+			if (!namaBank || !nomorRekening || !atasNama) {
+				return fail(400, { error: 'Nama bank, nomor rekening, dan atas nama rekening wajib diisi.' });
+			}
 		}
 
 		db.update(rekeningWilayah)
@@ -357,7 +459,7 @@ export const actions: Actions = {
 			.where(eq(rekeningWilayah.id, rekeningId))
 			.run();
 
-		return { success: true, message: 'Rekening shodaqoh berhasil diperbarui.' };
+		return { success: true, message: 'Rekening/QRIS shodaqoh berhasil diperbarui.' };
 	},
 
 	/**

@@ -1,9 +1,9 @@
 <!--
   @file src/routes/(admin)/admin/profil-wilayah/+page.svelte
-  @purpose Halaman dedicated profil wilayah (Kelompok/Desa/Daerah) untuk manajemen lokasi geotagging tempat pengajian, rekening/QRIS shodaqoh berotoritas KU/Superadmin, hierarki sub-wilayah, dropdown pencarian interaktif bertingkat, breadcrumbs navigasi, dan tombol kembali ke tingkat wilayah sebelumnya
+  @purpose Halaman dedicated profil wilayah (Kelompok/Desa/Daerah) untuk manajemen lokasi geotagging tempat pengajian, rekening Bank & QRIS shodaqoh berotoritas KU/Kyai/Sekretaris/Superadmin dengan opsi alokasi custom terisolasi, hierarki sub-wilayah, dropdown pencarian interaktif bertingkat, breadcrumbs navigasi, dan tombol kembali ke tingkat wilayah sebelumnya
   @usedBy Route admin '/admin/profil-wilayah'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/LocationPicker.svelte, $lib/components/Pagination.svelte, $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
-  @publicFunctions openLocationModal, closeLocationModal, openAddRekeningModal, closeAddRekeningModal, openEditRekeningModal, closeEditRekeningModal, copyToClipboard
+  @publicFunctions openLocationModal, closeLocationModal, openAddRekeningModal, closeAddRekeningModal, openEditRekeningModal, closeEditRekeningModal, copyToClipboard, handleQrisFileChange
   @sideEffects Mengirim form updateLokasi, addRekening, updateRekening, deleteRekening via enhance tanpa reload kasar dan menjaga scroll
 -->
 <script lang="ts">
@@ -27,7 +27,9 @@
 		X,
 		Copy,
 		Check,
-		Layers
+		Layers,
+		Upload,
+		Image as ImageIcon
 	} from '@lucide/svelte';
 	import type { PageData, ActionData } from './$types';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
@@ -73,17 +75,20 @@
 	let editRadiusMeter = $state(100);
 	let editGmapsUrl = $state('');
 
-	// State Modal Rekening
+	// State Modal Rekening / QRIS
 	let showRekeningModal = $state(false);
 	let isEditingRekening = $state(false);
 	let editRekeningId = $state('');
+	let inputMetode = $state<'bank' | 'qris'>('bank');
 	let inputNamaBank = $state('');
 	let inputNomorRekening = $state('');
 	let inputAtasNama = $state('');
-	let inputTipeTujuan = $state('Infaq & Shodaqoh');
+	let inputTipeTujuan = $state('Infaq/Shodaqoh');
 	let inputQrisImageUrl = $state('');
 	let inputKeterangan = $state('');
 	let inputIsActive = $state(true);
+	let inputQrisMode = $state<'upload' | 'url'>('upload');
+	let qrisFilePreview = $state<string | null>(null);
 
 	// State Modal Preview QRIS
 	let previewQrisUrl = $state<string | null>(null);
@@ -116,11 +121,14 @@
 	function openAddRekeningModal() {
 		isEditingRekening = false;
 		editRekeningId = '';
+		inputMetode = 'bank';
 		inputNamaBank = '';
 		inputNomorRekening = '';
 		inputAtasNama = '';
-		inputTipeTujuan = 'Infaq & Shodaqoh';
+		inputTipeTujuan = 'Infaq/Shodaqoh';
 		inputQrisImageUrl = '';
+		qrisFilePreview = null;
+		inputQrisMode = 'upload';
 		inputKeterangan = '';
 		inputIsActive = true;
 		showRekeningModal = true;
@@ -129,11 +137,23 @@
 	function openEditRekeningModal(rek: (typeof data.daftarRekening)[number]) {
 		isEditingRekening = true;
 		editRekeningId = rek.id;
-		inputNamaBank = rek.namaBank;
-		inputNomorRekening = rek.nomorRekening;
+		if (rek.qrisImageUrl || rek.namaBank?.toUpperCase() === 'QRIS') {
+			inputMetode = 'qris';
+			inputNamaBank = rek.namaBank || 'QRIS';
+			inputNomorRekening = rek.nomorRekening === '-' ? '' : rek.nomorRekening;
+			inputQrisImageUrl = rek.qrisImageUrl || '';
+			qrisFilePreview = rek.qrisImageUrl || null;
+			inputQrisMode = rek.qrisImageUrl ? 'url' : 'upload';
+		} else {
+			inputMetode = 'bank';
+			inputNamaBank = rek.namaBank;
+			inputNomorRekening = rek.nomorRekening;
+			inputQrisImageUrl = '';
+			qrisFilePreview = null;
+			inputQrisMode = 'upload';
+		}
 		inputAtasNama = rek.atasNama;
-		inputTipeTujuan = rek.tipeTujuan || 'Infaq & Shodaqoh';
-		inputQrisImageUrl = rek.qrisImageUrl || '';
+		inputTipeTujuan = rek.tipeTujuan || 'Infaq/Shodaqoh';
 		inputKeterangan = rek.keterangan || '';
 		inputIsActive = rek.isActive ?? true;
 		showRekeningModal = true;
@@ -141,6 +161,20 @@
 
 	function closeRekeningModal() {
 		showRekeningModal = false;
+	}
+
+	function handleQrisFileChange(event: Event) {
+		const target = event.target as HTMLInputElement;
+		const file = target.files?.[0];
+		if (file) {
+			const reader = new FileReader();
+			reader.onload = (e) => {
+				qrisFilePreview = (e.target?.result as string) || null;
+			};
+			reader.readAsDataURL(file);
+		} else {
+			qrisFilePreview = null;
+		}
 	}
 
 	async function copyToClipboard(text: string, id: string) {
@@ -198,6 +232,14 @@
 			sublabel: k.lokasiNama || undefined
 		}))
 	);
+
+	const standardAlokasi = ['Infaq/Shodaqoh', 'Pembangunan', 'Lainnya'];
+	const alokasiOptions = $derived([
+		...standardAlokasi.map((a) => ({ value: a, label: a })),
+		...(data.customAlokasiList || [])
+			.filter((a: string) => !standardAlokasi.includes(a))
+			.map((a: string) => ({ value: a, label: a, sublabel: 'Kustom Wilayah Ini' }))
+	]);
 
 	function onSelectDaerah(val: string | number) {
 		selectedDaerahId = val;
@@ -547,20 +589,26 @@
 								<div class="bg-secondary/40 rounded-lg p-2.5 space-y-1">
 									<div class="flex items-center justify-between gap-2">
 										<span class="font-mono text-sm font-bold text-foreground tracking-wide select-all">
-											{rek.nomorRekening}
-										</span>
-										<button
-											type="button"
-											onclick={() => copyToClipboard(rek.nomorRekening, rek.id)}
-											class="p-1 text-foreground/50 hover:text-foreground transition-colors cursor-pointer"
-											title="Salin Nomor Rekening"
-										>
-											{#if copiedRekeningId === rek.id}
-												<Check class="w-3.5 h-3.5 text-emerald-500" />
+											{#if rek.qrisImageUrl && (!rek.nomorRekening || rek.nomorRekening === '-')}
+												QRIS Shodaqoh Digital
 											{:else}
-												<Copy class="w-3.5 h-3.5" />
+												{rek.nomorRekening}
 											{/if}
-										</button>
+										</span>
+										{#if rek.nomorRekening && rek.nomorRekening !== '-'}
+											<button
+												type="button"
+												onclick={() => copyToClipboard(rek.nomorRekening, rek.id)}
+												class="p-1 text-foreground/50 hover:text-foreground transition-colors cursor-pointer"
+												title="Salin Nomor Rekening"
+											>
+												{#if copiedRekeningId === rek.id}
+													<Check class="w-3.5 h-3.5 text-emerald-500" />
+												{:else}
+													<Copy class="w-3.5 h-3.5" />
+												{/if}
+											</button>
+										{/if}
 									</div>
 									<p class="text-xs text-foreground/60 truncate font-medium">a.n. {rek.atasNama}</p>
 								</div>
@@ -798,9 +846,19 @@
 		<div class="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
 			<div class="flex items-center justify-between pb-3 border-b border-border">
 				<div class="flex items-center gap-2">
-					<CreditCard class="w-5 h-5 text-primary" />
+					{#if inputMetode === 'qris'}
+						<QrCode class="w-5 h-5 text-primary" />
+					{:else}
+						<CreditCard class="w-5 h-5 text-primary" />
+					{/if}
 					<h3 class="font-bold text-base text-foreground">
-						{isEditingRekening ? 'Ubah Rekening Shodaqoh' : 'Tambah Rekening Shodaqoh'}
+						{isEditingRekening
+							? inputMetode === 'qris'
+								? 'Ubah QRIS Shodaqoh'
+								: 'Ubah Rekening Bank'
+							: inputMetode === 'qris'
+								? 'Tambah QRIS Shodaqoh'
+								: 'Tambah Rekening Bank'}
 					</h3>
 				</div>
 				<button
@@ -815,90 +873,203 @@
 			<form
 				method="POST"
 				action={isEditingRekening ? '?/updateRekening' : '?/addRekening'}
+				enctype="multipart/form-data"
 				use:enhance={keepScrollSubmit()}
 				class="space-y-3.5"
 			>
 				<input type="hidden" name="scope" value={data.activeScope} />
 				<input type="hidden" name="id" value={data.activeId} />
+				<input type="hidden" name="metode" value={inputMetode} />
 				{#if isEditingRekening}
 					<input type="hidden" name="rekeningId" value={editRekeningId} />
 				{/if}
 
+				<!-- 1. PILIHAN METODE (BANK VS QRIS) DI PALING ATAS -->
 				<div>
-					<label for="inputNamaBank" class="block text-xs font-semibold text-foreground mb-1">
-						Nama Bank / E-Wallet / Provider *
-					</label>
-					<input
-						type="text"
-						id="inputNamaBank"
-						name="namaBank"
-						bind:value={inputNamaBank}
-						placeholder="Misal: Bank Syariah Indonesia (BSI), BCA, QRIS Mandiri"
-						required
-						class="w-full bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-					/>
+					<span class="block text-xs font-semibold text-foreground mb-1.5">
+						Metode Transaksi Shodaqoh *
+					</span>
+					<div class="grid grid-cols-2 gap-2 p-1 bg-secondary/50 rounded-xl border border-border">
+						<button
+							type="button"
+							onclick={() => (inputMetode = 'bank')}
+							class="flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all {inputMetode === 'bank' ? 'bg-card text-foreground shadow-xs border border-border' : 'text-foreground/60 hover:text-foreground'}"
+						>
+							<CreditCard class="w-4 h-4 {inputMetode === 'bank' ? 'text-primary' : ''}" />
+							<span>Transfer Bank</span>
+						</button>
+						<button
+							type="button"
+							onclick={() => (inputMetode = 'qris')}
+							class="flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all {inputMetode === 'qris' ? 'bg-card text-foreground shadow-xs border border-border' : 'text-foreground/60 hover:text-foreground'}"
+						>
+							<QrCode class="w-4 h-4 {inputMetode === 'qris' ? 'text-primary' : ''}" />
+							<span>QRIS Shodaqoh</span>
+						</button>
+					</div>
 				</div>
 
-				<div>
-					<label for="inputNomorRekening" class="block text-xs font-semibold text-foreground mb-1">
-						Nomor Rekening / No. VA *
-					</label>
-					<input
-						type="text"
-						id="inputNomorRekening"
-						name="nomorRekening"
-						bind:value={inputNomorRekening}
-						placeholder="Misal: 7123456789 atau 081234567890"
-						required
-						class="w-full font-mono bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-					/>
-				</div>
+				<!-- 2. FORM KHUSUS TRANSFER BANK -->
+				{#if inputMetode === 'bank'}
+					<div>
+						<label for="inputNamaBank" class="block text-xs font-semibold text-foreground mb-1">
+							Nama Bank / E-Wallet *
+						</label>
+						<input
+							type="text"
+							id="inputNamaBank"
+							name="namaBank"
+							bind:value={inputNamaBank}
+							placeholder="Misal: Bank Syariah Indonesia (BSI), BCA, Bank Mandiri"
+							required
+							class="w-full bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+						/>
+					</div>
 
-				<div>
-					<label for="inputAtasNama" class="block text-xs font-semibold text-foreground mb-1">
-						Atas Nama Rekening *
-					</label>
-					<input
-						type="text"
-						id="inputAtasNama"
-						name="atasNama"
-						bind:value={inputAtasNama}
-						placeholder="Misal: Kas Infaq Majelis Kebayoran"
-						required
-						class="w-full bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-					/>
-				</div>
+					<div>
+						<label for="inputNomorRekening" class="block text-xs font-semibold text-foreground mb-1">
+							Nomor Rekening *
+						</label>
+						<input
+							type="text"
+							id="inputNomorRekening"
+							name="nomorRekening"
+							bind:value={inputNomorRekening}
+							placeholder="Misal: 7123456789 atau 081234567890"
+							required
+							class="w-full font-mono bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+						/>
+					</div>
 
+					<div>
+						<label for="inputAtasNama" class="block text-xs font-semibold text-foreground mb-1">
+							Atas Nama Rekening *
+						</label>
+						<input
+							type="text"
+							id="inputAtasNama"
+							name="atasNama"
+							bind:value={inputAtasNama}
+							placeholder="Misal: Kas Infaq Majelis Kebayoran"
+							required
+							class="w-full bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+						/>
+					</div>
+				{:else}
+					<!-- 3. FORM KHUSUS QRIS -->
+					<div>
+						<label for="inputAtasNamaQris" class="block text-xs font-semibold text-foreground mb-1">
+							Atas Nama QRIS / Merchant *
+						</label>
+						<input
+							type="text"
+							id="inputAtasNamaQris"
+							name="atasNama"
+							bind:value={inputAtasNama}
+							placeholder="Misal: QRIS Kas Pembangunan Majelis Kebayoran"
+							required
+							class="w-full bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+						/>
+					</div>
+
+					<div>
+						<label for="inputNamaProviderQris" class="block text-xs font-semibold text-foreground mb-1">
+							Label / Provider QRIS (Opsional)
+						</label>
+						<input
+							type="text"
+							id="inputNamaProviderQris"
+							name="namaBank"
+							bind:value={inputNamaBank}
+							placeholder="Default: QRIS (atau QRIS Mandiri, QRIS BCA, dll)"
+							class="w-full bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+						/>
+					</div>
+
+					<!-- UPLOAD BERKAS / URL GAMBAR QRIS -->
+					<div class="space-y-2 p-3 bg-secondary/30 border border-border rounded-xl">
+						<div class="flex items-center justify-between">
+							<span class="block text-xs font-semibold text-foreground">
+								Gambar QRIS Shodaqoh *
+							</span>
+							<div class="flex items-center gap-1 text-[11px]">
+								<button
+									type="button"
+									onclick={() => (inputQrisMode = 'upload')}
+									class="px-2 py-0.5 rounded font-medium transition-colors {inputQrisMode === 'upload' ? 'bg-primary text-primary-foreground' : 'text-foreground/60 hover:text-foreground'}"
+								>
+									Unggah Berkas
+								</button>
+								<button
+									type="button"
+									onclick={() => (inputQrisMode = 'url')}
+									class="px-2 py-0.5 rounded font-medium transition-colors {inputQrisMode === 'url' ? 'bg-primary text-primary-foreground' : 'text-foreground/60 hover:text-foreground'}"
+								>
+									Tautan URL
+								</button>
+							</div>
+						</div>
+
+						{#if inputQrisMode === 'upload'}
+							<input
+								type="file"
+								id="qrisFile"
+								name="qrisFile"
+								accept="image/*"
+								onchange={handleQrisFileChange}
+								class="w-full text-xs text-foreground/80 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
+							/>
+							<p class="text-[11px] text-foreground/50">
+								Format: PNG, JPG, JPEG, WEBP.
+							</p>
+						{:else}
+							<input
+								type="text"
+								id="inputQrisImageUrl"
+								name="qrisImageUrl"
+								bind:value={inputQrisImageUrl}
+								oninput={() => (qrisFilePreview = inputQrisImageUrl)}
+								placeholder="https://... atau /uploads/qris/..."
+								class="w-full bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+							/>
+						{/if}
+
+						{#if qrisFilePreview || inputQrisImageUrl}
+							<div class="pt-2 flex items-center gap-3">
+								<div class="w-16 h-16 bg-white rounded-lg p-1 border border-border shrink-0 flex items-center justify-center overflow-hidden">
+									<img
+										src={qrisFilePreview || inputQrisImageUrl}
+										alt="Preview QRIS"
+										class="max-w-full max-h-full object-contain"
+									/>
+								</div>
+								<span class="text-xs text-foreground/60">
+									Pratinjau gambar QRIS yang akan ditampilkan kepada jamaah.
+								</span>
+							</div>
+						{/if}
+					</div>
+				{/if}
+
+				<!-- 4. TIPE ALOKASI / TUJUAN (SEARCHABLE SELECT DENGAN OPSI CUSTOM TERISOLASI) -->
 				<div>
 					<label for="inputTipeTujuan" class="block text-xs font-semibold text-foreground mb-1">
-						Tipe Alokasi / Tujuan
+						Tipe Alokasi / Tujuan Shodaqoh *
 					</label>
-					<select
+					<SearchableSelect
 						id="inputTipeTujuan"
 						name="tipeTujuan"
+						options={alokasiOptions}
 						bind:value={inputTipeTujuan}
-						class="w-full bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-					>
-						<option value="Infaq & Shodaqoh">Infaq & Shodaqoh</option>
-						<option value="Infaq Operasional">Infaq Operasional</option>
-						<option value="Pembangunan Tempat">Pembangunan Tempat</option>
-						<option value="Kas Sosial Jamaah">Kas Sosial Jamaah</option>
-						<option value="Kegiatan Remaja & Generus">Kegiatan Remaja & Generus</option>
-					</select>
-				</div>
-
-				<div>
-					<label for="inputQrisImageUrl" class="block text-xs font-semibold text-foreground mb-1">
-						Tautan Gambar QRIS (Opsional)
-					</label>
-					<input
-						type="text"
-						id="inputQrisImageUrl"
-						name="qrisImageUrl"
-						bind:value={inputQrisImageUrl}
-						placeholder="URL gambar QRIS atau path gambar"
-						class="w-full bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+						allowCustom={true}
+						customLabel="Gunakan alokasi baru"
+						searchPlaceholder="Cari alokasi atau ketik nama alokasi baru..."
+						placeholder="-- Pilih Alokasi Shodaqoh --"
+						required={true}
 					/>
+					<p class="text-[11px] text-foreground/50 mt-1">
+						Pilih alokasi standar, alokasi wilayah ini, atau ketik langsung nama alokasi baru.
+					</p>
 				</div>
 
 				<div>
@@ -910,7 +1081,7 @@
 						name="keterangan"
 						bind:value={inputKeterangan}
 						rows="2"
-						placeholder="Misal: Mohon tambahkan kode unik 01 di akhir nominal transfer."
+						placeholder="Misal: Mohon sertakan berita transfer atau konfirmasi ke bendahara."
 						class="w-full bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 					></textarea>
 				</div>
@@ -943,7 +1114,13 @@
 						type="submit"
 						class="px-4 py-2 rounded-xl text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-xs"
 					>
-						{isEditingRekening ? 'Simpan Rekening' : 'Tambah Rekening'}
+						{isEditingRekening
+							? inputMetode === 'qris'
+								? 'Simpan QRIS'
+								: 'Simpan Rekening'
+							: inputMetode === 'qris'
+								? 'Tambah QRIS'
+								: 'Tambah Rekening'}
 					</button>
 				</div>
 			</form>
