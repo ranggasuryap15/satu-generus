@@ -1,10 +1,10 @@
 /**
  * @file src/routes/(admin)/admin/dapukan/+page.server.ts
- * @purpose Memuat daftar struktur dapukan, penugasan RBAC pengurus dengan proteksi hierarki wilayah jamaah, serta mutasi penugasan (khusus 4S Kyai / Sekretaris / Penerobos pada tingkat kelompok)
+ * @purpose Memuat daftar struktur dapukan, penugasan RBAC pengurus dengan proteksi hierarki wilayah jamaah, serta mutasi penugasan (tambah, edit, cabut oleh 4S Kyai / Sekretaris / Penerobos pada tingkat kelompok)
  * @usedBy src/routes/(admin)/admin/dapukan/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm
- * @publicFunctions load, actions.assignDapukan, actions.removeDapukan
- * @sideEffects Insert/Delete pada user_dapukan, query join multi-tabel users, dapukan, wilayah
+ * @publicFunctions load, actions.assignDapukan, actions.updateDapukan, actions.removeDapukan
+ * @sideEffects Insert/Update/Delete pada user_dapukan, query join multi-tabel users, dapukan, wilayah
  */
 
 import { fail, redirect } from '@sveltejs/kit';
@@ -37,6 +37,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 			is4S: dapukan.is4S,
 			namaDapukanCustom: userDapukan.namaDapukanCustom,
 			tingkatScope: userDapukan.tingkatScope,
+			daerahId: userDapukan.daerahId,
+			desaId: userDapukan.desaId,
+			kelompokId: userDapukan.kelompokId,
 			daerahNama: daerah.nama,
 			desaNama: desa.nama,
 			kelompokNama: kelompok.nama
@@ -239,6 +242,180 @@ export const actions: Actions = {
 		} catch (error) {
 			console.error('Gagal menugaskan dapukan:', error);
 			return fail(500, { error: 'Terjadi kesalahan sistem saat menyimpan penugasan pengurus.' });
+		}
+
+		return { success: true };
+	},
+
+	updateDapukan: async ({ request, locals }) => {
+		if (!locals.user || !locals.isAdmin) {
+			return fail(403, { error: 'Akses ditolak.' });
+		}
+
+		if (!canManageDapukan(locals.roles || [])) {
+			return fail(403, {
+				error: 'Akses ditolak: Pada tingkat kelompok, hanya pengurus 4S dengan dapukan Kyai atau Sekretaris / Penerobos yang dapat mengubah penugasan pengurus.'
+			});
+		}
+
+		const adminScope = getAdminScope(locals.roles || []);
+		const accessible = getAccessibleWilayah(adminScope);
+
+		const formData = await request.formData();
+		const id = formData.get('id')?.toString()?.trim() || '';
+		const tipeDapukan = formData.get('tipeDapukan')?.toString() || 'tetap';
+		const dapukanIdStr = formData.get('dapukanId')?.toString() || '';
+		const namaDapukanCustom = formData.get('namaDapukanCustom')?.toString()?.trim() || '';
+		const tingkatScope = formData.get('tingkatScope')?.toString() as 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok';
+		const daerahIdStr = formData.get('daerahId')?.toString() || '';
+		const desaIdStr = formData.get('desaId')?.toString() || '';
+		const kelompokIdStr = formData.get('kelompokId')?.toString() || '';
+
+		if (!id) {
+			return fail(400, { error: 'ID penugasan tidak valid.' });
+		}
+
+		const existingAssignment = db.select().from(userDapukan).where(eq(userDapukan.id, id)).get();
+		if (!existingAssignment) {
+			return fail(404, { error: 'Data penugasan tidak ditemukan.' });
+		}
+
+		// Validasi wewenang admin terhadap penugasan yang diedit saat ini
+		if (!adminScope.isPusat) {
+			if (existingAssignment.tingkatScope === 'Pusat') {
+				return fail(403, { error: 'Anda tidak berwenang mengedit penugasan tingkat Pusat.' });
+			}
+			if (
+				existingAssignment.tingkatScope === 'Daerah' &&
+				(!existingAssignment.daerahId || !adminScope.daerahIds.includes(existingAssignment.daerahId))
+			) {
+				return fail(403, { error: 'Anda tidak berwenang mengedit penugasan pada daerah ini.' });
+			}
+			if (
+				existingAssignment.tingkatScope === 'Desa' &&
+				(!existingAssignment.desaId || !adminScope.desaIds.includes(existingAssignment.desaId))
+			) {
+				return fail(403, { error: 'Anda tidak berwenang mengedit penugasan pada desa ini.' });
+			}
+			if (
+				existingAssignment.tingkatScope === 'Kelompok' &&
+				(!existingAssignment.kelompokId || !accessible.allowedKelompokIdSet.has(existingAssignment.kelompokId))
+			) {
+				return fail(403, { error: 'Anda tidak berwenang mengedit penugasan pada kelompok ini.' });
+			}
+
+			// Validasi wewenang admin terhadap tingkatScope baru yang akan diterapkan
+			if (tingkatScope === 'Pusat') {
+				return fail(403, { error: 'Anda tidak memiliki wewenang untuk menugaskan pengurus tingkat Pusat.' });
+			}
+			if (tingkatScope === 'Daerah' && adminScope.level !== 'Daerah') {
+				return fail(403, { error: 'Anda tidak memiliki wewenang untuk menugaskan pengurus tingkat Daerah.' });
+			}
+			if (tingkatScope === 'Desa' && adminScope.level === 'Kelompok') {
+				return fail(403, { error: 'Anda tidak memiliki wewenang untuk menugaskan pengurus tingkat Desa.' });
+			}
+		}
+
+		// Ambil data basis wilayah jamaah yang bersangkutan
+		const targetUser = db
+			.select({
+				id: users.id,
+				namaLengkap: users.namaLengkap,
+				kelompokId: users.kelompokId,
+				kelompokNama: kelompok.nama,
+				desaId: kelompok.desaId,
+				desaNama: desa.nama,
+				daerahId: desa.daerahId,
+				daerahNama: daerah.nama
+			})
+			.from(users)
+			.leftJoin(kelompok, eq(users.kelompokId, kelompok.id))
+			.leftJoin(desa, eq(kelompok.desaId, desa.id))
+			.leftJoin(daerah, eq(desa.daerahId, daerah.id))
+			.where(eq(users.id, existingAssignment.userId))
+			.get();
+
+		if (!targetUser) {
+			return fail(400, { error: 'Data jamaah tidak ditemukan.' });
+		}
+
+		const dapukanId = tipeDapukan === 'tetap' && dapukanIdStr ? parseInt(dapukanIdStr, 10) : null;
+		if (tipeDapukan === 'tetap' && !dapukanId) {
+			return fail(400, { error: 'Pilih dapukan tetap master data.' });
+		}
+		if (tipeDapukan === 'custom' && !namaDapukanCustom) {
+			return fail(400, { error: 'Tulis nama dapukan tentatif / kepanitiaan kustom.' });
+		}
+
+		let finalKelompokId: number | null = null;
+		let finalDesaId: number | null = null;
+		let finalDaerahId: number | null = null;
+
+		if (tingkatScope === 'Kelompok') {
+			const kId = kelompokIdStr ? parseInt(kelompokIdStr, 10) : null;
+			if (!kId) {
+				return fail(400, { error: 'Pilih kelompok cakupan untuk wewenang tingkat Kelompok.' });
+			}
+			if (targetUser.kelompokId && kId !== targetUser.kelompokId) {
+				return fail(400, {
+					error: `Cakupan kelompok harus sesuai dengan basis kelompok jamaah (${targetUser.kelompokNama || 'Kelompok Asal'}).`
+				});
+			}
+			if (!isKelompokAllowed(kId, accessible.allowedKelompokIdSet, adminScope.isPusat)) {
+				return fail(403, { error: 'Anda tidak memiliki wewenang pada kelompok yang dipilih.' });
+			}
+			finalKelompokId = kId;
+		} else if (tingkatScope === 'Desa') {
+			const dId = desaIdStr ? parseInt(desaIdStr, 10) : null;
+			if (!dId) {
+				return fail(400, { error: 'Pilih desa cakupan untuk wewenang tingkat Desa.' });
+			}
+			if (targetUser.desaId && dId !== targetUser.desaId) {
+				return fail(400, {
+					error: `Cakupan desa harus sesuai dengan basis desa jamaah (${targetUser.desaNama || 'Desa Asal'}).`
+				});
+			}
+			const allowedDesaIds = new Set(accessible.desaList.map((d) => d.id));
+			if (!adminScope.isPusat && !allowedDesaIds.has(dId)) {
+				return fail(403, { error: 'Anda tidak memiliki wewenang pada desa yang dipilih.' });
+			}
+			finalDesaId = dId;
+		} else if (tingkatScope === 'Daerah') {
+			const drId = daerahIdStr ? parseInt(daerahIdStr, 10) : null;
+			if (!drId) {
+				return fail(400, { error: 'Pilih daerah cakupan untuk wewenang tingkat Daerah.' });
+			}
+			if (targetUser.daerahId && drId !== targetUser.daerahId) {
+				return fail(400, {
+					error: `Cakupan daerah harus sesuai dengan basis daerah jamaah (${targetUser.daerahNama || 'Daerah Asal'}).`
+				});
+			}
+			const allowedDaerahIds = new Set(accessible.daerahList.map((dr) => dr.id));
+			if (!adminScope.isPusat && !allowedDaerahIds.has(drId)) {
+				return fail(403, { error: 'Anda tidak memiliki wewenang pada daerah yang dipilih.' });
+			}
+			finalDaerahId = drId;
+		} else if (tingkatScope === 'Pusat') {
+			if (!adminScope.isPusat) {
+				return fail(403, { error: 'Hanya wewenang Pusat yang dapat menugaskan pengurus tingkat Pusat.' });
+			}
+		}
+
+		try {
+			db.update(userDapukan)
+				.set({
+					dapukanId,
+					namaDapukanCustom: tipeDapukan === 'custom' ? namaDapukanCustom : null,
+					tingkatScope,
+					daerahId: finalDaerahId,
+					desaId: finalDesaId,
+					kelompokId: finalKelompokId
+				})
+				.where(eq(userDapukan.id, id))
+				.run();
+		} catch (error) {
+			console.error('Gagal memperbarui dapukan:', error);
+			return fail(500, { error: 'Terjadi kesalahan sistem saat memperbarui penugasan pengurus.' });
 		}
 
 		return { success: true };

@@ -3,7 +3,7 @@
   @purpose Halaman manajemen struktur dapukan dan penugasan RBAC pengurus dengan proteksi wewenang 4S (Kyai/Penerobos di tingkat kelompok) serta penguncian scope wilayah
   @usedBy Route admin '/admin/dapukan'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte
-  @publicFunctions openAssignModal, closeAssignModal, resetAssignForm, confirmRemove
+  @publicFunctions openAssignModal, closeAssignModal, resetAssignForm, openEditModal, closeEditModal, confirmRemove
   @sideEffects Menampilkan data dapukan/pengurus dan mengirim form mutasi pengurus ke server
 -->
 <script lang="ts">
@@ -13,6 +13,7 @@
 		Search,
 		UserCheck,
 		Trash2,
+		Pencil,
 		X,
 		Award,
 		MapPin,
@@ -26,8 +27,19 @@
 
 	let searchQuery = $state('');
 	let showAssignModal = $state(false);
+	let showEditModal = $state(false);
 	let showRemoveModal = $state(false);
 	let selectedPengurusToRemove = $state<{ id: string; nama: string; dapukan: string } | null>(null);
+
+	// Edit State
+	let editingPengurus = $state<(typeof data.daftarPengurus)[number] | null>(null);
+	let editTipeDapukan = $state<'tetap' | 'custom'>('tetap');
+	let editScope = $state<'Pusat' | 'Daerah' | 'Desa' | 'Kelompok'>('Kelompok');
+	let editDapukanId = $state<string | number>('');
+	let editNamaDapukanCustom = $state('');
+	let editKelompokId = $state<string | number>('');
+	let editDesaId = $state<string | number>('');
+	let editDaerahId = $state<string | number>('');
 
 	// Form State
 	let tipeDapukan = $state<'tetap' | 'custom'>('tetap');
@@ -151,6 +163,95 @@
 		}));
 	});
 
+	// Jamaah terpilih saat edit penugasan
+	const editingUserObj = $derived(
+		editingPengurus?.userId
+			? (data.userList || []).find((u: (typeof data.userList)[number]) => String(u.id) === String(editingPengurus?.userId))
+			: null
+	);
+
+	// Opsi Kelompok saat Edit: Jika jamaah memiliki basis kelompok, kunci hanya ke kelompok basisnya
+	const editKelompokOptions = $derived.by(() => {
+		if (editingUserObj?.kelompokId) {
+			const matching = (data.kelompokList || []).find((k: (typeof data.kelompokList)[number]) => k.id === editingUserObj.kelompokId);
+			if (matching) {
+				return [
+					{
+						value: matching.id,
+						label: matching.nama,
+						sublabel: `Terkunci: Basis ${editingUserObj.namaLengkap}`
+					}
+				];
+			}
+			return [
+				{
+					value: editingUserObj.kelompokId,
+					label: editingUserObj.kelompokNama || `Kelompok #${editingUserObj.kelompokId}`,
+					sublabel: `Terkunci: Basis ${editingUserObj.namaLengkap}`
+				}
+			];
+		}
+		return (data.kelompokList || []).map((k: (typeof data.kelompokList)[number]) => ({
+			value: k.id,
+			label: k.nama
+		}));
+	});
+
+	// Opsi Desa saat Edit: Jika jamaah memiliki basis desa, kunci hanya ke desa basisnya
+	const editDesaOptions = $derived.by(() => {
+		if (editingUserObj?.desaId) {
+			const matching = (data.desaList || []).find((d: (typeof data.desaList)[number]) => d.id === editingUserObj.desaId);
+			if (matching) {
+				return [
+					{
+						value: matching.id,
+						label: matching.nama,
+						sublabel: `Terkunci: Basis ${editingUserObj.namaLengkap}`
+					}
+				];
+			}
+			return [
+				{
+					value: editingUserObj.desaId,
+					label: editingUserObj.desaNama || `Desa #${editingUserObj.desaId}`,
+					sublabel: `Terkunci: Basis ${editingUserObj.namaLengkap}`
+				}
+			];
+		}
+		return (data.desaList || []).map((d: (typeof data.desaList)[number]) => ({
+			value: d.id,
+			label: d.nama
+		}));
+	});
+
+	// Opsi Daerah saat Edit: Jika jamaah memiliki basis daerah, kunci hanya ke daerah basisnya
+	const editDaerahOptions = $derived.by(() => {
+		if (editingUserObj?.daerahId) {
+			const matching = (data.daerahList || []).find((dr: (typeof data.daerahList)[number]) => dr.id === editingUserObj.daerahId);
+			if (matching) {
+				return [
+					{
+						value: matching.id,
+						label: matching.nama,
+						sublabel: `Terkunci: Basis ${editingUserObj.namaLengkap}`
+					}
+				];
+			}
+			return [
+				{
+					value: editingUserObj.daerahId,
+					label: editingUserObj.daerahNama || `Daerah #${editingUserObj.daerahId}`,
+					sublabel: `Terkunci: Basis ${editingUserObj.namaLengkap}`
+				}
+			];
+		}
+		return (data.daerahList || []).map((dr: (typeof data.daerahList)[number]) => ({
+			value: dr.id,
+			label: dr.nama,
+			sublabel: dr.kotaKabupaten
+		}));
+	});
+
 	// Sinkronisasi otomatis dan auto-select saat jamaah atau tingkat scope dipilih
 	$effect(() => {
 		if (selectedUserObj) {
@@ -166,6 +267,19 @@
 				if (selectedUserObj.daerahId) {
 					selectedDaerahId = selectedUserObj.daerahId;
 				}
+			}
+		}
+	});
+
+	// Sinkronisasi otomatis pada modal edit saat tingkat scope berubah
+	$effect(() => {
+		if (editingUserObj && showEditModal) {
+			if (editScope === 'Kelompok' && editingUserObj.kelompokId) {
+				editKelompokId = editingUserObj.kelompokId;
+			} else if (editScope === 'Desa' && editingUserObj.desaId) {
+				editDesaId = editingUserObj.desaId;
+			} else if (editScope === 'Daerah' && editingUserObj.daerahId) {
+				editDaerahId = editingUserObj.daerahId;
 			}
 		}
 	});
@@ -199,6 +313,24 @@
 		showAssignModal = true;
 	}
 
+	function openEditModal(p: (typeof data.daftarPengurus)[number]) {
+		if (!data.canManageDapukan) return;
+		editingPengurus = p;
+		editTipeDapukan = p.namaDapukanCustom ? 'custom' : 'tetap';
+		editDapukanId = p.dapukanId ?? '';
+		editNamaDapukanCustom = p.namaDapukanCustom ?? '';
+		editScope = (p.tingkatScope as 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok') ?? 'Kelompok';
+		editKelompokId = p.kelompokId ?? '';
+		editDesaId = p.desaId ?? '';
+		editDaerahId = p.daerahId ?? '';
+		showEditModal = true;
+	}
+
+	function closeEditModal() {
+		showEditModal = false;
+		editingPengurus = null;
+	}
+
 	async function closeAssignModal() {
 		if (isAssignFormDirty()) {
 			const ok = await confirmAction({
@@ -221,6 +353,8 @@
 		if (form?.success) {
 			resetAssignForm();
 			showAssignModal = false;
+			showEditModal = false;
+			editingPengurus = null;
 		}
 	});
 
@@ -354,22 +488,33 @@
 						</div>
 
 						{#if data.canManageDapukan}
-							<button
-								type="button"
-								onclick={() => {
-									selectedPengurusToRemove = {
-										id: p.id,
-										nama: p.userNama || 'Pengurus',
-										dapukan: p.namaDapukanCustom || p.dapukanNama || 'Dapukan'
-									};
-									showRemoveModal = true;
-								}}
-								class="p-2 rounded-lg text-destructive hover:bg-destructive/10 transition-colors shrink-0"
-								title="Cabut Penugasan"
-								aria-label="Cabut Penugasan"
-							>
-								<Trash2 class="w-4 h-4" />
-							</button>
+							<div class="flex items-center gap-1 shrink-0">
+								<button
+									type="button"
+									onclick={() => openEditModal(p)}
+									class="p-2 rounded-lg text-primary hover:bg-primary/10 transition-colors"
+									title="Ubah Penugasan"
+									aria-label="Ubah Penugasan"
+								>
+									<Pencil class="w-4 h-4" />
+								</button>
+								<button
+									type="button"
+									onclick={() => {
+										selectedPengurusToRemove = {
+											id: p.id,
+											nama: p.userNama || 'Pengurus',
+											dapukan: p.namaDapukanCustom || p.dapukanNama || 'Dapukan'
+										};
+										showRemoveModal = true;
+									}}
+									class="p-2 rounded-lg text-destructive hover:bg-destructive/10 transition-colors"
+									title="Cabut Penugasan"
+									aria-label="Cabut Penugasan"
+								>
+									<Trash2 class="w-4 h-4" />
+								</button>
+							</div>
 						{/if}
 					</div>
 
@@ -468,21 +613,33 @@
 								</td>
 								<td class="py-3.5 px-4 text-right">
 									{#if data.canManageDapukan}
-										<button
-											type="button"
-											onclick={() => {
-												selectedPengurusToRemove = {
-													id: p.id,
-													nama: p.userNama || 'Pengurus',
-													dapukan: p.namaDapukanCustom || p.dapukanNama || 'Dapukan'
-												};
-												showRemoveModal = true;
-											}}
-											class="p-1.5 rounded-lg text-destructive hover:bg-destructive/10 transition-colors"
-											title="Cabut Penugasan"
-										>
-											<Trash2 class="w-4 h-4" />
-										</button>
+										<div class="inline-flex items-center justify-end gap-1">
+											<button
+												type="button"
+												onclick={() => openEditModal(p)}
+												class="p-1.5 rounded-lg text-primary hover:bg-primary/10 transition-colors"
+												title="Ubah Penugasan"
+												aria-label="Ubah Penugasan"
+											>
+												<Pencil class="w-4 h-4" />
+											</button>
+											<button
+												type="button"
+												onclick={() => {
+													selectedPengurusToRemove = {
+														id: p.id,
+														nama: p.userNama || 'Pengurus',
+														dapukan: p.namaDapukanCustom || p.dapukanNama || 'Dapukan'
+													};
+													showRemoveModal = true;
+												}}
+												class="p-1.5 rounded-lg text-destructive hover:bg-destructive/10 transition-colors"
+												title="Cabut Penugasan"
+												aria-label="Cabut Penugasan"
+											>
+												<Trash2 class="w-4 h-4" />
+											</button>
+										</div>
 									{:else}
 										<span class="text-foreground/30 text-xs">-</span>
 									{/if}
@@ -763,6 +920,250 @@
 							Simpan Penugasan
 						</button>
 					</div>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- Modal Ubah Penugasan Pengurus -->
+{#if showEditModal && editingPengurus}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
+		role="dialog"
+		aria-modal="true"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) closeEditModal();
+		}}
+	>
+		<div class="bg-card border border-border rounded-2xl max-w-lg w-full p-6 shadow-xl space-y-5 max-h-[90vh] overflow-y-auto">
+			<div class="flex items-center justify-between pb-3 border-b border-border">
+				<div class="flex items-center gap-2">
+					<div class="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+						<Pencil class="w-4 h-4" />
+					</div>
+					<div>
+						<h3 class="text-sm font-bold text-foreground">Ubah Penugasan Pengurus</h3>
+						<p class="text-[11px] text-foreground/60">{editingPengurus.userNama || '-'}</p>
+					</div>
+				</div>
+				<button
+					type="button"
+					onclick={closeEditModal}
+					class="p-1 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground"
+				>
+					<X class="w-5 h-5" />
+				</button>
+			</div>
+
+			<form method="POST" action="?/updateDapukan" class="space-y-4">
+				<input type="hidden" name="id" value={editingPengurus.id} />
+
+				<!-- Informasi Pengurus & Basis Wilayah -->
+				<div class="p-3 bg-secondary/40 border border-border rounded-xl space-y-1.5">
+					<div class="flex items-center justify-between">
+						<span class="text-xs font-semibold text-foreground">{editingPengurus.userNama}</span>
+						{#if editingPengurus.userEmail}
+							<span class="text-[11px] text-foreground/50">{editingPengurus.userEmail}</span>
+						{/if}
+					</div>
+					{#if editingUserObj}
+						<div class="text-[11px] text-foreground/70 flex items-center gap-1.5 pt-1 border-t border-border/50">
+							<MapPin class="w-3.5 h-3.5 text-primary shrink-0" />
+							<span>Basis Wilayah:</span>
+							<span class="font-medium text-foreground">
+								{editingUserObj.kelompokNama || '-'}{editingUserObj.desaNama ? ` • ${editingUserObj.desaNama}` : ''}{editingUserObj.daerahNama ? ` • ${editingUserObj.daerahNama}` : ''}
+							</span>
+						</div>
+					{/if}
+				</div>
+
+				<!-- Jenis Dapukan: Baku vs Kustom -->
+				<div>
+					<span class="block text-xs font-semibold text-foreground mb-2">Tipe Dapukan *</span>
+					<div class="grid grid-cols-2 gap-3">
+						<label class="p-3 border rounded-xl flex items-center gap-2.5 cursor-pointer transition-colors {editTipeDapukan === 'tetap' ? 'border-primary bg-primary/5' : 'border-border bg-secondary/30'}">
+							<input
+								type="radio"
+								name="tipeDapukan"
+								value="tetap"
+								bind:group={editTipeDapukan}
+								class="text-primary focus:ring-primary"
+							/>
+							<div>
+								<span class="text-xs font-bold text-foreground block">Dapukan Baku 4S</span>
+								<span class="text-[10px] text-foreground/60 block">Hak Admin Elevated</span>
+							</div>
+						</label>
+
+						<label class="p-3 border rounded-xl flex items-center gap-2.5 cursor-pointer transition-colors {editTipeDapukan === 'custom' ? 'border-primary bg-primary/5' : 'border-border bg-secondary/30'}">
+							<input
+								type="radio"
+								name="tipeDapukan"
+								value="custom"
+								bind:group={editTipeDapukan}
+								class="text-primary focus:ring-primary"
+							/>
+							<div>
+								<span class="text-xs font-bold text-foreground block">Tentatif / Panitia</span>
+								<span class="text-[10px] text-foreground/60 block">Dapukan Khusus Lokal</span>
+							</div>
+						</label>
+					</div>
+				</div>
+
+				{#if editTipeDapukan === 'tetap'}
+					<div>
+						<label for="editDapukanId" class="block text-xs font-semibold text-foreground mb-1.5">
+							Pilih Dapukan Master 4S *
+						</label>
+						<SearchableSelect
+							id="editDapukanId"
+							name="dapukanId"
+							options={masterDapukanOptions}
+							bind:value={editDapukanId}
+							required
+							placeholder="-- Pilih Dapukan Master 4S --"
+							searchPlaceholder="Cari nama dapukan..."
+						/>
+					</div>
+				{:else}
+					<div>
+						<label for="editNamaDapukanCustom" class="block text-xs font-semibold text-foreground mb-1.5">
+							Nama Dapukan Tentatif / Panitia *
+						</label>
+						<input
+							id="editNamaDapukanCustom"
+							name="namaDapukanCustom"
+							type="text"
+							bind:value={editNamaDapukanCustom}
+							required
+							placeholder="Contoh: Panitia Qurban, Seksi Konsumsi"
+							class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+						/>
+					</div>
+				{/if}
+
+				<!-- Tingkat Scope Wilayah -->
+				<div>
+					<label for="editTingkatScope" class="block text-xs font-semibold text-foreground mb-1.5">
+						Tingkat Scope Wewenang *
+					</label>
+					<select
+						id="editTingkatScope"
+						name="tingkatScope"
+						bind:value={editScope}
+						required
+						class="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+					>
+						<option value="Kelompok">Kelompok (Tingkat Basis)</option>
+						{#if data.isPusat || data.adminScopeLevel === 'Daerah' || data.adminScopeLevel === 'Desa'}
+							<option value="Desa">Desa (Mengawasi Semua Kelompok)</option>
+						{/if}
+						{#if data.isPusat || data.adminScopeLevel === 'Daerah'}
+							<option value="Daerah">Daerah (Mengawasi Semua Desa)</option>
+						{/if}
+						{#if data.isPusat}
+							<option value="Pusat">Pusat (Akses Nasional)</option>
+						{/if}
+					</select>
+				</div>
+
+				<!-- Pemilihan Wilayah Terkait Sesuai Scope -->
+				{#if editScope === 'Kelompok'}
+					<div>
+						<div class="flex items-center justify-between mb-1.5">
+							<label for="editKelompokId" class="block text-sm font-semibold text-foreground">
+								Pilih Kelompok Cakupan *
+							</label>
+							{#if editingUserObj?.kelompokId}
+								<span class="text-xs text-primary font-semibold">Terkunci ke Basis Jamaah</span>
+							{/if}
+						</div>
+						<SearchableSelect
+							id="editKelompokId"
+							name="kelompokId"
+							options={editKelompokOptions}
+							bind:value={editKelompokId}
+							disabled={Boolean(editingUserObj?.kelompokId)}
+							required
+							placeholder="-- Pilih Kelompok Cakupan --"
+							searchPlaceholder="Cari kelompok..."
+						/>
+						{#if editingUserObj?.kelompokId}
+							<p class="text-xs text-foreground/60 mt-1">
+								Scope kelompok dikunci ke basis kelompok jamaah ({editingUserObj.kelompokNama}).
+							</p>
+						{/if}
+					</div>
+				{:else if editScope === 'Desa'}
+					<div>
+						<div class="flex items-center justify-between mb-1.5">
+							<label for="editDesaId" class="block text-sm font-semibold text-foreground">
+								Pilih Desa Cakupan *
+							</label>
+							{#if editingUserObj?.desaId}
+								<span class="text-xs text-primary font-semibold">Terkunci ke Basis Jamaah</span>
+							{/if}
+						</div>
+						<SearchableSelect
+							id="editDesaId"
+							name="desaId"
+							options={editDesaOptions}
+							bind:value={editDesaId}
+							disabled={Boolean(editingUserObj?.desaId)}
+							required
+							placeholder="-- Pilih Desa Cakupan --"
+							searchPlaceholder="Cari desa..."
+						/>
+						{#if editingUserObj?.desaId}
+							<p class="text-xs text-foreground/60 mt-1">
+								Scope desa dikunci ke basis desa jamaah ({editingUserObj.desaNama}).
+							</p>
+						{/if}
+					</div>
+				{:else if editScope === 'Daerah'}
+					<div>
+						<div class="flex items-center justify-between mb-1.5">
+							<label for="editDaerahId" class="block text-sm font-semibold text-foreground">
+								Pilih Daerah Cakupan *
+							</label>
+							{#if editingUserObj?.daerahId}
+								<span class="text-xs text-primary font-semibold">Terkunci ke Basis Jamaah</span>
+							{/if}
+						</div>
+						<SearchableSelect
+							id="editDaerahId"
+							name="daerahId"
+							options={editDaerahOptions}
+							bind:value={editDaerahId}
+							disabled={Boolean(editingUserObj?.daerahId)}
+							required
+							placeholder="-- Pilih Daerah Cakupan --"
+							searchPlaceholder="Cari daerah..."
+						/>
+						{#if editingUserObj?.daerahId}
+							<p class="text-xs text-foreground/60 mt-1">
+								Scope daerah dikunci ke basis daerah jamaah ({editingUserObj.daerahNama}).
+							</p>
+						{/if}
+					</div>
+				{/if}
+
+				<div class="flex items-center justify-end gap-2 pt-3 border-t border-border">
+					<button
+						type="button"
+						onclick={closeEditModal}
+						class="px-4 py-2.5 rounded-xl border border-border text-sm font-semibold text-foreground/80 hover:bg-secondary"
+					>
+						Batal
+					</button>
+					<button
+						type="submit"
+						class="px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90"
+					>
+						Simpan Perubahan
+					</button>
 				</div>
 			</form>
 		</div>
