@@ -1,14 +1,15 @@
 <!--
   @file src/routes/(admin)/admin/sensus/+page.svelte
-  @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri, dashboard statistik, penugasan dapukan pengurus KK, modal detail lengkap (hapus sensus, pindah kelompok, toggle status jamaah), modal edit anggota/KK, dan pembuatan akun dengan retensi scroll (mencegah loncat ke atas)
+  @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri, pagination tabel/kartu data, dashboard statistik, penugasan dapukan pengurus KK, modal detail lengkap (hapus sensus, pindah kelompok, toggle status jamaah), modal edit anggota/KK, dan pembuatan akun dengan retensi scroll (mencegah loncat ke atas)
   @usedBy Route admin '/admin/sensus'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/confirm.svelte, $lib/keepScroll.ts (keepScrollSubmit), $lib/utils (formatDateDDMMYYYY), $lib/generus (isStatusHubunganMenikah, hitungUmur, hitungStatusGenerus, resolveStatusPernikahan, isStatusGenerusBelumMenikah, resolvePernikahanFromGenerus, DAFTAR_STATUS_GENERUS)
+  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/components/Pagination.svelte, $lib/confirm.svelte, $lib/keepScroll.ts (keepScrollSubmit), $lib/utils (formatDateDDMMYYYY), $lib/generus (isStatusHubunganMenikah, hitungUmur, hitungStatusGenerus, resolveStatusPernikahan, isStatusGenerusBelumMenikah, resolvePernikahanFromGenerus, DAFTAR_STATUS_GENERUS)
   @publicFunctions openDetailModal, closeDetailModal, requestUnmask, openCreateModal, closeCreateModal, openAddMemberModal, closeAddMemberModal, openCreateAccountModal, openEditAnggotaModal, closeEditAnggotaModal, openEditKeluargaModal, closeEditKeluargaModal, openPindahKelompokModal, closePindahKelompokModal, openAssignDapukanModal, closeAssignDapukanModal, handleHapusSensus, handleToggleStatusJamaah, resetFilters, toggleMobileFilter
   @sideEffects Menampilkan metrik, unmask data sensitif, submit actions (createSensus, addAnggotaKeluarga, updateAnggota, updateKeluarga, deleteSensus, pindahKelompok, toggleStatusJamaah, createMemberAccount, assignDapukan) dengan retensi posisi scroll
 -->
 <script lang="ts">
 	import DateInput from '$lib/components/DateInput.svelte';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
+	import Pagination from '$lib/components/Pagination.svelte';
 	import { formatDateDDMMYYYY } from '$lib/utils';
 	import { keepScrollSubmit } from '$lib/keepScroll';
 	import {
@@ -718,6 +719,25 @@
 		})
 	);
 
+	// Pagination State
+	let currentPage = $state(1);
+	let pageSize = $state(10);
+
+	$effect(() => {
+		// Reset halaman ke 1 saat filter atau pencarian berubah
+		searchQuery;
+		filterDaerahId;
+		filterDesaId;
+		filterKelompokId;
+		filterPeran;
+		filterTipeSensus;
+		currentPage = 1;
+	});
+
+	let paginatedKeluarga = $derived(
+		filteredKeluarga.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+	);
+
 	function resetFilters() {
 		searchQuery = '';
 		filterDaerahId = 'ALL';
@@ -1179,7 +1199,7 @@
 	{:else}
 		<!-- 1. Tampilan Mobile: Compact Cards -->
 		<div class="md:hidden space-y-3">
-			{#each filteredKeluarga as k}
+			{#each paginatedKeluarga as k}
 				<div class="bg-card border border-border rounded-xl p-3.5 shadow-xs space-y-3">
 					<!-- Header Kartu: Nama & Badge -->
 					<div class="flex items-start justify-between gap-2">
@@ -1299,6 +1319,10 @@
 					</div>
 				</div>
 			{/each}
+
+			<div class="rounded-xl border border-border overflow-hidden">
+				<Pagination bind:currentPage bind:pageSize totalItems={filteredKeluarga.length} />
+			</div>
 		</div>
 
 		<!-- 2. Tampilan Desktop: Tabel Lengkap -->
@@ -1316,7 +1340,7 @@
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-border">
-						{#each filteredKeluarga as k}
+						{#each paginatedKeluarga as k}
 							<tr class="hover:bg-secondary/20 transition-colors">
 								<!-- No. KK / Tipe Sensus dengan Unmask Eye -->
 								<td class="py-3.5 px-4 font-mono font-medium text-foreground">
@@ -1447,6 +1471,7 @@
 					</tbody>
 				</table>
 			</div>
+			<Pagination bind:currentPage bind:pageSize totalItems={filteredKeluarga.length} />
 		</div>
 	{/if}
 </div>

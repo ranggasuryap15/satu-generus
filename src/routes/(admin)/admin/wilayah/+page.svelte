@@ -1,8 +1,8 @@
 <!--
   @file src/routes/(admin)/admin/wilayah/+page.svelte
-  @purpose Halaman manajemen Data Wilayah lengkap dengan dual presentation (compact cards mobile & table desktop) di tab Kelompok, Desa, & Sub-Kelompok, 1 tombol Tambah Wilayah cerdas (hierarki Daerah -> Desa -> Kelompok -> Sub-Kelompok), modal edit unit wilayah (Kelompok, Desa, Sub-Kelompok), modal detail desa & kelompok dengan Leaflet LocationPicker, fitur 'Hubungkan ke Lokasi', kontrol RBAC visual, checklist hapus massal & single delete, serta scroll retention (mencegah loncat ke atas saat edit/hapus)
+  @purpose Halaman manajemen Data Wilayah lengkap dengan dual presentation (compact cards mobile & table desktop) di tab Kelompok, Desa, & Sub-Kelompok, pagination di setiap tab, 1 tombol Tambah Wilayah cerdas (hierarki Daerah -> Desa -> Kelompok -> Sub-Kelompok), modal edit unit wilayah (Kelompok, Desa, Sub-Kelompok), modal detail desa & kelompok dengan Leaflet LocationPicker, fitur 'Hubungkan ke Lokasi', kontrol RBAC visual, checklist hapus massal & single delete, serta scroll retention (mencegah loncat ke atas saat edit/hapus)
   @usedBy Route admin '/admin/wilayah'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/LocationPicker.svelte, $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
+  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/LocationPicker.svelte, $lib/components/Pagination.svelte, $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
   @publicFunctions openUnifiedAddModal, closeUnifiedAddModal, openEditKelompok, closeEditKelompok, openEditDesa, closeEditDesa, openEditSubKelompok, closeEditSubKelompok, openKelompokDetail, closeKelompokDetail, openDesaDetail, closeDesaDetail, handleConnectToKelompok, handleDisconnectKelompok, resetFilter, toggleSelectKelompok, toggleSelectAllKelompok, openDeleteSingleKelompok, openDeleteBatchKelompok, closeDeleteModal
   @sideEffects Menampilkan data wilayah sesuai scope RBAC, menyaring data, mengelola lokasi kelompok & desa dengan Leaflet, dan mengirim update/create/delete ke server via enhance dengan retensi scroll
 -->
@@ -38,6 +38,7 @@
 	import type { ActionData, PageData } from './$types';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
 	import LocationPicker from '$lib/components/LocationPicker.svelte';
+	import Pagination from '$lib/components/Pagination.svelte';
 	import { enhance } from '$app/forms';
 	import { keepScrollSubmit } from '$lib/keepScroll';
 
@@ -489,6 +490,37 @@
 
 			return true;
 		})
+	);
+
+	// State Pagination per Tab Wilayah
+	let kelompokPage = $state(1);
+	let kelompokPageSize = $state(10);
+
+	let subKelompokPage = $state(1);
+	let subKelompokPageSize = $state(10);
+
+	let desaPage = $state(1);
+	let desaPageSize = $state(10);
+
+	$effect(() => {
+		searchQuery;
+		selectedFilterDaerahId;
+		selectedFilterDesaId;
+		kelompokPage = 1;
+		subKelompokPage = 1;
+		desaPage = 1;
+	});
+
+	let paginatedKelompok = $derived(
+		filteredKelompok.slice((kelompokPage - 1) * kelompokPageSize, kelompokPage * kelompokPageSize)
+	);
+
+	let paginatedSubKelompok = $derived(
+		filteredSubKelompok.slice((subKelompokPage - 1) * subKelompokPageSize, subKelompokPage * subKelompokPageSize)
+	);
+
+	let paginatedDesa = $derived(
+		filteredDesa.slice((desaPage - 1) * desaPageSize, desaPage * desaPageSize)
 	);
 
 	// Reset forms
@@ -1035,7 +1067,7 @@
 		{:else}
 			<!-- 1. Tampilan Mobile (< md): Compact Cards -->
 			<div class="md:hidden space-y-3">
-				{#each filteredKelompok as k}
+				{#each paginatedKelompok as k}
 					<div
 						class="bg-card border border-border rounded-xl p-3.5 space-y-3 transition-all {selectedKelompokIds.includes(k.id) ? 'border-destructive/40 bg-destructive/5' : ''}"
 					>
@@ -1138,6 +1170,10 @@
 						</div>
 					</div>
 				{/each}
+
+				<div class="rounded-xl border border-border overflow-hidden">
+					<Pagination bind:currentPage={kelompokPage} bind:pageSize={kelompokPageSize} totalItems={filteredKelompok.length} />
+				</div>
 			</div>
 
 			<!-- 2. Tampilan Desktop (>= md): Tabel Lengkap -->
@@ -1169,7 +1205,7 @@
 							</tr>
 						</thead>
 						<tbody class="divide-y divide-border">
-							{#each filteredKelompok as k}
+							{#each paginatedKelompok as k}
 								<tr
 									onclick={() => openKelompokDetail(k)}
 									class="hover:bg-secondary/40 transition-colors cursor-pointer group {selectedKelompokIds.includes(k.id) ? 'bg-destructive/5' : ''}"
@@ -1276,6 +1312,7 @@
 						</tbody>
 					</table>
 				</div>
+				<Pagination bind:currentPage={kelompokPage} bind:pageSize={kelompokPageSize} totalItems={filteredKelompok.length} />
 			</div>
 		{/if}
 	{:else if activeTab === 'subKelompok'}
@@ -1316,7 +1353,7 @@
 		{:else}
 			<!-- 1. Tampilan Mobile (< md): Compact Cards -->
 			<div class="md:hidden space-y-3">
-				{#each filteredSubKelompok as sk}
+				{#each paginatedSubKelompok as sk}
 					<div
 						class="bg-card border border-border rounded-xl p-3.5 space-y-2.5 transition-all {selectedSubKelompokIds.includes(sk.id) ? 'border-destructive/40 bg-destructive/5' : ''}"
 					>
@@ -1375,6 +1412,10 @@
 						</div>
 					</div>
 				{/each}
+
+				<div class="rounded-xl border border-border overflow-hidden">
+					<Pagination bind:currentPage={subKelompokPage} bind:pageSize={subKelompokPageSize} totalItems={filteredSubKelompok.length} />
+				</div>
 			</div>
 
 			<!-- 2. Tampilan Desktop (>= md): Tabel Lengkap -->
@@ -1404,7 +1445,7 @@
 							</tr>
 						</thead>
 						<tbody class="divide-y divide-border">
-							{#each filteredSubKelompok as sk}
+							{#each paginatedSubKelompok as sk}
 								<tr class="hover:bg-secondary/30 transition-colors {selectedSubKelompokIds.includes(sk.id) ? 'bg-destructive/5' : ''}">
 									{#if data.permissions?.canDeleteSubKelompok}
 										<td class="py-3.5 px-3 text-center" onclick={(e) => e.stopPropagation()}>
@@ -1457,6 +1498,7 @@
 						</tbody>
 					</table>
 				</div>
+				<Pagination bind:currentPage={subKelompokPage} bind:pageSize={subKelompokPageSize} totalItems={filteredSubKelompok.length} />
 			</div>
 		{/if}
 	{:else if activeTab === 'desa'}
@@ -1468,7 +1510,7 @@
 		{:else}
 			<!-- 1. Tampilan Mobile (< md): Compact Cards -->
 			<div class="md:hidden space-y-3">
-				{#each filteredDesa as d}
+				{#each paginatedDesa as d}
 					<div
 						class="bg-card border border-border rounded-xl p-3.5 space-y-3 transition-all cursor-pointer hover:border-primary/40"
 						onclick={() => openDesaDetail(d)}
@@ -1539,6 +1581,10 @@
 						</div>
 					</div>
 				{/each}
+
+				<div class="rounded-xl border border-border overflow-hidden">
+					<Pagination bind:currentPage={desaPage} bind:pageSize={desaPageSize} totalItems={filteredDesa.length} />
+				</div>
 			</div>
 
 			<!-- 2. Tampilan Desktop (>= md): Tabel Lengkap -->
@@ -1556,7 +1602,7 @@
 							</tr>
 						</thead>
 						<tbody class="divide-y divide-border">
-							{#each filteredDesa as d}
+							{#each paginatedDesa as d}
 								<tr
 									onclick={() => openDesaDetail(d)}
 									class="hover:bg-secondary/30 transition-colors cursor-pointer group"
@@ -1629,6 +1675,7 @@
 						</tbody>
 					</table>
 				</div>
+				<Pagination bind:currentPage={desaPage} bind:pageSize={desaPageSize} totalItems={filteredDesa.length} />
 			</div>
 		{/if}
 	{/if}

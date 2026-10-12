@@ -1,8 +1,8 @@
 <!--
   @file src/routes/(admin)/admin/presensi/[jadwalId]/+page.svelte
-  @purpose Halaman checklist absensi jamaah per jadwal: verifikasi presensi mandiri (offline GPS + foto kamera, online SS SDC) dan modal peninjauan approval izin/sakit jamaah dengan retensi scroll (tanpa reload jumping ke atas)
+  @purpose Halaman checklist absensi jamaah per jadwal: pagination peserta, verifikasi presensi mandiri (offline GPS + foto kamera, online SS SDC) dan modal peninjauan approval izin/sakit jamaah dengan retensi scroll (tanpa reload jumping ke atas)
   @usedBy Route admin '/admin/presensi/[jadwalId]'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/utils (formatDateDDMMYYYY), $app/state (page), $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
+  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/Pagination.svelte, $lib/utils (formatDateDDMMYYYY), $app/state (page), $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
   @publicFunctions N/A (Svelte Component)
   @sideEffects Mengirim form update status, approve izin, dan reject izin ke server actions via enhance dengan mempertahankan posisi scroll
 -->
@@ -29,6 +29,7 @@
 	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
 	import { keepScrollSubmit } from '$lib/keepScroll';
+	import Pagination from '$lib/components/Pagination.svelte';
 	import type { PageData } from './$types';
 
 	let { data } = $props<{ data: PageData }>();
@@ -51,11 +52,23 @@
 
 	type PesertaType = (typeof data.pesertaList)[number];
 
+	let currentPage = $state(1);
+	let pageSize = $state(10);
+
+	$effect(() => {
+		searchQuery;
+		currentPage = 1;
+	});
+
 	let filteredPeserta = $derived(
 		data.pesertaList.filter((p: PesertaType) => {
 			const q = searchQuery.toLowerCase();
 			return p.namaLengkap.toLowerCase().includes(q) || (p.email || '').toLowerCase().includes(q);
 		})
+	);
+
+	let paginatedPeserta = $derived(
+		filteredPeserta.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 	);
 
 	// Daftar Izin Menunggu Approval
@@ -219,7 +232,7 @@
 	{:else}
 		<!-- 1. Tampilan Mobile: Compact Cards dengan Tombol Status Cepat -->
 		<div class="md:hidden space-y-3">
-			{#each filteredPeserta as peserta}
+			{#each paginatedPeserta as peserta}
 				<div class="bg-card border border-border rounded-xl p-3.5 shadow-xs space-y-2.5">
 					<div class="flex items-start justify-between gap-2">
 						<div class="flex items-center gap-2.5 min-w-0">
@@ -364,6 +377,7 @@
 					</div>
 				</div>
 			{/each}
+			<Pagination bind:currentPage bind:pageSize totalItems={filteredPeserta.length} />
 		</div>
 
 		<!-- 2. Tampilan Desktop: Tabel Checklist Lengkap -->
@@ -380,7 +394,7 @@
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-border">
-						{#each filteredPeserta as peserta}
+						{#each paginatedPeserta as peserta}
 							<tr class="hover:bg-secondary/30 transition-colors">
 								<!-- Kolom Nama -->
 								<td class="py-3 px-4 font-semibold text-foreground">
@@ -562,6 +576,9 @@
 						{/each}
 					</tbody>
 				</table>
+			</div>
+			<div class="p-4 border-t border-border">
+				<Pagination bind:currentPage bind:pageSize totalItems={filteredPeserta.length} />
 			</div>
 		</div>
 	{/if}

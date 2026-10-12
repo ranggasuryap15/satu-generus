@@ -60,7 +60,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.from(presensiJadwal)
 			.leftJoin(kelompok, eq(presensiJadwal.kelompokId, kelompok.id))
 			.orderBy(desc(presensiJadwal.tanggal))
-			.limit(5)
+			.limit(50)
 			.all();
 	} else {
 		// 2. Terbatas Scope Wilayah (Kelompok, Desa, atau Daerah)
@@ -130,7 +130,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 				.leftJoin(kelompok, eq(presensiJadwal.kelompokId, kelompok.id))
 				.where(jadwalCondition)
 				.orderBy(desc(presensiJadwal.tanggal))
-				.limit(5)
+				.limit(50)
 				.all();
 
 			// D. Pengurus 4S Aktif Sesuai Scope

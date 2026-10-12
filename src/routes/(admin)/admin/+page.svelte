@@ -1,17 +1,25 @@
 <!--
   @file src/routes/(admin)/admin/+page.svelte
-  @purpose Halaman utama Dashboard Admin untuk rekapitulasi data demografi dan presensi dinamis
+  @purpose Halaman utama Dashboard Admin untuk rekapitulasi data demografi dan presensi dinamis dengan pagination tabel/kartu jadwal kegiatan
   @usedBy Route admin '/admin'
-  @dependencies @lucide/svelte, $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
+  @dependencies @lucide/svelte, $lib/components/Pagination.svelte, $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
   @publicFunctions N/A (Svelte Component)
   @sideEffects Menampilkan metrik data sensus dan ringkasan operasional jamaah
 -->
 <script lang="ts">
 	import { ArrowRight, Calendar, Home, Plus, ShieldCheck, Users } from '@lucide/svelte';
 	import { formatDateDDMMYYYY } from '$lib/utils';
+	import Pagination from '$lib/components/Pagination.svelte';
 	import type { PageData } from './$types';
 
 	let { data } = $props<{ data: PageData }>();
+
+	let currentPage = $state(1);
+	let pageSize = $state(5);
+
+	let paginatedRecentJadwal = $derived(
+		(data.recentJadwal || []).slice((currentPage - 1) * pageSize, currentPage * pageSize)
+	);
 
 	const statCards = $derived([
 		{
@@ -113,7 +121,7 @@
 		{:else}
 			<!-- 1. Tampilan Mobile: Compact Cards -->
 			<div class="md:hidden space-y-2.5">
-				{#each data.recentJadwal as item}
+				{#each paginatedRecentJadwal as item}
 					<div class="border border-border rounded-xl p-3.5 bg-card flex items-center justify-between gap-3 shadow-xs">
 						<div class="min-w-0">
 							<span class="font-mono text-xs font-semibold text-primary">
@@ -135,6 +143,12 @@
 						</a>
 					</div>
 				{/each}
+				<Pagination
+					bind:currentPage
+					bind:pageSize
+					totalItems={data.recentJadwal.length}
+					pageSizeOptions={[5, 10, 20]}
+				/>
 			</div>
 
 			<!-- 2. Tampilan Desktop: Tabel Lengkap -->
@@ -149,7 +163,7 @@
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-border">
-						{#each data.recentJadwal as item}
+						{#each paginatedRecentJadwal as item}
 							<tr class="hover:bg-secondary/30 transition-colors">
 								<td class="py-3 px-4 font-mono font-medium text-foreground">{formatDateDDMMYYYY(item.tanggal)}</td>
 								<td class="py-3 px-4 font-semibold text-foreground">{item.namaKegiatan}</td>
@@ -166,6 +180,14 @@
 						{/each}
 					</tbody>
 				</table>
+				<div class="p-4 border-t border-border">
+					<Pagination
+						bind:currentPage
+						bind:pageSize
+						totalItems={data.recentJadwal.length}
+						pageSizeOptions={[5, 10, 20]}
+					/>
+				</div>
 			</div>
 		{/if}
 	</div>

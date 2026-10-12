@@ -1,8 +1,8 @@
 <!--
   @file src/routes/(admin)/admin/dapukan/+page.svelte
-  @purpose Halaman manajemen struktur dapukan dan penugasan RBAC pengurus dengan proteksi wewenang 4S (Kyai/Penerobos di tingkat kelompok), penguncian scope wilayah, serta scroll retention (mencegah loncat ke atas saat assign/update/cabut penugasan)
+  @purpose Halaman manajemen struktur dapukan dan penugasan RBAC pengurus dengan pagination tabel/kartu data, proteksi wewenang 4S (Kyai/Penerobos di tingkat kelompok), penguncian scope wilayah, serta scroll retention (mencegah loncat ke atas saat assign/update/cabut penugasan)
   @usedBy Route admin '/admin/dapukan'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
+  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/Pagination.svelte, $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
   @publicFunctions openAssignModal, closeAssignModal, resetAssignForm, openEditModal, closeEditModal, confirmRemove
   @sideEffects Menampilkan data dapukan/pengurus dan mengirim form mutasi pengurus ke server tanpa refresh kasar dan menjaga posisi scroll
 -->
@@ -21,6 +21,7 @@
 	} from '@lucide/svelte';
 	import type { PageData, ActionData } from './$types';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
+	import Pagination from '$lib/components/Pagination.svelte';
 	import { confirmAction } from '$lib/confirm.svelte';
 	import { enhance } from '$app/forms';
 	import { keepScrollSubmit } from '$lib/keepScroll';
@@ -360,6 +361,14 @@
 		}
 	});
 
+	let currentPage = $state(1);
+	let pageSize = $state(10);
+
+	$effect(() => {
+		searchQuery;
+		currentPage = 1;
+	});
+
 	let filteredPengurus = $derived(
 		(data.daftarPengurus || []).filter((p: (typeof data.daftarPengurus)[number]) => {
 			const q = searchQuery.toLowerCase();
@@ -368,6 +377,10 @@
 			const scope = (p.tingkatScope || '').toLowerCase();
 			return user.includes(q) || dapukan.includes(q) || scope.includes(q);
 		})
+	);
+
+	let paginatedPengurus = $derived(
+		filteredPengurus.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 	);
 </script>
 
@@ -474,7 +487,7 @@
 	{:else}
 		<!-- 1. Tampilan Mobile: Compact Cards -->
 		<div class="md:hidden space-y-3">
-			{#each filteredPengurus as p}
+			{#each paginatedPengurus as p}
 				<div class="bg-card border border-border rounded-xl p-3.5 shadow-xs space-y-2.5">
 					<div class="flex items-start justify-between gap-2">
 						<div class="flex items-center gap-2.5 min-w-0">
@@ -551,6 +564,7 @@
 					</div>
 				</div>
 			{/each}
+			<Pagination bind:currentPage bind:pageSize totalItems={filteredPengurus.length} />
 		</div>
 
 		<!-- 2. Tampilan Desktop: Tabel Data Lengkap -->
@@ -568,7 +582,7 @@
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-border">
-						{#each filteredPengurus as p}
+						{#each paginatedPengurus as p}
 							<tr class="hover:bg-secondary/30 transition-colors">
 								<td class="py-3.5 px-4 font-semibold text-foreground">
 									<div class="flex items-center gap-2">
@@ -649,6 +663,9 @@
 						{/each}
 					</tbody>
 				</table>
+			</div>
+			<div class="p-4 border-t border-border">
+				<Pagination bind:currentPage bind:pageSize totalItems={filteredPengurus.length} />
 			</div>
 		</div>
 	{/if}
