@@ -19,7 +19,8 @@
 		DAFTAR_STATUS_PERNIKAHAN,
 		getDaftarStatusKeluargaByGender,
 		hitungStatusGenerus,
-		hitungUmur
+		hitungUmur,
+		isStatusHubunganMenikah
 	} from '$lib/generus';
 	import {
 		AlertCircle,
@@ -136,6 +137,7 @@
 		statusKeluargaDefault = 'Kepala Keluarga',
 		jenisKelaminDefault: 'L' | 'P' = 'L'
 	): MemberRowData {
+		const isMenikah = isStatusHubunganMenikah(statusKeluargaDefault);
 		return {
 			id: Math.random().toString(36).substring(2, 9),
 			namaLengkap: '',
@@ -146,8 +148,8 @@
 			alamat: '',
 			profesi: '',
 			noTelepon: '',
-			statusGenerus: 'Usia Nikah',
-			statusMenikah: 'Belum Menikah',
+			statusGenerus: isMenikah ? 'Dewasa Menikah' : 'Usia Nikah',
+			statusMenikah: isMenikah ? 'Sudah Menikah' : 'Belum Menikah',
 			statusKeluarga: statusKeluargaDefault,
 			nik: '',
 			statusJamaah: 'Aktif',
@@ -305,6 +307,11 @@
 			member.jenisKelamin = 'L';
 		} else if (member.statusKeluarga === 'Ibu' || member.statusKeluarga === 'Istri') {
 			member.jenisKelamin = 'P';
+		}
+
+		if (isStatusHubunganMenikah(member.statusKeluarga)) {
+			member.statusMenikah = 'Sudah Menikah';
+			member.statusGenerus = hitungStatusGenerus(member.umur, member.statusMenikah);
 		}
 	}
 
@@ -473,6 +480,10 @@
 
 			if (isPerantauDetected) {
 				finalKeluarga = 'Mandiri / Perantau';
+			}
+
+			if (isStatusHubunganMenikah(finalKeluarga)) {
+				rMenikah = 'Sudah Menikah';
 			}
 
 			// Umur otomatis dihitung dari Tanggal Lahir

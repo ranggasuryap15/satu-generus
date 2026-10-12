@@ -2,7 +2,7 @@
  * @file src/routes/(app)/sensus/+page.server.ts
  * @purpose Menampilkan status sensus keluarga/mandiri milik user sendiri dan memproses server actions untuk edit kependudukan serta anggota
  * @usedBy src/routes/(app)/sensus/+page.svelte
- * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/sensus (getKeluargaForUser, isUserInKeluarga), src/lib/utils (normalizeDateToISO), drizzle-orm
+ * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/sensus (getKeluargaForUser, isUserInKeluarga), src/lib/utils (normalizeDateToISO), src/lib/generus, drizzle-orm
  * @publicFunctions load, actions.updateKeluarga, actions.updateAnggota, actions.tambahAnggota, actions.hapusAnggota
  * @sideEffects Mengambil & memperbarui record keluarga dan anggotaKeluarga di SQLite dengan enkripsi AES-256-GCM
  */
@@ -15,6 +15,7 @@ import { eq, and } from 'drizzle-orm';
 import { decryptSensitive, encryptSensitive, maskSensitive } from '$lib/server/crypto';
 import { getKeluargaForUser, isUserInKeluarga } from '$lib/server/sensus';
 import { normalizeDateToISO } from '$lib/utils';
+import { hitungStatusGenerus, hitungUmur, resolveStatusPernikahan } from '$lib/generus';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) {
@@ -254,14 +255,23 @@ export const actions: Actions = {
 		}
 
 		try {
+			const statusPernikahan = resolveStatusPernikahan(statusHubungan);
+			const isoTgl = normalizeDateToISO(tanggalLahir);
+			const umur = isoTgl ? hitungUmur(isoTgl) : 0;
+			const statusGenerus = isoTgl ? hitungStatusGenerus(umur, statusPernikahan) : null;
+
 			db.insert(anggotaKeluarga)
 				.values({
 					keluargaId,
 					namaLengkap,
 					nikEncrypted: nik ? encryptSensitive(nik) : null,
 					statusHubungan,
-					tanggalLahir: normalizeDateToISO(tanggalLahir),
-					jenisKelamin
+					tanggalLahir: isoTgl,
+					jenisKelamin,
+					statusPernikahan,
+					statusGenerus,
+					statusJamaah: 'Aktif',
+					isrun: 'Tidak'
 				})
 				.run();
 		} catch (error) {

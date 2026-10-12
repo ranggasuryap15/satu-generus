@@ -1,9 +1,9 @@
 /**
  * @file src/lib/generus.ts
- * @purpose Helper kalkulasi umur, klasifikasi status generus otomatis, dan opsi metadata sensus jamaah sesuai jenis kelamin
+ * @purpose Helper kalkulasi umur, klasifikasi status generus otomatis, opsi metadata sensus jamaah sesuai jenis kelamin, dan default status pernikahan berdasarkan hubungan keluarga
  * @usedBy Form sensus, modul batch insert (/admin/sensus/batch), dan visualisasi data generus
  * @dependencies Tidak ada (Pure utility TypeScript)
- * @publicFunctions hitungUmur, hitungStatusGenerus, getDaftarStatusKeluargaByGender, DAFTAR_STATUS_GENERUS, DAFTAR_STATUS_PERNIKAHAN, DAFTAR_STATUS_KELUARGA, DAFTAR_GOLONGAN_DARAH
+ * @publicFunctions hitungUmur, hitungStatusGenerus, getDaftarStatusKeluargaByGender, isStatusHubunganMenikah, resolveStatusPernikahan, DAFTAR_STATUS_GENERUS, DAFTAR_STATUS_PERNIKAHAN, DAFTAR_STATUS_KELUARGA, DAFTAR_GOLONGAN_DARAH
  * @sideEffects Tidak ada (Fungsi murni deterministik / read-only date)
  */
 
@@ -138,7 +138,39 @@ export function getDaftarStatusKeluargaByGender(jenisKelamin?: string | null): r
 	return DAFTAR_STATUS_KELUARGA;
 }
 
+/**
+ * Mengecek apakah status hubungan keluarga mengindikasikan status pernikahan default 'Sudah Menikah'
+ * Berlaku untuk: Kepala Keluarga, Suami, Istri, Bapak, Ibu
+ */
+export function isStatusHubunganMenikah(statusHubungan?: string | null): boolean {
+	if (!statusHubungan) return false;
+	const s = statusHubungan.trim().toLowerCase();
+	return (
+		s === 'kepala keluarga' ||
+		s === 'suami' ||
+		s === 'istri' ||
+		s === 'bapak' ||
+		s === 'ibu'
+	);
+}
+
+/**
+ * Menentukan status pernikahan default:
+ * Jika status eksplisit telah ditentukan ('Sudah Menikah' atau 'Belum Menikah'), gunakan status tersebut.
+ * Jika kosong / belum ditentukan, otomatis 'Sudah Menikah' jika hubungannya Kepala Keluarga, Suami, Istri, Bapak, atau Ibu.
+ */
+export function resolveStatusPernikahan(
+	statusHubungan?: string | null,
+	explicitStatus?: string | null
+): 'Sudah Menikah' | 'Belum Menikah' {
+	if (explicitStatus === 'Sudah Menikah' || explicitStatus === 'Belum Menikah') {
+		return explicitStatus;
+	}
+	return isStatusHubunganMenikah(statusHubungan) ? 'Sudah Menikah' : 'Belum Menikah';
+}
+
 export const DAFTAR_GOLONGAN_DARAH = ['-', 'A', 'B', 'AB', 'O'] as const;
 export const DAFTAR_STATUS_JAMAAH = ['Aktif', 'Tidak Aktif'] as const;
 export const DAFTAR_ISRUN = ['Tidak', 'Ya'] as const;
+
 

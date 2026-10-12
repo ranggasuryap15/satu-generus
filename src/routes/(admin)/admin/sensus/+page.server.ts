@@ -2,7 +2,7 @@
  * @file src/routes/(admin)/admin/sensus/+page.server.ts
  * @purpose Rekapitulasi sensus KK & Mandiri, metrik dashboard, penugasan dapukan pengurus KK, serta form actions sensus (create, add anggota, edit, delete sensus, pindah kelompok, toggle keaktifan jamaah, buat akun, assign dapukan)
  * @usedBy src/routes/(admin)/admin/sensus/+page.svelte
- * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/auth, src/lib/server/scope, src/lib/utils (normalizeDateToISO), drizzle-orm
+ * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/auth, src/lib/server/scope, src/lib/utils (normalizeDateToISO), src/lib/generus (hitungUmur, hitungStatusGenerus, isStatusHubunganMenikah, resolveStatusPernikahan), drizzle-orm
  * @publicFunctions load, actions.createSensus, actions.addAnggotaKeluarga, actions.updateAnggota, actions.updateKeluarga, actions.deleteSensus, actions.pindahKelompok, actions.toggleStatusJamaah, actions.createMemberAccount, actions.assignDapukan
  * @sideEffects Transaksi penulisan database tabel users, keluarga, anggota_keluarga, user_dapukan; query join multi-tabel terindeks
  */
@@ -16,6 +16,7 @@ import { decryptSensitive, encryptSensitive, maskSensitive } from '$lib/server/c
 import { hashPassword } from '$lib/server/auth';
 import { getAdminScope, getAccessibleWilayah, isKelompokAllowed, canManageDapukan } from '$lib/server/scope';
 import { normalizeDateToISO } from '$lib/utils';
+import { hitungUmur, hitungStatusGenerus, isStatusHubunganMenikah, resolveStatusPernikahan } from '$lib/generus';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user || !locals.isAdmin) {
@@ -166,6 +167,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 					: null;
 				const aTingkatScope = aPrimaryRole?.tingkatScope || null;
 
+				const statusPernikahanResolved = a.statusPernikahan || (isStatusHubunganMenikah(a.statusHubungan) ? 'Sudah Menikah' : null);
+				const umur = a.tanggalLahir ? hitungUmur(a.tanggalLahir) : 0;
+				const statusGenerusResolved = a.statusGenerus || (a.tanggalLahir ? hitungStatusGenerus(umur, statusPernikahanResolved || 'Belum Menikah') : null);
+
 				return {
 					id: a.id,
 					userId: a.userId,
@@ -184,10 +189,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 					profesiRaw: a.profesi || '',
 					noTelepon: a.noTelepon || '-',
 					noTeleponRaw: a.noTelepon || '',
-					statusGenerus: a.statusGenerus || '-',
-					statusGenerusRaw: a.statusGenerus || '',
-					statusPernikahan: a.statusPernikahan || '-',
-					statusPernikahanRaw: a.statusPernikahan || '',
+					statusGenerus: statusGenerusResolved || '-',
+					statusGenerusRaw: statusGenerusResolved || '',
+					statusPernikahan: statusPernikahanResolved || '-',
+					statusPernikahanRaw: statusPernikahanResolved || '',
 					statusJamaah: a.statusJamaah || 'Aktif',
 					isrun: a.isrun || 'Tidak',
 					golonganDarah: a.golonganDarah || '-',
@@ -508,6 +513,10 @@ export const actions: Actions = {
 					const isKepala = isMandiri || a.statusHubungan === 'Kepala Keluarga' || i === 0;
 					const memberNama = a.namaLengkap?.trim() || (isKepala ? namaLengkap : a.statusHubungan);
 					const nikVal = a.nik && a.nik.trim() ? encryptSensitive(a.nik.trim()) : null;
+					const isoTgl = normalizeDateToISO(a.tanggalLahir);
+					const memberPernikahan = resolveStatusPernikahan(a.statusHubungan, (a as any).statusPernikahan);
+					const umur = isoTgl ? hitungUmur(isoTgl) : 0;
+					const memberGenerus = isoTgl ? hitungStatusGenerus(umur, memberPernikahan) : null;
 
 					tx.insert(anggotaKeluarga)
 						.values({
@@ -516,8 +525,12 @@ export const actions: Actions = {
 							namaLengkap: memberNama,
 							nikEncrypted: nikVal,
 							statusHubungan: a.statusHubungan,
-							tanggalLahir: normalizeDateToISO(a.tanggalLahir),
-							jenisKelamin: a.jenisKelamin
+							tanggalLahir: isoTgl,
+							jenisKelamin: a.jenisKelamin,
+							statusPernikahan: memberPernikahan,
+							statusGenerus: memberGenerus,
+							statusJamaah: 'Aktif',
+							isrun: 'Tidak'
 						})
 						.run();
 				}
@@ -600,14 +613,24 @@ export const actions: Actions = {
 		}
 
 		try {
+			const statusPernikahanInput = formData.get('statusPernikahan')?.toString()?.trim() || '';
+			const resolvedPernikahan = resolveStatusPernikahan(statusHubungan, statusPernikahanInput);
+			const isoTgl = normalizeDateToISO(tanggalLahir);
+			const umur = isoTgl ? hitungUmur(isoTgl) : 0;
+			const resolvedGenerus = isoTgl ? hitungStatusGenerus(umur, resolvedPernikahan) : null;
+
 			db.insert(anggotaKeluarga)
 				.values({
 					keluargaId,
 					namaLengkap,
 					nikEncrypted: nik ? encryptSensitive(nik) : null,
 					statusHubungan,
-					tanggalLahir: normalizeDateToISO(tanggalLahir),
-					jenisKelamin
+					tanggalLahir: isoTgl,
+					jenisKelamin,
+					statusPernikahan: resolvedPernikahan,
+					statusGenerus: resolvedGenerus,
+					statusJamaah: 'Aktif',
+					isrun: 'Tidak'
 				})
 				.run();
 		} catch (err) {
@@ -787,16 +810,21 @@ export const actions: Actions = {
 		}
 
 		try {
+			const resolvedPernikahan = resolveStatusPernikahan(statusHubungan, statusPernikahan);
+			const isoTgl = normalizeDateToISO(tanggalLahir);
+			const umur = isoTgl ? hitungUmur(isoTgl) : 0;
+			const resolvedGenerus = statusGenerus || (isoTgl ? hitungStatusGenerus(umur, resolvedPernikahan) : null);
+
 			const updatePayload: Record<string, any> = {
 				namaLengkap,
 				statusHubungan,
-				tanggalLahir: normalizeDateToISO(tanggalLahir),
+				tanggalLahir: isoTgl,
 				jenisKelamin,
 				tempatLahir: tempatLahir || null,
 				profesi: profesi || null,
 				noTelepon: noTelepon || null,
-				statusGenerus: statusGenerus || null,
-				statusPernikahan: statusPernikahan || null,
+				statusGenerus: resolvedGenerus || null,
+				statusPernikahan: resolvedPernikahan,
 				statusJamaah: statusJamaah === 'Aktif' ? 'Aktif' : 'Tidak Aktif',
 				isrun: isrun === 'Ya' ? 'Ya' : 'Tidak',
 				golonganDarah: golonganDarah || null

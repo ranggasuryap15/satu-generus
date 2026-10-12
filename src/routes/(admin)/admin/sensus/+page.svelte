@@ -2,7 +2,7 @@
   @file src/routes/(admin)/admin/sensus/+page.svelte
   @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri, dashboard statistik, penugasan dapukan pengurus KK, modal detail lengkap (hapus sensus, pindah kelompok, toggle status jamaah), modal edit anggota/KK, dan pembuatan akun
   @usedBy Route admin '/admin/sensus'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/confirm.svelte, $lib/utils (formatDateDDMMYYYY)
+  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/confirm.svelte, $lib/utils (formatDateDDMMYYYY), $lib/generus (isStatusHubunganMenikah, hitungUmur, hitungStatusGenerus)
   @publicFunctions openDetailModal, closeDetailModal, requestUnmask, openCreateModal, closeCreateModal, openAddMemberModal, closeAddMemberModal, openCreateAccountModal, openEditAnggotaModal, closeEditAnggotaModal, openEditKeluargaModal, closeEditKeluargaModal, openPindahKelompokModal, closePindahKelompokModal, openAssignDapukanModal, closeAssignDapukanModal, handleHapusSensus, handleToggleStatusJamaah, resetFilters, toggleMobileFilter
   @sideEffects Menampilkan metrik, unmask data sensitif, submit actions (createSensus, addAnggotaKeluarga, updateAnggota, updateKeluarga, deleteSensus, pindahKelompok, toggleStatusJamaah, createMemberAccount, assignDapukan)
 -->
@@ -10,6 +10,7 @@
 	import DateInput from '$lib/components/DateInput.svelte';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
 	import { formatDateDDMMYYYY } from '$lib/utils';
+	import { isStatusHubunganMenikah, hitungUmur, hitungStatusGenerus } from '$lib/generus';
 	import {
 	  AlertCircle,
 	  ArrowRightLeft,
@@ -120,11 +121,39 @@
 		editAnggotaTempatLahir = (a as any).tempatLahirRaw || (a.tempatLahir !== '-' ? a.tempatLahir : '');
 		editAnggotaProfesi = (a as any).profesiRaw || (a.profesi !== '-' ? a.profesi : '');
 		editAnggotaNoTelepon = (a as any).noTeleponRaw || (a.noTelepon !== '-' ? a.noTelepon : '');
-		editAnggotaStatusGenerus = (a as any).statusGenerusRaw || (a.statusGenerus !== '-' ? a.statusGenerus : '');
 		editAnggotaStatusPernikahan = (a as any).statusPernikahanRaw || (a.statusPernikahan !== '-' ? a.statusPernikahan : '');
+		if (!editAnggotaStatusPernikahan && isStatusHubunganMenikah(editAnggotaHubungan)) {
+			editAnggotaStatusPernikahan = 'Sudah Menikah';
+		}
+		editAnggotaStatusGenerus = (a as any).statusGenerusRaw || (a.statusGenerus !== '-' ? a.statusGenerus : '');
+		if (!editAnggotaStatusGenerus && editAnggotaTanggalLahir) {
+			editAnggotaStatusGenerus = hitungStatusGenerus(
+				hitungUmur(editAnggotaTanggalLahir),
+				editAnggotaStatusPernikahan || 'Belum Menikah'
+			);
+		}
 		editAnggotaStatusJamaah = a.statusJamaah || 'Aktif';
 		editAnggotaIsrun = a.isrun === 'Ya';
 		editAnggotaGolonganDarah = (a as any).golonganDarahRaw || (a.golonganDarah !== '-' ? a.golonganDarah : '');
+	}
+
+	function onEditAnggotaHubunganChange() {
+		if (isStatusHubunganMenikah(editAnggotaHubungan)) {
+			if (!editAnggotaStatusPernikahan || editAnggotaStatusPernikahan === 'Belum Menikah') {
+				editAnggotaStatusPernikahan = 'Sudah Menikah';
+			}
+			if (editAnggotaHubungan === 'Kepala Keluarga' || editAnggotaHubungan === 'Suami') {
+				editAnggotaJenisKelamin = 'L';
+			} else if (editAnggotaHubungan === 'Istri') {
+				editAnggotaJenisKelamin = 'P';
+			}
+		}
+		if (editAnggotaTanggalLahir) {
+			editAnggotaStatusGenerus = hitungStatusGenerus(
+				hitungUmur(editAnggotaTanggalLahir),
+				editAnggotaStatusPernikahan || 'Belum Menikah'
+			);
+		}
 	}
 
 	function closeEditAnggotaModal() {
@@ -252,6 +281,24 @@
 	let memberStatus = $state('Anak');
 	let memberTanggalLahir = $state('');
 	let memberJenisKelamin = $state('Laki-laki');
+
+	function onMemberStatusChange() {
+		if (memberStatus === 'Kepala Keluarga' || memberStatus === 'Suami') {
+			memberJenisKelamin = 'Laki-laki';
+		} else if (memberStatus === 'Istri') {
+			memberJenisKelamin = 'Perempuan';
+		}
+	}
+
+	function onNewAnggotaStatusChange(idx: number) {
+		const row = newAnggotaList[idx];
+		if (!row) return;
+		if (row.statusHubungan === 'Kepala Keluarga' || row.statusHubungan === 'Suami') {
+			row.jenisKelamin = 'Laki-laki';
+		} else if (row.statusHubungan === 'Istri') {
+			row.jenisKelamin = 'Perempuan';
+		}
+	}
 
 	// State Modal Tugaskan Pengurus / Beri Dapukan
 	let showAssignDapukanModal = $state(false);
@@ -1443,6 +1490,7 @@
 											<select
 												id={`new-status-${idx}`}
 												bind:value={anggota.statusHubungan}
+												onchange={() => onNewAnggotaStatusChange(idx)}
 												required
 												class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 											>
@@ -1697,6 +1745,7 @@
 						name="statusHubungan"
 						required
 						bind:value={memberStatus}
+						onchange={onMemberStatusChange}
 						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 					>
 						<option value="Istri">Istri</option>
@@ -2187,6 +2236,7 @@
 							id="edit-statusHubungan"
 							name="statusHubungan"
 							bind:value={editAnggotaHubungan}
+							onchange={onEditAnggotaHubunganChange}
 							required
 							class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-primary"
 						>

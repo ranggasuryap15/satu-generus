@@ -15,7 +15,7 @@ import { encryptSensitive } from '$lib/server/crypto';
 import { hashPassword } from '$lib/server/auth';
 import { getAdminScope, getAccessibleWilayah, isKelompokAllowed } from '$lib/server/scope';
 import { normalizeDateToISO } from '$lib/utils';
-import { hitungStatusGenerus, hitungUmur } from '$lib/generus';
+import { hitungStatusGenerus, hitungUmur, resolveStatusPernikahan } from '$lib/generus';
 
 export interface BatchRowInput {
 	id?: string;
@@ -277,9 +277,11 @@ export const actions: Actions = {
 					// 3. Simpan seluruh anggota keluarga ke dalam record keluarga ini
 					for (let i = 0; i < fam.members.length; i++) {
 						const m = fam.members[i];
+						const statusHubunganFinal = m.statusKeluarga || (i === 0 ? 'Kepala Keluarga' : 'Anak');
+						const statusMenikahFinal = resolveStatusPernikahan(statusHubunganFinal, m.statusMenikah);
 						const umurCalc = hitungUmur(m.tanggalLahir);
 						// Status Generus selalu otomatis mengikuti umur & status pernikahan
-						const statusGenerusFinal = hitungStatusGenerus(umurCalc, m.statusMenikah);
+						const statusGenerusFinal = hitungStatusGenerus(umurCalc, statusMenikahFinal);
 
 						const rawNik = m.nik ? m.nik.trim().replace(/\D/g, '').slice(0, 16) : '';
 						const nikEncrypted = rawNik ? encryptSensitive(rawNik) : null;
@@ -290,14 +292,14 @@ export const actions: Actions = {
 								userId: memberUserIds[i] || null,
 								namaLengkap: m.namaLengkap.trim(),
 								nikEncrypted,
-								statusHubungan: m.statusKeluarga || (i === 0 ? 'Kepala Keluarga' : 'Anak'),
+								statusHubungan: statusHubunganFinal,
 								tanggalLahir: normalizeDateToISO(m.tanggalLahir),
 								jenisKelamin: m.jenisKelamin === 'P' ? 'P' : 'L',
 								tempatLahir: m.tempatLahir?.trim() || null,
 								profesi: m.profesi?.trim() || null,
 								noTelepon: m.noTelepon?.trim() || null,
 								statusGenerus: statusGenerusFinal,
-								statusPernikahan: m.statusMenikah || 'Belum Menikah',
+								statusPernikahan: statusMenikahFinal,
 								statusJamaah: m.statusJamaah || 'Aktif',
 								isrun: m.isrun || 'Tidak',
 								golonganDarah: m.golonganDarah && m.golonganDarah !== '-' ? m.golonganDarah.trim() : null

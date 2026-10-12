@@ -2,7 +2,7 @@
  * @file src/routes/(app)/sensus/tambah/+page.server.ts
  * @purpose Form action pendaftaran sensus KK/anggota keluarga dengan enkripsi AES-256-GCM; mengarahkan ke KK sendiri jika user sudah terdaftar
  * @usedBy Wizard form sensus pada src/routes/(app)/sensus/tambah/+page.svelte
- * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/sensus (getKeluargaForUser), src/lib/utils (normalizeDateToISO), drizzle-orm
+ * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/sensus (getKeluargaForUser), src/lib/utils (normalizeDateToISO), src/lib/generus, drizzle-orm
  * @publicFunctions load, actions.default
  * @sideEffects Menulis record terenkripsi ke tabel keluarga dan anggota_keluarga dalam satu transaksi SQLite atomik
  */
@@ -12,6 +12,7 @@ import { anggotaKeluarga, keluarga } from "$lib/db/schema";
 import { encryptSensitive } from "$lib/server/crypto";
 import { getKeluargaForUser } from "$lib/server/sensus";
 import { normalizeDateToISO } from "$lib/utils";
+import { hitungStatusGenerus, hitungUmur, resolveStatusPernikahan } from "$lib/generus";
 import { fail, redirect } from "@sveltejs/kit";
 import { eq } from "drizzle-orm";
 import type { Actions, PageServerLoad } from "./$types";
@@ -153,6 +154,11 @@ export const actions: Actions = {
 
         for (const a of anggotaList) {
           const nikVal = a.nik ? a.nik.trim() : "";
+          const isoTgl = normalizeDateToISO(a.tanggalLahir);
+          const statusPernikahan = resolveStatusPernikahan(a.statusHubungan);
+          const umur = isoTgl ? hitungUmur(isoTgl) : 0;
+          const statusGenerus = isoTgl ? hitungStatusGenerus(umur, statusPernikahan) : null;
+
           tx.insert(anggotaKeluarga)
             .values({
               keluargaId: targetKeluargaId,
@@ -160,8 +166,12 @@ export const actions: Actions = {
                 a.namaLengkap?.trim() || locals.user?.namaLengkap || "Anggota",
               nikEncrypted: nikVal ? encryptSensitive(nikVal) : null,
               statusHubungan: a.statusHubungan,
-              tanggalLahir: normalizeDateToISO(a.tanggalLahir),
+              tanggalLahir: isoTgl,
               jenisKelamin: a.jenisKelamin,
+              statusPernikahan,
+              statusGenerus,
+              statusJamaah: "Aktif",
+              isrun: "Tidak"
             })
             .run();
         }
