@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(app)/shodaqoh/+page.svelte
-  @purpose Halaman shodaqoh & infaq mobile-first untuk jamaah: scan QRIS, salin nomor rekening bank, pengiriman konfirmasi transfer beserta bukti transfer, dan pemantauan riwayat status verifikasi
+  @purpose Halaman shodaqoh & infaq mobile-first untuk jamaah: scan QRIS, salin nomor rekening bank, pengiriman konfirmasi transfer beserta bukti transfer, serta pemantauan riwayat status verifikasi lengkap dengan alasan penolakan transparan
   @usedBy Route client '/shodaqoh'
   @dependencies @lucide/svelte, $app/forms, Svelte 5 Runes
   @publicFunctions N/A (Svelte Component)
-  @sideEffects Mengirim laporan shodaqoh baru beserta file bukti transfer ke server
+  @sideEffects Mengirim laporan shodaqoh baru beserta file bukti transfer ke server via action ?/laporShodaqoh
 -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
@@ -241,32 +241,43 @@
 
 			<div class="space-y-2">
 				{#each data.riwayatSaya as rw}
-					<div class="border border-border bg-card rounded-2xl p-3.5 flex items-center justify-between gap-3 shadow-2xs">
-						<div class="space-y-0.5 min-w-0">
-							<div class="flex items-center gap-2">
-								<span class="font-bold text-xs text-foreground truncate">{rw.namaJenisShodaqoh}</span>
-								<span class="font-mono text-xs font-bold text-primary">{formatRupiah(rw.nominal)}</span>
+					<div class="border border-border bg-card rounded-2xl p-3.5 shadow-2xs space-y-2">
+						<div class="flex items-center justify-between gap-3">
+							<div class="space-y-0.5 min-w-0">
+								<div class="flex items-center gap-2">
+									<span class="font-bold text-xs text-foreground truncate">{rw.namaJenisShodaqoh}</span>
+									<span class="font-mono text-xs font-bold text-primary">{formatRupiah(rw.nominal)}</span>
+								</div>
+								<p class="text-[10px] text-foreground/50">
+									{rw.tanggalTransfer} • {rw.metodePembayaran}
+								</p>
 							</div>
-							<p class="text-[10px] text-foreground/50">
-								{rw.tanggalTransfer} • {rw.metodePembayaran}
-							</p>
+
+							<div class="shrink-0">
+								{#if rw.statusApproval === 'Disetujui'}
+									<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+										<CheckCircle2 class="w-3 h-3" /> Disetujui
+									</span>
+								{:else if rw.statusApproval === 'Ditolak'}
+									<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+										<XCircle class="w-3 h-3" /> Ditolak
+									</span>
+								{:else}
+									<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+										<Clock class="w-3 h-3" /> Menunggu
+									</span>
+								{/if}
+							</div>
 						</div>
 
-						<div class="shrink-0">
-							{#if rw.statusApproval === 'Disetujui'}
-								<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-									<CheckCircle2 class="w-3 h-3" /> Disetujui
-								</span>
-							{:else if rw.statusApproval === 'Ditolak'}
-								<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20" title={rw.alasanPenolakan || ''}>
-									<XCircle class="w-3 h-3" /> Ditolak
-								</span>
-							{:else}
-								<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-									<Clock class="w-3 h-3" /> Menunggu
-								</span>
-							{/if}
-						</div>
+						{#if rw.statusApproval === 'Ditolak' && rw.alasanPenolakan}
+							<div class="pt-2 border-t border-border/60 flex items-start gap-1.5 text-[10px] text-rose-600 dark:text-rose-400 bg-rose-500/5 -mx-3.5 -mb-3.5 p-2.5 rounded-b-2xl">
+								<AlertCircle class="w-3.5 h-3.5 shrink-0 mt-0.5" />
+								<div class="min-w-0 leading-tight">
+									<span class="font-semibold">Alasan penolakan:</span> {rw.alasanPenolakan}
+								</div>
+							</div>
+						{/if}
 					</div>
 				{/each}
 			</div>
