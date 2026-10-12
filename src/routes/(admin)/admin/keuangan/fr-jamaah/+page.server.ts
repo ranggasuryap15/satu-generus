@@ -160,6 +160,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		}
 	}
 
+	const isFinanceAdmin = adminScope.isPusat || roles.some((r) => {
+		const nama = (r.namaDapukan || r.namaDapukanCustom || '').toLowerCase();
+		return nama.includes('ku') || nama.includes('bendahara') || nama.includes('keuangan');
+	});
+
 	return {
 		adminScope,
 		accessibleWilayah,
@@ -170,6 +175,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		tahun: tahunParam,
 		bulan: bulanParam,
 		canEdit,
+		isFinanceAdmin,
 		jamaahList
 	};
 };

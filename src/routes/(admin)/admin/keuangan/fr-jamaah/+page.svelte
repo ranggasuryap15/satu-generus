@@ -36,6 +36,12 @@
 	let searchQuery = $state('');
 	let isFilterOpen = $state(false);
 
+	$effect(() => {
+		selectedKelompok = data.selectedKelompokId ?? '';
+		selectedTahun = data.tahun;
+		selectedBulan = data.bulan;
+	});
+
 	// Tracking Perubahan Data (Inline Edit)
 	let editedValues = $state<Record<string, { nominal: number; catatan: string }>>({});
 	let isSaving = $state(false);
@@ -215,7 +221,12 @@
 			{#if data.canEdit}
 				<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
 					<ShieldCheck class="w-4 h-4" />
-					<span>Akses Edit Aktif (KU)</span>
+					<span>Akses Edit Aktif ({data.adminScope.isPusat ? 'Superadmin' : 'KU'})</span>
+				</span>
+			{:else if data.isFinanceAdmin}
+				<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+					<ShieldCheck class="w-4 h-4" />
+					<span>Pengurus {data.adminScope.isPusat ? 'Superadmin' : 'KU'}</span>
 				</span>
 			{:else}
 				<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-secondary text-foreground/60 border border-border">
@@ -506,7 +517,7 @@
 
 				<form
 					method="POST"
-					action="?/saveFr"
+					action={`?kelompokId=${data.selectedKelompokId}&tahun=${data.tahun}&bulan=${data.bulan}&/saveFr`}
 					use:enhance={keepScrollSubmit({
 						beforeSubmit: () => {
 							isSaving = true;
