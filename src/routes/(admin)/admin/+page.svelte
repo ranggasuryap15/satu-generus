@@ -1,13 +1,25 @@
 <!--
   @file src/routes/(admin)/admin/+page.svelte
-  @purpose Halaman utama Dashboard Admin untuk rekapitulasi data demografi dan presensi dinamis dengan pagination tabel/kartu jadwal kegiatan
+  @purpose Halaman utama Dashboard Admin untuk rekapitulasi data demografi, quick access modul pengurus, dan presensi dinamis
   @usedBy Route admin '/admin'
   @dependencies @lucide/svelte, $lib/components/Pagination.svelte, $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
   @publicFunctions N/A (Svelte Component)
-  @sideEffects Menampilkan metrik data sensus dan ringkasan operasional jamaah
+  @sideEffects Menampilkan metrik data sensus, quick access modul administratif, dan ringkasan operasional jamaah
 -->
 <script lang="ts">
-	import { ArrowRight, Calendar, Home, Plus, ShieldCheck, Users } from '@lucide/svelte';
+	import {
+		ArrowRight,
+		Calendar,
+		CalendarCheck,
+		CalendarDays,
+		HandCoins,
+		Home,
+		Landmark,
+		MapPin,
+		Plus,
+		ShieldCheck,
+		Users
+	} from '@lucide/svelte';
 	import { formatDateDDMMYYYY } from '$lib/utils';
 	import Pagination from '$lib/components/Pagination.svelte';
 	import type { PageData } from './$types';
@@ -20,6 +32,71 @@
 	let paginatedRecentJadwal = $derived(
 		(data.recentJadwal || []).slice((currentPage - 1) * pageSize, currentPage * pageSize)
 	);
+
+	const canAccessKeuangan = $derived(Boolean(data.canAccessKeuangan));
+
+	const quickAccessItems = $derived([
+		{
+			href: '/admin/profil-wilayah',
+			title: 'Profil Wilayah',
+			description: 'QRIS, rekening & info wilayah',
+			icon: Landmark,
+			badge: '4S',
+			color: 'text-sky-600 dark:text-sky-400 bg-sky-500/10 border-sky-500/20'
+		},
+		{
+			href: '/admin/sensus',
+			title: 'Sensus Jamaah',
+			description: 'Data KK, mutasi & anggota',
+			icon: Users,
+			badge: null,
+			color: 'text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 border-indigo-500/20'
+		},
+		{
+			href: '/admin/presensi',
+			title: 'Presensi Pengajian',
+			description: 'Scan QR & rekap kehadiran',
+			icon: CalendarCheck,
+			badge: null,
+			color: 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+		},
+		{
+			href: '/admin/jadwal',
+			title: 'Jadwal Pengajian',
+			description: 'Agenda daerah, desa & kelompok',
+			icon: CalendarDays,
+			badge: null,
+			color: 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20'
+		},
+		...(canAccessKeuangan
+			? [
+					{
+						href: '/admin/keuangan',
+						title: 'Keuangan & FR',
+						description: 'Dashboard & laporan FR jamaah',
+						icon: HandCoins,
+						badge: 'KU/Kyai',
+						color: 'text-teal-600 dark:text-teal-400 bg-teal-500/10 border-teal-500/20'
+					}
+				]
+			: []),
+		{
+			href: '/admin/dapukan',
+			title: 'Dapukan & RBAC',
+			description: 'Hak akses & struktur pengurus',
+			icon: ShieldCheck,
+			badge: null,
+			color: 'text-purple-600 dark:text-purple-400 bg-purple-500/10 border-purple-500/20'
+		},
+		{
+			href: '/admin/wilayah',
+			title: 'Data Wilayah',
+			description: 'Master daerah, desa & kelompok',
+			icon: MapPin,
+			badge: null,
+			color: 'text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/20'
+		}
+	]);
 
 	const statCards = $derived([
 		{
@@ -95,6 +172,44 @@
 				<p class="text-[11px] text-foreground/50 mt-1">{stat.sub}</p>
 			</div>
 		{/each}
+	</div>
+
+	<!-- Quick Access Modul Pengurus / Admin Quick Access -->
+	<div class="space-y-3">
+		<div class="flex items-center justify-between">
+			<h2 class="text-sm font-semibold text-foreground tracking-tight">Akses Cepat Pengurus</h2>
+			<span class="text-[11px] text-foreground/50">Pintasan modul administratif</span>
+		</div>
+
+		<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+			{#each quickAccessItems as item}
+				<a
+					href={item.href}
+					class="group p-3.5 rounded-xl border border-border bg-card hover:bg-secondary/40 hover:border-primary/30 transition-all shadow-xs flex flex-col justify-between gap-3 active:scale-[0.98]"
+				>
+					<div class="flex items-start justify-between gap-2">
+						<div class="w-9 h-9 rounded-xl flex items-center justify-center border {item.color} transition-transform group-hover:scale-105">
+							<item.icon class="w-4 h-4" />
+						</div>
+						{#if item.badge}
+							<span class="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-primary/10 text-primary border border-primary/20">
+								{item.badge}
+							</span>
+						{/if}
+					</div>
+
+					<div>
+						<h3 class="text-xs font-semibold text-foreground group-hover:text-primary transition-colors flex items-center gap-1">
+							<span>{item.title}</span>
+							<ArrowRight class="w-3 h-3 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-primary" />
+						</h3>
+						<p class="text-[11px] text-foreground/55 line-clamp-1 mt-0.5">
+							{item.description}
+						</p>
+					</div>
+				</a>
+			{/each}
+		</div>
 	</div>
 
 	<!-- Section Rekapitulasi & Tabel Kegiatan Terbaru -->

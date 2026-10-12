@@ -1,10 +1,10 @@
 <!--
   @file src/lib/components/navigation/AdminTopBar.svelte
-  @purpose Komponen Header Top Bar untuk tampilan admin dengan dropdown menu profil, logout, dan notifikasi persetujuan izin/sakit
+  @purpose Komponen Header Top Bar untuk tampilan admin dengan switcher mode (Admin ⇄ Jamaah), dropdown menu profil, logout, dan notifikasi approval
   @usedBy src/routes/(admin)/+layout.svelte
   @dependencies @lucide/svelte, src/lib/components/ThemeToggle.svelte, $app/state (page)
   @publicFunctions N/A (Svelte Component)
-  @sideEffects Menampilkan navigasi admin, toggle drawer mobile, popover notifikasi approval izin, dan menu dropdown profil/logout
+  @sideEffects Menampilkan navigasi admin, switcher mode, toggle drawer mobile, popover notifikasi approval izin, dan menu dropdown profil/logout
 -->
 <script lang="ts">
 	import {
@@ -92,6 +92,17 @@
 	</div>
 
 	<div class="flex items-center gap-2 sm:gap-3">
+		<!-- Mode Switcher: Admin ⇄ Jamaah -->
+		<a
+			href="/"
+			class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-semibold transition-all active:scale-95 shadow-2xs"
+			title="Beralih ke Tampilan Jamaah"
+		>
+			<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+			<span class="font-bold">Admin</span>
+			<span class="text-foreground/50 text-[10px] font-normal hidden xs:inline">⇄ Jamaah</span>
+		</a>
+
 		<ThemeToggle />
 
 		<!-- Dropdown Notifikasi Approval -->

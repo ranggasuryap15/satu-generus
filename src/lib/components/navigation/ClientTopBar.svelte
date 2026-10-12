@@ -1,10 +1,10 @@
 <!--
   @file src/lib/components/navigation/ClientTopBar.svelte
-  @purpose Komponen Top Bar mobile-first dengan popover/modal notifikasi interaktif (jadwal pengajian & presensi) dan navigasi admin
+  @purpose Komponen Top Bar mobile-first dengan popover/modal notifikasi interaktif (jadwal pengajian & presensi) dan switcher mode Jamaah ⇄ Admin
   @usedBy src/routes/(app)/+layout.svelte
   @dependencies @lucide/svelte, src/lib/components/ThemeToggle.svelte, $app/state (page)
   @publicFunctions toggleNotif, closeNotif
-  @sideEffects Menampilkan modal drawer notifikasi interaktif jamaah, overlay backdrop, dan shortcut menuju /presensi
+  @sideEffects Menampilkan modal drawer notifikasi interaktif jamaah, overlay backdrop, dan switcher mode navigasi ke /admin
 -->
 <script lang="ts">
 	import { page } from '$app/state';
@@ -80,11 +80,12 @@
 			{#if isAdmin}
 				<a
 					href="/admin"
-					class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-semibold transition-colors"
-					title="Kembali ke Panel Admin"
+					class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-semibold transition-all active:scale-95 shadow-2xs"
+					title="Beralih ke Panel Pengurus/Admin"
 				>
-					<ShieldCheck class="w-3.5 h-3.5" />
-					<span class="text-[11px]">Admin</span>
+					<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+					<span class="font-bold">Jamaah</span>
+					<span class="text-foreground/50 text-[10px] font-normal hidden xs:inline">⇄ Admin</span>
 				</a>
 			{/if}
 
