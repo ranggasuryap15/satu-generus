@@ -1,15 +1,16 @@
 <!--
   @file src/routes/(admin)/admin/keuangan/shodaqoh/+page.svelte
-  @purpose Halaman manajemen shodaqoh wilayah untuk admin (KU & Kyai): rekapitulasi metrik, ekspor CSV transaksi, visualisasi grafik donasi bulanan, verifikasi & approval bukti transfer, CRUD rekening/QRIS, serta isolasi alokasi jenis shodaqoh
+  @purpose Halaman manajemen shodaqoh wilayah untuk admin (KU & Kyai): rekapitulasi metrik, ekspor CSV transaksi, visualisasi grafik donasi bulanan, verifikasi & approval bukti transfer, CRUD rekening/QRIS, serta isolasi alokasi jenis shodaqoh dengan preservasi tab & URL wilayah
   @usedBy Route admin '/admin/keuangan/shodaqoh'
-  @dependencies @lucide/svelte, $app/navigation, $app/forms (enhance), $app/state, Svelte 5 Runes, formatRupiah, $lib/components/SearchableSelect.svelte
-  @publicFunctions exportToCsv
-  @sideEffects Melakukan approval/penolakan transaksi shodaqoh, mutasi jenis shodaqoh, pembaruan rekening/QRIS via form actions, serta ekspor CSV transaksi di browser client
+  @dependencies @lucide/svelte, $app/navigation, $app/forms (enhance), $app/state, Svelte 5 Runes, formatRupiah, $lib/components/SearchableSelect.svelte, $lib/keepScroll.ts (keepScrollSubmit)
+  @publicFunctions exportToCsv, switchTab, changeWilayah, changeStatusFilter
+  @sideEffects Melakukan approval/penolakan transaksi shodaqoh, mutasi jenis shodaqoh, pembaruan rekening/QRIS via form actions dengan menjaga scroll position dan URL tab/scope/id agar tidak terlempar ke halaman awal
 -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import { keepScrollSubmit } from '$lib/keepScroll';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
 	import {
 		AlertCircle,
@@ -52,7 +53,9 @@
 	}
 
 	// State interaktif
-	let activeTab = $state<'transaksi' | 'jenis' | 'rekening'>('transaksi');
+	let activeTab = $state<'transaksi' | 'jenis' | 'rekening'>(
+		(page.url.searchParams.get('tab') as 'transaksi' | 'jenis' | 'rekening') || 'transaksi'
+	);
 	let filterStatus = $state(data.filterStatus || 'Semua');
 	let searchQuery = $state('');
 
@@ -93,10 +96,26 @@
 		})
 	);
 
+	function switchTab(tab: 'transaksi' | 'jenis' | 'rekening') {
+		activeTab = tab;
+		if (typeof window !== 'undefined') {
+			const url = new URL(window.location.href);
+			if (tab === 'transaksi') {
+				url.searchParams.delete('tab');
+			} else {
+				url.searchParams.set('tab', tab);
+			}
+			window.history.replaceState({}, '', url.toString());
+		}
+	}
+
 	function changeWilayah(scope: string, id: number) {
 		const url = new URL(page.url.href);
 		url.searchParams.set('scope', scope);
 		url.searchParams.set('id', String(id));
+		if (activeTab !== 'transaksi') {
+			url.searchParams.set('tab', activeTab);
+		}
 		goto(url.toString());
 	}
 
@@ -107,6 +126,9 @@
 			url.searchParams.delete('status');
 		} else {
 			url.searchParams.set('status', status);
+		}
+		if (activeTab !== 'transaksi') {
+			url.searchParams.set('tab', activeTab);
 		}
 		goto(url.toString());
 	}
@@ -143,17 +165,38 @@
 		URL.revokeObjectURL(url);
 	}
 
-	// Pastikan URL tetap menunjuk wilayah aktif setelah action sukses, sehingga tidak
-	// ter-reset ke wilayah default ketika result.location menghapus query scope & id.
 	$effect(() => {
-		if (form?.success && form?.scope && form?.id && typeof window !== 'undefined') {
+		const urlTab = page.url.searchParams.get('tab') as 'transaksi' | 'jenis' | 'rekening' | null;
+		if (urlTab && (urlTab === 'transaksi' || urlTab === 'jenis' || urlTab === 'rekening') && activeTab !== urlTab) {
+			activeTab = urlTab;
+		}
+	});
+
+	// Pastikan URL tetap menunjuk wilayah dan tab aktif setelah action sukses, sehingga tidak
+	// ter-reset ke wilayah atau tab default ketika result.location menghapus query scope & id.
+	$effect(() => {
+		if (form?.success && typeof window !== 'undefined') {
 			const currentUrl = new URL(window.location.href);
-			if (
-				currentUrl.searchParams.get('scope') !== String(form.scope) ||
-				currentUrl.searchParams.get('id') !== String(form.id)
-			) {
+			let changed = false;
+			if (form.scope && currentUrl.searchParams.get('scope') !== String(form.scope)) {
 				currentUrl.searchParams.set('scope', String(form.scope));
+				changed = true;
+			}
+			if (form.id && currentUrl.searchParams.get('id') !== String(form.id)) {
 				currentUrl.searchParams.set('id', String(form.id));
+				changed = true;
+			}
+			if (form.tab) {
+				if (form.tab === 'transaksi' && currentUrl.searchParams.has('tab')) {
+					currentUrl.searchParams.delete('tab');
+					changed = true;
+				} else if (form.tab !== 'transaksi' && currentUrl.searchParams.get('tab') !== String(form.tab)) {
+					currentUrl.searchParams.set('tab', String(form.tab));
+					changed = true;
+				}
+				activeTab = form.tab;
+			}
+			if (changed) {
 				window.history.replaceState({}, '', currentUrl.toString());
 			}
 		}
@@ -442,7 +485,7 @@
 	<div class="flex items-center gap-2 border-b border-border pb-2 text-xs overflow-x-auto">
 		<button
 			type="button"
-			onclick={() => (activeTab = 'transaksi')}
+			onclick={() => switchTab('transaksi')}
 			class="px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 {activeTab === 'transaksi'
 				? 'bg-primary text-primary-foreground shadow-xs'
 				: 'text-foreground/60 hover:text-foreground hover:bg-secondary'}"
@@ -458,7 +501,7 @@
 
 		<button
 			type="button"
-			onclick={() => (activeTab = 'jenis')}
+			onclick={() => switchTab('jenis')}
 			class="px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 {activeTab === 'jenis'
 				? 'bg-primary text-primary-foreground shadow-xs'
 				: 'text-foreground/60 hover:text-foreground hover:bg-secondary'}"
@@ -469,7 +512,7 @@
 
 		<button
 			type="button"
-			onclick={() => (activeTab = 'rekening')}
+			onclick={() => switchTab('rekening')}
 			class="px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 {activeTab === 'rekening'
 				? 'bg-primary text-primary-foreground shadow-xs'
 				: 'text-foreground/60 hover:text-foreground hover:bg-secondary'}"
@@ -604,10 +647,11 @@
 										{#if t.statusApproval === 'Menunggu Persetujuan'}
 											{#if data.canManage}
 												<div class="flex items-center justify-end gap-1.5">
-													<form method="POST" action={`?/approve&scope=${data.activeScope}&id=${data.activeId}`} use:enhance>
+													<form method="POST" action={`?scope=${data.activeScope}&id=${data.activeId}&tab=${activeTab}&/approve`} use:enhance={keepScrollSubmit()}>
 														<input type="hidden" name="id" value={t.id} />
 														<input type="hidden" name="scope" value={data.activeScope} />
 														<input type="hidden" name="targetId" value={data.activeId} />
+														<input type="hidden" name="tab" value={activeTab} />
 														<button
 															type="submit"
 															class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] shadow-xs active:scale-95 transition-all"
@@ -689,10 +733,11 @@
 						<div class="flex items-center justify-between pt-2 border-t border-border/60 text-[10px] text-foreground/50">
 							<span>Scope: {j.tingkatScope}</span>
 							{#if !j.isDefault && data.canManage}
-								<form method="POST" action={`?/deleteJenis&scope=${data.activeScope}&id=${data.activeId}`} use:enhance>
+								<form method="POST" action={`?scope=${data.activeScope}&id=${data.activeId}&tab=${activeTab}&/deleteJenis`} use:enhance={keepScrollSubmit()}>
 									<input type="hidden" name="id" value={j.id} />
 									<input type="hidden" name="scope" value={data.activeScope} />
 									<input type="hidden" name="targetId" value={data.activeId} />
+									<input type="hidden" name="tab" value={activeTab} />
 									<button
 										type="submit"
 										class="text-rose-500 hover:text-rose-700 font-semibold transition-colors flex items-center gap-1"
@@ -784,10 +829,11 @@
 
 							{#if data.canManage}
 								<div class="pt-2 border-t border-border flex justify-end">
-									<form method="POST" action={`?/deleteRekening&scope=${data.activeScope}&id=${data.activeId}`} use:enhance>
+									<form method="POST" action={`?scope=${data.activeScope}&id=${data.activeId}&tab=${activeTab}&/deleteRekening`} use:enhance={keepScrollSubmit()}>
 										<input type="hidden" name="id" value={rek.id} />
 										<input type="hidden" name="scope" value={data.activeScope} />
 										<input type="hidden" name="targetId" value={data.activeId} />
+										<input type="hidden" name="tab" value={activeTab} />
 										<button
 											type="submit"
 											class="text-rose-500 hover:text-rose-700 font-semibold text-xs flex items-center gap-1 transition-colors"
@@ -857,12 +903,15 @@
 				</button>
 			</div>
 
-			<form method="POST" action={`?/reject&scope=${data.activeScope}&id=${data.activeId}`} use:enhance={() => {
-				rejectModalOpen = false;
-			}}>
+			<form method="POST" action={`?scope=${data.activeScope}&id=${data.activeId}&tab=${activeTab}&/reject`} use:enhance={keepScrollSubmit({
+				onSuccess: () => {
+					rejectModalOpen = false;
+				}
+			})}>
 				<input type="hidden" name="id" value={rejectTargetId} />
 				<input type="hidden" name="scope" value={data.activeScope} />
 				<input type="hidden" name="targetId" value={data.activeId} />
+				<input type="hidden" name="tab" value={activeTab} />
 
 				<div class="space-y-2">
 					<label class="text-xs font-semibold text-foreground" for="alasanPenolakanInput">Alasan Penolakan</label>
