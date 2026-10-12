@@ -1,18 +1,18 @@
 /**
  * @file src/routes/(admin)/+layout.server.ts
- * @purpose Layout server load untuk area admin: memvalidasi akses admin, memuat wewenang scope (adminScope), otorisasi menu Keuangan/KU, otorisasi modifikasi Shodaqoh KU & Kyai, dan rekap notifikasi approval
+ * @purpose Layout server load untuk area admin: memvalidasi akses admin, memuat wewenang scope (adminScope), otorisasi menu Keuangan/KU, otorisasi modifikasi Shodaqoh KU & Kyai, rekap notifikasi presensi, dan agregasi transaksi shodaqoh pending
  * @usedBy src/routes/(admin)/+layout.svelte dan seluruh subhalaman admin
  * @dependencies @sveltejs/kit, src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm
  * @publicFunctions load
- * @sideEffects DB read ke tabel presensi_kehadiran, users, presensi_jadwal, dan kelompok dengan filter status_approval 'Menunggu Persetujuan'
+ * @sideEffects DB read ke tabel presensi_kehadiran, users, presensi_jadwal, kelompok, dan transaksi_shodaqoh dengan filter status_approval 'pending' / 'Menunggu Persetujuan'
  */
 
 import { redirect } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
 import { db } from '$lib/db';
-import { presensiKehadiran, presensiJadwal, users, kelompok } from '$lib/db/schema';
+import { presensiKehadiran, presensiJadwal, users, kelompok, transaksiShodaqoh } from '$lib/db/schema';
 import { getAdminScope, canAccessKeuangan, canManageRekening, canManageShodaqoh } from '$lib/server/scope';
-import { count, desc, eq } from 'drizzle-orm';
+import { and, count, desc, eq, inArray } from 'drizzle-orm';
 
 export const load: LayoutServerLoad = async ({ locals }) => {
 	if (!locals.user || !locals.isAdmin) {
@@ -20,6 +20,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 	}
 
 	const adminScope = getAdminScope(locals.roles || []);
+	const hasAccessKeuangan = canAccessKeuangan(locals.roles || []);
 
 	// 1. Agregasi jumlah total permohonan izin/sakit yang menunggu approval (cepat & minimum I/O memanfaatkan index status_approval)
 	const [pendingCountRes] = db
@@ -30,7 +31,31 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 
 	const totalPendingApprovals = pendingCountRes?.val ?? 0;
 
-	// 2. Muat 8 item notifikasi permohonan izin/sakit pending terbaru untuk dropdown lonceng admin
+	// 2. Agregasi jumlah transaksi shodaqoh berstatus 'pending' sesuai scope wilayah admin (KU / Kyai)
+	let totalPendingShodaqoh = 0;
+	if (hasAccessKeuangan) {
+		const shodaqohConditions = [eq(transaksiShodaqoh.statusApproval, 'pending')];
+
+		if (!adminScope.isPusat) {
+			if (adminScope.level === 'Kelompok' && adminScope.kelompokIds.length > 0) {
+				shodaqohConditions.push(inArray(transaksiShodaqoh.kelompokId, adminScope.kelompokIds));
+			} else if (adminScope.level === 'Desa' && adminScope.desaIds.length > 0) {
+				shodaqohConditions.push(inArray(transaksiShodaqoh.desaId, adminScope.desaIds));
+			} else if (adminScope.level === 'Daerah' && adminScope.daerahIds.length > 0) {
+				shodaqohConditions.push(inArray(transaksiShodaqoh.daerahId, adminScope.daerahIds));
+			}
+		}
+
+		const [pendingShodaqohRes] = db
+			.select({ val: count() })
+			.from(transaksiShodaqoh)
+			.where(and(...shodaqohConditions))
+			.all();
+
+		totalPendingShodaqoh = pendingShodaqohRes?.val ?? 0;
+	}
+
+	// 3. Muat 8 item notifikasi permohonan izin/sakit pending terbaru untuk dropdown lonceng admin
 	const pendingApprovalList = db
 		.select({
 			id: presensiKehadiran.id,
@@ -57,8 +82,9 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 	return {
 		adminScope,
 		totalPendingApprovals,
+		totalPendingShodaqoh,
 		pendingApprovalList,
-		canAccessKeuangan: canAccessKeuangan(locals.roles || []),
+		canAccessKeuangan: hasAccessKeuangan,
 		canManageFinance: canManageRekening(locals.roles || []),
 		canManageShodaqoh: canManageShodaqoh(locals.roles || [])
 	};

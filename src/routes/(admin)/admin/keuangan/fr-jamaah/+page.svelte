@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(admin)/admin/keuangan/fr-jamaah/+page.svelte
-  @purpose Halaman FR Jamaah: tabel data jamaah wajib isrun dengan fitur inline editing nominal shodaqoh per sel dan sticky floating save bar yang persisten mengikuti scroll, diproteksi khusus KU (read-only bagi Kyai & Aghnia)
+  @purpose Halaman FR Jamaah: daftar compact mobile + tabel desktop data jamaah wajib isrun dengan inline editing nominal shodaqoh, dan sticky floating save bar di atas bottom navbar mobile, diproteksi khusus KU (read-only bagi Kyai & Aghnia)
   @usedBy Route admin '/admin/keuangan/fr-jamaah'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
   @publicFunctions handleNominalChange, handleCatatanChange, resetChanges, submitSave
-  @sideEffects Mengirim form batch upsert transaksi FR via action ?/saveFr dengan menjaga scroll
+  @sideEffects Mengirim form batch upsert transaksi FR via action ?/saveFr dengan menjaga scroll; input nominal memakai keyboard numerik (inputmode=numeric)
 -->
 <script lang="ts">
 	import {
@@ -393,16 +393,72 @@
 					{/if}
 				</div>
 			{:else}
-				<div class="border border-border rounded-xl overflow-x-auto shadow-xs">
+				<!-- DAFTAR COMPACT MOBILE (md:hidden): tabel rapat agar nama, nominal, dan status terbaca tanpa scroll horizontal -->
+				<div class="md:hidden border border-border rounded-xl overflow-hidden divide-y divide-border shadow-xs">
+					{#each filteredJamaah as j, idx (j.id)}
+						{@const effNominal = getEffectiveNominal(j)}
+						{@const effCatatan = getEffectiveCatatan(j)}
+						{@const isRowDirty = editedValues[j.id] !== undefined && (editedValues[j.id].nominal !== j.nominal || editedValues[j.id].catatan !== j.catatan)}
+						<div class="px-2.5 py-2 space-y-1.5 {isRowDirty ? 'bg-primary/5' : ''}">
+							<div class="flex items-center gap-2">
+								<span class="w-4 shrink-0 text-center text-[10px] font-mono text-foreground/45">{idx + 1}</span>
+								<div class="min-w-0 flex-1">
+									<p class="text-[11px] font-bold text-foreground truncate">{j.namaLengkap}</p>
+									<p class="text-[10px] text-foreground/55 truncate">
+										{j.statusHubungan}{j.statusGenerus ? ` • ${j.statusGenerus}` : ''}{j.kepalaKeluargaNama ? ` • KK: ${j.kepalaKeluargaNama}` : ''}
+									</p>
+								</div>
+								{#if effNominal > 0}
+									<span class="shrink-0 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">Lunas</span>
+								{:else}
+									<span class="shrink-0 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-secondary text-foreground/50">Belum</span>
+								{/if}
+							</div>
+
+							<div class="flex items-center gap-1.5 pl-6">
+								{#if data.canEdit}
+									<div class="relative w-32 shrink-0">
+										<span class="absolute left-2 top-1/2 -translate-y-1/2 text-foreground/40 font-mono text-[10px]">Rp</span>
+										<input
+											type="text"
+											inputmode="numeric"
+											autocomplete="off"
+											value={effNominal ? effNominal.toLocaleString('id-ID') : ''}
+											oninput={(e) => handleNominalInput(j.id, (e.target as HTMLInputElement).value)}
+											placeholder="0"
+											aria-label="Nominal FR {j.namaLengkap}"
+											class="w-full pl-7 pr-2 py-1.5 rounded-lg border text-[11px] font-mono font-semibold transition-all focus:outline-none focus:ring-1 {isRowDirty ? 'border-primary bg-primary/10 text-primary focus:ring-primary' : 'border-border bg-secondary/50 text-foreground focus:ring-primary'}"
+										/>
+									</div>
+									<input
+										type="text"
+										value={effCatatan}
+										oninput={(e) => handleCatatanInput(j.id, (e.target as HTMLInputElement).value)}
+										placeholder="Catatan..."
+										aria-label="Catatan {j.namaLengkap}"
+										class="min-w-0 flex-1 px-2 py-1.5 rounded-lg border text-[11px] transition-all focus:outline-none focus:ring-1 {isRowDirty ? 'border-primary/50 bg-primary/5' : 'border-border bg-secondary/50 text-foreground focus:ring-primary'}"
+									/>
+								{:else}
+									<span class="font-mono font-bold text-[11px] text-foreground">{formatRupiah(effNominal)}</span>
+									{#if effCatatan}
+										<span class="min-w-0 flex-1 text-[10px] text-foreground/60 italic truncate">{effCatatan}</span>
+									{/if}
+								{/if}
+							</div>
+						</div>
+					{/each}
+				</div>
+
+				<div class="hidden md:block border border-border rounded-xl overflow-x-auto shadow-xs">
 					<table class="w-full text-left text-xs min-w-[720px]">
 						<thead class="bg-secondary/60 text-foreground/70 uppercase text-[11px] tracking-wider border-b border-border">
 							<tr>
-								<th class="py-3 px-3.5 font-semibold w-12 text-center">No</th>
-								<th class="py-3 px-4 font-semibold">Nama Jamaah & Hubungan</th>
-								<th class="py-3 px-4 font-semibold">Kepala Keluarga</th>
-								<th class="py-3 px-4 font-semibold w-48">Nominal FR (Rp)</th>
-								<th class="py-3 px-3 font-semibold w-24 text-center">Status</th>
-								<th class="py-3 px-4 font-semibold">Catatan / Keterangan</th>
+								<th class="py-2 px-3.5 font-semibold w-12 text-center">No</th>
+								<th class="py-2 px-4 font-semibold">Nama Jamaah & Hubungan</th>
+								<th class="py-2 px-4 font-semibold">Kepala Keluarga</th>
+								<th class="py-2 px-4 font-semibold w-48">Nominal FR (Rp)</th>
+								<th class="py-2 px-3 font-semibold w-24 text-center">Status</th>
+								<th class="py-2 px-4 font-semibold">Catatan / Keterangan</th>
 							</tr>
 						</thead>
 						<tbody class="divide-y divide-border">
@@ -411,12 +467,12 @@
 								{@const effCatatan = getEffectiveCatatan(j)}
 								{@const isRowDirty = editedValues[j.id] !== undefined && (editedValues[j.id].nominal !== j.nominal || editedValues[j.id].catatan !== j.catatan)}
 								<tr class="hover:bg-secondary/30 transition-colors {isRowDirty ? 'bg-primary/5' : ''}">
-									<td class="py-3 px-3.5 text-center text-foreground/50 font-mono">
+									<td class="py-2 px-3.5 text-center text-foreground/50 font-mono">
 										{idx + 1}
 									</td>
 
 									<!-- Nama & Detail Generus -->
-									<td class="py-3 px-4">
+									<td class="py-2 px-4">
 										<div class="font-bold text-foreground text-xs">{j.namaLengkap}</div>
 										<div class="flex items-center gap-1.5 text-[10px] text-foreground/60 mt-0.5">
 											<span>{j.statusHubungan}</span>
@@ -430,12 +486,12 @@
 									</td>
 
 									<!-- Kepala Keluarga -->
-									<td class="py-3 px-4 text-foreground/80">
+									<td class="py-2 px-4 text-foreground/80">
 										{j.kepalaKeluargaNama || '-'}
 									</td>
 
 									<!-- Input Nominal (Inline Editable) -->
-									<td class="py-3 px-4">
+									<td class="py-2 px-4">
 										{#if data.canEdit}
 											<div class="relative">
 												<span class="absolute left-3 top-1/2 -translate-y-1/2 text-foreground/40 font-mono text-xs">
@@ -443,6 +499,8 @@
 												</span>
 												<input
 													type="text"
+													inputmode="numeric"
+													autocomplete="off"
 													value={effNominal ? effNominal.toLocaleString('id-ID') : ''}
 													oninput={(e) => handleNominalInput(j.id, (e.target as HTMLInputElement).value)}
 													placeholder="0"
@@ -457,7 +515,7 @@
 									</td>
 
 									<!-- Status Pembayaran -->
-									<td class="py-3 px-3 text-center">
+									<td class="py-2 px-3 text-center">
 										{#if effNominal > 0}
 											<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
 												Lunas
@@ -470,7 +528,7 @@
 									</td>
 
 									<!-- Catatan -->
-									<td class="py-3 px-4">
+									<td class="py-2 px-4">
 										{#if data.canEdit}
 											<input
 												type="text"
@@ -496,7 +554,7 @@
 
 	<!-- STICKY FLOATING ACTION BAR (MENGIKUTI SCROLL SAAT ADA PERUBAHAN) -->
 	{#if dirtyCount > 0 && data.canEdit}
-		<div class="fixed bottom-4 left-4 right-4 md:left-72 z-40 bg-card/95 backdrop-blur-md border border-primary/30 rounded-2xl p-3.5 shadow-2xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-3 duration-200">
+		<div class="fixed left-4 right-4 bottom-[5.75rem] md:bottom-4 md:left-72 z-40 bg-card/95 backdrop-blur-md border border-primary/30 rounded-2xl p-3 shadow-2xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-3 duration-200">
 			<div class="flex items-center gap-2 pl-2">
 				<span class="w-2.5 h-2.5 rounded-full bg-primary animate-pulse"></span>
 				<div class="text-xs font-semibold text-foreground">
@@ -547,7 +605,8 @@
 						class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-50"
 					>
 						<Save class="w-4 h-4" />
-						<span>{isSaving ? 'Menyimpan...' : 'Simpan Semua Perubahan'}</span>
+						<span class="sm:hidden">{isSaving ? 'Menyimpan...' : 'Simpan'}</span>
+						<span class="hidden sm:inline">{isSaving ? 'Menyimpan...' : 'Simpan Semua Perubahan'}</span>
 					</button>
 				</form>
 			</div>

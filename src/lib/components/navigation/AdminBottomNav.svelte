@@ -1,10 +1,10 @@
 <!--
   @file src/lib/components/navigation/AdminBottomNav.svelte
-  @purpose Komponen Bottom Navbar mobile admin (md:hidden) bergaya floating bar modern yang terangkat simetris dari bawah layar HP untuk mencegah tabrakan dengan tombol navigasi sistem Android/iOS
+  @purpose Komponen Bottom Navbar mobile admin (md:hidden) bergaya floating bar modern yang terangkat simetris dari bawah layar HP untuk mencegah tabrakan dengan tombol navigasi sistem Android/iOS, dilengkapi badge approval presensi & transaksi shodaqoh
   @usedBy src/routes/(admin)/+layout.svelte
   @dependencies $app/state (page), @lucide/svelte (LayoutDashboard, Landmark, Users, HandCoins, CalendarCheck, Menu)
   @publicFunctions isItemActive
-  @sideEffects Menavigasikan admin ke modul inti via mobile bottom bar dan membuka sidebar drawer untuk menu tambahan
+  @sideEffects Menavigasikan admin ke modul inti via mobile bottom bar, menampilkan counter pending, dan membuka sidebar drawer untuk menu tambahan
 -->
 <script lang="ts">
 	import { page } from '$app/state';
@@ -21,12 +21,14 @@
 
 	const canAccessKeuangan = $derived(Boolean(page.data.canAccessKeuangan));
 	const totalPending = $derived(Number(page.data.totalPendingApprovals) || 0);
+	const totalPendingShodaqoh = $derived(Number(page.data.totalPendingShodaqoh) || 0);
 
 	interface BottomNavItem {
 		href: string;
 		label: string;
 		icon: any;
 		badge?: number;
+		badgeColor?: string;
 	}
 
 	const navItems = $derived<BottomNavItem[]>([
@@ -34,8 +36,8 @@
 		{ href: '/admin/profil-wilayah', label: 'Wilayah', icon: Landmark },
 		{ href: '/admin/sensus', label: 'Sensus', icon: Users },
 		canAccessKeuangan
-			? { href: '/admin/keuangan', label: 'Keuangan', icon: HandCoins }
-			: { href: '/admin/presensi', label: 'Presensi', icon: CalendarCheck, badge: totalPending }
+			? { href: '/admin/keuangan', label: 'Keuangan', icon: HandCoins, badge: totalPendingShodaqoh, badgeColor: 'bg-amber-500' }
+			: { href: '/admin/presensi', label: 'Presensi', icon: CalendarCheck, badge: totalPending, badgeColor: 'bg-rose-500' }
 	]);
 
 	function isItemActive(href: string): boolean {
@@ -67,7 +69,7 @@
 					<item.icon class="w-4.5 h-4.5 transition-transform duration-200 {active ? 'stroke-[2.3]' : 'stroke-[1.8]'}" />
 					{#if item.badge && item.badge > 0}
 						<span
-							class="absolute -top-1 -right-1 min-w-3.5 h-3.5 px-0.5 rounded-full bg-rose-500 text-white font-bold text-[8px] flex items-center justify-center shadow-xs"
+							class="absolute -top-1 -right-1 min-w-3.5 h-3.5 px-0.5 rounded-full {item.badgeColor ?? 'bg-rose-500'} text-white font-bold text-[8px] flex items-center justify-center shadow-xs"
 						>
 							{item.badge > 9 ? '9+' : item.badge}
 						</span>

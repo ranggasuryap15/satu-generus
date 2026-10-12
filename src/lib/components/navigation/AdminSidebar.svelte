@@ -1,10 +1,10 @@
 <!--
   @file src/lib/components/navigation/AdminSidebar.svelte
-  @purpose Komponen Sidebar navigasi admin responsif dengan pengelompokan menu (Dashboard & Profil Wilayah, Keuangan/KU bagi Kyai/KU/Aghnia termasuk Shodaqoh Wilayah & Laporan FR, Pusat Data, Pengajian, Sistem), penanda rute aktif, dan badge permohonan pending
+  @purpose Komponen Sidebar navigasi admin responsif dengan pengelompokan menu (Dashboard & Profil Wilayah, Keuangan/KU bagi Kyai/KU/Aghnia termasuk Shodaqoh Wilayah & Laporan FR, Pusat Data, Pengajian, Sistem), penanda rute aktif, serta badge pending approval presensi dan transaksi shodaqoh
   @usedBy src/routes/(admin)/+layout.svelte
   @dependencies $app/state (page), @lucide/svelte
   @publicFunctions isItemActive
-  @sideEffects Menavigasikan admin ke modul-modul manajemen data, menandai menu aktif, menampilkan badge approval presensi, dan menangani drawer mobile
+  @sideEffects Menavigasikan admin ke modul-modul manajemen data, menandai menu aktif, menampilkan badge approval presensi & shodaqoh, dan menangani drawer mobile
 -->
 <script lang="ts">
 	import { page } from '$app/state';
@@ -41,6 +41,7 @@
 	}>();
 
 	const totalPending = $derived(Number(page.data.totalPendingApprovals) || 0);
+	const totalPendingShodaqoh = $derived(Number(page.data.totalPendingShodaqoh) || 0);
 	const canAccessKeuangan = $derived(Boolean(page.data.canAccessKeuangan));
 
 	const menuGroups = $derived<NavGroup[]>([
@@ -166,6 +167,10 @@
 							{#if item.href === '/admin/presensi' && totalPending > 0}
 								<span class="px-2 py-0.5 rounded-full bg-rose-500 text-white font-bold text-xs leading-tight shrink-0 shadow-xs">
 									{totalPending}
+								</span>
+							{:else if item.href === '/admin/keuangan/shodaqoh' && totalPendingShodaqoh > 0}
+								<span class="px-2 py-0.5 rounded-full bg-amber-500 text-white font-bold text-xs leading-tight shrink-0 shadow-xs" title="{totalPendingShodaqoh} transaksi menunggu approval">
+									{totalPendingShodaqoh}
 								</span>
 							{/if}
 						</a>
