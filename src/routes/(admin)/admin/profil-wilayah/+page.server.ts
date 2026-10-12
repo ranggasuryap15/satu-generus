@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(admin)/admin/profil-wilayah/+page.server.ts
- * @purpose Backend controller halaman dedicated Profil Wilayah: memuat data lokasi, sub-wilayah, rekening/QRIS shodaqoh (Transfer Bank / QRIS upload file/tautan), dan alokasi kustom terlindungi scope wilayah dengan wewenang KU, Kyai, Sekretaris, & Superadmin
+ * @purpose Backend controller halaman dedicated Profil Wilayah: hanya dapat diakses/dilihat oleh seluruh jajaran 4S & Superadmin, dengan hak modifikasi rekening/QRIS shodaqoh khusus KU dan Superadmin
  * @usedBy src/routes/(admin)/admin/profil-wilayah/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm, @sveltejs/kit, node:fs, node:path
  * @publicFunctions load, actions (updateLokasi, addRekening, updateRekening, deleteRekening)
@@ -58,6 +58,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	}
 
 	const roles = locals.roles || [];
+	// Hanya seluruh jajaran pengurus 4S atau Superadmin/Pusat yang berhak melihat halaman profil wilayah
+	const is4S = roles.some((r) => r.is4S === true || r.tingkatScope === 'Pusat');
+	if (!is4S) {
+		throw redirect(303, '/admin');
+	}
+
 	const adminScope = getAdminScope(roles);
 	const accessibleWilayah = getAccessibleWilayah(adminScope);
 
@@ -321,7 +327,7 @@ export const actions: Actions = {
 		const canManage = canManageRekening(locals.roles || [], scope, id);
 		if (!canManage) {
 			return fail(403, {
-				error: 'Akses ditolak: Hanya pengurus KU/Bendahara, Kyai, Sekretaris, atau Superadmin yang berwenang menambah rekening shodaqoh.'
+				error: 'Akses ditolak: Hanya pengurus KU/Bendahara atau Superadmin yang berwenang menambah rekening/QRIS shodaqoh.'
 			});
 		}
 
@@ -397,7 +403,7 @@ export const actions: Actions = {
 		const canManage = canManageRekening(locals.roles || [], scope, id);
 		if (!canManage) {
 			return fail(403, {
-				error: 'Akses ditolak: Hanya pengurus KU/Bendahara, Kyai, Sekretaris, atau Superadmin yang berwenang memperbarui rekening shodaqoh.'
+				error: 'Akses ditolak: Hanya pengurus KU/Bendahara atau Superadmin yang berwenang memperbarui rekening/QRIS shodaqoh.'
 			});
 		}
 

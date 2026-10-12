@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(admin)/admin/profil-wilayah/+page.svelte
-  @purpose Halaman dedicated profil wilayah (Kelompok/Desa/Daerah) untuk manajemen lokasi geotagging tempat pengajian, rekening Bank & QRIS shodaqoh berotoritas KU/Kyai/Sekretaris/Superadmin dengan opsi alokasi custom terisolasi, hierarki sub-wilayah, dropdown pencarian interaktif bertingkat, breadcrumbs navigasi, dan tombol kembali ke tingkat wilayah sebelumnya
+  @purpose Halaman dedicated profil wilayah (Kelompok/Desa/Daerah) untuk seluruh 4S & Superadmin: manajemen titik lokasi pengajian, rekening Bank & QRIS shodaqoh berotoritas khusus KU & Superadmin (read-only untuk 4S lainnya) dengan alokasi custom terisolasi, hierarki sub-wilayah, dan navigasi riwayat wilayah
   @usedBy Route admin '/admin/profil-wilayah'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/LocationPicker.svelte, $lib/components/Pagination.svelte, $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
   @publicFunctions openLocationModal, closeLocationModal, openAddRekeningModal, closeAddRekeningModal, openEditRekeningModal, closeEditRekeningModal, copyToClipboard, handleQrisFileChange

@@ -259,8 +259,8 @@ export function canManageDapukan(roles: App.UserRole[]): boolean {
 /**
  * Memeriksa apakah user berwenang melakukan CRUD pada rekening & QRIS shodaqoh wilayah
  * - Superadmin / Pusat: Selalu berwenang CRUD di semua wilayah.
- * - KU/Bendahara, Kyai/Ketua, Sekretaris/Penerobos: Berwenang CRUD jika berada pada scope wilayah terkait (atau tingkat di atasnya).
- * - Admin lainnya: Tidak boleh CRUD (hanya Read-Only).
+ * - KU / Bendahara: Berwenang CRUD jika berada pada scope wilayah terkait (atau tingkat di atasnya).
+ * - Peran 4S lainnya (Kyai, Sekretaris, dll) & admin lain: Hanya dapat melihat (Read-Only).
  */
 export function canManageRekening(
 	roles: App.UserRole[],
@@ -275,14 +275,10 @@ export function canManageRekening(
 		const isAuthorized =
 			dapukanNama.includes('ku') ||
 			dapukanNama.includes('bendahara') ||
-			dapukanNama.includes('keuangan') ||
-			dapukanNama.includes('kyai') ||
-			dapukanNama.includes('ketua') ||
-			dapukanNama.includes('sekretaris') ||
-			dapukanNama.includes('penerobos');
+			dapukanNama.includes('keuangan');
 		if (!isAuthorized) return false;
 
-		// Jika tidak ada target spesifik, cukup pastikan user memiliki salah satu peran yang berwenang
+		// Jika tidak ada target spesifik, cukup pastikan user memiliki peran KU
 		if (!scopeLevel || !targetId) return true;
 
 		// Jika target adalah Kelompok
