@@ -1,6 +1,6 @@
 <!--
   @file src/lib/components/DateInput.svelte
-  @purpose Komponen input tanggal fleksibel: mendukung pengetikan manual bebas tanpa interupsi, pemilih pop-up kalender instan saat diklik, dan normalisasi DD-MM-YYYY / ISO
+  @purpose Komponen input tanggal fleksibel: auto-formatting mask tanda strip instan saat pengetikan angka (DD-MM-YYYY), pemilih pop-up kalender, dan normalisasi DD-MM-YYYY / ISO
   @usedBy Form sensus kartu keluarga, sensus mandiri, presensi, jadwal, dan modal tambah/edit anggota
   @dependencies @lucide/svelte (Calendar), Svelte 5 Runes ($state, $props, $bindable, $effect, $derived), $lib/utils (formatDateDDMMYYYY, normalizeDateToISO)
   @publicFunctions handleInput, handleBlur, handlePickerChange, openPicker
@@ -53,20 +53,52 @@
 
 	function handleInput(e: Event) {
 		isUserTyping = true;
+		const inputEvent = e as InputEvent;
 		const target = e.target as HTMLInputElement;
 		const raw = target.value;
 
-		// Izinkan angka dan pemisah strip (-) atau slash (/)
-		let clean = raw.replace(/[^\d\-/]/g, '');
+		// Cek apakah aksi berupa penghapusan (backspace / delete)
+		const isDeleting =
+			inputEvent.inputType === 'deleteContentBackward' ||
+			inputEvent.inputType === 'deleteContentForward' ||
+			inputEvent.inputType?.startsWith('delete');
 
-		// Jika user mengetik 8 digit angka murni berturut-turut, bantu beri pemisah DD-MM-YYYY
-		const digits = clean.replace(/\D/g, '');
-		if (digits.length === 8 && !clean.includes('-') && !clean.includes('/')) {
-			clean = `${digits.slice(0, 2)}-${digits.slice(2, 4)}-${digits.slice(4)}`;
+		// Ambil hanya digit angka (maksimal 8 digit: DDMMYYYY)
+		const digits = raw.replace(/\D/g, '').slice(0, 8);
+
+		let formatted = '';
+		if (isDeleting) {
+			// Saat user menghapus, susun format tanpa memaksakan tanda strip trailing
+			if (digits.length <= 2) {
+				formatted = digits;
+			} else if (digits.length <= 4) {
+				formatted = `${digits.slice(0, 2)}-${digits.slice(2)}`;
+			} else {
+				formatted = `${digits.slice(0, 2)}-${digits.slice(2, 4)}-${digits.slice(4)}`;
+			}
+		} else {
+			// Saat user mengetik angka:
+			if (digits.length === 0) {
+				formatted = '';
+			} else if (digits.length === 1) {
+				formatted = digits;
+			} else if (digits.length === 2) {
+				// Selesai 2 digit hari -> otomatis langsung muncul tanda strip: "01-"
+				formatted = `${digits}-`;
+			} else if (digits.length === 3) {
+				formatted = `${digits.slice(0, 2)}-${digits.slice(2)}`;
+			} else if (digits.length === 4) {
+				// Selesai 2 digit bulan (total 4 digit) -> otomatis langsung muncul tanda strip kedua: "01-05-"
+				formatted = `${digits.slice(0, 2)}-${digits.slice(2, 4)}-`;
+			} else {
+				// 5 sampai 8 digit tahun: "01-05-2002"
+				formatted = `${digits.slice(0, 2)}-${digits.slice(2, 4)}-${digits.slice(4)}`;
+			}
 		}
 
-		displayValue = clean;
-		value = clean;
+		displayValue = formatted;
+		target.value = formatted;
+		value = formatted;
 	}
 
 	function handleBlur() {
