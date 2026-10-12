@@ -219,6 +219,21 @@ export const actions: Actions = {
 			return { success: true, message: 'Tidak ada perubahan yang disimpan.' };
 		}
 
+		// Validasi dan ambil relasi desa & daerah langsung dari database kelompok demi integritas foreign key
+		const kRow = db
+			.select({
+				id: kelompok.id,
+				desaId: kelompok.desaId,
+				daerahId: desa.daerahId
+			})
+			.from(kelompok)
+			.leftJoin(desa, eq(kelompok.desaId, desa.id))
+			.where(eq(kelompok.id, kelompokId))
+			.get();
+
+		const safeDesaId = kRow?.desaId || null;
+		const safeDaerahId = kRow?.daerahId || null;
+
 		const now = Math.floor(Date.now() / 1000);
 		const userId = locals.user.id;
 
@@ -259,8 +274,8 @@ export const actions: Actions = {
 					createId(),
 					r.anggotaId,
 					kelompokId,
-					desaId,
-					daerahId,
+					safeDesaId,
+					safeDaerahId,
 					tahun,
 					bulan,
 					safeNominal,

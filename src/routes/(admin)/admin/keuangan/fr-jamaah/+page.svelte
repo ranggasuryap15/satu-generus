@@ -96,17 +96,23 @@
 		const rawDigits = valueStr.replace(/\D/g, '');
 		const num = rawDigits ? parseInt(rawDigits, 10) : 0;
 		const curCatatan = editedValues[anggotaId]?.catatan ?? (data.jamaahList.find((j: JamaahItem) => j.id === anggotaId)?.catatan || '');
-		editedValues[anggotaId] = {
-			nominal: num,
-			catatan: curCatatan
+		editedValues = {
+			...editedValues,
+			[anggotaId]: {
+				nominal: num,
+				catatan: curCatatan
+			}
 		};
 	}
 
 	function handleCatatanInput(anggotaId: string, val: string) {
 		const curNominal = editedValues[anggotaId]?.nominal ?? (data.jamaahList.find((j: JamaahItem) => j.id === anggotaId)?.nominal || 0);
-		editedValues[anggotaId] = {
-			nominal: curNominal,
-			catatan: val
+		editedValues = {
+			...editedValues,
+			[anggotaId]: {
+				nominal: curNominal,
+				catatan: val
+			}
 		};
 	}
 
@@ -498,7 +504,25 @@
 					<span class="hidden sm:inline">Batal</span>
 				</button>
 
-				<form method="POST" action="?/saveFr" use:enhance={keepScrollSubmit()}>
+				<form
+					method="POST"
+					action="?/saveFr"
+					use:enhance={keepScrollSubmit({
+						beforeSubmit: () => {
+							isSaving = true;
+						},
+						onSuccess: () => {
+							editedValues = {};
+							isSaving = false;
+						},
+						onError: () => {
+							isSaving = false;
+						},
+						onFinally: () => {
+							isSaving = false;
+						}
+					})}
+				>
 					<input type="hidden" name="kelompokId" value={data.selectedKelompokId} />
 					<input type="hidden" name="tahun" value={data.tahun} />
 					<input type="hidden" name="bulan" value={data.bulan} />
@@ -509,7 +533,6 @@
 					<button
 						type="submit"
 						disabled={isSaving}
-						onclick={() => (isSaving = true)}
 						class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-50"
 					>
 						<Save class="w-4 h-4" />
