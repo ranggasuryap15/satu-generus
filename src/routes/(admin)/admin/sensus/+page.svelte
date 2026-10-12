@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(admin)/admin/sensus/+page.svelte
-  @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri, dashboard statistik, modal detail lengkap (hapus sensus, pindah kelompok, toggle status jamaah), modal edit anggota/KK, dan pembuatan akun
+  @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri, dashboard statistik, penugasan dapukan pengurus KK, modal detail lengkap (hapus sensus, pindah kelompok, toggle status jamaah), modal edit anggota/KK, dan pembuatan akun
   @usedBy Route admin '/admin/sensus'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/confirm.svelte, $lib/utils (formatDateDDMMYYYY)
-  @publicFunctions requestUnmask, openCreateModal, closeCreateModal, openAddMemberModal, closeAddMemberModal, openCreateAccountModal, openEditAnggotaModal, closeEditAnggotaModal, openEditKeluargaModal, closeEditKeluargaModal, openPindahKelompokModal, closePindahKelompokModal, handleHapusSensus, handleToggleStatusJamaah, resetFilters, toggleMobileFilter
-  @sideEffects Menampilkan metrik, unmask data sensitif, submit actions (createSensus, addAnggotaKeluarga, updateAnggota, updateKeluarga, deleteSensus, pindahKelompok, toggleStatusJamaah, createMemberAccount)
+  @publicFunctions requestUnmask, openCreateModal, closeCreateModal, openAddMemberModal, closeAddMemberModal, openCreateAccountModal, openEditAnggotaModal, closeEditAnggotaModal, openEditKeluargaModal, closeEditKeluargaModal, openPindahKelompokModal, closePindahKelompokModal, openAssignDapukanModal, closeAssignDapukanModal, handleHapusSensus, handleToggleStatusJamaah, resetFilters, toggleMobileFilter
+  @sideEffects Menampilkan metrik, unmask data sensitif, submit actions (createSensus, addAnggotaKeluarga, updateAnggota, updateKeluarga, deleteSensus, pindahKelompok, toggleStatusJamaah, createMemberAccount, assignDapukan)
 -->
 <script lang="ts">
 	import DateInput from '$lib/components/DateInput.svelte';
@@ -13,6 +13,7 @@
 	import {
 	  AlertCircle,
 	  ArrowRightLeft,
+	  Award,
 	  CheckCircle2,
 	  ChevronDown,
 	  ChevronUp,
@@ -247,6 +248,93 @@
 	let memberStatus = $state('Anak');
 	let memberTanggalLahir = $state('');
 	let memberJenisKelamin = $state('Laki-laki');
+
+	// State Modal Tugaskan Pengurus / Beri Dapukan
+	let showAssignDapukanModal = $state(false);
+	let targetKeluargaForDapukan = $state<(typeof data.daftarKeluarga)[0] | null>(null);
+	let assignUserId = $state<string>('');
+	let assignTipeDapukan = $state<'tetap' | 'custom'>('tetap');
+	let assignDapukanId = $state<string | number>('');
+	let assignNamaDapukanCustom = $state('');
+	let assignScope = $state<'Pusat' | 'Daerah' | 'Desa' | 'Kelompok'>('Kelompok');
+	let assignKelompokId = $state<string | number>('');
+	let assignDesaId = $state<string | number>('');
+	let assignDaerahId = $state<string | number>('');
+
+	const masterDapukanOptions = $derived(
+		(data.masterDapukan || []).map((m: any) => ({
+			value: m.id,
+			label: m.namaDapukan,
+			sublabel: m.is4S ? '4S' : undefined
+		}))
+	);
+
+	const assignKelompokOptions = $derived.by(() => {
+		if (targetKeluargaForDapukan?.kelompokId) {
+			return [
+				{
+					value: targetKeluargaForDapukan.kelompokId,
+					label: targetKeluargaForDapukan.kelompokNama,
+					sublabel: 'Terkunci: Basis KK'
+				}
+			];
+		}
+		return (data.wilayahOptions.kelompokList || []).map((k: any) => ({ value: k.id, label: k.nama }));
+	});
+
+	const assignDesaOptions = $derived.by(() => {
+		if (targetKeluargaForDapukan?.desaId) {
+			return [
+				{
+					value: targetKeluargaForDapukan.desaId,
+					label: targetKeluargaForDapukan.desaNama,
+					sublabel: 'Terkunci: Basis KK'
+				}
+			];
+		}
+		return (data.wilayahOptions.desaList || []).map((d: any) => ({ value: d.id, label: d.nama }));
+	});
+
+	const assignDaerahOptions = $derived.by(() => {
+		if (targetKeluargaForDapukan?.daerahId) {
+			return [
+				{
+					value: targetKeluargaForDapukan.daerahId,
+					label: targetKeluargaForDapukan.daerahNama,
+					sublabel: 'Terkunci: Basis KK'
+				}
+			];
+		}
+		return (data.wilayahOptions.daerahList || []).map((dr: any) => ({ value: dr.id, label: dr.nama }));
+	});
+
+	function openAssignDapukanModal(k: (typeof data.daftarKeluarga)[number], preselectedUserId?: string) {
+		if (!data.canManageDapukan) return;
+		targetKeluargaForDapukan = k;
+		const accounts = k.akunList || [];
+		if (preselectedUserId) {
+			assignUserId = preselectedUserId;
+		} else if (accounts.length > 0) {
+			assignUserId = accounts[0].userId;
+		} else {
+			assignUserId = '';
+		}
+
+		assignTipeDapukan = 'tetap';
+		assignDapukanId = '';
+		assignNamaDapukanCustom = '';
+		assignScope = 'Kelompok';
+		assignKelompokId = k.kelompokId || '';
+		assignDesaId = k.desaId || '';
+		assignDaerahId = k.daerahId || '';
+		showAssignDapukanModal = true;
+	}
+
+	function closeAssignDapukanModal() {
+		showAssignDapukanModal = false;
+		targetKeluargaForDapukan = null;
+		assignUserId = '';
+	}
 
 	// Options Filter Daerah (Default 'ALL')
 	const daerahFilterOptions = $derived([
@@ -506,6 +594,9 @@
 			resetAddMemberForm();
 			showCreateModal = false;
 			showAddMemberModal = false;
+			showAssignDapukanModal = false;
+			targetKeluargaForDapukan = null;
+			assignUserId = '';
 		}
 	});
 
@@ -834,11 +925,11 @@
 								{/if}
 								{#if k.is4S}
 									<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-										4S
+										4S{k.dapukanNama ? ` • ${k.dapukanNama}` : ''}
 									</span>
 								{:else if k.isPengurus}
 									<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-										Pengurus
+										Pengurus{k.dapukanNama ? ` • ${k.dapukanNama}` : ''}
 									</span>
 								{/if}
 							</div>
@@ -908,6 +999,17 @@
 						>
 							Detail
 						</button>
+
+						{#if k.akunList && k.akunList.length > 0 && data.canManageDapukan}
+							<button
+								type="button"
+								onclick={() => openAssignDapukanModal(k)}
+								class="p-2 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-colors cursor-pointer"
+								title={k.akunList.length > 1 ? `Tugaskan Dapukan (${k.akunList.length} Akun)` : "Tugaskan Pengurus / Beri Dapukan"}
+							>
+								<Award class="w-4 h-4" />
+							</button>
+						{/if}
 
 						<button
 							type="button"
@@ -986,11 +1088,11 @@
 											{/if}
 											{#if k.is4S}
 												<span class="px-2 py-0.5 rounded text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-													4S
+													4S{k.dapukanNama ? ` • ${k.dapukanNama}` : ''}
 												</span>
 											{:else if k.isPengurus}
 												<span class="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-													Pengurus
+													Pengurus{k.dapukanNama ? ` • ${k.dapukanNama}` : ''}
 												</span>
 											{/if}
 										</div>
@@ -1039,6 +1141,18 @@
 										>
 											Detail
 										</button>
+
+										{#if k.akunList && k.akunList.length > 0 && data.canManageDapukan}
+											<button
+												type="button"
+												onclick={() => openAssignDapukanModal(k)}
+												class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-semibold text-xs transition-colors cursor-pointer"
+												title={k.akunList.length > 1 ? `Tugaskan Dapukan (${k.akunList.length} Akun)` : "Tugaskan Pengurus / Beri Dapukan"}
+											>
+												<Award class="w-3.5 h-3.5" />
+												<span class="hidden xl:inline">{k.isPengurus ? 'Dapukan' : '+ Dapukan'}</span>
+											</button>
+										{/if}
 
 										<button
 											type="button"
@@ -1833,10 +1947,36 @@
 								{/if}
 
 								{#if a.userId}
-									<span class="inline-flex items-center gap-1 text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded-lg font-semibold border border-emerald-500/20">
-										<CheckCircle2 class="w-3 h-3" />
-										<span>Punya Akun</span>
-									</span>
+									{#if a.is4S}
+										<span class="inline-flex items-center gap-1 text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 px-2 py-1 rounded-lg font-bold border border-amber-500/20">
+											<ShieldCheck class="w-3 h-3" />
+											<span>4S • {a.dapukanNama || 'Pengurus 4S'}</span>
+										</span>
+									{:else if a.isPengurus}
+										<span class="inline-flex items-center gap-1 text-[10px] bg-blue-500/10 text-blue-600 dark:text-blue-400 px-2 py-1 rounded-lg font-semibold border border-blue-500/20">
+											<Award class="w-3 h-3" />
+											<span>Pengurus • {a.dapukanNama || 'Pengurus'}</span>
+										</span>
+									{:else}
+										<span class="inline-flex items-center gap-1 text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded-lg font-semibold border border-emerald-500/20">
+											<CheckCircle2 class="w-3 h-3" />
+											<span>Punya Akun</span>
+										</span>
+									{/if}
+
+									{#if data.canManageDapukan}
+										<button
+											type="button"
+											onclick={() => {
+												if (selectedKeluarga) openAssignDapukanModal(selectedKeluarga, a.userId);
+											}}
+											class="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-semibold transition-colors cursor-pointer shadow-xs"
+											title="Tugaskan Dapukan Pengurus"
+										>
+											<Award class="w-3 h-3" />
+											<span>{a.isPengurus ? 'Ubah Dapukan' : 'Beri Dapukan'}</span>
+										</button>
+									{/if}
 								{:else}
 									<button
 										type="button"
@@ -2597,6 +2737,294 @@
 							<ArrowRightLeft class="w-3.5 h-3.5" />
 							<span>Pindahkan Sensus</span>
 						{/if}
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- MODAL TUGASKAN PENGURUS (BERI DAPUKAN) DARI SENSUS -->
+{#if showAssignDapukanModal && targetKeluargaForDapukan}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150"
+		role="dialog"
+		aria-modal="true"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) closeAssignDapukanModal();
+		}}
+	>
+		<div class="bg-card border border-border rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+			<div class="flex items-center justify-between pb-3 border-b border-border">
+				<div class="flex items-center gap-2">
+					<div class="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+						<Award class="w-4 h-4" />
+					</div>
+					<div>
+						<h3 class="text-sm font-bold text-foreground">Tugaskan Pengurus (Beri Dapukan)</h3>
+						<p class="text-[11px] text-foreground/60">
+							{targetKeluargaForDapukan.isKk ? `KK: ${targetKeluargaForDapukan.kepalaKeluargaNama}` : `Mandiri: ${targetKeluargaForDapukan.kepalaKeluargaNama}`}
+						</p>
+					</div>
+				</div>
+				<button
+					type="button"
+					onclick={closeAssignDapukanModal}
+					class="p-1.5 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground transition-colors cursor-pointer"
+				>
+					<X class="w-4 h-4" />
+				</button>
+			</div>
+
+			<form method="POST" action="?/assignDapukan" use:enhance class="space-y-4">
+				<!-- Pilih Akun dalam KK (Jika > 1 Akun, tampilkan pilihan kartu/radio) -->
+				{#if targetKeluargaForDapukan.akunList && targetKeluargaForDapukan.akunList.length > 1}
+					<div>
+						<span class="block text-xs font-semibold text-foreground mb-1">
+							Pilih Akun Jamaah dalam KK Ini ({targetKeluargaForDapukan.akunList.length} Akun Terdaftar) *
+						</span>
+						<p class="text-[11px] text-foreground/50 mb-2">
+							Terdapat lebih dari satu akun di KK ini. Pilih salah satu akun yang ingin diberikan penugasan dapukan:
+						</p>
+						<div class="space-y-2">
+							{#each targetKeluargaForDapukan.akunList as acc}
+								<label
+									class="p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-colors {assignUserId === acc.userId ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border bg-secondary/30 hover:bg-secondary/50'}"
+								>
+									<div class="flex items-center gap-2.5 min-w-0">
+										<input
+											type="radio"
+											name="userId"
+											value={acc.userId}
+											bind:group={assignUserId}
+											required
+											class="text-primary focus:ring-primary"
+										/>
+										<div class="min-w-0">
+											<p class="text-xs font-bold text-foreground truncate">
+												{acc.nama}
+												<span class="font-normal text-foreground/60 text-[11px]">({acc.statusHubungan})</span>
+											</p>
+											<p class="text-[11px] text-foreground/50 truncate font-mono">{acc.email}</p>
+										</div>
+									</div>
+									<div class="shrink-0 text-right">
+										{#if acc.is4S}
+											<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+												4S • {acc.dapukanNama}
+											</span>
+										{:else if acc.isPengurus}
+											<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+												Pengurus • {acc.dapukanNama}
+											</span>
+										{:else}
+											<span class="text-[10px] text-foreground/40 font-medium">Jamaah Biasa</span>
+										{/if}
+									</div>
+								</label>
+							{/each}
+						</div>
+					</div>
+				{:else if targetKeluargaForDapukan.akunList && targetKeluargaForDapukan.akunList.length === 1}
+					{@const singleAcc = targetKeluargaForDapukan.akunList[0]}
+					<input type="hidden" name="userId" value={singleAcc.userId} />
+					<div class="p-3 bg-secondary/40 border border-border rounded-xl space-y-1">
+						<div class="flex items-center justify-between">
+							<span class="text-xs font-semibold text-foreground">{singleAcc.nama} ({singleAcc.statusHubungan})</span>
+							{#if singleAcc.is4S}
+								<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+									4S • {singleAcc.dapukanNama}
+								</span>
+							{:else if singleAcc.isPengurus}
+								<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+									Pengurus • {singleAcc.dapukanNama}
+								</span>
+							{:else}
+								<span class="text-[10px] text-foreground/40 font-medium">Jamaah Biasa</span>
+							{/if}
+						</div>
+						<p class="text-[11px] text-foreground/50 font-mono">{singleAcc.email}</p>
+					</div>
+				{:else}
+					<div class="p-3 bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs rounded-xl">
+						Belum ada akun terdaftar pada keluarga ini. Silakan buatkan akun terlebih dahulu melalui modal Detail Anggota.
+					</div>
+				{/if}
+
+				<!-- Basis Wilayah KK -->
+				<div class="text-[11px] text-foreground/70 flex items-center gap-1.5 px-1">
+					<MapPin class="w-3.5 h-3.5 text-primary shrink-0" />
+					<span>Basis Wilayah:</span>
+					<span class="font-medium text-foreground">
+						{targetKeluargaForDapukan.kelompokNama} • Desa {targetKeluargaForDapukan.desaNama} • {targetKeluargaForDapukan.daerahNama}
+					</span>
+				</div>
+
+				<!-- Tipe Dapukan: 4S vs Tentatif -->
+				<div>
+					<span class="block text-xs font-semibold text-foreground mb-2">Tipe Dapukan *</span>
+					<div class="grid grid-cols-2 gap-3">
+						<label class="p-3 border rounded-xl flex items-center gap-2.5 cursor-pointer transition-colors {assignTipeDapukan === 'tetap' ? 'border-primary bg-primary/5' : 'border-border bg-secondary/30'}">
+							<input
+								type="radio"
+								name="tipeDapukan"
+								value="tetap"
+								bind:group={assignTipeDapukan}
+								class="text-primary focus:ring-primary"
+							/>
+							<div>
+								<span class="text-xs font-bold text-foreground block">Dapukan 4S</span>
+								<span class="text-[10px] text-foreground/60 block">Hak Admin Elevated</span>
+							</div>
+						</label>
+
+						<label class="p-3 border rounded-xl flex items-center gap-2.5 cursor-pointer transition-colors {assignTipeDapukan === 'custom' ? 'border-primary bg-primary/5' : 'border-border bg-secondary/30'}">
+							<input
+								type="radio"
+								name="tipeDapukan"
+								value="custom"
+								bind:group={assignTipeDapukan}
+								class="text-primary focus:ring-primary"
+							/>
+							<div>
+								<span class="text-xs font-bold text-foreground block">Tentatif / Panitia</span>
+								<span class="text-[10px] text-foreground/60 block">Dapukan Khusus Lokal</span>
+							</div>
+						</label>
+					</div>
+				</div>
+
+				{#if assignTipeDapukan === 'tetap'}
+					<div>
+						<label for="assignDapukanId" class="block text-xs font-semibold text-foreground mb-1.5">
+							Pilih Dapukan 4S *
+						</label>
+						<SearchableSelect
+							id="assignDapukanId"
+							name="dapukanId"
+							options={masterDapukanOptions}
+							bind:value={assignDapukanId}
+							required
+							placeholder="-- Pilih Dapukan 4S --"
+							searchPlaceholder="Cari nama dapukan..."
+						/>
+					</div>
+				{:else}
+					<div>
+						<label for="assignNamaDapukanCustom" class="block text-xs font-semibold text-foreground mb-1.5">
+							Nama Dapukan Tentatif / Panitia *
+						</label>
+						<input
+							id="assignNamaDapukanCustom"
+							name="namaDapukanCustom"
+							type="text"
+							bind:value={assignNamaDapukanCustom}
+							required
+							placeholder="Contoh: Panitia Qurban, Seksi Konsumsi"
+							class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+						/>
+					</div>
+				{/if}
+
+				<!-- Tingkat Scope Wewenang -->
+				<div>
+					<label for="assignTingkatScope" class="block text-xs font-semibold text-foreground mb-1.5">
+						Tingkat Scope Wewenang *
+					</label>
+					<select
+						id="assignTingkatScope"
+						name="tingkatScope"
+						bind:value={assignScope}
+						required
+						class="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+					>
+						<option value="Kelompok">Kelompok (Tingkat Basis)</option>
+						{#if data.adminScope?.isPusat || data.adminScope?.level === 'Daerah' || data.adminScope?.level === 'Desa'}
+							<option value="Desa">Desa (Mengawasi Semua Kelompok)</option>
+						{/if}
+						{#if data.adminScope?.isPusat || data.adminScope?.level === 'Daerah'}
+							<option value="Daerah">Daerah (Mengawasi Semua Desa)</option>
+						{/if}
+						{#if data.adminScope?.isPusat}
+							<option value="Pusat">Pusat (Akses Nasional)</option>
+						{/if}
+					</select>
+				</div>
+
+				<!-- Cakupan Wilayah (Terkunci ke Basis KK) -->
+				{#if assignScope === 'Kelompok'}
+					<div>
+						<div class="flex items-center justify-between mb-1.5">
+							<label for="assignKelompokId" class="block text-xs font-semibold text-foreground">
+								Kelompok Cakupan *
+							</label>
+							<span class="text-[10px] text-primary font-semibold">Terkunci ke Basis KK</span>
+						</div>
+						<SearchableSelect
+							id="assignKelompokId"
+							name="kelompokId"
+							options={assignKelompokOptions}
+							bind:value={assignKelompokId}
+							disabled={Boolean(targetKeluargaForDapukan.kelompokId)}
+							required
+							placeholder="-- Pilih Kelompok Cakupan --"
+							searchPlaceholder="Cari kelompok..."
+						/>
+					</div>
+				{:else if assignScope === 'Desa'}
+					<div>
+						<div class="flex items-center justify-between mb-1.5">
+							<label for="assignDesaId" class="block text-xs font-semibold text-foreground">
+								Desa Cakupan *
+							</label>
+							<span class="text-[10px] text-primary font-semibold">Terkunci ke Basis KK</span>
+						</div>
+						<SearchableSelect
+							id="assignDesaId"
+							name="desaId"
+							options={assignDesaOptions}
+							bind:value={assignDesaId}
+							disabled={Boolean(targetKeluargaForDapukan.desaId)}
+							required
+							placeholder="-- Pilih Desa Cakupan --"
+							searchPlaceholder="Cari desa..."
+						/>
+					</div>
+				{:else if assignScope === 'Daerah'}
+					<div>
+						<div class="flex items-center justify-between mb-1.5">
+							<label for="assignDaerahId" class="block text-xs font-semibold text-foreground">
+								Daerah Cakupan *
+							</label>
+							<span class="text-[10px] text-primary font-semibold">Terkunci ke Basis KK</span>
+						</div>
+						<SearchableSelect
+							id="assignDaerahId"
+							name="daerahId"
+							options={assignDaerahOptions}
+							bind:value={assignDaerahId}
+							disabled={Boolean(targetKeluargaForDapukan.daerahId)}
+							required
+							placeholder="-- Pilih Daerah Cakupan --"
+							searchPlaceholder="Cari daerah..."
+						/>
+					</div>
+				{/if}
+
+				<div class="flex items-center justify-end gap-2 pt-3 border-t border-border">
+					<button
+						type="button"
+						onclick={closeAssignDapukanModal}
+						class="px-4 py-2 rounded-xl border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary cursor-pointer"
+					>
+						Batal
+					</button>
+					<button
+						type="submit"
+						disabled={!assignUserId}
+						class="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors cursor-pointer"
+					>
+						Simpan Penugasan Pengurus
 					</button>
 				</div>
 			</form>

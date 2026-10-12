@@ -1,10 +1,10 @@
 /**
  * @file src/routes/(admin)/admin/sensus/+page.server.ts
- * @purpose Rekapitulasi sensus KK & Mandiri, metrik dashboard, serta form actions sensus (create, add anggota, edit, delete sensus, pindah kelompok, toggle keaktifan jamaah, buat akun)
+ * @purpose Rekapitulasi sensus KK & Mandiri, metrik dashboard, penugasan dapukan pengurus KK, serta form actions sensus (create, add anggota, edit, delete sensus, pindah kelompok, toggle keaktifan jamaah, buat akun, assign dapukan)
  * @usedBy src/routes/(admin)/admin/sensus/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/auth, src/lib/server/scope, src/lib/utils (normalizeDateToISO), drizzle-orm
- * @publicFunctions load, actions.createSensus, actions.addAnggotaKeluarga, actions.updateAnggota, actions.updateKeluarga, actions.deleteSensus, actions.pindahKelompok, actions.toggleStatusJamaah, actions.createMemberAccount
- * @sideEffects Transaksi penulisan database tabel users, keluarga, anggota_keluarga; query join multi-tabel terindeks
+ * @publicFunctions load, actions.createSensus, actions.addAnggotaKeluarga, actions.updateAnggota, actions.updateKeluarga, actions.deleteSensus, actions.pindahKelompok, actions.toggleStatusJamaah, actions.createMemberAccount, actions.assignDapukan
+ * @sideEffects Transaksi penulisan database tabel users, keluarga, anggota_keluarga, user_dapukan; query join multi-tabel terindeks
  */
 
 import { fail, redirect } from '@sveltejs/kit';
@@ -14,7 +14,7 @@ import { keluarga, anggotaKeluarga, users, kelompok, desa, daerah, userDapukan, 
 import { eq, desc, inArray, and, isNotNull } from 'drizzle-orm';
 import { decryptSensitive, encryptSensitive, maskSensitive } from '$lib/server/crypto';
 import { hashPassword } from '$lib/server/auth';
-import { getAdminScope, getAccessibleWilayah, isKelompokAllowed } from '$lib/server/scope';
+import { getAdminScope, getAccessibleWilayah, isKelompokAllowed, canManageDapukan } from '$lib/server/scope';
 import { normalizeDateToISO } from '$lib/utils';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -59,8 +59,36 @@ export const load: PageServerLoad = async ({ locals }) => {
 			return accessibleWilayah.allowedKelompokIdSet.has(k.kelompokId);
 		});
 
-		// 3. Batch Query Anggota Keluarga (1 scan, O(1) Map lookup)
-		const rawAnggotaList = db.select().from(anggotaKeluarga).all();
+		// 3. Master Dapukan Baku 4S & Hak Kelola Dapukan
+		const masterDapukan = db.select().from(dapukan).all();
+		const canManageDapukanVal = canManageDapukan(locals.roles || []);
+
+		// 4. Batch Query Anggota Keluarga join Users untuk akun email (1 scan, O(1) Map lookup)
+		const rawAnggotaList = db
+			.select({
+				id: anggotaKeluarga.id,
+				keluargaId: anggotaKeluarga.keluargaId,
+				userId: anggotaKeluarga.userId,
+				userEmail: users.email,
+				userNama: users.namaLengkap,
+				namaLengkap: anggotaKeluarga.namaLengkap,
+				nikEncrypted: anggotaKeluarga.nikEncrypted,
+				statusHubungan: anggotaKeluarga.statusHubungan,
+				tanggalLahir: anggotaKeluarga.tanggalLahir,
+				jenisKelamin: anggotaKeluarga.jenisKelamin,
+				tempatLahir: anggotaKeluarga.tempatLahir,
+				profesi: anggotaKeluarga.profesi,
+				noTelepon: anggotaKeluarga.noTelepon,
+				statusGenerus: anggotaKeluarga.statusGenerus,
+				statusPernikahan: anggotaKeluarga.statusPernikahan,
+				statusJamaah: anggotaKeluarga.statusJamaah,
+				isrun: anggotaKeluarga.isrun,
+				golonganDarah: anggotaKeluarga.golonganDarah
+			})
+			.from(anggotaKeluarga)
+			.leftJoin(users, eq(anggotaKeluarga.userId, users.id))
+			.all();
+
 		const anggotaByKeluargaMap = new Map<string, typeof rawAnggotaList>();
 		for (const a of rawAnggotaList) {
 			const list = anggotaByKeluargaMap.get(a.keluargaId) || [];
@@ -68,7 +96,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			anggotaByKeluargaMap.set(a.keluargaId, list);
 		}
 
-		// 4. Batch Query Peran Pengurus / 4S untuk Kepala Keluarga
+		// 5. Batch Query Peran Pengurus / 4S untuk Semua Akun Jamaah
 		const rawRoles = db
 			.select({
 				userId: userDapukan.userId,
@@ -94,7 +122,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		let totalPengurus = 0;
 		let totalPengurus4S = 0;
 
-		// 5. Transformasi Data dengan Masking
+		// 6. Transformasi Data dengan Masking dan Pemetaan Akun KK
 		const daftarKeluarga = scopedKeluargaList.map((k) => {
 			const isKk = k.isKk ?? true;
 			let noKkMasked = 'Tanpa KK';
@@ -118,17 +146,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 			const familyMembers = anggotaByKeluargaMap.get(k.id) || [];
 			totalJiwa += familyMembers.length;
 
-			const userRoles = k.kepalaKeluargaId ? roleByUserIdMap.get(k.kepalaKeluargaId) || [] : [];
-			const is4S = userRoles.some((r) => r.is4S === true);
-			const isPengurus = userRoles.length > 0;
-			if (is4S) totalPengurus4S++;
-			if (isPengurus) totalPengurus++;
-
-			const primaryRole = userRoles[0];
-			const dapukanNama = primaryRole
-				? primaryRole.namaDapukanCustom || primaryRole.dapukanNama || 'Pengurus'
-				: 'Jamaah Biasa';
-
 			const anggotaFormatted = familyMembers.map((a) => {
 				let nikMasked = 'Belum Ada NIK';
 				const hasNik = !!a.nikEncrypted;
@@ -140,9 +157,19 @@ export const load: PageServerLoad = async ({ locals }) => {
 					}
 				}
 
+				const aRoles = a.userId ? roleByUserIdMap.get(a.userId) || [] : [];
+				const aIsPengurus = aRoles.length > 0;
+				const aIs4S = aRoles.some((r) => r.is4S === true);
+				const aPrimaryRole = aRoles[0];
+				const aDapukanNama = aPrimaryRole
+					? aPrimaryRole.namaDapukanCustom || aPrimaryRole.dapukanNama || 'Pengurus'
+					: null;
+				const aTingkatScope = aPrimaryRole?.tingkatScope || null;
+
 				return {
 					id: a.id,
 					userId: a.userId,
+					userEmail: a.userEmail || null,
 					namaLengkap:
 						a.namaLengkap ||
 						(a.statusHubungan === 'Kepala Keluarga' ? k.kepalaKeluargaNama || 'Kepala Keluarga' : a.statusHubungan),
@@ -164,9 +191,75 @@ export const load: PageServerLoad = async ({ locals }) => {
 					statusJamaah: a.statusJamaah || 'Aktif',
 					isrun: a.isrun || 'Tidak',
 					golonganDarah: a.golonganDarah || '-',
-					golonganDarahRaw: a.golonganDarah || ''
+					golonganDarahRaw: a.golonganDarah || '',
+					isPengurus: aIsPengurus,
+					is4S: aIs4S,
+					dapukanNama: aDapukanNama,
+					tingkatScope: aTingkatScope
 				};
 			});
+
+			// Kumpulkan seluruh akun jamaah yang ada di dalam KK ini
+			const akunMap = new Map<
+				string,
+				{
+					userId: string;
+					nama: string;
+					email: string;
+					statusHubungan: string;
+					isPengurus: boolean;
+					is4S: boolean;
+					dapukanNama: string | null;
+					tingkatScope: string | null;
+				}
+			>();
+
+			if (k.kepalaKeluargaId) {
+				const roles = roleByUserIdMap.get(k.kepalaKeluargaId) || [];
+				const isPengurus = roles.length > 0;
+				const is4S = roles.some((r) => r.is4S === true);
+				const primaryRole = roles[0];
+				const dapukanNama = primaryRole
+					? primaryRole.namaDapukanCustom || primaryRole.dapukanNama || 'Pengurus'
+					: null;
+				const tingkatScope = primaryRole?.tingkatScope || null;
+
+				akunMap.set(k.kepalaKeluargaId, {
+					userId: k.kepalaKeluargaId,
+					nama: k.kepalaKeluargaNama || 'Kepala Keluarga',
+					email: k.kepalaKeluargaEmail || '-',
+					statusHubungan: 'Kepala Keluarga',
+					isPengurus,
+					is4S,
+					dapukanNama,
+					tingkatScope
+				});
+			}
+
+			for (const a of anggotaFormatted) {
+				if (a.userId && !akunMap.has(a.userId)) {
+					akunMap.set(a.userId, {
+						userId: a.userId,
+						nama: a.namaLengkap,
+						email: a.userEmail || '-',
+						statusHubungan: a.statusHubungan,
+						isPengurus: a.isPengurus,
+						is4S: a.is4S,
+						dapukanNama: a.dapukanNama,
+						tingkatScope: a.tingkatScope
+					});
+				}
+			}
+
+			const akunList = Array.from(akunMap.values());
+
+			const isPengurus = akunList.some((acc) => acc.isPengurus);
+			const is4S = akunList.some((acc) => acc.is4S);
+			if (is4S) totalPengurus4S++;
+			if (isPengurus) totalPengurus++;
+
+			const primaryPengurus = akunList.find((acc) => acc.is4S) || akunList.find((acc) => acc.isPengurus);
+			const dapukanNama = primaryPengurus ? primaryPengurus.dapukanNama : null;
 
 			return {
 				id: k.id,
@@ -187,11 +280,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 				isPengurus,
 				dapukanNama,
 				jumlahAnggota: anggotaFormatted.length,
-				anggota: anggotaFormatted
+				anggota: anggotaFormatted,
+				akunList
 			};
 		});
 
-		// 6. Ringkasan Metrik Dashboard
+		// 7. Ringkasan Metrik Dashboard
 		const dashboardStats = {
 			totalKeluarga,
 			totalMandiri,
@@ -211,6 +305,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 				desaList: accessibleWilayah.desaList,
 				kelompokList: accessibleWilayah.kelompokList
 			},
+			masterDapukan,
+			canManageDapukan: canManageDapukanVal,
 			adminScope: {
 				level: adminScope.level,
 				isPusat: adminScope.isPusat
@@ -239,6 +335,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 				desaList: [],
 				kelompokList: []
 			},
+			masterDapukan: [],
+			canManageDapukan: false,
 			adminScope: {
 				level: adminScope.level,
 				isPusat: adminScope.isPusat
@@ -1090,6 +1188,171 @@ export const actions: Actions = {
 		} catch (err) {
 			console.error('Gagal memperbarui status keaktifan jamaah:', err);
 			return fail(500, { error: 'Terjadi kesalahan sistem saat memperbarui status keaktifan jamaah.' });
+		}
+	},
+
+	/**
+	 * Menjadikan akun sensus sebagai pengurus dengan penugasan Dapukan
+	 */
+	assignDapukan: async ({ request, locals }) => {
+		if (!locals.user || !locals.isAdmin) {
+			return fail(403, { error: 'Akses ditolak.' });
+		}
+
+		if (!canManageDapukan(locals.roles || [])) {
+			return fail(403, {
+				error: 'Akses ditolak: Pada tingkat kelompok, hanya pengurus 4S dengan dapukan Kyai atau Sekretaris / Penerobos yang dapat menugaskan pengurus.'
+			});
+		}
+
+		const adminScope = getAdminScope(locals.roles);
+		const accessible = getAccessibleWilayah(adminScope);
+
+		const formData = await request.formData();
+		const userId = formData.get('userId')?.toString()?.trim() || '';
+		const tipeDapukan = formData.get('tipeDapukan')?.toString() || 'tetap';
+		const dapukanIdStr = formData.get('dapukanId')?.toString() || '';
+		const namaDapukanCustom = formData.get('namaDapukanCustom')?.toString()?.trim() || '';
+		const tingkatScope = (formData.get('tingkatScope')?.toString() || 'Kelompok') as 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok';
+		const kelompokIdStr = formData.get('kelompokId')?.toString() || '';
+		const desaIdStr = formData.get('desaId')?.toString() || '';
+		const daerahIdStr = formData.get('daerahId')?.toString() || '';
+
+		if (!userId) {
+			return fail(400, { error: 'Pilih akun jamaah yang akan diberikan dapukan.' });
+		}
+
+		const targetUser = db
+			.select({
+				id: users.id,
+				namaLengkap: users.namaLengkap,
+				kelompokId: users.kelompokId,
+				kelompokNama: kelompok.nama,
+				desaId: kelompok.desaId,
+				desaNama: desa.nama,
+				daerahId: desa.daerahId,
+				daerahNama: daerah.nama
+			})
+			.from(users)
+			.leftJoin(kelompok, eq(users.kelompokId, kelompok.id))
+			.leftJoin(desa, eq(kelompok.desaId, desa.id))
+			.leftJoin(daerah, eq(desa.daerahId, daerah.id))
+			.where(eq(users.id, userId))
+			.get();
+
+		if (!targetUser) {
+			return fail(404, { error: 'Data akun jamaah tidak ditemukan.' });
+		}
+
+		// Validasi wewenang admin terhadap tingkatScope
+		if (!adminScope.isPusat) {
+			if (tingkatScope === 'Pusat') {
+				return fail(403, { error: 'Anda tidak memiliki wewenang untuk menugaskan pengurus tingkat Pusat.' });
+			}
+			if (tingkatScope === 'Daerah' && adminScope.level !== 'Daerah') {
+				return fail(403, { error: 'Anda tidak memiliki wewenang untuk menugaskan pengurus tingkat Daerah.' });
+			}
+			if (tingkatScope === 'Desa' && adminScope.level === 'Kelompok') {
+				return fail(403, { error: 'Anda tidak memiliki wewenang untuk menugaskan pengurus tingkat Desa.' });
+			}
+		}
+
+		const dapukanId = tipeDapukan === 'tetap' && dapukanIdStr ? parseInt(dapukanIdStr, 10) : null;
+		if (tipeDapukan === 'tetap' && !dapukanId) {
+			return fail(400, { error: 'Pilih dapukan 4S.' });
+		}
+		if (tipeDapukan === 'custom' && !namaDapukanCustom) {
+			return fail(400, { error: 'Tulis nama dapukan tentatif / panitia kustom.' });
+		}
+
+		let finalKelompokId: number | null = null;
+		let finalDesaId: number | null = null;
+		let finalDaerahId: number | null = null;
+
+		if (tingkatScope === 'Kelompok') {
+			const kId = kelompokIdStr ? parseInt(kelompokIdStr, 10) : targetUser.kelompokId;
+			if (!kId) {
+				return fail(400, { error: 'Pilih kelompok cakupan untuk wewenang tingkat Kelompok.' });
+			}
+			if (targetUser.kelompokId && kId !== targetUser.kelompokId) {
+				return fail(400, {
+					error: `Cakupan kelompok harus sesuai dengan basis kelompok jamaah (${targetUser.kelompokNama || 'Kelompok Asal'}).`
+				});
+			}
+			if (!isKelompokAllowed(kId, accessible.allowedKelompokIdSet, adminScope.isPusat)) {
+				return fail(403, { error: 'Anda tidak memiliki wewenang pada kelompok yang dipilih.' });
+			}
+			finalKelompokId = kId;
+		} else if (tingkatScope === 'Desa') {
+			const dId = desaIdStr ? parseInt(desaIdStr, 10) : targetUser.desaId;
+			if (!dId) {
+				return fail(400, { error: 'Pilih desa cakupan untuk wewenang tingkat Desa.' });
+			}
+			if (targetUser.desaId && dId !== targetUser.desaId) {
+				return fail(400, {
+					error: `Cakupan desa harus sesuai dengan basis desa jamaah (${targetUser.desaNama || 'Desa Asal'}).`
+				});
+			}
+			const allowedDesaIds = new Set(accessible.desaList.map((d) => d.id));
+			if (!adminScope.isPusat && !allowedDesaIds.has(dId)) {
+				return fail(403, { error: 'Anda tidak memiliki wewenang pada desa yang dipilih.' });
+			}
+			finalDesaId = dId;
+		} else if (tingkatScope === 'Daerah') {
+			const drId = daerahIdStr ? parseInt(daerahIdStr, 10) : targetUser.daerahId;
+			if (!drId) {
+				return fail(400, { error: 'Pilih daerah cakupan untuk wewenang tingkat Daerah.' });
+			}
+			if (targetUser.daerahId && drId !== targetUser.daerahId) {
+				return fail(400, {
+					error: `Cakupan daerah harus sesuai dengan basis daerah jamaah (${targetUser.daerahNama || 'Daerah Asal'}).`
+				});
+			}
+			const allowedDaerahIds = new Set(accessible.daerahList.map((dr) => dr.id));
+			if (!adminScope.isPusat && !allowedDaerahIds.has(drId)) {
+				return fail(403, { error: 'Anda tidak memiliki wewenang pada daerah yang dipilih.' });
+			}
+			finalDaerahId = drId;
+		} else if (tingkatScope === 'Pusat') {
+			if (!adminScope.isPusat) {
+				return fail(403, { error: 'Hanya wewenang Pusat yang dapat menugaskan pengurus tingkat Pusat.' });
+			}
+		}
+
+		try {
+			const existingAssignment = db.select().from(userDapukan).where(eq(userDapukan.userId, userId)).get();
+			if (existingAssignment) {
+				db.update(userDapukan)
+					.set({
+						dapukanId,
+						namaDapukanCustom: tipeDapukan === 'custom' ? namaDapukanCustom : null,
+						tingkatScope,
+						daerahId: finalDaerahId,
+						desaId: finalDesaId,
+						kelompokId: finalKelompokId
+					})
+					.where(eq(userDapukan.id, existingAssignment.id))
+					.run();
+			} else {
+				db.insert(userDapukan)
+					.values({
+						userId,
+						dapukanId,
+						namaDapukanCustom: tipeDapukan === 'custom' ? namaDapukanCustom : null,
+						tingkatScope,
+						daerahId: finalDaerahId,
+						desaId: finalDesaId,
+						kelompokId: finalKelompokId
+					})
+					.run();
+			}
+
+			return {
+				success: `Berhasil menetapkan dapukan untuk ${targetUser.namaLengkap}.`
+			};
+		} catch (err) {
+			console.error('Gagal menugaskan dapukan sensus:', err);
+			return fail(500, { error: 'Terjadi kesalahan sistem saat menyimpan penugasan dapukan.' });
 		}
 	}
 };

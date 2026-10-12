@@ -420,7 +420,7 @@
 		<div class="flex items-center justify-between">
 			<div class="flex items-center gap-2">
 				<Award class="w-4 h-4 text-primary" />
-				<h2 class="text-sm font-bold text-foreground">Struktur Master Dapukan Baku (4S)</h2>
+				<h2 class="text-sm font-bold text-foreground">Struktur Dapukan 4S</h2>
 			</div>
 			<span class="text-[11px] text-foreground/50">Hak Akses Modifikasi Administratif</span>
 		</div>
@@ -430,7 +430,7 @@
 				<div class="p-3 rounded-lg border border-border bg-secondary/30 flex items-center justify-between">
 					<div>
 						<p class="text-xs font-bold text-foreground">{m.namaDapukan}</p>
-						<p class="text-[10px] text-foreground/50">Master Global</p>
+						<p class="text-[10px] text-foreground/50">Struktur 4S</p>
 					</div>
 					{#if m.is4S}
 						<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary">
@@ -585,7 +585,6 @@
 										<span class="block text-xs text-foreground/50">(Tentatif/Kustom)</span>
 									{:else}
 										<span class="font-bold text-primary">{p.dapukanNama || '-'}</span>
-										<span class="block text-xs text-foreground/50">(Master Baku)</span>
 									{/if}
 								</td>
 								<td class="py-3.5 px-4">
@@ -734,7 +733,7 @@
 								class="text-primary focus:ring-primary"
 							/>
 							<div>
-								<span class="text-xs font-bold text-foreground block">Dapukan Baku 4S</span>
+								<span class="text-xs font-bold text-foreground block">Dapukan 4S</span>
 								<span class="text-[10px] text-foreground/60 block">Hak Admin Elevated</span>
 							</div>
 						</label>
@@ -758,7 +757,7 @@
 				{#if tipeDapukan === 'tetap'}
 					<div>
 						<label for="dapukanId" class="block text-xs font-semibold text-foreground mb-1.5">
-							Pilih Dapukan Master 4S *
+							Pilih Dapukan 4S *
 						</label>
 						<SearchableSelect
 							id="dapukanId"
@@ -766,7 +765,7 @@
 							options={masterDapukanOptions}
 							bind:value={selectedDapukanId}
 							required
-							placeholder="-- Pilih Dapukan Master 4S --"
+							placeholder="-- Pilih Dapukan 4S --"
 							searchPlaceholder="Cari nama dapukan..."
 						/>
 					</div>
@@ -991,7 +990,7 @@
 								class="text-primary focus:ring-primary"
 							/>
 							<div>
-								<span class="text-xs font-bold text-foreground block">Dapukan Baku 4S</span>
+								<span class="text-xs font-bold text-foreground block">Dapukan 4S</span>
 								<span class="text-[10px] text-foreground/60 block">Hak Admin Elevated</span>
 							</div>
 						</label>
@@ -1015,7 +1014,7 @@
 				{#if editTipeDapukan === 'tetap'}
 					<div>
 						<label for="editDapukanId" class="block text-xs font-semibold text-foreground mb-1.5">
-							Pilih Dapukan Master 4S *
+							Pilih Dapukan 4S *
 						</label>
 						<SearchableSelect
 							id="editDapukanId"
@@ -1023,7 +1022,7 @@
 							options={masterDapukanOptions}
 							bind:value={editDapukanId}
 							required
-							placeholder="-- Pilih Dapukan Master 4S --"
+							placeholder="-- Pilih Dapukan 4S --"
 							searchPlaceholder="Cari nama dapukan..."
 						/>
 					</div>
