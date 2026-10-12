@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(admin)/admin/profil-wilayah/+page.svelte
-  @purpose Halaman dedicated profil wilayah (Kelompok/Desa/Daerah) untuk manajemen lokasi geotagging tempat pengajian, rekening/QRIS shodaqoh berotoritas KU/Superadmin, dan hierarki sub-wilayah dengan dropdown pencarian interaktif dan scroll retention
+  @purpose Halaman dedicated profil wilayah (Kelompok/Desa/Daerah) untuk manajemen lokasi geotagging tempat pengajian, rekening/QRIS shodaqoh berotoritas KU/Superadmin, hierarki sub-wilayah, dropdown pencarian interaktif bertingkat, breadcrumbs navigasi, dan tombol kembali ke tingkat wilayah sebelumnya
   @usedBy Route admin '/admin/profil-wilayah'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/LocationPicker.svelte, $lib/components/Pagination.svelte, $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
   @publicFunctions openLocationModal, closeLocationModal, openAddRekeningModal, closeAddRekeningModal, openEditRekeningModal, closeEditRekeningModal, copyToClipboard
@@ -8,7 +8,9 @@
 -->
 <script lang="ts">
 	import {
+		ArrowLeft,
 		Building2,
+		ChevronRight,
 		CreditCard,
 		ExternalLink,
 		Eye,
@@ -38,15 +40,30 @@
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
 	// State Selector Cascading (Khusus Pusat / Superadmin atau Admin Berlingkup Luas)
-	let selectedDaerahId = $state<string | number>(
-		data.activeScope === 'Daerah' ? data.activeId || '' : (data.profilData?.daerahId || '')
-	);
-	let selectedDesaId = $state<string | number>(
-		data.activeScope === 'Desa' ? data.activeId || '' : (data.profilData?.desaId || '')
-	);
-	let selectedKelompokId = $state<string | number>(
-		data.activeScope === 'Kelompok' ? data.activeId || '' : ''
-	);
+	let selectedDaerahId = $state<string | number>('');
+	let selectedDesaId = $state<string | number>('');
+	let selectedKelompokId = $state<string | number>('');
+
+	// Sinkronisasi otomatis nilai dropdown filter saat data wilayah / rute aktif berubah
+	$effect(() => {
+		if (data.activeScope === 'Kelompok') {
+			selectedDaerahId = data.profilData?.daerahId ?? '';
+			selectedDesaId = data.profilData?.desaId ?? '';
+			selectedKelompokId = data.activeId ?? '';
+		} else if (data.activeScope === 'Desa') {
+			selectedDaerahId = data.profilData?.daerahId ?? '';
+			selectedDesaId = data.activeId ?? '';
+			selectedKelompokId = '';
+		} else if (data.activeScope === 'Daerah') {
+			selectedDaerahId = data.activeId ?? '';
+			selectedDesaId = '';
+			selectedKelompokId = '';
+		} else {
+			selectedDaerahId = '';
+			selectedDesaId = '';
+			selectedKelompokId = '';
+		}
+	});
 
 	// State Modal Edit Lokasi
 	let showLocationModal = $state(false);
@@ -233,6 +250,69 @@
 			</div>
 		{/if}
 	</div>
+
+	<!-- Bar Navigasi Kembali & Breadcrumbs Hierarki -->
+	{#if data.profilData}
+		<div class="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-card border border-border shadow-xs">
+			<div class="flex items-center gap-2 text-xs">
+				{#if data.activeScope === 'Kelompok'}
+					<a
+						href={`/admin/profil-wilayah?scope=Desa&id=${data.profilData.desaId}`}
+						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-bold transition-colors cursor-pointer"
+					>
+						<ArrowLeft class="w-3.5 h-3.5" />
+						<span>Kembali ke Desa {data.profilData.desaNama}</span>
+					</a>
+				{:else if data.activeScope === 'Desa'}
+					<a
+						href={`/admin/profil-wilayah?scope=Daerah&id=${data.profilData.daerahId}`}
+						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-bold transition-colors cursor-pointer"
+					>
+						<ArrowLeft class="w-3.5 h-3.5" />
+						<span>Kembali ke Daerah {data.profilData.daerahNama}</span>
+					</a>
+				{:else if data.activeScope === 'Daerah' && data.adminScope.isPusat}
+					<a
+						href="/admin/profil-wilayah"
+						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground font-semibold transition-colors cursor-pointer"
+					>
+						<ArrowLeft class="w-3.5 h-3.5 text-primary" />
+						<span>Ganti Pilihan Daerah Lain</span>
+					</a>
+				{/if}
+
+				<a
+					href="/admin/wilayah"
+					class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-foreground/60 hover:text-foreground hover:bg-secondary/60 transition-colors text-xs font-medium"
+				>
+					<span>Semua Data Wilayah</span>
+				</a>
+			</div>
+
+			<!-- Breadcrumbs Hierarki Aktif -->
+			<nav class="flex items-center gap-1.5 text-xs text-foreground/60 flex-wrap" aria-label="Hierarki Wilayah">
+				{#if data.activeScope === 'Kelompok'}
+					<a href={`/admin/profil-wilayah?scope=Daerah&id=${data.profilData.daerahId}`} class="hover:text-primary transition-colors">
+						{data.profilData.daerahNama}
+					</a>
+					<ChevronRight class="w-3.5 h-3.5 text-foreground/40 shrink-0" />
+					<a href={`/admin/profil-wilayah?scope=Desa&id=${data.profilData.desaId}`} class="hover:text-primary transition-colors">
+						Desa {data.profilData.desaNama}
+					</a>
+					<ChevronRight class="w-3.5 h-3.5 text-foreground/40 shrink-0" />
+					<span class="font-bold text-primary">Kelompok {data.profilData.nama}</span>
+				{:else if data.activeScope === 'Desa'}
+					<a href={`/admin/profil-wilayah?scope=Daerah&id=${data.profilData.daerahId}`} class="hover:text-primary transition-colors">
+						{data.profilData.daerahNama}
+					</a>
+					<ChevronRight class="w-3.5 h-3.5 text-foreground/40 shrink-0" />
+					<span class="font-bold text-primary">Desa {data.profilData.nama}</span>
+				{:else if data.activeScope === 'Daerah'}
+					<span class="font-bold text-primary">Daerah {data.profilData.nama}</span>
+				{/if}
+			</nav>
+		</div>
+	{/if}
 
 	<!-- Selector Bertingkat (Tampil untuk Pusat / Superadmin atau jika admin memiliki akses multi-wilayah) -->
 	{#if data.adminScope.isPusat || data.accessibleWilayah.daerahList.length > 1 || data.accessibleWilayah.desaList.length > 1}
