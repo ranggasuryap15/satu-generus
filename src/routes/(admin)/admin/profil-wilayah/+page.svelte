@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(admin)/admin/profil-wilayah/+page.svelte
-  @purpose Halaman dedicated profil wilayah (Kelompok/Desa/Daerah) untuk seluruh 4S & Superadmin: manajemen titik lokasi pengajian, rekening Bank & QRIS shodaqoh berotoritas khusus KU & Superadmin (read-only untuk 4S lainnya) dengan alokasi custom terisolasi, hierarki sub-wilayah, dan navigasi riwayat wilayah
+  @purpose Halaman dedicated profil wilayah (Kelompok/Desa/Daerah) untuk seluruh 4S & Superadmin: manajemen titik lokasi pengajian, rekening Bank & QRIS shodaqoh berotoritas khusus KU & Superadmin, pelestarian state wilayah saat mutasi, hierarki sub-wilayah, dan navigasi wilayah
   @usedBy Route admin '/admin/profil-wilayah'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/LocationPicker.svelte, $lib/components/Pagination.svelte, $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
   @publicFunctions openLocationModal, closeLocationModal, openAddRekeningModal, closeAddRekeningModal, openEditRekeningModal, closeEditRekeningModal, copyToClipboard, handleQrisFileChange
-  @sideEffects Mengirim form updateLokasi, addRekening, updateRekening, deleteRekening via enhance tanpa reload kasar dan menjaga scroll
+  @sideEffects Mengirim form updateLokasi, addRekening, updateRekening, deleteRekening via enhance dengan pelestarian query param scope & id wilayah aktif dan menjaga scroll
 -->
 <script lang="ts">
 	import {
@@ -193,6 +193,17 @@
 		if (form?.success) {
 			showLocationModal = false;
 			showRekeningModal = false;
+			if (form?.scope && form?.id && typeof window !== 'undefined') {
+				const currentUrl = new URL(window.location.href);
+				if (
+					currentUrl.searchParams.get('scope') !== String(form.scope) ||
+					currentUrl.searchParams.get('id') !== String(form.id)
+				) {
+					currentUrl.searchParams.set('scope', String(form.scope));
+					currentUrl.searchParams.set('id', String(form.id));
+					window.history.replaceState({}, '', currentUrl.toString());
+				}
+			}
 		}
 	});
 
@@ -632,7 +643,7 @@
 										<Pencil class="w-3.5 h-3.5" />
 									</button>
 
-									<form method="POST" action="?/deleteRekening" use:enhance={keepScrollSubmit()}>
+									<form method="POST" action={`?/deleteRekening&scope=${data.activeScope}&id=${data.activeId}`} use:enhance={keepScrollSubmit()}>
 										<input type="hidden" name="rekeningId" value={rek.id} />
 										<input type="hidden" name="scope" value={data.activeScope} />
 										<input type="hidden" name="id" value={data.activeId} />
@@ -787,7 +798,7 @@
 				</button>
 			</div>
 
-			<form method="POST" action="?/updateLokasi" use:enhance={keepScrollSubmit()} class="space-y-4">
+			<form method="POST" action={`?/updateLokasi&scope=${data.activeScope}&id=${data.activeId}`} use:enhance={keepScrollSubmit()} class="space-y-4">
 				<input type="hidden" name="scope" value={data.activeScope} />
 				<input type="hidden" name="id" value={data.activeId} />
 
@@ -872,7 +883,7 @@
 
 			<form
 				method="POST"
-				action={isEditingRekening ? '?/updateRekening' : '?/addRekening'}
+				action={`${isEditingRekening ? '?/updateRekening' : '?/addRekening'}&scope=${data.activeScope}&id=${data.activeId}`}
 				enctype="multipart/form-data"
 				use:enhance={keepScrollSubmit()}
 				class="space-y-3.5"

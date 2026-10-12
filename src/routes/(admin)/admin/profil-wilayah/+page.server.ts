@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(admin)/admin/profil-wilayah/+page.server.ts
- * @purpose Backend controller halaman dedicated Profil Wilayah: hanya dapat diakses/dilihat oleh seluruh jajaran 4S & Superadmin, dengan hak modifikasi rekening/QRIS shodaqoh khusus KU dan Superadmin
+ * @purpose Backend controller halaman dedicated Profil Wilayah: hanya dapat diakses/dilihat oleh seluruh jajaran 4S & Superadmin, dengan hak modifikasi rekening/QRIS shodaqoh khusus KU dan Superadmin, serta pelestarian state scope & id wilayah pada setiap action
  * @usedBy src/routes/(admin)/admin/profil-wilayah/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm, @sveltejs/kit, node:fs, node:path
  * @publicFunctions load, actions (updateLokasi, addRekening, updateRekening, deleteRekening)
@@ -309,7 +309,7 @@ export const actions: Actions = {
 				.run();
 		}
 
-		return { success: true, message: 'Informasi lokasi wilayah berhasil diperbarui.' };
+		return { success: true, message: 'Informasi lokasi wilayah berhasil diperbarui.', scope, id };
 	},
 
 	/**
@@ -384,7 +384,7 @@ export const actions: Actions = {
 			})
 			.run();
 
-		return { success: true, message: 'Rekening/QRIS shodaqoh berhasil ditambahkan.' };
+		return { success: true, message: 'Rekening/QRIS shodaqoh berhasil ditambahkan.', scope, id };
 	},
 
 	/**
@@ -465,7 +465,7 @@ export const actions: Actions = {
 			.where(eq(rekeningWilayah.id, rekeningId))
 			.run();
 
-		return { success: true, message: 'Rekening/QRIS shodaqoh berhasil diperbarui.' };
+		return { success: true, message: 'Rekening/QRIS shodaqoh berhasil diperbarui.', scope, id };
 	},
 
 	/**
@@ -490,7 +490,7 @@ export const actions: Actions = {
 
 		db.delete(rekeningWilayah).where(eq(rekeningWilayah.id, rekeningId)).run();
 
-		return { success: true, message: 'Rekening shodaqoh berhasil dihapus.' };
+		return { success: true, message: 'Rekening shodaqoh berhasil dihapus.', scope, id };
 	}
 };
 
