@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(admin)/admin/wilayah/+page.svelte
-  @purpose Halaman manajemen Data Wilayah lengkap dengan dual presentation (compact cards mobile & table desktop) di tab Kelompok, Desa, & Sub-Kelompok, pagination di setiap tab, tautan cepat ke halaman dedicated Profil & Rekening Wilayah, 1 tombol Tambah Wilayah cerdas (hierarki Daerah -> Desa -> Kelompok -> Sub-Kelompok), modal edit unit wilayah (Kelompok, Desa, Sub-Kelompok), modal detail desa & kelompok dengan Leaflet LocationPicker, fitur 'Hubungkan ke Lokasi', kontrol RBAC visual, checklist hapus massal & single delete, serta scroll retention (mencegah loncat ke atas saat edit/hapus)
+  @purpose Halaman manajemen Data Wilayah lengkap dengan dual presentation (compact cards mobile & table desktop) di tab Kelompok, Desa, & Sub-Kelompok, pagination di setiap tab, tautan cepat ke halaman dedicated Profil & Rekening Wilayah, 1 tombol Tambah Wilayah cerdas (hierarki Daerah -> Desa -> Kelompok -> Sub-Kelompok), modal edit unit wilayah (Kelompok, Desa, Sub-Kelompok), modal detail desa & kelompok dengan Leaflet LocationPicker, fitur 'Hubungkan ke Lokasi', kontrol RBAC visual dengan null-safe reactivity guard, checklist hapus massal & single delete, serta scroll retention (mencegah loncat ke atas saat edit/hapus)
   @usedBy Route admin '/admin/wilayah'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/LocationPicker.svelte, $lib/components/Pagination.svelte, $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
   @publicFunctions openUnifiedAddModal, closeUnifiedAddModal, openEditKelompok, closeEditKelompok, openEditDesa, closeEditDesa, openEditSubKelompok, closeEditSubKelompok, openKelompokDetail, closeKelompokDetail, openDesaDetail, closeDesaDetail, handleConnectToKelompok, handleDisconnectKelompok, resetFilter, toggleSelectKelompok, toggleSelectAllKelompok, openDeleteSingleKelompok, openDeleteBatchKelompok, closeDeleteModal
@@ -44,6 +44,17 @@
 	import { keepScrollSubmit } from '$lib/keepScroll';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
+
+	// Derived Scope Guard Aman (Mencegah runtime SSR TypeError jika objek belum terisi)
+	const adminScope = $derived(
+		data?.adminScope ?? {
+			level: 'Kelompok' as const,
+			isPusat: false,
+			daerahIds: [],
+			desaIds: [],
+			kelompokIds: []
+		}
+	);
 
 	// State Tab Tampilan
 	let activeTab = $state<'kelompok' | 'subKelompok' | 'desa'>('kelompok');
@@ -721,19 +732,19 @@
 
 		<div class="flex items-center gap-2 flex-wrap">
 			<!-- Badge Scope Wewenang Admin -->
-			{#if data.adminScope}
+			{#if adminScope}
 				<div
 					class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium bg-muted/40 text-foreground/80 border-border"
 				>
 					<ShieldCheck class="w-3.5 h-3.5 text-primary" />
-					<span>Scope: <strong class="text-foreground">{data.adminScope?.level ?? '-'}</strong></span>
-					{#if data.adminScope?.level === 'Desa' && (data.desaList?.length ?? 0) > 0}
-						<span class="text-foreground/50">({data.desaList.map((d: any) => d.nama).join(', ')})</span>
-					{:else if data.adminScope?.level === 'Daerah' && (data.daerahList?.length ?? 0) > 0}
-						<span class="text-foreground/50">({data.daerahList.map((d: any) => d.nama).join(', ')})</span>
-					{:else if data.adminScope?.level === 'Kelompok' && (data.kelompokList?.length ?? 0) > 0}
-						<span class="text-foreground/50">({data.kelompokList.map((k: any) => k.nama).join(', ')})</span>
-					{:else if data.adminScope?.isPusat}
+					<span>Scope: <strong class="text-foreground">{adminScope.level ?? '-'}</strong></span>
+					{#if adminScope.level === 'Desa' && ((data?.desaList?.length ?? 0) > 0)}
+						<span class="text-foreground/50">({(data?.desaList || []).map((d: any) => d.nama).join(', ')})</span>
+					{:else if adminScope.level === 'Daerah' && ((data?.daerahList?.length ?? 0) > 0)}
+						<span class="text-foreground/50">({(data?.daerahList || []).map((d: any) => d.nama).join(', ')})</span>
+					{:else if adminScope.level === 'Kelompok' && ((data?.kelompokList?.length ?? 0) > 0)}
+						<span class="text-foreground/50">({(data?.kelompokList || []).map((k: any) => k.nama).join(', ')})</span>
+					{:else if adminScope.isPusat}
 						<span class="text-foreground/50">(Seluruh Wilayah)</span>
 					{/if}
 				</div>

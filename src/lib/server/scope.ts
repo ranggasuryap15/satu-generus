@@ -87,7 +87,15 @@ export function getAdminScope(roles: App.UserRole[] = []): AdminScope {
 /**
  * Menghasilkan daftar wilayah (daerah, desa, kelompok) yang boleh diakses/dilihat sesuai scope admin
  */
-export function getAccessibleWilayah(scope: AdminScope): AccessibleWilayah {
+export function getAccessibleWilayah(scope?: AdminScope): AccessibleWilayah {
+	const safeScope: AdminScope = scope ?? {
+		level: 'Kelompok',
+		isPusat: false,
+		daerahIds: [],
+		desaIds: [],
+		kelompokIds: []
+	};
+
 	// Ambil semua master data wilayah sekali untuk efisiensi
 	const allDaerah = db.select().from(daerah).all();
 	const allDesa = db.select().from(desa).all();
@@ -96,7 +104,7 @@ export function getAccessibleWilayah(scope: AdminScope): AccessibleWilayah {
 	const daerahMap = new Map(allDaerah.map((d) => [d.id, d]));
 	const desaMap = new Map(allDesa.map((d) => [d.id, d]));
 
-	if (scope.isPusat) {
+	if (safeScope.isPusat) {
 		const enrichedDesa = allDesa.map((d) => ({
 			...d,
 			daerahNama: daerahMap.get(d.daerahId)?.nama || ''
@@ -119,10 +127,10 @@ export function getAccessibleWilayah(scope: AdminScope): AccessibleWilayah {
 		};
 	}
 
-	if (scope.level === 'Daerah') {
-		const filteredDaerah = allDaerah.filter((d) => scope.daerahIds.includes(d.id));
+	if (safeScope.level === 'Daerah') {
+		const filteredDaerah = allDaerah.filter((d) => safeScope.daerahIds.includes(d.id));
 		const filteredDesa = allDesa
-			.filter((d) => scope.daerahIds.includes(d.daerahId))
+			.filter((d) => safeScope.daerahIds.includes(d.daerahId))
 			.map((d) => ({
 				...d,
 				daerahNama: daerahMap.get(d.daerahId)?.nama || ''
@@ -149,9 +157,9 @@ export function getAccessibleWilayah(scope: AdminScope): AccessibleWilayah {
 		};
 	}
 
-	if (scope.level === 'Desa') {
+	if (safeScope.level === 'Desa') {
 		const filteredDesa = allDesa
-			.filter((d) => scope.desaIds.includes(d.id))
+			.filter((d) => safeScope.desaIds.includes(d.id))
 			.map((d) => ({
 				...d,
 				daerahNama: daerahMap.get(d.daerahId)?.nama || ''
@@ -183,7 +191,7 @@ export function getAccessibleWilayah(scope: AdminScope): AccessibleWilayah {
 
 	// Scope Kelompok
 	const filteredKelompok = allKelompok
-		.filter((k) => scope.kelompokIds.includes(k.id))
+		.filter((k) => safeScope.kelompokIds.includes(k.id))
 		.map((k) => {
 			const parentDesa = desaMap.get(k.desaId);
 			return {

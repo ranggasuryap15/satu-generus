@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(admin)/admin/wilayah/+page.server.ts
- * @purpose Memuat data wilayah administratif berjenjang sesuai scope admin (Pusat, Daerah, Desa, Kelompok) dan otorisasi ketat aksi CRUD unit wilayah (termasuk pembuatan wilayah tunggal cerdas/creatable dropdown, update data wilayah kelompok, desa, & sub-kelompok, update titik lokasi desa & kelompok, serta hapus single & batch untuk Pusat, Daerah, Desa)
+ * @purpose Memuat data wilayah administratif berjenjang sesuai scope admin (Pusat, Daerah, Desa, Kelompok) dengan null-safe error resilience, dan otorisasi ketat aksi CRUD unit wilayah (termasuk pembuatan wilayah tunggal cerdas/creatable dropdown, update data wilayah kelompok, desa, & sub-kelompok, update titik lokasi desa & kelompok, serta hapus single & batch untuk Pusat, Daerah, Desa)
  * @usedBy src/routes/(admin)/admin/wilayah/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm
  * @publicFunctions load, actions.createWilayah, actions.createDaerah, actions.createDesa, actions.createKelompok, actions.createSubKelompok, actions.updateKelompok, actions.updateDesa, actions.updateSubKelompok, actions.updateKelompokLocation, actions.updateDesaLocation, actions.deleteKelompok, actions.batchDeleteKelompok, actions.deleteSubKelompok, actions.batchDeleteSubKelompok
@@ -19,7 +19,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		throw redirect(303, '/login');
 	}
 
-	const adminScope = getAdminScope(locals.roles);
+	const adminScope = getAdminScope(locals.roles || []);
 	const accessibleWilayah = getAccessibleWilayah(adminScope);
 
 	// 1. Ambil seluruh data daerah yang diizinkan dalam scope admin
