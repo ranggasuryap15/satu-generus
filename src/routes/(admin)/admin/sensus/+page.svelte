@@ -1424,7 +1424,7 @@
 						<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
 							<div>
 								<label for="noKk" class="block text-[11px] font-semibold text-foreground mb-1">
-									Nomor Kartu Keluarga (16 Digit, Opsional)
+									Nomor Kartu Keluarga (Opsional, Bisa Kosong)
 								</label>
 								<input
 									id="noKk"
@@ -1433,11 +1433,12 @@
 									inputmode="numeric"
 									pattern="[0-9]*"
 									maxlength="16"
+									autocomplete="off"
 									bind:value={newNoKk}
 									oninput={(e) => {
 										newNoKk = e.currentTarget.value.replace(/\D/g, '');
 									}}
-									placeholder="3216xxxxxxxxxxxx (opsional)"
+									placeholder="3216xxxxxxxxxxxx (opsional, bisa kosong)"
 									class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 								/>
 							</div>
@@ -1539,7 +1540,7 @@
 										<!-- Baris 2: NIK, Tgl Lahir, Jenis Kelamin -->
 										<div class="sm:col-span-5">
 											<label for={`new-nik-${idx}`} class="block text-[11px] font-semibold text-foreground mb-1">
-												NIK (16 Digit, Opsional)
+												NIK (Opsional, Bisa Kosong)
 											</label>
 											<input
 												id={`new-nik-${idx}`}
@@ -1547,11 +1548,12 @@
 												inputmode="numeric"
 												pattern="[0-9]*"
 												maxlength="16"
+												autocomplete="off"
 												bind:value={anggota.nik}
 												oninput={(e) => {
 													anggota.nik = e.currentTarget.value.replace(/\D/g, '');
 												}}
-												placeholder="3216xxxxxxxxxxxx (opsional)"
+												placeholder="3216xxxxxxxxxxxx (opsional, bisa kosong)"
 												class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 											/>
 										</div>
@@ -1627,7 +1629,7 @@
 						<div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
 							<div>
 								<label for="nikMandiri" class="block text-[11px] font-semibold text-foreground mb-1">
-									NIK (16 Digit, Opsional)
+									NIK (Opsional, Bisa Kosong)
 								</label>
 								<input
 									id="nikMandiri"
@@ -1636,11 +1638,12 @@
 									inputmode="numeric"
 									pattern="[0-9]*"
 									maxlength="16"
+									autocomplete="off"
 									bind:value={newNikMandiri}
 									oninput={(e) => {
 										newNikMandiri = e.currentTarget.value.replace(/\D/g, '');
 									}}
-									placeholder="3216xxxxxxxxxxxx (opsional)"
+									placeholder="3216xxxxxxxxxxxx (opsional, bisa kosong)"
 									class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 								/>
 							</div>
@@ -1792,7 +1795,7 @@
 
 				<div>
 					<label for="memberNik" class="block font-semibold text-foreground mb-1">
-						NIK (16 Digit Angka, Opsional)
+						NIK (Opsional, Bisa Kosong)
 					</label>
 					<input
 						id="memberNik"
@@ -1801,11 +1804,12 @@
 						inputmode="numeric"
 						pattern="[0-9]*"
 						maxlength="16"
+						autocomplete="off"
 						bind:value={memberNik}
 						oninput={(e) => {
 							memberNik = e.currentTarget.value.replace(/\D/g, '');
 						}}
-						placeholder="3216xxxxxxxxxxxx (opsional)"
+						placeholder="3216xxxxxxxxxxxx (opsional, bisa kosong)"
 						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 					/>
 				</div>
@@ -2296,7 +2300,7 @@
 
 					<div>
 						<label for="edit-nik" class="block font-semibold text-foreground mb-1">
-							Nomor Induk Kependudukan (NIK)
+							Nomor Induk Kependudukan (NIK - Opsional)
 						</label>
 						<input
 							type="text"
@@ -2304,7 +2308,8 @@
 							name="nik"
 							bind:value={editAnggotaNik}
 							maxlength="16"
-							placeholder={editingAnggota.hasNik ? 'Biarkan kosong jika tidak ubah' : '16 digit angka NIK'}
+							autocomplete="off"
+							placeholder={editingAnggota.hasNik ? 'Biarkan kosong jika tidak diubah' : '3216xxxxxxxxxxxx (opsional)'}
 							class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground font-mono focus:ring-1 focus:ring-primary"
 						/>
 						<p class="text-[10px] text-foreground/50 mt-0.5">

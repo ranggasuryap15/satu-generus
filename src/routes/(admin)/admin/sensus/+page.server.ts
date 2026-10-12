@@ -409,16 +409,8 @@ export const actions: Actions = {
 		}> = [];
 
 		if (!isMandiri) {
-			if (noKk) {
-				if (noKk.length !== 16 || !/^\d+$/.test(noKk)) {
-					return fail(400, {
-						error: 'Nomor Kartu Keluarga harus 16 digit angka jika diisi.'
-					});
-				}
-				noKkEncrypted = encryptSensitive(noKk);
-			} else {
-				noKkEncrypted = null;
-			}
+			const cleanNoKk = noKk ? noKk.trim().replace(/\D/g, '') : '';
+			noKkEncrypted = cleanNoKk ? encryptSensitive(cleanNoKk) : null;
 
 			try {
 				anggotaList = JSON.parse(anggotaJson);
@@ -432,14 +424,6 @@ export const actions: Actions = {
 
 			for (let i = 0; i < anggotaList.length; i++) {
 				const a = anggotaList[i];
-				if (a.nik && a.nik.trim()) {
-					const cleanNik = a.nik.trim();
-					if (cleanNik.length !== 16 || !/^\d+$/.test(cleanNik)) {
-						return fail(400, {
-							error: `NIK anggota ke-${i + 1} (${a.namaLengkap || 'Anggota'}) harus 16 digit angka jika diisi.`
-						});
-					}
-				}
 				if (!a.statusHubungan || !a.tanggalLahir || !a.jenisKelamin) {
 					return fail(400, {
 						error: `Data anggota ke-${i + 1} belum lengkap (Status, Tanggal Lahir, dan Jenis Kelamin wajib diisi).`
@@ -449,16 +433,10 @@ export const actions: Actions = {
 		} else {
 			// Validasi Data Diri Jamaah Mandiri / Perantau (Tanpa KK)
 			const nikMandiri = formData.get('nik')?.toString()?.trim() || '';
+			const cleanNikMandiri = nikMandiri ? nikMandiri.replace(/\D/g, '') : '';
 			const tanggalLahirMandiri = formData.get('tanggalLahir')?.toString()?.trim() || '';
 			const jenisKelaminMandiri = formData.get('jenisKelamin')?.toString()?.trim() || '';
 
-			if (nikMandiri) {
-				if (nikMandiri.length !== 16 || !/^\d+$/.test(nikMandiri)) {
-					return fail(400, {
-						error: 'NIK jamaah perorangan/perantau harus 16 digit angka jika diisi.'
-					});
-				}
-			}
 			if (!tanggalLahirMandiri || !jenisKelaminMandiri) {
 				return fail(400, {
 					error: 'Tanggal lahir dan jenis kelamin jamaah wajib diisi.'
@@ -469,7 +447,7 @@ export const actions: Actions = {
 			anggotaList = [
 				{
 					namaLengkap,
-					nik: nikMandiri || undefined,
+					nik: cleanNikMandiri || undefined,
 					statusHubungan: 'Mandiri / Perantau',
 					tanggalLahir: tanggalLahirMandiri,
 					jenisKelamin: jenisKelaminMandiri
@@ -602,17 +580,12 @@ export const actions: Actions = {
 			return fail(400, { error: 'Nama lengkap anggota keluarga wajib diisi.' });
 		}
 
-		if (nik) {
-			if (nik.length !== 16 || !/^\d+$/.test(nik)) {
-				return fail(400, { error: 'NIK harus berupa 16 digit angka jika diisi.' });
-			}
-		}
-
 		if (!statusHubungan || !tanggalLahir || !jenisKelamin) {
 			return fail(400, { error: 'Status hubungan, tanggal lahir, dan jenis kelamin wajib diisi.' });
 		}
 
 		try {
+			const cleanNik = nik ? nik.trim().replace(/\D/g, '') : '';
 			const tempatLahir = formData.get('tempatLahir')?.toString()?.trim() || '';
 			const statusGenerusInput = formData.get('statusGenerus')?.toString()?.trim() || '';
 			const statusPernikahanInput = formData.get('statusPernikahan')?.toString()?.trim() || '';
@@ -625,7 +598,7 @@ export const actions: Actions = {
 				.values({
 					keluargaId,
 					namaLengkap,
-					nikEncrypted: nik ? encryptSensitive(nik) : null,
+					nikEncrypted: cleanNik ? encryptSensitive(cleanNik) : null,
 					statusHubungan,
 					tanggalLahir: isoTgl,
 					jenisKelamin,
@@ -806,11 +779,7 @@ export const actions: Actions = {
 			});
 		}
 
-		if (nik) {
-			if (nik.length !== 16 || !/^\d+$/.test(nik)) {
-				return fail(400, { error: 'NIK harus berupa 16 digit angka jika diisi.' });
-			}
-		}
+		const cleanNik = nik ? nik.trim().replace(/\D/g, '') : '';
 
 		try {
 			const resolvedPernikahan = resolveStatusPernikahan(statusHubungan, statusPernikahan);
@@ -833,8 +802,8 @@ export const actions: Actions = {
 				golonganDarah: golonganDarah || null
 			};
 
-			if (nik) {
-				updatePayload.nikEncrypted = encryptSensitive(nik);
+			if (cleanNik) {
+				updatePayload.nikEncrypted = encryptSensitive(cleanNik);
 			}
 
 			db.update(anggotaKeluarga)
@@ -924,18 +893,14 @@ export const actions: Actions = {
 			}
 		}
 
-		if (noKk) {
-			if (noKk.length !== 16 || !/^\d+$/.test(noKk)) {
-				return fail(400, { error: 'Nomor KK harus berupa 16 digit angka jika diisi.' });
-			}
-		}
+		const cleanNoKk = noKk ? noKk.trim().replace(/\D/g, '') : '';
 
 		try {
 			const keluargaUpdatePayload: Record<string, any> = {
 				alamatLengkap: alamatLengkap || null
 			};
-			if (noKk) {
-				keluargaUpdatePayload.noKkEncrypted = encryptSensitive(noKk);
+			if (cleanNoKk) {
+				keluargaUpdatePayload.noKkEncrypted = encryptSensitive(cleanNoKk);
 			}
 
 			db.update(keluarga)
