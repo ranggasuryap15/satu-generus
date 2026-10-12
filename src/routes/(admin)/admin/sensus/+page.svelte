@@ -2,7 +2,7 @@
   @file src/routes/(admin)/admin/sensus/+page.svelte
   @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri, dashboard statistik, penugasan dapukan pengurus KK, modal detail lengkap (hapus sensus, pindah kelompok, toggle status jamaah), modal edit anggota/KK, dan pembuatan akun
   @usedBy Route admin '/admin/sensus'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/confirm.svelte, $lib/utils (formatDateDDMMYYYY), $lib/generus (isStatusHubunganMenikah, hitungUmur, hitungStatusGenerus)
+  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/confirm.svelte, $lib/utils (formatDateDDMMYYYY), $lib/generus (isStatusHubunganMenikah, hitungUmur, hitungStatusGenerus, resolveStatusPernikahan, DAFTAR_STATUS_GENERUS)
   @publicFunctions openDetailModal, closeDetailModal, requestUnmask, openCreateModal, closeCreateModal, openAddMemberModal, closeAddMemberModal, openCreateAccountModal, openEditAnggotaModal, closeEditAnggotaModal, openEditKeluargaModal, closeEditKeluargaModal, openPindahKelompokModal, closePindahKelompokModal, openAssignDapukanModal, closeAssignDapukanModal, handleHapusSensus, handleToggleStatusJamaah, resetFilters, toggleMobileFilter
   @sideEffects Menampilkan metrik, unmask data sensitif, submit actions (createSensus, addAnggotaKeluarga, updateAnggota, updateKeluarga, deleteSensus, pindahKelompok, toggleStatusJamaah, createMemberAccount, assignDapukan)
 -->
@@ -265,19 +265,111 @@
 
 	// Field Khusus Jamaah Mandiri / Perantau (Tanpa KK)
 	let newNikMandiri = $state('');
+	let newTempatLahirMandiri = $state('');
 	let newTanggalLahirMandiri = $state('');
 	let newJenisKelaminMandiri = $state('Laki-laki');
+	let newStatusPernikahanMandiri = $state('Belum Menikah');
+	let newStatusGenerusMandiri = $state('');
+	let lastCalculatedMandiriTgl = '';
+	let lastCalculatedMandiriPernikahan = '';
+
+	$effect(() => {
+		if (
+			newTanggalLahirMandiri !== lastCalculatedMandiriTgl ||
+			newStatusPernikahanMandiri !== lastCalculatedMandiriPernikahan
+		) {
+			lastCalculatedMandiriTgl = newTanggalLahirMandiri;
+			lastCalculatedMandiriPernikahan = newStatusPernikahanMandiri;
+			if (newTanggalLahirMandiri) {
+				const umur = hitungUmur(newTanggalLahirMandiri);
+				newStatusGenerusMandiri = hitungStatusGenerus(umur, newStatusPernikahanMandiri);
+			} else {
+				newStatusGenerusMandiri = '';
+			}
+		}
+	});
 
 	interface NewAnggotaRow {
+		_rowId?: string;
 		namaLengkap: string;
 		nik: string;
 		statusHubungan: string;
+		tempatLahir: string;
 		tanggalLahir: string;
 		jenisKelamin: string;
+		statusPernikahan: string;
+		statusGenerus: string;
+		_lastTglLahir?: string;
+		_lastStatusHubungan?: string;
+		_lastStatusPernikahan?: string;
+	}
+	let rowCounter = 0;
+	function createEmptyAnggotaRow(statusHubungan: string = 'Anak'): NewAnggotaRow {
+		rowCounter += 1;
+		const jenisKelamin = statusHubungan === 'Istri' ? 'Perempuan' : 'Laki-laki';
+		const statusPernikahan = isStatusHubunganMenikah(statusHubungan) ? 'Sudah Menikah' : 'Belum Menikah';
+		return {
+			_rowId: `row-${Date.now()}-${rowCounter}`,
+			namaLengkap: '',
+			nik: '',
+			statusHubungan,
+			tempatLahir: '',
+			tanggalLahir: '',
+			jenisKelamin,
+			statusPernikahan,
+			statusGenerus: '',
+			_lastTglLahir: '',
+			_lastStatusHubungan: statusHubungan,
+			_lastStatusPernikahan: statusPernikahan
+		};
 	}
 	let newAnggotaList = $state<NewAnggotaRow[]>([
-		{ namaLengkap: '', nik: '', statusHubungan: 'Kepala Keluarga', tanggalLahir: '', jenisKelamin: 'Laki-laki' }
+		createEmptyAnggotaRow('Kepala Keluarga')
 	]);
+
+	function updateAnggotaGenerus(row: NewAnggotaRow) {
+		if (row.tanggalLahir) {
+			const umur = hitungUmur(row.tanggalLahir);
+			const pernikahan = resolveStatusPernikahan(row.statusHubungan, row.statusPernikahan);
+			row.statusGenerus = hitungStatusGenerus(umur, pernikahan);
+		} else {
+			row.statusGenerus = '';
+		}
+	}
+
+	// Sinkronisasi otomatis Kepala Keluarga (Anggota #1) dengan Akun Jamaah di Bagian 1
+	$effect(() => {
+		if (newTipeSensus === 'keluarga' && newAnggotaList.length > 0) {
+			if (newAnggotaList[0].namaLengkap !== newNamaLengkap) {
+				newAnggotaList[0].namaLengkap = newNamaLengkap;
+			}
+			if (newAnggotaList[0].statusHubungan !== 'Kepala Keluarga') {
+				newAnggotaList[0].statusHubungan = 'Kepala Keluarga';
+			}
+			if (newAnggotaList[0].jenisKelamin !== 'Laki-laki') {
+				newAnggotaList[0].jenisKelamin = 'Laki-laki';
+			}
+			if (!newAnggotaList[0].statusPernikahan) {
+				newAnggotaList[0].statusPernikahan = 'Sudah Menikah';
+			}
+		}
+	});
+
+	// Sinkronisasi otomatis Umur & Status Generus setiap anggota keluarga
+	$effect(() => {
+		for (const row of newAnggotaList) {
+			if (
+				row.tanggalLahir !== row._lastTglLahir ||
+				row.statusHubungan !== row._lastStatusHubungan ||
+				row.statusPernikahan !== row._lastStatusPernikahan
+			) {
+				row._lastTglLahir = row.tanggalLahir;
+				row._lastStatusHubungan = row.statusHubungan;
+				row._lastStatusPernikahan = row.statusPernikahan;
+				updateAnggotaGenerus(row);
+			}
+		}
+	});
 
 	// State Modal Tambah Anggota ke KK yang Ada
 	let showAddMemberModal = $state(false);
@@ -324,9 +416,12 @@
 		if (!row) return;
 		if (row.statusHubungan === 'Kepala Keluarga' || row.statusHubungan === 'Suami') {
 			row.jenisKelamin = 'Laki-laki';
+			row.statusPernikahan = 'Sudah Menikah';
 		} else if (row.statusHubungan === 'Istri') {
 			row.jenisKelamin = 'Perempuan';
+			row.statusPernikahan = 'Sudah Menikah';
 		}
+		updateAnggotaGenerus(row);
 	}
 
 	// State Modal Tugaskan Pengurus / Beri Dapukan
@@ -571,6 +666,7 @@
 				newKelompokId ||
 				newAlamatLengkap.trim() ||
 				newNikMandiri.trim() ||
+				newTempatLahirMandiri.trim() ||
 				newTanggalLahirMandiri
 			);
 		}
@@ -583,6 +679,7 @@
 			newAnggotaList.length > 1 ||
 			newAnggotaList[0]?.namaLengkap?.trim() ||
 			newAnggotaList[0]?.nik?.trim() ||
+			newAnggotaList[0]?.tempatLahir?.trim() ||
 			newAnggotaList[0]?.tanggalLahir
 		);
 	}
@@ -595,10 +692,13 @@
 		newNoKk = '';
 		newAlamatLengkap = '';
 		newNikMandiri = '';
+		newTempatLahirMandiri = '';
 		newTanggalLahirMandiri = '';
 		newJenisKelaminMandiri = 'Laki-laki';
+		newStatusPernikahanMandiri = 'Belum Menikah';
+		newStatusGenerusMandiri = '';
 		newAnggotaList = [
-			{ namaLengkap: '', nik: '', statusHubungan: 'Kepala Keluarga', tanggalLahir: '', jenisKelamin: 'Laki-laki' }
+			createEmptyAnggotaRow('Kepala Keluarga')
 		];
 	}
 
@@ -625,9 +725,11 @@
 	}
 
 	function addAnggotaRow() {
+		// Jika baru ada Kepala Keluarga (1 anggota), baris baru otomatis defaultnya adalah 'Istri'
+		const defaultHubungan = newAnggotaList.length === 1 ? 'Istri' : 'Anak';
 		newAnggotaList = [
 			...newAnggotaList,
-			{ namaLengkap: '', nik: '', statusHubungan: 'Anak', tanggalLahir: '', jenisKelamin: 'Laki-laki' }
+			createEmptyAnggotaRow(defaultHubungan)
 		];
 	}
 
@@ -1286,7 +1388,11 @@
 			if (e.target === e.currentTarget) closeCreateModal();
 		}}
 	>
-		<div class="bg-card border border-border rounded-2xl max-w-3xl w-full p-4 sm:p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
+		<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+		<div
+			class="bg-card border border-border rounded-2xl max-w-3xl w-full p-4 sm:p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto"
+			onclick={(e) => e.stopPropagation()}
+		>
 			<div class="flex items-center justify-between pb-3 border-b border-border">
 				<div>
 					<h3 class="text-sm font-bold text-foreground">Tambah Sensus & Akun Jamaah Baru</h3>
@@ -1470,7 +1576,7 @@
 							<button
 								type="button"
 								onclick={addAnggotaRow}
-								class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 text-xs font-semibold transition-colors"
+								class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 text-xs font-semibold transition-colors cursor-pointer"
 							>
 								<Plus class="w-3.5 h-3.5" />
 								<span>Tambah Anggota</span>
@@ -1478,7 +1584,7 @@
 						</div>
 
 						<div class="space-y-3">
-							{#each newAnggotaList as anggota, idx}
+							{#each newAnggotaList as anggota, idx (anggota._rowId || idx)}
 								<div class="p-3.5 rounded-lg border border-border bg-card space-y-3 shadow-xs">
 									<div class="flex items-center justify-between text-xs font-semibold text-foreground border-b border-border/50 pb-2">
 										<span class="flex items-center gap-1.5">
@@ -1491,12 +1597,16 @@
 										{#if idx > 0}
 											<button
 												type="button"
-												onclick={() => removeAnggotaRow(idx)}
-												class="inline-flex items-center gap-1 text-[11px] text-destructive hover:text-destructive/80 font-medium px-2 py-0.5 rounded hover:bg-destructive/10 transition-colors"
+												onclick={(e) => {
+													e.preventDefault();
+													e.stopPropagation();
+													removeAnggotaRow(idx);
+												}}
+												class="inline-flex items-center gap-1 text-[11px] text-destructive hover:text-destructive/80 font-medium px-2 py-0.5 rounded hover:bg-destructive/10 transition-colors cursor-pointer"
 												title="Hapus baris anggota"
 											>
-												<Trash2 class="w-3.5 h-3.5" />
-												<span>Hapus</span>
+												<Trash2 class="w-3.5 h-3.5 pointer-events-none" />
+												<span class="pointer-events-none">Hapus</span>
 											</button>
 										{/if}
 									</div>
@@ -1506,39 +1616,66 @@
 										<div class="sm:col-span-7">
 											<label for={`new-nama-${idx}`} class="block text-[11px] font-semibold text-foreground mb-1">
 												Nama Lengkap *
+												{#if idx === 0}
+													<span class="text-[10px] font-normal text-primary ml-1">(Otomatis mengikuti Nama Akun Jamaah)</span>
+												{/if}
 											</label>
-											<input
-												id={`new-nama-${idx}`}
-												type="text"
-												required
-												bind:value={anggota.namaLengkap}
-												placeholder={idx === 0 ? "Nama Kepala Keluarga" : "Nama Lengkap Anggota"}
-												class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-											/>
+											{#if idx === 0}
+												<input
+													id={`new-nama-${idx}`}
+													type="text"
+													required
+													readonly
+													value={anggota.namaLengkap}
+													placeholder="Nama Kepala Keluarga (mengikuti akun)"
+													class="w-full bg-secondary/30 border border-border rounded-lg px-3 py-2 text-xs text-foreground/80 cursor-not-allowed focus:outline-none"
+												/>
+											{:else}
+												<input
+													id={`new-nama-${idx}`}
+													type="text"
+													required
+													bind:value={anggota.namaLengkap}
+													placeholder="Nama Lengkap Anggota"
+													class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+												/>
+											{/if}
 										</div>
 
 										<div class="sm:col-span-5">
 											<label for={`new-status-${idx}`} class="block text-[11px] font-semibold text-foreground mb-1">
 												Status Hubungan *
+												{#if idx === 0}
+													<span class="text-[10px] font-normal text-primary ml-1">(Wajib Kepala Keluarga)</span>
+												{/if}
 											</label>
-											<select
-												id={`new-status-${idx}`}
-												bind:value={anggota.statusHubungan}
-												onchange={() => onNewAnggotaStatusChange(idx)}
-												required
-												class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-											>
-												<option value="Kepala Keluarga">Kepala Keluarga</option>
-												<option value="Suami">Suami</option>
-												<option value="Istri">Istri</option>
-												<option value="Anak">Anak</option>
-												<option value="Orang Tua">Orang Tua</option>
-												<option value="Famili Lain">Famili Lain</option>
-											</select>
+											{#if idx === 0}
+												<select
+													id={`new-status-${idx}`}
+													disabled
+													class="w-full bg-secondary/30 border border-border rounded-lg px-3 py-2 text-xs text-foreground/80 cursor-not-allowed focus:outline-none"
+												>
+													<option value="Kepala Keluarga">Kepala Keluarga</option>
+												</select>
+											{:else}
+												<select
+													id={`new-status-${idx}`}
+													bind:value={anggota.statusHubungan}
+													onchange={() => onNewAnggotaStatusChange(idx)}
+													required
+													class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+												>
+													<option value="Suami">Suami</option>
+													<option value="Istri">Istri</option>
+													<option value="Anak">Anak</option>
+													<option value="Orang Tua">Orang Tua</option>
+													<option value="Famili Lain">Famili Lain</option>
+												</select>
+											{/if}
 										</div>
 
-										<!-- Baris 2: NIK, Tgl Lahir, Jenis Kelamin -->
-										<div class="sm:col-span-5">
+										<!-- Baris 2: NIK & Tempat Lahir -->
+										<div class="sm:col-span-6">
 											<label for={`new-nik-${idx}`} class="block text-[11px] font-semibold text-foreground mb-1">
 												NIK (Opsional, Bisa Kosong)
 											</label>
@@ -1558,7 +1695,22 @@
 											/>
 										</div>
 
-										<div class="sm:col-span-4">
+										<div class="sm:col-span-6">
+											<label for={`new-tempat-${idx}`} class="block text-[11px] font-semibold text-foreground mb-1">
+												Tempat Lahir *
+											</label>
+											<input
+												id={`new-tempat-${idx}`}
+												type="text"
+												required
+												bind:value={anggota.tempatLahir}
+												placeholder="Kota/Kabupaten kelahiran"
+												class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+											/>
+										</div>
+
+										<!-- Baris 3: Tanggal Lahir, Umur, Status Pernikahan, Status Generus, Jenis Kelamin -->
+										<div class="sm:col-span-3">
 											<label for={`new-tgl-${idx}`} class="block text-[11px] font-semibold text-foreground mb-1">
 												Tgl Lahir (DD-MM-YYYY) *
 											</label>
@@ -1570,7 +1722,63 @@
 											/>
 										</div>
 
+										<div class="sm:col-span-2">
+											<label for={`new-umur-${idx}`} class="block text-[11px] font-semibold text-foreground mb-1">
+												Umur
+											</label>
+											<input
+												id={`new-umur-${idx}`}
+												type="text"
+												disabled
+												value={anggota.tanggalLahir ? `${hitungUmur(anggota.tanggalLahir)} Thn` : '-'}
+												class="w-full bg-secondary/30 border border-border rounded-lg px-3 py-2 text-xs text-foreground/80 font-medium cursor-not-allowed"
+											/>
+										</div>
+
+										<div class="sm:col-span-2">
+											<label for={`new-pernikahan-${idx}`} class="block text-[11px] font-semibold text-foreground mb-1">
+												Pernikahan *
+											</label>
+											{#if idx === 0}
+												<select
+													id={`new-pernikahan-${idx}`}
+													bind:value={anggota.statusPernikahan}
+													onchange={() => updateAnggotaGenerus(anggota)}
+													class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+												>
+													<option value="Sudah Menikah">Sudah Menikah</option>
+													<option value="Belum Menikah">Belum Menikah</option>
+												</select>
+											{:else}
+												<select
+													id={`new-pernikahan-${idx}`}
+													bind:value={anggota.statusPernikahan}
+													onchange={() => updateAnggotaGenerus(anggota)}
+													class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+												>
+													<option value="Belum Menikah">Belum Menikah</option>
+													<option value="Sudah Menikah">Sudah Menikah</option>
+												</select>
+											{/if}
+										</div>
+
 										<div class="sm:col-span-3">
+											<label for={`new-generus-${idx}`} class="block text-[11px] font-semibold text-foreground mb-1">
+												Status Generus
+											</label>
+											<select
+												id={`new-generus-${idx}`}
+												bind:value={anggota.statusGenerus}
+												class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+											>
+												<option value="">-- Otomatis --</option>
+												{#each DAFTAR_STATUS_GENERUS as gen}
+													<option value={gen}>{gen}</option>
+												{/each}
+											</select>
+										</div>
+
+										<div class="sm:col-span-2">
 											<label for={`new-jk-${idx}`} class="block text-[11px] font-semibold text-foreground mb-1">
 												Jenis Kelamin *
 											</label>
@@ -1626,8 +1834,8 @@
 							</span>
 						</div>
 
-						<div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-							<div>
+						<div class="grid grid-cols-1 sm:grid-cols-12 gap-3 text-xs">
+							<div class="sm:col-span-6">
 								<label for="nikMandiri" class="block text-[11px] font-semibold text-foreground mb-1">
 									NIK (Opsional, Bisa Kosong)
 								</label>
@@ -1648,9 +1856,24 @@
 								/>
 							</div>
 
-							<div>
+							<div class="sm:col-span-6">
+								<label for="tempatLahirMandiri" class="block text-[11px] font-semibold text-foreground mb-1">
+									Tempat Lahir *
+								</label>
+								<input
+									id="tempatLahirMandiri"
+									name="tempatLahir"
+									type="text"
+									required
+									bind:value={newTempatLahirMandiri}
+									placeholder="Kota/Kabupaten kelahiran"
+									class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+								/>
+							</div>
+
+							<div class="sm:col-span-3">
 								<label for="tanggalLahirMandiri" class="block text-[11px] font-semibold text-foreground mb-1">
-									Tanggal Lahir (DD-MM-YYYY) *
+									Tgl Lahir (DD-MM-YYYY) *
 								</label>
 								<DateInput
 									id="tanggalLahirMandiri"
@@ -1661,7 +1884,52 @@
 								/>
 							</div>
 
-							<div>
+							<div class="sm:col-span-2">
+								<label for="umurMandiri" class="block text-[11px] font-semibold text-foreground mb-1">
+									Umur
+								</label>
+								<input
+									id="umurMandiri"
+									type="text"
+									disabled
+									value={newTanggalLahirMandiri ? `${hitungUmur(newTanggalLahirMandiri)} Thn` : '-'}
+									class="w-full bg-secondary/30 border border-border rounded-lg px-3 py-2 text-xs text-foreground/80 font-medium cursor-not-allowed"
+								/>
+							</div>
+
+							<div class="sm:col-span-2">
+								<label for="pernikahanMandiri" class="block text-[11px] font-semibold text-foreground mb-1">
+									Pernikahan *
+								</label>
+								<select
+									id="pernikahanMandiri"
+									name="statusPernikahan"
+									bind:value={newStatusPernikahanMandiri}
+									class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+								>
+									<option value="Belum Menikah">Belum Menikah</option>
+									<option value="Sudah Menikah">Sudah Menikah</option>
+								</select>
+							</div>
+
+							<div class="sm:col-span-3">
+								<label for="generusMandiri" class="block text-[11px] font-semibold text-foreground mb-1">
+									Status Generus
+								</label>
+								<select
+									id="generusMandiri"
+									name="statusGenerus"
+									bind:value={newStatusGenerusMandiri}
+									class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+								>
+									<option value="">-- Otomatis --</option>
+									{#each DAFTAR_STATUS_GENERUS as gen}
+										<option value={gen}>{gen}</option>
+									{/each}
+								</select>
+							</div>
+
+							<div class="sm:col-span-2">
 								<label for="jenisKelaminMandiri" class="block text-[11px] font-semibold text-foreground mb-1">
 									Jenis Kelamin *
 								</label>

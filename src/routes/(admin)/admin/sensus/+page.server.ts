@@ -404,8 +404,11 @@ export const actions: Actions = {
 			namaLengkap?: string;
 			nik?: string;
 			statusHubungan: string;
+			tempatLahir?: string;
 			tanggalLahir: string;
 			jenisKelamin: string;
+			statusPernikahan?: string;
+			statusGenerus?: string;
 		}> = [];
 
 		if (!isMandiri) {
@@ -434,8 +437,11 @@ export const actions: Actions = {
 			// Validasi Data Diri Jamaah Mandiri / Perantau (Tanpa KK)
 			const nikMandiri = formData.get('nik')?.toString()?.trim() || '';
 			const cleanNikMandiri = nikMandiri ? nikMandiri.replace(/\D/g, '') : '';
+			const tempatLahirMandiri = formData.get('tempatLahir')?.toString()?.trim() || '';
 			const tanggalLahirMandiri = formData.get('tanggalLahir')?.toString()?.trim() || '';
 			const jenisKelaminMandiri = formData.get('jenisKelamin')?.toString()?.trim() || '';
+			const statusPernikahanMandiri = formData.get('statusPernikahan')?.toString()?.trim() || 'Belum Menikah';
+			const statusGenerusMandiri = formData.get('statusGenerus')?.toString()?.trim() || '';
 
 			if (!tanggalLahirMandiri || !jenisKelaminMandiri) {
 				return fail(400, {
@@ -449,8 +455,11 @@ export const actions: Actions = {
 					namaLengkap,
 					nik: cleanNikMandiri || undefined,
 					statusHubungan: 'Mandiri / Perantau',
+					tempatLahir: tempatLahirMandiri,
 					tanggalLahir: tanggalLahirMandiri,
-					jenisKelamin: jenisKelaminMandiri
+					jenisKelamin: jenisKelaminMandiri,
+					statusPernikahan: statusPernikahanMandiri,
+					statusGenerus: statusGenerusMandiri
 				}
 			];
 		}
@@ -494,7 +503,8 @@ export const actions: Actions = {
 					const isoTgl = normalizeDateToISO(a.tanggalLahir);
 					const memberPernikahan = resolveStatusPernikahan(a.statusHubungan, (a as any).statusPernikahan);
 					const umur = isoTgl ? hitungUmur(isoTgl) : 0;
-					const memberGenerus = isoTgl ? hitungStatusGenerus(umur, memberPernikahan) : null;
+					const calculatedGenerus = isoTgl ? hitungStatusGenerus(umur, memberPernikahan) : null;
+					const memberGenerus = (a as any).statusGenerus || calculatedGenerus;
 
 					tx.insert(anggotaKeluarga)
 						.values({
@@ -503,10 +513,11 @@ export const actions: Actions = {
 							namaLengkap: memberNama,
 							nikEncrypted: nikVal,
 							statusHubungan: a.statusHubungan,
+							tempatLahir: (a as any).tempatLahir?.trim() || null,
 							tanggalLahir: isoTgl,
 							jenisKelamin: a.jenisKelamin,
 							statusPernikahan: memberPernikahan,
-							statusGenerus: memberGenerus,
+							statusGenerus: memberGenerus || null,
 							statusJamaah: 'Aktif',
 							isrun: 'Tidak'
 						})
