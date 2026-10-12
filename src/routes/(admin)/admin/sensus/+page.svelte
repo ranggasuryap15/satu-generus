@@ -2,7 +2,7 @@
   @file src/routes/(admin)/admin/sensus/+page.svelte
   @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri, dashboard statistik, penugasan dapukan pengurus KK, modal detail lengkap (hapus sensus, pindah kelompok, toggle status jamaah), modal edit anggota/KK, dan pembuatan akun
   @usedBy Route admin '/admin/sensus'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/confirm.svelte, $lib/utils (formatDateDDMMYYYY), $lib/generus (isStatusHubunganMenikah, hitungUmur, hitungStatusGenerus, resolveStatusPernikahan, DAFTAR_STATUS_GENERUS)
+  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/confirm.svelte, $lib/utils (formatDateDDMMYYYY), $lib/generus (isStatusHubunganMenikah, hitungUmur, hitungStatusGenerus, resolveStatusPernikahan, isStatusGenerusBelumMenikah, resolvePernikahanFromGenerus, DAFTAR_STATUS_GENERUS)
   @publicFunctions openDetailModal, closeDetailModal, requestUnmask, openCreateModal, closeCreateModal, openAddMemberModal, closeAddMemberModal, openCreateAccountModal, openEditAnggotaModal, closeEditAnggotaModal, openEditKeluargaModal, closeEditKeluargaModal, openPindahKelompokModal, closePindahKelompokModal, openAssignDapukanModal, closeAssignDapukanModal, handleHapusSensus, handleToggleStatusJamaah, resetFilters, toggleMobileFilter
   @sideEffects Menampilkan metrik, unmask data sensitif, submit actions (createSensus, addAnggotaKeluarga, updateAnggota, updateKeluarga, deleteSensus, pindahKelompok, toggleStatusJamaah, createMemberAccount, assignDapukan)
 -->
@@ -15,6 +15,8 @@
 		hitungUmur,
 		hitungStatusGenerus,
 		resolveStatusPernikahan,
+		isStatusGenerusBelumMenikah,
+		resolvePernikahanFromGenerus,
 		DAFTAR_STATUS_GENERUS
 	} from '$lib/generus';
 	import {
@@ -159,6 +161,34 @@
 				hitungUmur(editAnggotaTanggalLahir),
 				editAnggotaStatusPernikahan || 'Belum Menikah'
 			);
+		}
+	}
+
+	function onEditAnggotaStatusGenerusChange() {
+		if (isStatusGenerusBelumMenikah(editAnggotaStatusGenerus)) {
+			editAnggotaStatusPernikahan = 'Belum Menikah';
+			const s = editAnggotaStatusGenerus.trim().toLowerCase();
+			if (s === 'paud' || s === 'caberawit' || s === 'pra remaja' || s === 'remaja') {
+				if (isStatusHubunganMenikah(editAnggotaHubungan)) {
+					editAnggotaHubungan = 'Anak';
+				}
+			}
+		} else if (editAnggotaStatusGenerus === 'Dewasa Menikah') {
+			editAnggotaStatusPernikahan = 'Sudah Menikah';
+		}
+	}
+
+	function onEditAnggotaStatusPernikahanChange() {
+		if (editAnggotaStatusPernikahan === 'Sudah Menikah') {
+			if (isStatusGenerusBelumMenikah(editAnggotaStatusGenerus)) {
+				const umur = editAnggotaTanggalLahir ? hitungUmur(editAnggotaTanggalLahir) : 0;
+				editAnggotaStatusGenerus = hitungStatusGenerus(umur, 'Sudah Menikah');
+			}
+		} else if (editAnggotaStatusPernikahan === 'Belum Menikah') {
+			if (editAnggotaStatusGenerus === 'Dewasa Menikah') {
+				const umur = editAnggotaTanggalLahir ? hitungUmur(editAnggotaTanggalLahir) : 0;
+				editAnggotaStatusGenerus = hitungStatusGenerus(umur, 'Belum Menikah');
+			}
 		}
 	}
 
@@ -422,6 +452,43 @@
 			row.statusPernikahan = 'Sudah Menikah';
 		}
 		updateAnggotaGenerus(row);
+	}
+
+	function onMemberStatusGenerusChange() {
+		if (isStatusGenerusBelumMenikah(memberStatusGenerus)) {
+			const s = memberStatusGenerus.trim().toLowerCase();
+			if (s === 'paud' || s === 'caberawit' || s === 'pra remaja' || s === 'remaja') {
+				if (isStatusHubunganMenikah(memberStatus)) {
+					memberStatus = 'Anak';
+					memberJenisKelamin = 'Laki-laki';
+				}
+			}
+		}
+	}
+
+	function onNewAnggotaGenerusChange(idx: number) {
+		const row = newAnggotaList[idx];
+		if (!row) return;
+		if (isStatusGenerusBelumMenikah(row.statusGenerus)) {
+			row.statusPernikahan = 'Belum Menikah';
+			const s = row.statusGenerus.trim().toLowerCase();
+			if (s === 'paud' || s === 'caberawit' || s === 'pra remaja' || s === 'remaja') {
+				if (idx > 0 && isStatusHubunganMenikah(row.statusHubungan)) {
+					row.statusHubungan = 'Anak';
+					row.jenisKelamin = 'Laki-laki';
+				}
+			}
+		} else if (row.statusGenerus === 'Dewasa Menikah') {
+			row.statusPernikahan = 'Sudah Menikah';
+		}
+	}
+
+	function onNewMandiriGenerusChange() {
+		if (isStatusGenerusBelumMenikah(newStatusGenerusMandiri)) {
+			newStatusPernikahanMandiri = 'Belum Menikah';
+		} else if (newStatusGenerusMandiri === 'Dewasa Menikah') {
+			newStatusPernikahanMandiri = 'Sudah Menikah';
+		}
 	}
 
 	// State Modal Tugaskan Pengurus / Beri Dapukan
@@ -1769,6 +1836,7 @@
 											<select
 												id={`new-generus-${idx}`}
 												bind:value={anggota.statusGenerus}
+												onchange={() => onNewAnggotaGenerusChange(idx)}
 												class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 											>
 												<option value="">-- Otomatis --</option>
@@ -1920,6 +1988,7 @@
 									id="generusMandiri"
 									name="statusGenerus"
 									bind:value={newStatusGenerusMandiri}
+									onchange={onNewMandiriGenerusChange}
 									class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 								>
 									<option value="">-- Otomatis --</option>
@@ -2133,6 +2202,7 @@
 							id="memberGenerus"
 							name="statusGenerus"
 							bind:value={memberStatusGenerus}
+							onchange={onMemberStatusGenerusChange}
 							class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 						>
 							<option value="">-- Otomatis Mengikuti Umur --</option>
@@ -2658,6 +2728,7 @@
 							id="edit-statusGenerus"
 							name="statusGenerus"
 							bind:value={editAnggotaStatusGenerus}
+							onchange={onEditAnggotaStatusGenerusChange}
 							class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-primary"
 						>
 							<option value="">-- Pilih Status Generus --</option>
@@ -2680,6 +2751,7 @@
 							id="edit-statusPernikahan"
 							name="statusPernikahan"
 							bind:value={editAnggotaStatusPernikahan}
+							onchange={onEditAnggotaStatusPernikahanChange}
 							class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-primary"
 						>
 							<option value="">-- Pilih Status Pernikahan --</option>

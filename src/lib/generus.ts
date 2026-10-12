@@ -3,7 +3,7 @@
  * @purpose Helper kalkulasi umur, klasifikasi status generus otomatis, opsi metadata sensus jamaah sesuai jenis kelamin, dan default status pernikahan berdasarkan hubungan keluarga
  * @usedBy Form sensus, modul batch insert (/admin/sensus/batch), dan visualisasi data generus
  * @dependencies Tidak ada (Pure utility TypeScript)
- * @publicFunctions hitungUmur, hitungStatusGenerus, getDaftarStatusKeluargaByGender, isStatusHubunganMenikah, resolveStatusPernikahan, DAFTAR_STATUS_GENERUS, DAFTAR_STATUS_PERNIKAHAN, DAFTAR_STATUS_KELUARGA, DAFTAR_GOLONGAN_DARAH
+ * @publicFunctions hitungUmur, hitungStatusGenerus, getDaftarStatusKeluargaByGender, isStatusHubunganMenikah, resolveStatusPernikahan, isStatusGenerusBelumMenikah, resolvePernikahanFromGenerus, DAFTAR_STATUS_GENERUS, DAFTAR_STATUS_PERNIKAHAN, DAFTAR_STATUS_KELUARGA, DAFTAR_GOLONGAN_DARAH
  * @sideEffects Tidak ada (Fungsi murni deterministik / read-only date)
  */
 
@@ -172,5 +172,47 @@ export function resolveStatusPernikahan(
 export const DAFTAR_GOLONGAN_DARAH = ['-', 'A', 'B', 'AB', 'O'] as const;
 export const DAFTAR_STATUS_JAMAAH = ['Aktif', 'Tidak Aktif'] as const;
 export const DAFTAR_ISRUN = ['Tidak', 'Ya'] as const;
+
+/**
+ * Mengecek apakah status generus tergolong generus yang belum menikah:
+ * Paud, Caberawit, Pra Remaja, Remaja, Pra Nikah, Usia Nikah
+ */
+export function isStatusGenerusBelumMenikah(statusGenerus?: string | null): boolean {
+	if (!statusGenerus) return false;
+	const s = statusGenerus.trim().toLowerCase();
+	return (
+		s === 'paud' ||
+		s === 'caberawit' ||
+		s === 'pra remaja' ||
+		s === 'remaja' ||
+		s === 'pra nikah' ||
+		s === 'usia nikah'
+	);
+}
+
+/**
+ * Menentukan status pernikahan yang selaras berdasarkan status generus
+ */
+export function resolvePernikahanFromGenerus(
+	statusGenerus?: string | null,
+	currentPernikahan?: string | null
+): 'Sudah Menikah' | 'Belum Menikah' {
+	if (!statusGenerus) return currentPernikahan === 'Sudah Menikah' ? 'Sudah Menikah' : 'Belum Menikah';
+	const s = statusGenerus.trim().toLowerCase();
+	if (
+		s === 'paud' ||
+		s === 'caberawit' ||
+		s === 'pra remaja' ||
+		s === 'remaja' ||
+		s === 'pra nikah' ||
+		s === 'usia nikah'
+	) {
+		return 'Belum Menikah';
+	}
+	if (s === 'dewasa menikah') {
+		return 'Sudah Menikah';
+	}
+	return currentPernikahan === 'Sudah Menikah' ? 'Sudah Menikah' : 'Belum Menikah';
+}
 
 

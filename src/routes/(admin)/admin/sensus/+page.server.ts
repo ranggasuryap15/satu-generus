@@ -16,7 +16,7 @@ import { decryptSensitive, encryptSensitive, maskSensitive } from '$lib/server/c
 import { hashPassword } from '$lib/server/auth';
 import { getAdminScope, getAccessibleWilayah, isKelompokAllowed, canManageDapukan } from '$lib/server/scope';
 import { normalizeDateToISO } from '$lib/utils';
-import { hitungUmur, hitungStatusGenerus, isStatusHubunganMenikah, resolveStatusPernikahan } from '$lib/generus';
+import { hitungUmur, hitungStatusGenerus, isStatusHubunganMenikah, resolveStatusPernikahan, isStatusGenerusBelumMenikah } from '$lib/generus';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user || !locals.isAdmin) {
@@ -600,7 +600,12 @@ export const actions: Actions = {
 			const tempatLahir = formData.get('tempatLahir')?.toString()?.trim() || '';
 			const statusGenerusInput = formData.get('statusGenerus')?.toString()?.trim() || '';
 			const statusPernikahanInput = formData.get('statusPernikahan')?.toString()?.trim() || '';
-			const resolvedPernikahan = resolveStatusPernikahan(statusHubungan, statusPernikahanInput);
+			let resolvedPernikahan = resolveStatusPernikahan(statusHubungan, statusPernikahanInput);
+			if (isStatusGenerusBelumMenikah(statusGenerusInput)) {
+				resolvedPernikahan = 'Belum Menikah';
+			} else if (statusGenerusInput === 'Dewasa Menikah') {
+				resolvedPernikahan = 'Sudah Menikah';
+			}
 			const isoTgl = normalizeDateToISO(tanggalLahir);
 			const umur = isoTgl ? hitungUmur(isoTgl) : 0;
 			const resolvedGenerus = statusGenerusInput || (isoTgl ? hitungStatusGenerus(umur, resolvedPernikahan) : null);
@@ -793,7 +798,12 @@ export const actions: Actions = {
 		const cleanNik = nik ? nik.trim().replace(/\D/g, '') : '';
 
 		try {
-			const resolvedPernikahan = resolveStatusPernikahan(statusHubungan, statusPernikahan);
+			let resolvedPernikahan = resolveStatusPernikahan(statusHubungan, statusPernikahan);
+			if (isStatusGenerusBelumMenikah(statusGenerus)) {
+				resolvedPernikahan = 'Belum Menikah';
+			} else if (statusGenerus === 'Dewasa Menikah') {
+				resolvedPernikahan = 'Sudah Menikah';
+			}
 			const isoTgl = normalizeDateToISO(tanggalLahir);
 			const umur = isoTgl ? hitungUmur(isoTgl) : 0;
 			const resolvedGenerus = statusGenerus || (isoTgl ? hitungStatusGenerus(umur, resolvedPernikahan) : null);
