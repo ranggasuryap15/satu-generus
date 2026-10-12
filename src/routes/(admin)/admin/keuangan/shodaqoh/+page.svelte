@@ -961,13 +961,16 @@
 				</button>
 			</div>
 
-			<form method="POST" action={`?/addJenis&scope=${data.activeScope}&id=${data.activeId}`} use:enhance={() => {
-				isAddJenisOpen = false;
-				jenisNama = '';
-				jenisDeskripsi = '';
-			}}>
+			<form method="POST" action={`?scope=${data.activeScope}&id=${data.activeId}&tab=${activeTab}&/addJenis`} use:enhance={keepScrollSubmit({
+				onSuccess: () => {
+					isAddJenisOpen = false;
+					jenisNama = '';
+					jenisDeskripsi = '';
+				}
+			})}>
 				<input type="hidden" name="scope" value={data.activeScope} />
 				<input type="hidden" name="targetId" value={data.activeId} />
+				<input type="hidden" name="tab" value={activeTab} />
 
 				<div class="space-y-3 text-xs">
 					<div class="space-y-1">
@@ -1031,14 +1034,17 @@
 				</button>
 			</div>
 
-			<form method="POST" action={`?/saveRekening&scope=${data.activeScope}&id=${data.activeId}`} enctype="multipart/form-data" use:enhance={() => {
-				isAddRekeningOpen = false;
-				rekeningNomor = '';
-				rekeningAtasNama = '';
-				rekeningQrisUrl = '';
-			}}>
+			<form method="POST" action={`?scope=${data.activeScope}&id=${data.activeId}&tab=${activeTab}&/saveRekening`} enctype="multipart/form-data" use:enhance={keepScrollSubmit({
+				onSuccess: () => {
+					isAddRekeningOpen = false;
+					rekeningNomor = '';
+					rekeningAtasNama = '';
+					rekeningQrisUrl = '';
+				}
+			})}>
 				<input type="hidden" name="scope" value={data.activeScope} />
 				<input type="hidden" name="targetId" value={data.activeId} />
+				<input type="hidden" name="tab" value={activeTab} />
 				<input type="hidden" name="metodeTipe" value={rekeningMetodeTipe} />
 
 				<!-- Switcher Tipe: Transfer Bank vs QRIS -->
