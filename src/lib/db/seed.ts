@@ -1,6 +1,6 @@
 /**
  * @file src/lib/db/seed.ts
- * @purpose Script seeder data awal master wilayah, struktur 4S baku (Kyai, Wakil Kyai, Sekretaris/Penerobos, KU/Bendahara, Mubaligh/Ulama, Aghnia) dan akun admin
+ * @purpose Script seeder data awal master wilayah, struktur 4S baku daerah/desa/kelompok (Kyai, Wakil Kyai, Sekretaris/Penerobos, KU/Bendahara, Mubaligh/Ulama, Aghnia) dan akun admin (Superadmin & Admin Pusat)
  * @usedBy npm run db:seed, pengujian lokal, dan setup lingkungan awal
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/auth, drizzle-orm
  * @publicFunctions seed
@@ -15,11 +15,12 @@ import { eq } from 'drizzle-orm';
 export async function seed() {
 	console.log('🌱 Memulai seeding database Satu Generus...');
 
-	// 1. Master Dapukan Baku (4S & Superadmin)
+	// 1. Master Dapukan Baku (Admin Pusat, Superadmin & 4S Daerah/Desa/Kelompok)
 	const masterDapukan = [
 		{ namaDapukan: 'Superadmin', is4S: true, keterangan: 'Akses penuh seluruh sistem' },
-		{ namaDapukan: 'Kyai', is4S: true, keterangan: 'Pengurus 4S lini Keimaman / Kyai' },
-		{ namaDapukan: 'Wakil Kyai', is4S: true, keterangan: 'Pengurus 4S lini Wakil Keimaman / Wakil Kyai' },
+		{ namaDapukan: 'Admin Pusat', is4S: false, keterangan: 'Pengurus / Administrator tingkat Pusat' },
+		{ namaDapukan: 'Kyai', is4S: true, keterangan: 'Pengurus 4S lini Keimaman / Kyai (Daerah, Desa, Kelompok)' },
+		{ namaDapukan: 'Wakil Kyai', is4S: true, keterangan: 'Pengurus 4S lini Wakil Keimaman / Wakil Kyai (Daerah, Desa, Kelompok)' },
 		{ namaDapukan: 'Sekretaris / Penerobos', is4S: true, keterangan: 'Pengurus 4S lini Sekretaris / Penerobos' },
 		{ namaDapukan: 'KU/Bendahara', is4S: true, keterangan: 'Pengurus 4S lini Keuangan / Bendahara' },
 		{ namaDapukan: 'Mubaligh/Ulama', is4S: true, keterangan: 'Pengurus 4S lini Mubaligh / Ulama' },
@@ -45,6 +46,7 @@ export async function seed() {
 		db.select().from(dapukan).where(eq(dapukan.namaDapukan, name)).get();
 
 	const dapukanSuperadmin = getDapukan('Superadmin');
+	const dapukanAdminPusat = getDapukan('Admin Pusat');
 	const dapukanKyai = getDapukan('Kyai');
 
 	// 2. Master Wilayah: 2 Daerah (Cikarang 1 dan Cikarang 2)
@@ -163,7 +165,7 @@ export async function seed() {
 			namaLengkap: 'Admin Pengurus Pusat',
 			kelompokId: kelompok1KarangRahayu.id,
 			scope: 'Pusat',
-			dapukanId: dapukanKyai?.id
+			dapukanId: dapukanAdminPusat?.id
 		},
 		// c. Admin Daerah (Cikarang 1)
 		{

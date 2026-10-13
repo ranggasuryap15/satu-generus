@@ -225,11 +225,21 @@ export const actions: Actions = {
 			if (!adminScope.isPusat) {
 				return fail(403, { error: 'Hanya wewenang Pusat yang dapat menugaskan pengurus tingkat Pusat.' });
 			}
+			// Integritas 4S: 4S hanya berlaku sampai tingkat Daerah (Kelompok, Desa, Daerah).
+			// Untuk tingkat Pusat, seluruh pengurus bertindak sebagai Admin Pusat / non-4S.
+			if (tipeDapukan === 'tetap' && dapukanId) {
+				const selectedDapukan = db.select().from(dapukan).where(eq(dapukan.id, dapukanId)).get();
+				if (selectedDapukan?.is4S && selectedDapukan.namaDapukan !== 'Superadmin') {
+					return fail(400, {
+						error: 'Struktur dapukan 4S hanya berlaku hingga tingkat Daerah. Untuk tingkat Pusat, silakan gunakan dapukan Admin Pusat atau kepanitiaan tentatif.'
+					});
+				}
+			}
 		}
 
-		// Validasi Integritas Dapukan: Kyai hanya boleh ada 1 di setiap lingkup (Kelompok, Desa, Daerah, Pusat)
+		// Validasi Integritas Dapukan: Kyai hanya boleh ada 1 di setiap lingkup (Kelompok, Desa, Daerah)
 		// Sedangkan Wakil Kyai dan dapukan lainnya diperbolehkan lebih dari satu.
-		if (tipeDapukan === 'tetap' && dapukanId) {
+		if (tipeDapukan === 'tetap' && dapukanId && tingkatScope !== 'Pusat') {
 			const selectedDapukan = db.select().from(dapukan).where(eq(dapukan.id, dapukanId)).get();
 			const isKyai = selectedDapukan?.namaDapukan.trim().toLowerCase() === 'kyai';
 
@@ -262,11 +272,9 @@ export const actions: Actions = {
 							? `kelompok ${targetUser.kelompokNama || ''}`.trim()
 							: tingkatScope === 'Desa'
 								? `desa ${targetUser.desaNama || ''}`.trim()
-								: tingkatScope === 'Daerah'
-									? `daerah ${targetUser.daerahNama || ''}`.trim()
-									: 'tingkat Pusat';
+								: `daerah ${targetUser.daerahNama || ''}`.trim();
 					return fail(400, {
-						error: `Dapukan Kyai untuk ${scopeLabel} sudah diemban oleh ${existingKyai.namaLengkap}. Hanya boleh ada 1 Kyai di setiap kelompok, desa, daerah, atau pusat. Untuk pendamping, gunakan dapukan Wakil Kyai.`
+						error: `Dapukan Kyai untuk ${scopeLabel} sudah diemban oleh ${existingKyai.namaLengkap}. Hanya boleh ada 1 Kyai di setiap kelompok, desa, atau daerah. Untuk pendamping, gunakan dapukan Wakil Kyai.`
 					});
 				}
 			}
@@ -444,11 +452,21 @@ export const actions: Actions = {
 			if (!adminScope.isPusat) {
 				return fail(403, { error: 'Hanya wewenang Pusat yang dapat menugaskan pengurus tingkat Pusat.' });
 			}
+			// Integritas 4S: 4S hanya berlaku sampai tingkat Daerah (Kelompok, Desa, Daerah).
+			// Untuk tingkat Pusat, seluruh pengurus bertindak sebagai Admin Pusat / non-4S.
+			if (tipeDapukan === 'tetap' && dapukanId) {
+				const selectedDapukan = db.select().from(dapukan).where(eq(dapukan.id, dapukanId)).get();
+				if (selectedDapukan?.is4S && selectedDapukan.namaDapukan !== 'Superadmin') {
+					return fail(400, {
+						error: 'Struktur dapukan 4S hanya berlaku hingga tingkat Daerah. Untuk tingkat Pusat, silakan gunakan dapukan Admin Pusat atau kepanitiaan tentatif.'
+					});
+				}
+			}
 		}
 
-		// Validasi Integritas Dapukan: Kyai hanya boleh ada 1 di setiap lingkup (Kelompok, Desa, Daerah, Pusat)
+		// Validasi Integritas Dapukan: Kyai hanya boleh ada 1 di setiap lingkup (Kelompok, Desa, Daerah)
 		// Sedangkan Wakil Kyai dan dapukan lainnya diperbolehkan lebih dari satu.
-		if (tipeDapukan === 'tetap' && dapukanId) {
+		if (tipeDapukan === 'tetap' && dapukanId && tingkatScope !== 'Pusat') {
 			const selectedDapukan = db.select().from(dapukan).where(eq(dapukan.id, dapukanId)).get();
 			const isKyai = selectedDapukan?.namaDapukan.trim().toLowerCase() === 'kyai';
 
@@ -482,11 +500,9 @@ export const actions: Actions = {
 							? `kelompok ${targetUser.kelompokNama || ''}`.trim()
 							: tingkatScope === 'Desa'
 								? `desa ${targetUser.desaNama || ''}`.trim()
-								: tingkatScope === 'Daerah'
-									? `daerah ${targetUser.daerahNama || ''}`.trim()
-									: 'tingkat Pusat';
+								: `daerah ${targetUser.daerahNama || ''}`.trim();
 					return fail(400, {
-						error: `Dapukan Kyai untuk ${scopeLabel} sudah diemban oleh ${existingKyai.namaLengkap}. Hanya boleh ada 1 Kyai di setiap kelompok, desa, daerah, atau pusat. Untuk pendamping, gunakan dapukan Wakil Kyai.`
+						error: `Dapukan Kyai untuk ${scopeLabel} sudah diemban oleh ${existingKyai.namaLengkap}. Hanya boleh ada 1 Kyai di setiap kelompok, desa, atau daerah. Untuk pendamping, gunakan dapukan Wakil Kyai.`
 					});
 				}
 			}

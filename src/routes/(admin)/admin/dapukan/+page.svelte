@@ -77,11 +77,35 @@
 	);
 
 	const masterDapukanOptions = $derived(
-		(data.masterDapukan || []).map((m: (typeof data.masterDapukan)[number]) => ({
-			value: m.id,
-			label: m.namaDapukan,
-			sublabel: m.is4S ? '4S' : undefined
-		}))
+		(data.masterDapukan || [])
+			.filter((m: (typeof data.masterDapukan)[number]) => {
+				if (selectedScope === 'Pusat') {
+					// Di tingkat Pusat: tidak ada 4S, hanya Admin Pusat atau Superadmin
+					return !m.is4S || m.namaDapukan === 'Superadmin';
+				}
+				// Di tingkat Daerah, Desa, Kelompok: 4S berlaku penuh, sembunyikan Admin Pusat
+				return m.namaDapukan !== 'Admin Pusat';
+			})
+			.map((m: (typeof data.masterDapukan)[number]) => ({
+				value: m.id,
+				label: m.namaDapukan,
+				sublabel: m.is4S ? '4S' : undefined
+			}))
+	);
+
+	const editMasterDapukanOptions = $derived(
+		(data.masterDapukan || [])
+			.filter((m: (typeof data.masterDapukan)[number]) => {
+				if (editScope === 'Pusat') {
+					return !m.is4S || m.namaDapukan === 'Superadmin';
+				}
+				return m.namaDapukan !== 'Admin Pusat';
+			})
+			.map((m: (typeof data.masterDapukan)[number]) => ({
+				value: m.id,
+				label: m.namaDapukan,
+				sublabel: m.is4S ? '4S' : undefined
+			}))
 	);
 
 	// Opsi Kelompok: Jika jamaah memiliki basis kelompok, kunci hanya ke kelompok basisnya
@@ -1085,7 +1109,7 @@
 						<SearchableSelect
 							id="editDapukanId"
 							name="dapukanId"
-							options={masterDapukanOptions}
+							options={editMasterDapukanOptions}
 							bind:value={editDapukanId}
 							required
 							placeholder="-- Pilih Dapukan 4S --"

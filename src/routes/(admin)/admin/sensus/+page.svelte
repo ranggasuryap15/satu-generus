@@ -511,11 +511,18 @@
 	let assignDaerahId = $state<string | number>('');
 
 	const masterDapukanOptions = $derived(
-		(data.masterDapukan || []).map((m: any) => ({
-			value: m.id,
-			label: m.namaDapukan,
-			sublabel: m.is4S ? '4S' : undefined
-		}))
+		(data.masterDapukan || [])
+			.filter((m: any) => {
+				if (assignScope === 'Pusat') {
+					return !m.is4S || m.namaDapukan === 'Superadmin';
+				}
+				return m.namaDapukan !== 'Admin Pusat';
+			})
+			.map((m: any) => ({
+				value: m.id,
+				label: m.namaDapukan,
+				sublabel: m.is4S ? '4S' : undefined
+			}))
 	);
 
 	const assignKelompokOptions = $derived.by(() => {
