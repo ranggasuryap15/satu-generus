@@ -222,11 +222,11 @@
 			<button
 				type="button"
 				onclick={() => (activeTabRekening = 'Kelompok')}
-				class="py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all {activeTabRekening === 'Kelompok'
-					? 'bg-card text-foreground shadow-xs border border-border/80'
-					: 'text-foreground/60 hover:text-foreground'}"
+				class="py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition-colors duration-150 cursor-pointer {activeTabRekening === 'Kelompok'
+					? 'bg-card text-foreground shadow-xs border-border/80'
+					: 'border-transparent text-foreground/60 hover:text-foreground hover:bg-secondary/40'}"
 			>
-				<Users class="w-3.5 h-3.5 text-emerald-500" />
+				<Users class="w-3.5 h-3.5 {activeTabRekening === 'Kelompok' ? 'text-emerald-500' : 'text-foreground/40'}" />
 				<span>{data.selectedKelompok?.nama || 'Kelompok'}</span>
 				{#if (data.rekeningKelompokList || []).length > 0}
 					<span class="w-2 h-2 rounded-full bg-emerald-500 ml-0.5"></span>
@@ -236,11 +236,11 @@
 			<button
 				type="button"
 				onclick={() => (activeTabRekening = 'Desa')}
-				class="py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all {activeTabRekening === 'Desa'
-					? 'bg-card text-foreground shadow-xs border border-border/80'
-					: 'text-foreground/60 hover:text-foreground'}"
+				class="py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition-colors duration-150 cursor-pointer {activeTabRekening === 'Desa'
+					? 'bg-card text-foreground shadow-xs border-border/80'
+					: 'border-transparent text-foreground/60 hover:text-foreground hover:bg-secondary/40'}"
 			>
-				<Building2 class="w-3.5 h-3.5 text-teal-500" />
+				<Building2 class="w-3.5 h-3.5 {activeTabRekening === 'Desa' ? 'text-teal-500' : 'text-foreground/40'}" />
 				<span>Desa {data.selectedKelompok?.desaNama || 'Desa'}</span>
 				{#if (data.rekeningDesaList || []).length > 0}
 					<span class="w-2 h-2 rounded-full bg-teal-500 ml-0.5"></span>
