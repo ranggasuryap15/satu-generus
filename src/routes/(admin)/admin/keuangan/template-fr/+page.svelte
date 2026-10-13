@@ -1,9 +1,9 @@
 <!--
   @file src/routes/(admin)/admin/keuangan/template-fr/+page.svelte
-  @purpose Halaman Spreadsheet Template FR: lembar kerja 4 kolom fleksibel (No, Uraian, Jumlah, Keterangan), pengelolaan Group Tarif (Group A, Group B, dst), duplikasi group cepat, paste dari spreadsheet (Excel/Google Sheets), serta penetapan jamaah secara massal
+  @purpose Halaman Spreadsheet Template FR: lembar kerja 4 kolom fleksibel (No, Uraian, Jumlah, Keterangan), kategori default A-D untuk diisi manual oleh KU, pengelolaan Group Tarif (Group A, Group B, dst), duplikasi group cepat, paste dari spreadsheet, penetapan jamaah massal, dan modal konfirmasi hapus kustom
   @usedBy Route admin '/admin/keuangan/template-fr'
-  @dependencies @lucide/svelte, $app/forms, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/confirm.svelte, $lib/keepScroll.ts
-  @publicFunctions formatRupiah, saveSpreadsheet, handleCellPaste, copyJumlahToKeterangan, openDuplicateModal, openAddJamaahModal, openAddPosModal
+  @dependencies @lucide/svelte, $app/forms, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/keepScroll.ts
+  @publicFunctions formatRupiah, saveSpreadsheet, handleCellPaste, copyJumlahToKeterangan, openConfirmModal, closeConfirmModal, openDuplicateModal, openAddJamaahModal, openAddPosModal
   @sideEffects Mengirim batch data nilai spreadsheet via ?/saveSpreadsheet, mutasi group via ?/createGroup & ?/duplicateGroup, mutasi pos anggaran via ?/addPos, dan memasukkan jamaah secara massal via ?/assignJamaahToGroup
 -->
 <script lang="ts">
@@ -14,6 +14,7 @@
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
 	import {
 		AlertCircle,
+		AlertTriangle,
 		ArrowLeft,
 		Check,
 		ChevronRight,
@@ -186,6 +187,44 @@
 	let showAddJamaahModal = $state(false);
 	let searchJamaah = $state('');
 	let selectedAnggotaIds = $state<string[]>([]);
+
+	// State Modal Konfirmasi Hapus Kustom
+	let confirmModal = $state<{
+		isOpen: boolean;
+		title: string;
+		message: string;
+		actionUrl: string;
+		fields: Record<string, any>;
+		confirmText: string;
+	}>({
+		isOpen: false,
+		title: '',
+		message: '',
+		actionUrl: '',
+		fields: {},
+		confirmText: 'Ya, Hapus'
+	});
+
+	function openConfirmModal(params: {
+		title: string;
+		message: string;
+		actionUrl: string;
+		fields: Record<string, any>;
+		confirmText?: string;
+	}) {
+		confirmModal = {
+			isOpen: true,
+			title: params.title,
+			message: params.message,
+			actionUrl: params.actionUrl,
+			fields: params.fields,
+			confirmText: params.confirmText || 'Ya, Hapus'
+		};
+	}
+
+	function closeConfirmModal() {
+		confirmModal.isOpen = false;
+	}
 
 	// Jamaah yang belum ada di group terpilih untuk modal assignment
 	const availableJamaahForAdd = $derived.by(() => {
@@ -367,28 +406,25 @@
 					>
 						<span>{g.nama}</span>
 						{#if data.selectedGroupId === g.id && data.groups.length > 1}
-							<form
-								method="POST"
-								action="?/deleteGroup"
-								use:enhance={keepScrollSubmit()}
-								class="inline-block"
-								onclick={(e) => e.stopPropagation()}
-							>
-								<input type="hidden" name="kelompokId" value={data.selectedKelompokId} />
-								<input type="hidden" name="groupId" value={g.id} />
-								<button
-									type="submit"
-									class="hover:text-destructive transition-colors ml-1"
-									title="Hapus group ini"
-									onclick={(e) => {
-										if (!confirm(`Hapus ${g.nama}? Jamaah di group ini akan dilepas.`)) {
-											e.preventDefault();
+							<button
+								type="button"
+								class="hover:text-destructive transition-colors ml-1 p-0.5 rounded"
+								title="Hapus group ini"
+								onclick={(e) => {
+									e.stopPropagation();
+									openConfirmModal({
+										title: `Hapus ${g.nama}?`,
+										message: `Apakah Anda yakin ingin menghapus ${g.nama}? Seluruh jamaah di group ini akan dilepas dari penugasan tarif.`,
+										actionUrl: '?/deleteGroup',
+										fields: {
+											kelompokId: data.selectedKelompokId,
+											groupId: g.id
 										}
-									}}
-								>
-									<X class="w-3.5 h-3.5" />
-								</button>
-							</form>
+									});
+								}}
+							>
+								<X class="w-3.5 h-3.5" />
+							</button>
 						{/if}
 					</button>
 				{/each}
@@ -469,7 +505,7 @@
 					</thead>
 					<tbody>
 						{#each data.categoriesWithPos as cat, catIdx}
-							<!-- BARIS KATEGORI INDUK (A. Hak Pusat, B. Hak Daerah, dst) -->
+							<!-- BARIS KATEGORI INDUK (A. Hak Pusat, B. Hak Daerah, C. Hak Desa, D. Hak Kelompok) -->
 							<tr class="bg-secondary/40 border-b border-border font-bold text-foreground">
 								<td class="py-2.5 px-3 border-r border-border text-center font-mono text-[11px] text-foreground/60">
 									{String.fromCharCode(65 + catIdx)}
@@ -493,14 +529,28 @@
 								<td class="py-2.5 px-3 text-center border-l border-border"></td>
 							</tr>
 
-							<!-- SUB-POS ANAK (1. Isrun/FR, 2. Tenaga SB, dst) -->
+							<!-- SUB-POS ANAK (DIISI MANUAL OLEH KU) -->
 							{#if cat.subPos.length === 0}
 								<tr class="border-b border-border/60 text-foreground/40 italic">
-									<td class="py-2 px-3 text-center border-r border-border">-</td>
-									<td class="py-2 px-4 border-r border-border" colspan="3">
-										Belum ada uraian di kategori ini. Klik "+ Tambah Uraian".
+									<td class="py-2.5 px-3 text-center border-r border-border">-</td>
+									<td class="py-2.5 px-4 border-r border-border" colspan="3">
+										<div class="flex items-center justify-between">
+											<span>Belum ada uraian di kategori ini.</span>
+											<button
+												type="button"
+												onclick={() => {
+													addPosParentId = cat.id;
+													addPosParentName = cat.nama;
+													addPosNama = '';
+													showAddPosModal = true;
+												}}
+												class="text-primary hover:underline font-semibold not-italic text-[11px]"
+											>
+												+ Tambah Uraian Pertama
+											</button>
+										</div>
 									</td>
-									<td class="py-2 px-3 text-center"></td>
+									<td class="py-2.5 px-3 text-center"></td>
 								</tr>
 							{:else}
 								{#each cat.subPos as pos, posIdx}
@@ -556,30 +606,27 @@
 											</div>
 										</td>
 
-										<!-- KOLOM 5: AKSI (HAPUS URAIAN) -->
+										<!-- KOLOM 5: AKSI (HAPUS URAIAN DENGAN MODAL) -->
 										<td class="py-2 px-3 text-center">
 											{#if !pos.isWajib}
-												<form
-													method="POST"
-													action="?/deletePos"
-													use:enhance={keepScrollSubmit()}
-													class="inline-block"
-												>
-													<input type="hidden" name="kelompokId" value={data.selectedKelompokId} />
-													<input type="hidden" name="posId" value={pos.id} />
-													<button
-														type="submit"
-														class="p-1 rounded text-foreground/40 hover:text-destructive transition-colors"
-														title="Hapus baris uraian ini"
-														onclick={(e) => {
-															if (!confirm(`Hapus uraian "${pos.nama}"?`)) {
-																e.preventDefault();
+												<button
+													type="button"
+													class="p-1 rounded text-foreground/40 hover:text-destructive transition-colors"
+													title="Hapus baris uraian ini"
+													onclick={() => {
+														openConfirmModal({
+															title: 'Hapus Baris Uraian',
+															message: `Apakah Anda yakin ingin menghapus uraian "${pos.nama}"? Angka pada baris ini akan dihapus dari seluruh group.`,
+															actionUrl: '?/deletePos',
+															fields: {
+																kelompokId: data.selectedKelompokId,
+																posId: pos.id
 															}
-														}}
-													>
-														<Trash2 class="w-3.5 h-3.5" />
-													</button>
-												</form>
+														});
+													}}
+												>
+													<Trash2 class="w-3.5 h-3.5" />
+												</button>
 											{/if}
 										</td>
 									</tr>
@@ -653,22 +700,26 @@
 								</p>
 							</div>
 
-							<form
-								method="POST"
-								action="?/removeJamaahFromGroup"
-								use:enhance={keepScrollSubmit()}
+							<button
+								type="button"
+								class="p-1 rounded-md text-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors"
+								title="Keluarkan dari group ini"
+								onclick={() => {
+									openConfirmModal({
+										title: 'Keluarkan Jamaah',
+										message: `Apakah Anda yakin ingin mengeluarkan ${j.namaLengkap} dari ${data.selectedGroup?.nama || 'group ini'}?`,
+										actionUrl: '?/removeJamaahFromGroup',
+										fields: {
+											kelompokId: data.selectedKelompokId,
+											templateId: data.template?.id,
+											anggotaId: j.anggotaId
+										},
+										confirmText: 'Ya, Keluarkan'
+									});
+								}}
 							>
-								<input type="hidden" name="kelompokId" value={data.selectedKelompokId} />
-								<input type="hidden" name="templateId" value={data.template?.id} />
-								<input type="hidden" name="anggotaId" value={j.anggotaId} />
-								<button
-									type="submit"
-									class="p-1 rounded-md text-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors"
-									title="Keluarkan dari group ini"
-								>
-									<X class="w-3.5 h-3.5" />
-								</button>
-							</form>
+								<X class="w-3.5 h-3.5" />
+							</button>
 						</div>
 					{/each}
 				</div>
@@ -676,6 +727,50 @@
 		</div>
 	{/if}
 </div>
+
+<!-- MODAL KONFIRMASI HAPUS KUSTOM -->
+{#if confirmModal.isOpen}
+	<div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150">
+		<div class="bg-card border border-border rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4">
+			<div class="flex items-start gap-3">
+				<div class="w-10 h-10 rounded-xl bg-destructive/10 text-destructive flex items-center justify-center shrink-0">
+					<AlertTriangle class="w-5 h-5" />
+				</div>
+				<div>
+					<h3 class="text-sm font-bold text-foreground">{confirmModal.title}</h3>
+					<p class="text-[11px] text-foreground/60 mt-1 leading-relaxed">{confirmModal.message}</p>
+				</div>
+			</div>
+
+			<form
+				method="POST"
+				action={confirmModal.actionUrl}
+				use:enhance={keepScrollSubmit({
+					onSuccess: () => closeConfirmModal()
+				})}
+				class="flex gap-2 pt-2"
+			>
+				{#each Object.entries(confirmModal.fields) as [k, v]}
+					<input type="hidden" name={k} value={v} />
+				{/each}
+
+				<button
+					type="button"
+					onclick={closeConfirmModal}
+					class="flex-1 py-2 rounded-xl border border-border bg-secondary/50 hover:bg-secondary text-foreground text-xs font-semibold transition-colors"
+				>
+					Batal
+				</button>
+				<button
+					type="submit"
+					class="flex-1 py-2 rounded-xl bg-destructive hover:bg-destructive/90 text-destructive-foreground text-xs font-bold transition-all shadow-xs"
+				>
+					{confirmModal.confirmText}
+				</button>
+			</form>
+		</div>
+	</div>
+{/if}
 
 <!-- MODAL 1: BUAT GROUP BARU -->
 {#if showCreateGroupModal}
@@ -823,7 +918,7 @@
 						name="nama"
 						bind:value={addPosNama}
 						required
-						placeholder="Contoh: Kas Kegiatan Remaja"
+						placeholder="Contoh: Isrun / FR, Dana Sosial, dll"
 						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-foreground text-xs focus:ring-1 focus:ring-primary"
 					/>
 				</div>
