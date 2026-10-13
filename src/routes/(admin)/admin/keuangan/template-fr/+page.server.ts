@@ -329,6 +329,9 @@ export const actions: Actions = {
 		try {
 			const cells: Array<{
 				posId: string;
+				nama?: string;
+				parentId?: string;
+				isNew?: boolean;
 				nominalJumlah: number;
 				nominalKeterangan: number;
 				keteranganTeks?: string;
@@ -336,7 +339,15 @@ export const actions: Actions = {
 
 			const now = Date.now();
 
-			// Lakukan penyimpanan batch dalam single SQLite transaction
+			// Statement penambahan pos anggaran baru secara realtime
+			const insertPosStmt = sqlite.prepare(`
+				INSERT INTO pos_anggaran_infaq (
+					id, parent_id, kode, nama, deskripsi, tingkat_scope, kelompok_id,
+					is_wajib, tipe_alokasi, urutan, is_active, created_at, updated_at
+				) VALUES (?, ?, ?, ?, '', 'Kelompok', ?, 0, 'nominal', ?, 1, ?, ?)
+			`);
+
+			// Statement upsert nilai sel spreadsheet
 			const upsertStmt = sqlite.prepare(`
 				INSERT INTO template_infaq_group_pos (id, group_id, pos_id, nominal_jumlah, nominal_keterangan, keterangan_teks, urutan, created_at, updated_at)
 				VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
@@ -349,10 +360,33 @@ export const actions: Actions = {
 
 			const transaction = sqlite.transaction((items) => {
 				for (const item of items) {
+					let finalPosId = item.posId;
+
+					// Jika merupakan baris baru yang dibuat realtime dari spreadsheet
+					if (item.isNew) {
+						const trimmedName = (item.nama || '').trim();
+						if (!trimmedName) continue; // Abaikan baris jika namanya belum diisi
+
+						finalPosId = createId();
+						const count = (sqlite.prepare('SELECT COUNT(*) as c FROM pos_anggaran_infaq WHERE parent_id = ?').get(item.parentId) as any)?.c || 0;
+						const kode = `POS-${Date.now().toString().slice(-4)}`;
+
+						insertPosStmt.run(
+							finalPosId,
+							item.parentId || null,
+							kode,
+							trimmedName,
+							kelompokId,
+							count + 1,
+							now,
+							now
+						);
+					}
+
 					upsertStmt.run(
 						createId(),
 						groupId,
-						item.posId,
+						finalPosId,
 						Number(item.nominalJumlah) || 0,
 						Number(item.nominalKeterangan) || 0,
 						item.keteranganTeks || null,

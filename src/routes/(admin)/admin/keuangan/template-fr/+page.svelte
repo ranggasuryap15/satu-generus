@@ -1,12 +1,13 @@
 <!--
   @file src/routes/(admin)/admin/keuangan/template-fr/+page.svelte
-  @purpose Halaman Spreadsheet Template FR: lembar kerja 4 kolom fleksibel (No, Uraian, Jumlah, Keterangan), kategori default A-D untuk diisi manual oleh KU, SearchableSelect filter kelompok, proteksi anti-refresh saat mengisi data, pengelolaan Group Tarif, duplikasi group cepat, paste dari spreadsheet, penetapan jamaah massal, dan modal konfirmasi hapus kustom
+  @purpose Halaman Spreadsheet Template FR: lembar kerja 4 kolom fleksibel (No, Uraian, Jumlah, Keterangan), penambahan baris uraian baru realtime langsung di tabel spreadsheet tanpa modal popup, kategori default A-D untuk diisi manual oleh KU, SearchableSelect filter kelompok, proteksi anti-refresh saat mengisi data, pengelolaan Group Tarif, duplikasi group cepat, paste dari spreadsheet, penetapan jamaah massal, dan modal konfirmasi hapus kustom
   @usedBy Route admin '/admin/keuangan/template-fr'
-  @dependencies @lucide/svelte, $app/forms, $app/navigation (goto, beforeNavigate), Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/keepScroll.ts
-  @publicFunctions formatRupiah, saveSpreadsheet, handleCellPaste, copyJumlahToKeterangan, openConfirmModal, closeConfirmModal, openDuplicateModal, openAddJamaahModal, openAddPosModal
-  @sideEffects Mengirim batch data nilai spreadsheet via ?/saveSpreadsheet, mutasi group via ?/createGroup & ?/duplicateGroup, mutasi pos anggaran via ?/addPos, dan memasukkan jamaah secara massal via ?/assignJamaahToGroup
+  @dependencies @lucide/svelte, svelte (tick), $app/forms, $app/navigation (goto, beforeNavigate), Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/keepScroll.ts
+  @publicFunctions formatRupiah, updateCell, handleAddRealtimeRow, handleRemoveRealtimeRow, handleCellPaste, handleFilterChange, handleGroupSwitch, openConfirmModal, closeConfirmModal, toggleSelectAllAvailable, toggleSelectJamaah, getActionUrl
+  @sideEffects Mengirim batch data nilai spreadsheet via ?/saveSpreadsheet, mutasi group via ?/createGroup & ?/duplicateGroup, mutasi pos anggaran via ?/deletePos, dan memasukkan jamaah secara massal via ?/assignJamaahToGroup
 -->
 <script lang="ts">
+	import { tick } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { goto, beforeNavigate } from '$app/navigation';
 	import { page } from '$app/state';
@@ -34,21 +35,45 @@
 	} from '@lucide/svelte';
 	import type { PageData, ActionData } from './$types';
 
+	interface SubPosItem {
+		id: string;
+		parentId: string | null;
+		kode?: string;
+		nama: string;
+		isWajib?: boolean | number;
+		isNew?: boolean;
+	}
+
+	interface CategoryItem {
+		id: string;
+		nama: string;
+		labelKategori: string;
+		subPos: SubPosItem[];
+	}
+
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
 	function formatRupiah(val: number): string {
 		return 'Rp ' + Number(val || 0).toLocaleString('id-ID');
 	}
 
+	// State Lokal Kategori & Sub-Pos untuk penambahan baris realtime tanpa reload
+	let categories = $state<CategoryItem[]>([]);
+
 	// State Lokal Spreadsheet Cell Values: { [posId]: { nominalJumlah: number, nominalKeterangan: number, keteranganTeks: string } }
 	let spreadsheetCells = $state<Record<string, { nominalJumlah: number; nominalKeterangan: number; keteranganTeks: string }>>({});
 	let isDirty = $state(false);
 	let isSaving = $state(false);
 
-	// Inisialisasi sel spreadsheet saat data group berubah
+	// Inisialisasi kategori & sel spreadsheet saat data berubah
 	$effect(() => {
 		const initial: Record<string, { nominalJumlah: number; nominalKeterangan: number; keteranganTeks: string }> = {};
 		if (data.categoriesWithPos) {
+			categories = data.categoriesWithPos.map((cat: any) => ({
+				...cat,
+				subPos: cat.subPos.map((pos: any) => ({ ...pos }))
+			}));
+
 			for (const cat of data.categoriesWithPos) {
 				for (const pos of cat.subPos) {
 					const existing = data.groupPosValues?.[pos.id];
@@ -59,10 +84,51 @@
 					};
 				}
 			}
+		} else {
+			categories = [];
 		}
 		spreadsheetCells = initial;
 		isDirty = false;
 	});
+
+	// Tambah Baris Uraian Baru Secara Realtime Langsung di Bawah Kategori Induk
+	async function handleAddRealtimeRow(catId: string) {
+		const catIndex = categories.findIndex((c) => c.id === catId);
+		if (catIndex === -1) return;
+
+		const tempId = 'new_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+		const newRow: SubPosItem = {
+			id: tempId,
+			parentId: catId,
+			nama: '',
+			isWajib: false,
+			isNew: true
+		};
+
+		categories[catIndex].subPos = [...categories[catIndex].subPos, newRow];
+		spreadsheetCells[tempId] = {
+			nominalJumlah: 0,
+			nominalKeterangan: 0,
+			keteranganTeks: ''
+		};
+		isDirty = true;
+
+		await tick();
+		const inputEl = document.getElementById(`input-nama-${tempId}`) as HTMLInputElement | null;
+		if (inputEl) {
+			inputEl.focus();
+		}
+	}
+
+	// Hapus Baris Draft Realtime (Belum Disimpan ke Database) Tanpa Modal Konfirmasi
+	function handleRemoveRealtimeRow(catId: string, posId: string) {
+		const catIndex = categories.findIndex((c) => c.id === catId);
+		if (catIndex === -1) return;
+
+		categories[catIndex].subPos = categories[catIndex].subPos.filter((p) => p.id !== posId);
+		delete spreadsheetCells[posId];
+		isDirty = true;
+	}
 
 	// Hitung Total Jumlah & Total Keterangan Real-time
 	const totalJumlah = $derived.by(() => {
@@ -84,11 +150,9 @@
 	// Urutan seluruh subPos untuk navigasi & paste multi-baris
 	const flatSubPosList = $derived.by(() => {
 		const list: Array<any> = [];
-		if (data.categoriesWithPos) {
-			for (const cat of data.categoriesWithPos) {
-				for (const pos of cat.subPos) {
-					list.push({ ...pos, categoryLabel: cat.labelKategori });
-				}
+		for (const cat of categories) {
+			for (const pos of cat.subPos) {
+				list.push({ ...pos, categoryLabel: cat.labelKategori });
 			}
 		}
 		return list;
@@ -169,11 +233,6 @@
 	let showDuplicateModal = $state(false);
 	let duplicateNewName = $state('');
 
-	let showAddPosModal = $state(false);
-	let addPosParentId = $state<string | null>(null);
-	let addPosParentName = $state('');
-	let addPosNama = $state('');
-
 	let showAddJamaahModal = $state(false);
 	let searchJamaah = $state('');
 	let selectedAnggotaIds = $state<string[]>([]);
@@ -243,12 +302,29 @@
 
 	// Serialize Spreadsheet Cells ke JSON string untuk Form Submit
 	const serializedCellsData = $derived.by(() => {
-		const result = Object.entries(spreadsheetCells).map(([posId, val]) => ({
-			posId,
-			nominalJumlah: val.nominalJumlah,
-			nominalKeterangan: val.nominalKeterangan,
-			keteranganTeks: val.keteranganTeks
-		}));
+		const posInfoMap = new Map<string, { nama: string; parentId: string | null; isNew?: boolean }>();
+		for (const cat of categories) {
+			for (const pos of cat.subPos) {
+				posInfoMap.set(pos.id, {
+					nama: pos.nama,
+					parentId: pos.parentId,
+					isNew: pos.isNew
+				});
+			}
+		}
+
+		const result = Object.entries(spreadsheetCells).map(([posId, val]) => {
+			const info = posInfoMap.get(posId);
+			return {
+				posId,
+				nama: info?.nama ?? '',
+				parentId: info?.parentId ?? null,
+				isNew: info?.isNew ?? false,
+				nominalJumlah: val.nominalJumlah,
+				nominalKeterangan: val.nominalKeterangan,
+				keteranganTeks: val.keteranganTeks
+			};
+		});
 		return JSON.stringify(result);
 	});
 
@@ -538,7 +614,7 @@
 						</tr>
 					</thead>
 					<tbody>
-						{#each data.categoriesWithPos as cat, catIdx}
+						{#each categories as cat, catIdx}
 							<!-- BARIS KATEGORI INDUK (A. Hak Pusat, B. Hak Daerah, C. Hak Desa, D. Hak Kelompok) -->
 							<tr class="bg-secondary/40 border-b border-border font-bold text-foreground">
 								<td class="py-2.5 px-3 border-r border-border text-center font-mono text-[11px] text-foreground/60">
@@ -548,12 +624,7 @@
 									<span class="tracking-wide">{cat.labelKategori}</span>
 									<button
 										type="button"
-										onclick={() => {
-											addPosParentId = cat.id;
-											addPosParentName = cat.nama;
-											addPosNama = '';
-											showAddPosModal = true;
-										}}
+										onclick={() => handleAddRealtimeRow(cat.id)}
 										class="px-2.5 py-1 rounded-md border border-border/80 bg-card hover:bg-secondary text-[11px] font-semibold text-primary flex items-center gap-1 transition-colors shadow-2xs"
 									>
 										<Plus class="w-3.5 h-3.5" />
@@ -568,7 +639,7 @@
 								<tr class="border-b border-border/60 text-foreground/40 italic">
 									<td class="py-2.5 px-3 text-center border-r border-border">-</td>
 									<td class="py-2.5 px-4 border-r border-border text-[11px]" colspan="3">
-										Belum ada uraian di kategori ini.
+										Belum ada uraian di kategori ini. Klik "Tambah Uraian" untuk mengisi.
 									</td>
 									<td class="py-2.5 px-3 text-center"></td>
 								</tr>
@@ -584,14 +655,25 @@
 
 										<!-- KOLOM 2: URAIAN -->
 										<td class="py-2 px-4 border-r border-border font-medium text-foreground">
-											<div class="flex items-center justify-between gap-2">
-												<span>{pos.nama}</span>
-												{#if pos.isWajib}
-													<span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 font-semibold uppercase">
-														Wajib
-													</span>
-												{/if}
-											</div>
+											{#if pos.isNew}
+												<input
+													id="input-nama-{pos.id}"
+													type="text"
+													bind:value={pos.nama}
+													oninput={() => { isDirty = true; }}
+													placeholder="Ketik nama uraian baru..."
+													class="w-full bg-secondary/40 focus:bg-background border border-border focus:border-primary rounded-lg px-2.5 py-1 text-xs text-foreground focus:outline-none transition-all font-normal placeholder:italic placeholder:text-foreground/40"
+												/>
+											{:else}
+												<div class="flex items-center justify-between gap-2">
+													<span>{pos.nama}</span>
+													{#if pos.isWajib}
+														<span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 font-semibold uppercase">
+															Wajib
+														</span>
+													{/if}
+												</div>
+											{/if}
 										</td>
 
 										<!-- KOLOM 3: JUMLAH (INPUT NUMBER FORMATED) -->
@@ -617,9 +699,18 @@
 											</span>
 										</td>
 
-										<!-- KOLOM 5: AKSI (HAPUS URAIAN DENGAN MODAL) -->
+										<!-- KOLOM 5: AKSI (HAPUS URAIAN DENGAN MODAL ATAU REALTIME DRAFT) -->
 										<td class="py-2 px-3 text-center">
-											{#if !pos.isWajib}
+											{#if pos.isNew}
+												<button
+													type="button"
+													class="p-1 rounded text-destructive/70 hover:text-destructive hover:bg-destructive/10 transition-colors"
+													title="Hapus baris baru ini"
+													onclick={() => handleRemoveRealtimeRow(cat.id, pos.id)}
+												>
+													<Trash2 class="w-3.5 h-3.5" />
+												</button>
+											{:else if !pos.isWajib}
 												<button
 													type="button"
 													class="p-1 rounded text-foreground/40 hover:text-destructive transition-colors"
@@ -896,66 +987,7 @@
 	</div>
 {/if}
 
-<!-- MODAL 3: TAMBAH POS URAIAN BARU DI KATEGORI -->
-{#if showAddPosModal}
-	<div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-		<div class="bg-card border border-border rounded-2xl max-w-sm w-full p-5 shadow-xl space-y-4">
-			<div class="flex items-center justify-between pb-2 border-b border-border">
-				<div>
-					<h3 class="text-sm font-bold text-foreground">Tambah Baris Uraian</h3>
-					<p class="text-[11px] text-foreground/60 mt-0.5">Kategori: {addPosParentName}</p>
-				</div>
-				<button type="button" onclick={() => (showAddPosModal = false)} class="text-foreground/50 hover:text-foreground">
-					<X class="w-4 h-4" />
-				</button>
-			</div>
-
-			<form
-				method="POST"
-				action={getActionUrl('addPos')}
-				use:enhance={keepScrollSubmit({
-					onSuccess: () => { showAddPosModal = false; }
-				})}
-				class="space-y-3 text-xs"
-			>
-				<input type="hidden" name="kelompokId" value={data.selectedKelompokId} />
-				<input type="hidden" name="groupId" value={data.selectedGroupId} />
-				<input type="hidden" name="parentId" value={addPosParentId} />
-
-				<div>
-					<label for="addPosNamaInput" class="block font-semibold text-foreground mb-1">Nama Uraian *</label>
-					<input
-						id="addPosNamaInput"
-						type="text"
-						name="nama"
-						bind:value={addPosNama}
-						required
-						placeholder="Contoh: Isrun / FR, Dana Sosial, dll"
-						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-foreground text-xs focus:ring-1 focus:ring-primary"
-					/>
-				</div>
-
-				<div class="grid grid-cols-2 gap-2 pt-2">
-					<button
-						type="button"
-						onclick={() => (showAddPosModal = false)}
-						class="py-2 rounded-lg border border-border font-semibold text-foreground/70 hover:bg-secondary"
-					>
-						Batal
-					</button>
-					<button
-						type="submit"
-						class="py-2 rounded-lg bg-primary text-primary-foreground font-semibold hover:bg-primary/90"
-					>
-						Tambah Baris
-					</button>
-				</div>
-			</form>
-		</div>
-	</div>
-{/if}
-
-<!-- MODAL 4: MASUKKAN JAMAAH SECARA BERSAMAAN KE GROUP TERPILIH -->
+<!-- MODAL 3: MASUKKAN JAMAAH SECARA BERSAMAAN KE GROUP TERPILIH -->
 {#if showAddJamaahModal && data.selectedGroup}
 	<div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
 		<div class="bg-card border border-border rounded-2xl max-w-lg w-full p-5 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
