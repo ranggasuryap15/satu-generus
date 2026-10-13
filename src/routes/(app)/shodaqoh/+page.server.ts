@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(app)/shodaqoh/+page.server.ts
- * @purpose Backend controller halaman shodaqoh jamaah mobile-first: menampilkan info rekening/QRIS wilayah, daftar jenis shodaqoh aktif scoped, pelaporan konfirmasi transfer shodaqoh, dan riwayat donasi jamaah
+ * @purpose Backend controller halaman shodaqoh jamaah mobile-first: menampilkan info rekening/QRIS resmi tingkat Kelompok dan Desa bagi jamaah, daftar jenis shodaqoh aktif, pelaporan konfirmasi transfer shodaqoh, dan riwayat donasi jamaah
  * @usedBy src/routes/(app)/shodaqoh/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm, @sveltejs/kit, src/lib/server/upload
  * @publicFunctions load, actions (laporShodaqoh)
@@ -19,7 +19,7 @@ import {
 	transaksiShodaqoh,
 	users
 } from '$lib/db/schema';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, or } from 'drizzle-orm';
 import { saveUploadedFile } from '$lib/server/upload';
 
 async function saveUploadedBukti(fileOrBase64OrUrl: any): Promise<string | null> {
@@ -55,9 +55,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	}
 
 	const selectedKelompok = allKelompok.find((k) => k.id === targetKelompokId);
+	const targetDesaId = selectedKelompok?.desaId || null;
 
-	// 1. Ambil rekening & QRIS aktif untuk kelompok yang dipilih
-	const rekeningList = targetKelompokId
+	// 1. Ambil rekening & QRIS aktif: Tingkat Kelompok dan Tingkat Desa
+	const rekeningKelompokList = targetKelompokId
 		? db
 				.select()
 				.from(rekeningWilayah)
@@ -72,8 +73,26 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				.all()
 		: [];
 
-	// 2. Ambil jenis shodaqoh aktif yang terisolasi untuk kelompok ini
-	const listJenis = targetKelompokId
+	const rekeningDesaList = targetDesaId
+		? db
+				.select()
+				.from(rekeningWilayah)
+				.where(
+					and(
+						eq(rekeningWilayah.tingkatScope, 'Desa'),
+						eq(rekeningWilayah.desaId, targetDesaId),
+						eq(rekeningWilayah.isActive, true)
+					)
+				)
+				.orderBy(desc(rekeningWilayah.createdAt))
+				.all()
+		: [];
+
+	// Rekening gabungan untuk compatibility
+	const rekeningList = [...rekeningKelompokList, ...rekeningDesaList];
+
+	// 2. Ambil jenis shodaqoh aktif untuk Kelompok dan Desa
+	const listJenisKelompok = targetKelompokId
 		? db
 				.select()
 				.from(jenisShodaqoh)
@@ -88,21 +107,47 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				.all()
 		: [];
 
+	const listJenisDesa = targetDesaId
+		? db
+				.select()
+				.from(jenisShodaqoh)
+				.where(
+					and(
+						eq(jenisShodaqoh.tingkatScope, 'Desa'),
+						eq(jenisShodaqoh.desaId, targetDesaId),
+						eq(jenisShodaqoh.isActive, true)
+					)
+				)
+				.orderBy(desc(jenisShodaqoh.isDefault), desc(jenisShodaqoh.createdAt))
+				.all()
+		: [];
+
+	const rawCombinedJenis = [...listJenisKelompok, ...listJenisDesa];
+
 	// Jika belum ada jenis di DB, fallback ke jenis default standar
 	const finalJenisList =
-		listJenis.length > 0
-			? listJenis
+		rawCombinedJenis.length > 0
+			? rawCombinedJenis
 			: [
 					{
 						id: 'default-kelompok',
 						nama: 'Shodaqoh Kelompok',
 						deskripsi: 'Penerimaan shodaqoh rutin kelompok',
+						tingkatScope: 'Kelompok',
+						isDefault: true
+					},
+					{
+						id: 'default-desa',
+						nama: 'Shodaqoh Desa',
+						deskripsi: 'Penerimaan shodaqoh rutin desa',
+						tingkatScope: 'Desa',
 						isDefault: true
 					},
 					{
 						id: 'default-lainnya',
 						nama: 'Shodaqoh Lainnya',
 						deskripsi: 'Alokasi shodaqoh umum atau keperluan mendesak',
+						tingkatScope: 'Kelompok',
 						isDefault: true
 					}
 				];
@@ -120,7 +165,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	return {
 		selectedKelompok,
+		targetDesaId,
 		allKelompok,
+		rekeningKelompokList,
+		rekeningDesaList,
 		rekeningList,
 		jenisList: finalJenisList,
 		riwayatSaya,
@@ -131,7 +179,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 export const actions: Actions = {
 	laporShodaqoh: async ({ request, locals }) => {
 		const formData = await request.formData();
-		const kelompokId = Number(formData.get('kelompokId'));
+		const kelompokId = Number(formData.get('kelompokId')) || null;
+		const tingkatScope = ((formData.get('tingkatScope') as string) || 'Kelompok') as 'Kelompok' | 'Desa';
+		const desaId = Number(formData.get('desaId')) || null;
+		const rekeningWilayahId = ((formData.get('rekeningWilayahId') as string) || '').trim() || null;
 		const namaPengirim = ((formData.get('namaPengirim') as string) || '').trim();
 		const noTelepon = ((formData.get('noTelepon') as string) || '').trim();
 		const namaJenisShodaqoh = ((formData.get('namaJenisShodaqoh') as string) || 'Shodaqoh Kelompok').trim();
@@ -149,7 +200,11 @@ export const actions: Actions = {
 			return fail(400, { message: 'Nominal shodaqoh harus lebih besar dari 0' });
 		}
 
-		if (!kelompokId) {
+		if (tingkatScope === 'Desa' && !desaId) {
+			return fail(400, { message: 'Wilayah desa tujuan wajib dipilih' });
+		}
+
+		if (tingkatScope === 'Kelompok' && !kelompokId) {
 			return fail(400, { message: 'Wilayah kelompok tujuan wajib dipilih' });
 		}
 
@@ -163,8 +218,10 @@ export const actions: Actions = {
 				userId: locals.user?.id || null,
 				namaPengirim,
 				noTelepon: noTelepon || null,
-				tingkatScope: 'Kelompok',
-				kelompokId,
+				tingkatScope,
+				kelompokId: tingkatScope === 'Kelompok' ? kelompokId : null,
+				desaId: tingkatScope === 'Desa' ? desaId : null,
+				rekeningWilayahId,
 				namaJenisShodaqoh,
 				nominal,
 				tanggalTransfer,
