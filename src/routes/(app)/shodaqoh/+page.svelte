@@ -94,6 +94,17 @@
 		(data.jenisList || []).filter((j: any) => !j.tingkatScope || j.tingkatScope === formTingkatScope)
 	);
 
+	// Derived: Rekening dan label scope berdasarkan tab aktif (Kelompok vs Desa)
+	const currentRekeningList = $derived(
+		activeTabRekening === 'Kelompok' ? (data.rekeningKelompokList || []) : (data.rekeningDesaList || [])
+	);
+
+	const activeScopeLabel = $derived(
+		activeTabRekening === 'Kelompok'
+			? (data.selectedKelompok?.nama || 'Kelompok')
+			: `Desa ${data.selectedKelompok?.desaNama || 'Desa'}`
+	);
+
 	function openFormForScope(scope: 'Kelompok' | 'Desa') {
 		formTingkatScope = scope;
 		activeTabRekening = scope;
@@ -237,9 +248,6 @@
 		</div>
 
 		<!-- Container Rekening Berdasarkan Tab Aktif -->
-		{@const currentRekeningList = activeTabRekening === 'Kelompok' ? data.rekeningKelompokList : data.rekeningDesaList}
-		{@const activeScopeLabel = activeTabRekening === 'Kelompok' ? (data.selectedKelompok?.nama || 'Kelompok') : `Desa ${data.selectedKelompok?.desaNama || 'Desa'}`}
-
 		{#if currentRekeningList.length === 0}
 			<div class="border border-border/80 rounded-2xl p-6 text-center space-y-2 bg-card">
 				<div class="w-10 h-10 rounded-full bg-secondary text-foreground/40 mx-auto flex items-center justify-center">

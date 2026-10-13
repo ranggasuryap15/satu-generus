@@ -7,26 +7,24 @@
   @sideEffects Mengirim form batch upsert transaksi FR via action ?/saveFr dengan menjaga scroll; ekspor CSV langsung di browser client; input nominal membuka dial pad murni angka (inputmode=numeric, pattern=[0-9]*)
 -->
 <script lang="ts">
-	import {
-		Building2,
-		Calendar,
-		Check,
-		ChevronDown,
-		Download,
-		Filter,
-		HandCoins,
-		Lock,
-		RotateCcw,
-		Save,
-		Search,
-		ShieldCheck,
-		Users,
-		AlertCircle
-	} from '@lucide/svelte';
-	import type { PageData, ActionData } from './$types';
-	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
 	import { enhance } from '$app/forms';
+	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
 	import { keepScrollSubmit } from '$lib/keepScroll';
+	import {
+	  AlertCircle,
+	  Building2,
+	  Check,
+	  ChevronDown,
+	  Download,
+	  Filter,
+	  HandCoins,
+	  Lock,
+	  RotateCcw,
+	  Save,
+	  Search,
+	  ShieldCheck
+	} from '@lucide/svelte';
+	import type { ActionData, PageData } from './$types';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -551,7 +549,7 @@
 						<thead class="bg-secondary/60 text-foreground/70 uppercase text-[11px] tracking-wider border-b border-border">
 							<tr>
 								<th class="py-2 px-3.5 font-semibold w-12 text-center">No</th>
-								<th class="py-2 px-4 font-semibold">Nama Jamaah & Hubungan</th>
+								<th class="py-2 px-4 font-semibold">Nama Jamaah</th>
 								<th class="py-2 px-4 font-semibold">Kepala Keluarga</th>
 								<th class="py-2 px-4 font-semibold w-48">Nominal FR (Rp)</th>
 								<th class="py-2 px-3 font-semibold w-24 text-center">Status</th>
