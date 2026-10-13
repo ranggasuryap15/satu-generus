@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(admin)/admin/dapukan/+page.server.ts
- * @purpose Memuat daftar struktur dapukan, penugasan RBAC pengurus dengan proteksi hierarki wilayah jamaah, serta mutasi penugasan (tambah, edit, cabut oleh 4S Kyai / Sekretaris / Penerobos pada tingkat kelompok)
+ * @purpose Memuat daftar struktur dapukan, penugasan RBAC pengurus dengan proteksi hierarki wilayah jamaah, validasi integritas keunikan Kyai (maksimal 1 di setiap kelompok, desa, daerah, dan pusat; sedangkan Wakil Kyai boleh banyak), serta mutasi penugasan
  * @usedBy src/routes/(admin)/admin/dapukan/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm
  * @publicFunctions load, actions.assignDapukan, actions.updateDapukan, actions.removeDapukan
@@ -11,7 +11,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '$lib/db';
 import { dapukan, userDapukan, users, daerah, desa, kelompok } from '$lib/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and, ne } from 'drizzle-orm';
 import { getAdminScope, getAccessibleWilayah, isKelompokAllowed, canManageDapukan } from '$lib/server/scope';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -227,6 +227,51 @@ export const actions: Actions = {
 			}
 		}
 
+		// Validasi Integritas Dapukan: Kyai hanya boleh ada 1 di setiap lingkup (Kelompok, Desa, Daerah, Pusat)
+		// Sedangkan Wakil Kyai dan dapukan lainnya diperbolehkan lebih dari satu.
+		if (tipeDapukan === 'tetap' && dapukanId) {
+			const selectedDapukan = db.select().from(dapukan).where(eq(dapukan.id, dapukanId)).get();
+			const isKyai = selectedDapukan?.namaDapukan.trim().toLowerCase() === 'kyai';
+
+			if (isKyai) {
+				const queryScope = db
+					.select({
+						id: userDapukan.id,
+						namaLengkap: users.namaLengkap
+					})
+					.from(userDapukan)
+					.innerJoin(users, eq(userDapukan.userId, users.id))
+					.where(
+						and(
+							eq(userDapukan.dapukanId, dapukanId),
+							eq(userDapukan.tingkatScope, tingkatScope),
+							tingkatScope === 'Kelompok' && finalKelompokId !== null
+								? eq(userDapukan.kelompokId, finalKelompokId)
+								: tingkatScope === 'Desa' && finalDesaId !== null
+									? eq(userDapukan.desaId, finalDesaId)
+									: tingkatScope === 'Daerah' && finalDaerahId !== null
+										? eq(userDapukan.daerahId, finalDaerahId)
+										: undefined
+						)
+					);
+
+				const existingKyai = queryScope.get();
+				if (existingKyai) {
+					const scopeLabel =
+						tingkatScope === 'Kelompok'
+							? `kelompok ${targetUser.kelompokNama || ''}`.trim()
+							: tingkatScope === 'Desa'
+								? `desa ${targetUser.desaNama || ''}`.trim()
+								: tingkatScope === 'Daerah'
+									? `daerah ${targetUser.daerahNama || ''}`.trim()
+									: 'tingkat Pusat';
+					return fail(400, {
+						error: `Dapukan Kyai untuk ${scopeLabel} sudah diemban oleh ${existingKyai.namaLengkap}. Hanya boleh ada 1 Kyai di setiap kelompok, desa, daerah, atau pusat. Untuk pendamping, gunakan dapukan Wakil Kyai.`
+					});
+				}
+			}
+		}
+
 		try {
 			db.insert(userDapukan)
 				.values({
@@ -398,6 +443,52 @@ export const actions: Actions = {
 		} else if (tingkatScope === 'Pusat') {
 			if (!adminScope.isPusat) {
 				return fail(403, { error: 'Hanya wewenang Pusat yang dapat menugaskan pengurus tingkat Pusat.' });
+			}
+		}
+
+		// Validasi Integritas Dapukan: Kyai hanya boleh ada 1 di setiap lingkup (Kelompok, Desa, Daerah, Pusat)
+		// Sedangkan Wakil Kyai dan dapukan lainnya diperbolehkan lebih dari satu.
+		if (tipeDapukan === 'tetap' && dapukanId) {
+			const selectedDapukan = db.select().from(dapukan).where(eq(dapukan.id, dapukanId)).get();
+			const isKyai = selectedDapukan?.namaDapukan.trim().toLowerCase() === 'kyai';
+
+			if (isKyai) {
+				const queryScope = db
+					.select({
+						id: userDapukan.id,
+						namaLengkap: users.namaLengkap
+					})
+					.from(userDapukan)
+					.innerJoin(users, eq(userDapukan.userId, users.id))
+					.where(
+						and(
+							ne(userDapukan.id, id),
+							eq(userDapukan.dapukanId, dapukanId),
+							eq(userDapukan.tingkatScope, tingkatScope),
+							tingkatScope === 'Kelompok' && finalKelompokId !== null
+								? eq(userDapukan.kelompokId, finalKelompokId)
+								: tingkatScope === 'Desa' && finalDesaId !== null
+									? eq(userDapukan.desaId, finalDesaId)
+									: tingkatScope === 'Daerah' && finalDaerahId !== null
+										? eq(userDapukan.daerahId, finalDaerahId)
+										: undefined
+						)
+					);
+
+				const existingKyai = queryScope.get();
+				if (existingKyai) {
+					const scopeLabel =
+						tingkatScope === 'Kelompok'
+							? `kelompok ${targetUser.kelompokNama || ''}`.trim()
+							: tingkatScope === 'Desa'
+								? `desa ${targetUser.desaNama || ''}`.trim()
+								: tingkatScope === 'Daerah'
+									? `daerah ${targetUser.daerahNama || ''}`.trim()
+									: 'tingkat Pusat';
+					return fail(400, {
+						error: `Dapukan Kyai untuk ${scopeLabel} sudah diemban oleh ${existingKyai.namaLengkap}. Hanya boleh ada 1 Kyai di setiap kelompok, desa, daerah, atau pusat. Untuk pendamping, gunakan dapukan Wakil Kyai.`
+					});
+				}
 			}
 		}
 

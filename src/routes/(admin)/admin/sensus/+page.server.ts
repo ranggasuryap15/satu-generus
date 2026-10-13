@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(admin)/admin/sensus/+page.server.ts
- * @purpose Rekapitulasi sensus KK & Mandiri, metrik dashboard, penugasan dapukan pengurus KK, resolusi effectiveUserId & default isrun Kepala Keluarga, serta form actions sensus (create, add anggota, edit, delete sensus, pindah kelompok, toggle keaktifan jamaah, buat akun, assign dapukan)
+ * @purpose Rekapitulasi sensus KK & Mandiri, metrik dashboard, penugasan dapukan pengurus KK, validasi integritas keunikan Kyai (maksimal 1 per lingkup), resolusi effectiveUserId & default isrun Kepala Keluarga, serta form actions sensus
  * @usedBy src/routes/(admin)/admin/sensus/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/auth, src/lib/server/scope, src/lib/utils (normalizeDateToISO), src/lib/generus (hitungUmur, hitungStatusGenerus, isStatusHubunganMenikah, resolveStatusPernikahan, isStatusGenerusBelumMenikah), drizzle-orm
  * @publicFunctions load, actions.createSensus, actions.addAnggotaKeluarga, actions.updateAnggota, actions.updateKeluarga, actions.deleteSensus, actions.pindahKelompok, actions.toggleStatusJamaah, actions.createMemberAccount, actions.assignDapukan
@@ -11,7 +11,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '$lib/db';
 import { keluarga, anggotaKeluarga, users, kelompok, desa, daerah, userDapukan, dapukan, presensiKehadiran } from '$lib/db/schema';
-import { eq, desc, inArray, and, isNotNull } from 'drizzle-orm';
+import { eq, desc, inArray, and, isNotNull, ne } from 'drizzle-orm';
 import { decryptSensitive, encryptSensitive, maskSensitive } from '$lib/server/crypto';
 import { hashPassword } from '$lib/server/auth';
 import { getAdminScope, getAccessibleWilayah, isKelompokAllowed, canManageDapukan } from '$lib/server/scope';
@@ -1343,6 +1343,53 @@ export const actions: Actions = {
 		} else if (tingkatScope === 'Pusat') {
 			if (!adminScope.isPusat) {
 				return fail(403, { error: 'Hanya wewenang Pusat yang dapat menugaskan pengurus tingkat Pusat.' });
+			}
+		}
+
+		// Validasi Integritas Dapukan: Kyai hanya boleh ada 1 di setiap lingkup (Kelompok, Desa, Daerah, Pusat)
+		// Sedangkan Wakil Kyai dan dapukan lainnya diperbolehkan lebih dari satu.
+		if (tipeDapukan === 'tetap' && dapukanId) {
+			const selectedDapukan = db.select().from(dapukan).where(eq(dapukan.id, dapukanId)).get();
+			const isKyai = selectedDapukan?.namaDapukan.trim().toLowerCase() === 'kyai';
+
+			if (isKyai) {
+				const existingAssignment = db.select().from(userDapukan).where(eq(userDapukan.userId, userId)).get();
+				const queryScope = db
+					.select({
+						id: userDapukan.id,
+						namaLengkap: users.namaLengkap
+					})
+					.from(userDapukan)
+					.innerJoin(users, eq(userDapukan.userId, users.id))
+					.where(
+						and(
+							existingAssignment ? ne(userDapukan.id, existingAssignment.id) : undefined,
+							eq(userDapukan.dapukanId, dapukanId),
+							eq(userDapukan.tingkatScope, tingkatScope),
+							tingkatScope === 'Kelompok' && finalKelompokId !== null
+								? eq(userDapukan.kelompokId, finalKelompokId)
+								: tingkatScope === 'Desa' && finalDesaId !== null
+									? eq(userDapukan.desaId, finalDesaId)
+									: tingkatScope === 'Daerah' && finalDaerahId !== null
+										? eq(userDapukan.daerahId, finalDaerahId)
+										: undefined
+						)
+					);
+
+				const existingKyai = queryScope.get();
+				if (existingKyai) {
+					const scopeLabel =
+						tingkatScope === 'Kelompok'
+							? `kelompok ${targetUser.kelompokNama || ''}`.trim()
+							: tingkatScope === 'Desa'
+								? `desa ${targetUser.desaNama || ''}`.trim()
+								: tingkatScope === 'Daerah'
+									? `daerah ${targetUser.daerahNama || ''}`.trim()
+									: 'tingkat Pusat';
+					return fail(400, {
+						error: `Dapukan Kyai untuk ${scopeLabel} sudah diemban oleh ${existingKyai.namaLengkap}. Hanya boleh ada 1 Kyai di setiap kelompok, desa, daerah, atau pusat. Untuk pendamping, gunakan dapukan Wakil Kyai.`
+					});
+				}
 			}
 		}
 

@@ -1,6 +1,6 @@
 /**
  * @file src/lib/db/seed.ts
- * @purpose Script seeder data awal master wilayah, struktur 4S baku (Kyai, Sekretaris/Penerobos, KU/Bendahara, Mubaligh/Ulama, Aghnia) dan akun admin
+ * @purpose Script seeder data awal master wilayah, struktur 4S baku (Kyai, Wakil Kyai, Sekretaris/Penerobos, KU/Bendahara, Mubaligh/Ulama, Aghnia) dan akun admin
  * @usedBy npm run db:seed, pengujian lokal, dan setup lingkungan awal
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/auth, drizzle-orm
  * @publicFunctions seed
@@ -19,6 +19,7 @@ export async function seed() {
 	const masterDapukan = [
 		{ namaDapukan: 'Superadmin', is4S: true, keterangan: 'Akses penuh seluruh sistem' },
 		{ namaDapukan: 'Kyai', is4S: true, keterangan: 'Pengurus 4S lini Keimaman / Kyai' },
+		{ namaDapukan: 'Wakil Kyai', is4S: true, keterangan: 'Pengurus 4S lini Wakil Keimaman / Wakil Kyai' },
 		{ namaDapukan: 'Sekretaris / Penerobos', is4S: true, keterangan: 'Pengurus 4S lini Sekretaris / Penerobos' },
 		{ namaDapukan: 'KU/Bendahara', is4S: true, keterangan: 'Pengurus 4S lini Keuangan / Bendahara' },
 		{ namaDapukan: 'Mubaligh/Ulama', is4S: true, keterangan: 'Pengurus 4S lini Mubaligh / Ulama' },
