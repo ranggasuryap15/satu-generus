@@ -44,3 +44,8 @@
 - **CREATE & UPDATE CONFIRMATION:** Setiap aksi klik tombol "Simpan" (Create) atau "Ubah/Update" (Edit) tidak boleh langsung mengeksekusi pengiriman form ke server. Tampilkan terlebih dahulu modal konfirmasi (contoh: *"Yakin untuk menambahkan data ini?"* atau *"Yakin menyimpan perubahan?"*). Eksekusi pengiriman (`use:enhance` / `requestSubmit()`) hanya dijalankan setelah pengguna mengonfirmasi pada modal tersebut.
 - **DELETE CONFIRMATION:** Setiap aksi "Hapus" dari tabel atau daftar wajib memunculkan modal konfirmasi destruktif berwarna merah (contoh: *"Yakin untuk menghapus data ini? Tindakan tidak dapat dibatalkan"*) sebelum memanggil *form action* penghapusan.
 - **REUSABLE COMPONENT:** Gunakan satu komponen `<ConfirmModal />` terpusat atau *global store* agar tidak menduplikasi kode modal di setiap file `+page.svelte` yang memiliki fitur CRUD.
+
+### Dynamic File Uploads (Production Adapter-Node)
+- **NO STATIC UPLOADS:** Dilarang keras menyimpan file hasil unggahan dinamis pengguna (foto presensi, bukti transfer, QRIS, dll.) ke dalam direktori `static/`.
+- **ROOT UPLOADS DIRECTORY:** Semua file unggahan wajib disimpan di luar folder build/static, yaitu pada direktori `path.resolve(process.cwd(), 'uploads/<nama_modul>')`.
+- **URL PATH:** Simpan path relatif `/uploads/<nama_modul>/<nama_file>` di database agar dilayani oleh endpoint catch-all `src/routes/uploads/[...filepath]/+server.ts`.
