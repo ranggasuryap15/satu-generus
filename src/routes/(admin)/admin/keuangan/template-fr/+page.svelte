@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(admin)/admin/keuangan/template-fr/+page.svelte
-  @purpose Halaman Spreadsheet Template FR: lembar kerja 4 kolom fleksibel (No, Uraian, Jumlah, Keterangan), kategori default A-D untuk diisi manual oleh KU, pengelolaan Group Tarif (Group A, Group B, dst), duplikasi group cepat, paste dari spreadsheet, penetapan jamaah massal, dan modal konfirmasi hapus kustom
+  @purpose Halaman Spreadsheet Template FR: lembar kerja 4 kolom fleksibel (No, Uraian, Jumlah, Keterangan), kategori default A-D untuk diisi manual oleh KU, SearchableSelect filter kelompok, pengelolaan Group Tarif (Group A, Group B, dst), duplikasi group cepat, paste dari spreadsheet, penetapan jamaah massal, dan modal konfirmasi hapus kustom
   @usedBy Route admin '/admin/keuangan/template-fr'
   @dependencies @lucide/svelte, $app/forms, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/keepScroll.ts
   @publicFunctions formatRupiah, saveSpreadsheet, handleCellPaste, copyJumlahToKeterangan, openConfirmModal, closeConfirmModal, openDuplicateModal, openAddJamaahModal, openAddPosModal
@@ -132,6 +132,15 @@
 			isDirty = true;
 		}
 	}
+
+	// Opsi Kelompok (SearchableSelect)
+	const kelompokOptions = $derived(
+		(data.accessibleWilayah.kelompokList || []).map((k: any) => ({
+			value: k.id,
+			label: k.nama,
+			sublabel: k.desaNama ? `Desa ${k.desaNama}` : undefined
+		}))
+	);
 
 	// Filter Kelompok & Tahun
 	function handleFilterChange(kId: number, yr: number) {
@@ -285,22 +294,21 @@
 		<!-- FILTER WILAYAH & TAHUN -->
 		<div class="flex flex-wrap items-center gap-2 bg-card p-2 rounded-xl border border-border shadow-xs">
 			{#if data.accessibleWilayah.kelompokList.length > 1}
-				<div class="min-w-44">
-					<select
-						class="w-full bg-secondary/50 border border-border text-foreground text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
-						value={data.selectedKelompokId}
-						onchange={(e) => handleFilterChange(Number(e.currentTarget.value), data.tahun)}
-					>
-						{#each data.accessibleWilayah.kelompokList as k}
-							<option value={k.id}>{k.nama}</option>
-						{/each}
-					</select>
+				<div class="w-56 sm:w-64">
+					<SearchableSelect
+						name="kelompokId"
+						options={kelompokOptions}
+						value={data.selectedKelompokId || ''}
+						placeholder="-- Pilih Kelompok --"
+						searchPlaceholder="Cari kelompok..."
+						onchange={(val) => handleFilterChange(Number(val), data.tahun)}
+					/>
 				</div>
 			{/if}
 
 			<div class="w-24">
 				<select
-					class="w-full bg-secondary/50 border border-border text-foreground text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary font-mono font-semibold"
+					class="w-full bg-secondary/50 border border-border text-foreground text-sm rounded-lg px-2.5 py-2.5 focus:outline-none focus:ring-1 focus:ring-primary font-mono font-semibold"
 					value={data.tahun}
 					onchange={(e) => handleFilterChange(data.selectedKelompokId || 0, Number(e.currentTarget.value))}
 				>
