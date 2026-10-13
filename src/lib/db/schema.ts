@@ -1,9 +1,9 @@
 /**
  * @file src/lib/db/schema.ts
- * @purpose Definisi schema tabel Drizzle ORM untuk SQLite sesuai SCHEMA.md (termasuk wilayah, rekening/QRIS wilayah, anggota keluarga, sensus, presensi pengajian, transaksi setoran FR, jenis shodaqoh wilayah, dan transaksi shodaqoh jamaah)
+ * @purpose Definisi schema tabel Drizzle ORM untuk SQLite sesuai SCHEMA.md (termasuk wilayah, rekening/QRIS wilayah, anggota keluarga, sensus, presensi pengajian, transaksi setoran FR, pos anggaran infaq fleksibel, template infaq rutin & bundling tarif, jenis shodaqoh wilayah, dan transaksi shodaqoh jamaah)
  * @usedBy src/lib/db/index.ts, queries/actions di routes dan services
  * @dependencies drizzle-orm/sqlite-core, @paralleldrive/cuid2
- * @publicFunctions daerah, desa, kelompok, subKelompok, users, dapukan, userDapukan, keluarga, anggotaKeluarga, jadwalPengajianTemplate, presensiJadwal, presensiKehadiran, rekeningWilayah, transaksiFr, jenisShodaqoh, transaksiShodaqoh
+ * @publicFunctions daerah, desa, kelompok, subKelompok, users, dapukan, userDapukan, keluarga, anggotaKeluarga, jadwalPengajianTemplate, presensiJadwal, presensiKehadiran, rekeningWilayah, transaksiFr, posAnggaranInfaq, templateInfaqRutin, templateInfaqBundle, templateInfaqPos, templateInfaqJamaah, jenisShodaqoh, transaksiShodaqoh
  * @sideEffects Mendefinisikan struktur tabel, relasi foreign key, dan indeks database SQLite
  */
 
@@ -341,12 +341,16 @@ export const transaksiFr = sqliteTable(
 		updatedByUserId: text('updated_by_user_id').references(() => users.id, {
 			onDelete: 'set null'
 		}),
+		templateId: text('template_id').references((): any => templateInfaqRutin.id, {
+			onDelete: 'set null'
+		}),
 		createdAt: integer('created_at').notNull(),
 		updatedAt: integer('updated_at').notNull()
 	},
 	(table) => [
 		index('transaksi_fr_anggota_idx').on(table.anggotaKeluargaId),
 		index('transaksi_fr_kelompok_idx').on(table.kelompokId),
+		index('transaksi_fr_template_idx').on(table.templateId),
 		index('transaksi_fr_periode_idx').on(table.tahun, table.bulan),
 		index('transaksi_fr_desa_periode_idx').on(table.desaId, table.tahun, table.bulan),
 		uniqueIndex('transaksi_fr_unik_periode_idx').on(
@@ -354,6 +358,129 @@ export const transaksiFr = sqliteTable(
 			table.tahun,
 			table.bulan
 		)
+	]
+);
+
+// ==========================================
+// 8. TEMPLATE INFAQ / SHODAQOH RUTIN (ISRUN / FR) & POS FLEKSIBEL
+// ==========================================
+
+export const posAnggaranInfaq = sqliteTable(
+	'pos_anggaran_infaq',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => createId()),
+		parentId: text('parent_id').references((): any => posAnggaranInfaq.id, { onDelete: 'cascade' }),
+		kode: text('kode').notNull(), // HW-PUSAT, HW-DAERAH, HW-DESA, HW-KELOMPOK, OPERASIONAL, BANGUNAN, DLL
+		nama: text('nama').notNull(), // 'Hak Daerah', 'Kas Operasional', 'Pembangunan Masjid'
+		deskripsi: text('deskripsi'),
+		tingkatScope: text('tingkat_scope').notNull().default('Kelompok'), // 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok'
+		desaId: integer('desa_id').references(() => desa.id, { onDelete: 'cascade' }),
+		kelompokId: integer('kelompok_id').references(() => kelompok.id, { onDelete: 'cascade' }),
+		isWajib: integer('is_wajib', { mode: 'boolean' }).notNull().default(false), // true untuk 4 Hak Wajib
+		tipeAlokasi: text('tipe_alokasi').notNull().default('nominal'), // 'nominal' | 'persentase'
+		urutan: integer('urutan').notNull().default(0),
+		isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+		createdAt: integer('created_at').notNull(),
+		updatedAt: integer('updated_at').notNull()
+	},
+	(table) => [
+		index('pos_anggaran_parent_idx').on(table.parentId),
+		index('pos_anggaran_scope_idx').on(table.tingkatScope, table.kelompokId, table.desaId),
+		index('pos_anggaran_urutan_idx').on(table.urutan)
+	]
+);
+
+export const templateInfaqRutin = sqliteTable(
+	'template_infaq_rutin',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => createId()),
+		nama: text('nama').notNull(), // misal: "Template FR Kelompok 1 - 2026"
+		tingkatScope: text('tingkat_scope').notNull().default('Kelompok'),
+		desaId: integer('desa_id').references(() => desa.id, { onDelete: 'cascade' }),
+		kelompokId: integer('kelompok_id').references(() => kelompok.id, { onDelete: 'cascade' }),
+		tahun: integer('tahun').notNull(),
+		bulanMulai: integer('bulan_mulai').notNull().default(1),
+		bulanSelesai: integer('bulan_selesai').notNull().default(12),
+		nominalMinimumDefault: integer('nominal_minimum_default').notNull().default(0),
+		status: text('status').notNull().default('aktif'), // 'draf' | 'aktif' | 'arsip'
+		catatan: text('catatan'),
+		createdByUserId: text('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+		createdAt: integer('created_at').notNull(),
+		updatedAt: integer('updated_at').notNull()
+	},
+	(table) => [
+		index('template_infaq_periode_idx').on(table.tahun, table.bulanMulai, table.bulanSelesai),
+		index('template_infaq_scope_idx').on(table.tingkatScope, table.kelompokId, table.status)
+	]
+);
+
+export const templateInfaqBundle = sqliteTable(
+	'template_infaq_bundle',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => createId()),
+		templateId: text('template_id')
+			.notNull()
+			.references(() => templateInfaqRutin.id, { onDelete: 'cascade' }),
+		nama: text('nama').notNull(), // Contoh: 'Paket Standar', 'Paket Pelajar', 'Paket Keringanan'
+		nominal: integer('nominal').notNull().default(0), // Misal: 100000, 50000, 25000, 0
+		deskripsi: text('deskripsi'),
+		urutan: integer('urutan').notNull().default(0)
+	},
+	(table) => [
+		index('template_bundle_template_idx').on(table.templateId)
+	]
+);
+
+export const templateInfaqPos = sqliteTable(
+	'template_infaq_pos',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => createId()),
+		templateId: text('template_id')
+			.notNull()
+			.references(() => templateInfaqRutin.id, { onDelete: 'cascade' }),
+		posId: text('pos_id')
+			.notNull()
+			.references(() => posAnggaranInfaq.id, { onDelete: 'restrict' }),
+		nominalTarget: integer('nominal_target').default(0),
+		persentaseSplit: integer('persentase_split').default(0),
+		urutan: integer('urutan').notNull().default(0)
+	},
+	(table) => [
+		index('template_pos_template_idx').on(table.templateId),
+		uniqueIndex('template_pos_unik_idx').on(table.templateId, table.posId)
+	]
+);
+
+export const templateInfaqJamaah = sqliteTable(
+	'template_infaq_jamaah',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => createId()),
+		templateId: text('template_id')
+			.notNull()
+			.references(() => templateInfaqRutin.id, { onDelete: 'cascade' }),
+		anggotaKeluargaId: text('anggota_keluarga_id')
+			.notNull()
+			.references(() => anggotaKeluarga.id, { onDelete: 'cascade' }),
+		bundleId: text('bundle_id').references(() => templateInfaqBundle.id, { onDelete: 'set null' }),
+		nominalTarget: integer('nominal_target').notNull().default(0),
+		isCustom: integer('is_custom', { mode: 'boolean' }).notNull().default(false),
+		catatan: text('catatan'),
+		updatedAt: integer('updated_at').notNull()
+	},
+	(table) => [
+		index('template_jamaah_template_idx').on(table.templateId),
+		index('template_jamaah_bundle_idx').on(table.bundleId),
+		uniqueIndex('template_jamaah_unik_idx').on(table.templateId, table.anggotaKeluargaId)
 	]
 );
 

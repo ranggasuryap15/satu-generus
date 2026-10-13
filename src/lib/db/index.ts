@@ -4,7 +4,7 @@
  * @usedBy Backend server routes (+page.server.ts, +server.ts, hooks.server.ts, scripts migrasi/seed)
  * @dependencies better-sqlite3, drizzle-orm/better-sqlite3, src/lib/db/schema.ts
  * @publicFunctions db, sqlite
- * @sideEffects Membuka koneksi file database SQLite, mengaktifkan PRAGMA WAL & foreign_keys, auto-migrasi kolom & tabel skema (sub_kelompok, users, anggota_keluarga, jadwal_pengajian_template, presensi_jadwal, presensi_kehadiran, kelompok, desa, daerah, rekening_wilayah, transaksi_fr, jenis_shodaqoh, dan transaksi_shodaqoh), auto-sinkronisasi user_id & default isrun Kepala Keluarga
+ * @sideEffects Membuka koneksi file database SQLite, mengaktifkan PRAGMA WAL & foreign_keys, auto-migrasi kolom & tabel skema (sub_kelompok, users, anggota_keluarga, jadwal_pengajian_template, presensi_jadwal, presensi_kehadiran, kelompok, desa, daerah, rekening_wilayah, transaksi_fr, pos_anggaran_infaq, template_infaq_rutin, template_infaq_bundle, template_infaq_pos, template_infaq_jamaah, jenis_shodaqoh, transaksi_shodaqoh), auto-sinkronisasi user_id, auto-seed 4 Hak Wajib default
  */
 
 import Database from 'better-sqlite3';
@@ -477,6 +477,122 @@ try {
 		CREATE INDEX IF NOT EXISTS transaksi_shodaqoh_status_idx ON transaksi_shodaqoh (status_approval);
 		CREATE INDEX IF NOT EXISTS transaksi_shodaqoh_tanggal_idx ON transaksi_shodaqoh (tanggal_transfer);
 	`);
+
+	// Auto-heal / migrasi kolom template_id di tabel transaksi_fr
+	const rawTransaksiFrInfo = sqlite.prepare('PRAGMA table_info(transaksi_fr)').all() as Array<{ name: string }>;
+	const transaksiFrCols = rawTransaksiFrInfo.map((c) => c.name);
+	if (!transaksiFrCols.includes('template_id')) {
+		sqlite.exec(`ALTER TABLE transaksi_fr ADD COLUMN template_id TEXT REFERENCES template_infaq_rutin(id) ON DELETE SET NULL;`);
+		sqlite.exec(`CREATE INDEX IF NOT EXISTS transaksi_fr_template_idx ON transaksi_fr (template_id);`);
+	}
+
+	// Auto-heal / migrasi tabel pos_anggaran_infaq (Hierarki Pos Fleksibel & 4 Hak Wajib)
+	sqlite.exec(`
+		CREATE TABLE IF NOT EXISTS pos_anggaran_infaq (
+			id TEXT PRIMARY KEY NOT NULL,
+			parent_id TEXT REFERENCES pos_anggaran_infaq(id) ON DELETE CASCADE,
+			kode TEXT NOT NULL,
+			nama TEXT NOT NULL,
+			deskripsi TEXT,
+			tingkat_scope TEXT NOT NULL DEFAULT 'Kelompok',
+			desa_id INTEGER REFERENCES desa(id) ON DELETE CASCADE,
+			kelompok_id INTEGER REFERENCES kelompok(id) ON DELETE CASCADE,
+			is_wajib INTEGER NOT NULL DEFAULT 0,
+			tipe_alokasi TEXT NOT NULL DEFAULT 'nominal',
+			urutan INTEGER NOT NULL DEFAULT 0,
+			is_active INTEGER NOT NULL DEFAULT 1,
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
+		);
+		CREATE INDEX IF NOT EXISTS pos_anggaran_parent_idx ON pos_anggaran_infaq (parent_id);
+		CREATE INDEX IF NOT EXISTS pos_anggaran_scope_idx ON pos_anggaran_infaq (tingkat_scope, kelompok_id, desa_id);
+		CREATE INDEX IF NOT EXISTS pos_anggaran_urutan_idx ON pos_anggaran_infaq (urutan);
+	`);
+
+	// Auto-heal / migrasi tabel template_infaq_rutin
+	sqlite.exec(`
+		CREATE TABLE IF NOT EXISTS template_infaq_rutin (
+			id TEXT PRIMARY KEY NOT NULL,
+			nama TEXT NOT NULL,
+			tingkat_scope TEXT NOT NULL DEFAULT 'Kelompok',
+			desa_id INTEGER REFERENCES desa(id) ON DELETE CASCADE,
+			kelompok_id INTEGER REFERENCES kelompok(id) ON DELETE CASCADE,
+			tahun INTEGER NOT NULL,
+			bulan_mulai INTEGER NOT NULL DEFAULT 1,
+			bulan_selesai INTEGER NOT NULL DEFAULT 12,
+			nominal_minimum_default INTEGER NOT NULL DEFAULT 0,
+			status TEXT NOT NULL DEFAULT 'aktif',
+			catatan TEXT,
+			created_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
+		);
+		CREATE INDEX IF NOT EXISTS template_infaq_periode_idx ON template_infaq_rutin (tahun, bulan_mulai, bulan_selesai);
+		CREATE INDEX IF NOT EXISTS template_infaq_scope_idx ON template_infaq_rutin (tingkat_scope, kelompok_id, status);
+	`);
+
+	// Auto-heal / migrasi tabel template_infaq_bundle (Paket/Bundle Tarif)
+	sqlite.exec(`
+		CREATE TABLE IF NOT EXISTS template_infaq_bundle (
+			id TEXT PRIMARY KEY NOT NULL,
+			template_id TEXT NOT NULL REFERENCES template_infaq_rutin(id) ON DELETE CASCADE,
+			nama TEXT NOT NULL,
+			nominal INTEGER NOT NULL DEFAULT 0,
+			deskripsi TEXT,
+			urutan INTEGER NOT NULL DEFAULT 0
+		);
+		CREATE INDEX IF NOT EXISTS template_bundle_template_idx ON template_infaq_bundle (template_id);
+	`);
+
+	// Auto-heal / migrasi tabel template_infaq_pos
+	sqlite.exec(`
+		CREATE TABLE IF NOT EXISTS template_infaq_pos (
+			id TEXT PRIMARY KEY NOT NULL,
+			template_id TEXT NOT NULL REFERENCES template_infaq_rutin(id) ON DELETE CASCADE,
+			pos_id TEXT NOT NULL REFERENCES pos_anggaran_infaq(id) ON DELETE RESTRICT,
+			nominal_target INTEGER DEFAULT 0,
+			persentase_split INTEGER DEFAULT 0,
+			urutan INTEGER NOT NULL DEFAULT 0
+		);
+		CREATE INDEX IF NOT EXISTS template_pos_template_idx ON template_infaq_pos (template_id);
+		CREATE UNIQUE INDEX IF NOT EXISTS template_pos_unik_idx ON template_infaq_pos (template_id, pos_id);
+	`);
+
+	// Auto-heal / migrasi tabel template_infaq_jamaah (Tarif Granular Jamaah)
+	sqlite.exec(`
+		CREATE TABLE IF NOT EXISTS template_infaq_jamaah (
+			id TEXT PRIMARY KEY NOT NULL,
+			template_id TEXT NOT NULL REFERENCES template_infaq_rutin(id) ON DELETE CASCADE,
+			anggota_keluarga_id TEXT NOT NULL REFERENCES anggota_keluarga(id) ON DELETE CASCADE,
+			bundle_id TEXT REFERENCES template_infaq_bundle(id) ON DELETE SET NULL,
+			nominal_target INTEGER NOT NULL DEFAULT 0,
+			is_custom INTEGER NOT NULL DEFAULT 0,
+			catatan TEXT,
+			updated_at INTEGER NOT NULL
+		);
+		CREATE INDEX IF NOT EXISTS template_jamaah_template_idx ON template_infaq_jamaah (template_id);
+		CREATE INDEX IF NOT EXISTS template_jamaah_bundle_idx ON template_infaq_jamaah (bundle_id);
+		CREATE UNIQUE INDEX IF NOT EXISTS template_jamaah_unik_idx ON template_infaq_jamaah (template_id, anggota_keluarga_id);
+	`);
+
+	// Seed otomatis 4 Hak Wajib jika belum ada di tabel pos_anggaran_infaq
+	const countWajib = sqlite.prepare("SELECT COUNT(*) as count FROM pos_anggaran_infaq WHERE is_wajib = 1").get() as { count: number };
+	if (!countWajib || countWajib.count === 0) {
+		const now = Date.now();
+		const defaultHakWajib = [
+			{ id: 'hw_pusat', kode: 'HW-PUSAT', nama: 'Hak Pusat', tingkatScope: 'Pusat', urutan: 1 },
+			{ id: 'hw_daerah', kode: 'HW-DAERAH', nama: 'Hak Daerah', tingkatScope: 'Daerah', urutan: 2 },
+			{ id: 'hw_desa', kode: 'HW-DESA', nama: 'Hak Desa', tingkatScope: 'Desa', urutan: 3 },
+			{ id: 'hw_kelompok', kode: 'HW-KELOMPOK', nama: 'Hak Kelompok', tingkatScope: 'Kelompok', urutan: 4 }
+		];
+		const insertStmt = sqlite.prepare(`
+			INSERT OR IGNORE INTO pos_anggaran_infaq (id, kode, nama, deskripsi, tingkat_scope, is_wajib, tipe_alokasi, urutan, is_active, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, 1, 'nominal', ?, 1, ?, ?)
+		`);
+		for (const h of defaultHakWajib) {
+			insertStmt.run(h.id, h.kode, h.nama, `Alokasi wajib rutin untuk tingkat ${h.tingkatScope}`, h.tingkatScope, h.urutan, now, now);
+		}
+	}
 } catch (migErr) {
 	console.error('[DB Auto-Migration] Gagal memeriksa atau memperbarui kolom skema SQLite:', migErr);
 }

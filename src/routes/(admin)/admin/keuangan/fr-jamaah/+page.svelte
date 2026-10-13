@@ -18,6 +18,7 @@
 	  Download,
 	  Filter,
 	  HandCoins,
+	  Layers,
 	  Lock,
 	  RotateCcw,
 	  Save,
@@ -254,8 +255,15 @@
 			</p>
 		</div>
 
-		<!-- Status Wewenang -->
-		<div class="flex items-center gap-2">
+		<!-- Status Wewenang & Shortcut Template FR -->
+		<div class="flex items-center gap-2 flex-wrap">
+			<a
+				href="/admin/keuangan/template-fr{data.selectedKelompokId ? `?kelompokId=${data.selectedKelompokId}` : ''}"
+				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-secondary hover:bg-secondary/80 border border-border text-foreground transition-all shadow-xs"
+			>
+				<Layers class="w-4 h-4 text-primary" />
+				<span>Template & Pos FR</span>
+			</a>
 			{#if data.canEdit}
 				<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
 					<ShieldCheck class="w-4 h-4" />

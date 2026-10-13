@@ -128,7 +128,14 @@
 		</div>
 
 		<!-- Tombol Aksi Navigasi Cepat -->
-		<div class="flex items-center gap-2">
+		<div class="flex items-center gap-2 flex-wrap">
+			<a
+				href="/admin/keuangan/template-fr"
+				class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground font-semibold text-xs transition-colors shadow-xs"
+			>
+				<Layers class="w-4 h-4 text-primary" />
+				<span>Template & Pos FR</span>
+			</a>
 			<a
 				href="/admin/keuangan/laporan-fr"
 				class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground font-semibold text-xs transition-colors shadow-xs"
