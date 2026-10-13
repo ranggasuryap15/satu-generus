@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(admin)/admin/sensus/+page.svelte
-  @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri, pagination tabel/kartu data, dashboard statistik, penugasan dapukan pengurus KK, modal detail lengkap (hapus sensus, pindah kelompok, toggle status jamaah), modal edit anggota/KK, dan pembuatan akun dengan retensi scroll (mencegah loncat ke atas)
+  @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri, pagination tabel/kartu data, dashboard statistik, penugasan dapukan pengurus KK, modal detail lengkap (hapus sensus, pindah kelompok, toggle status jamaah), modal edit anggota/KK, input & validasi noTelepon (wajib jika punya akun, opsional jika tidak), dan pembuatan akun dengan retensi scroll (mencegah loncat ke atas)
   @usedBy Route admin '/admin/sensus'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/components/Pagination.svelte, $lib/confirm.svelte, $lib/keepScroll.ts (keepScrollSubmit), $lib/utils (formatDateDDMMYYYY), $lib/generus (isStatusHubunganMenikah, hitungUmur, hitungStatusGenerus, resolveStatusPernikahan, isStatusGenerusBelumMenikah, resolvePernikahanFromGenerus, DAFTAR_STATUS_GENERUS)
   @publicFunctions openDetailModal, closeDetailModal, requestUnmask, openCreateModal, closeCreateModal, openAddMemberModal, closeAddMemberModal, openCreateAccountModal, openEditAnggotaModal, closeEditAnggotaModal, openEditKeluargaModal, closeEditKeluargaModal, openPindahKelompokModal, closePindahKelompokModal, openAssignDapukanModal, closeAssignDapukanModal, handleHapusSensus, handleToggleStatusJamaah, resetFilters, toggleMobileFilter
@@ -294,6 +294,7 @@
 	let newTipeSensus = $state<'keluarga' | 'mandiri'>('keluarga');
 	let newNamaLengkap = $state('');
 	let newEmail = $state('');
+	let newNoTelepon = $state('');
 	let newKelompokId = $state<string | number>('');
 	let newNoKk = $state('');
 	let newAlamatLengkap = $state('');
@@ -334,6 +335,7 @@
 		jenisKelamin: string;
 		statusPernikahan: string;
 		statusGenerus: string;
+		noTelepon?: string;
 		isrun?: string;
 		_lastTglLahir?: string;
 		_lastStatusHubungan?: string;
@@ -354,6 +356,7 @@
 			jenisKelamin,
 			statusPernikahan,
 			statusGenerus: '',
+			noTelepon: '',
 			isrun: statusHubungan === 'Kepala Keluarga' ? 'Ya' : 'Tidak',
 			_lastTglLahir: '',
 			_lastStatusHubungan: statusHubungan,
@@ -418,6 +421,7 @@
 	let memberTanggalLahir = $state('');
 	let memberJenisKelamin = $state('Laki-laki');
 	let memberStatusGenerus = $state('');
+	let memberNoTelepon = $state('');
 	let lastCalculatedTanggalLahir = '';
 
 	const memberUmur = $derived(memberTanggalLahir ? hitungUmur(memberTanggalLahir) : 0);
@@ -788,6 +792,7 @@
 		newTipeSensus = 'keluarga';
 		newNamaLengkap = '';
 		newEmail = '';
+		newNoTelepon = '';
 		newKelompokId = '';
 		newNoKk = '';
 		newAlamatLengkap = '';
@@ -855,6 +860,7 @@
 		memberTanggalLahir = '';
 		memberJenisKelamin = 'Laki-laki';
 		memberStatusGenerus = '';
+		memberNoTelepon = '';
 		lastCalculatedTanggalLahir = '';
 	}
 
@@ -1572,7 +1578,7 @@
 						1. Data Akun Jamaah {newTipeSensus === 'keluarga' ? '(Kepala Keluarga)' : '(Mandiri / Perantau)'}
 					</h4>
 
-					<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+					<div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
 						<div>
 							<label for="namaLengkap" class="block text-[11px] font-semibold text-foreground mb-1">
 								Nama Lengkap *
@@ -1600,6 +1606,29 @@
 								bind:value={newEmail}
 								placeholder="ahmad@example.com"
 								class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+							/>
+						</div>
+
+						<div>
+							<label for="noTelepon" class="block text-[11px] font-semibold text-foreground mb-1">
+								Nomor HP / WhatsApp *
+							</label>
+							<input
+								id="noTelepon"
+								name="noTelepon"
+								type="tel"
+								inputmode="numeric"
+								pattern="[0-9]*"
+								required
+								bind:value={newNoTelepon}
+								oninput={(e) => {
+									newNoTelepon = e.currentTarget.value.replace(/\D/g, '');
+									if (newAnggotaList.length > 0) {
+										newAnggotaList[0].noTelepon = newNoTelepon;
+									}
+								}}
+								placeholder="0812xxxxxxxx"
+								class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 							/>
 						</div>
 					</div>
@@ -1779,8 +1808,8 @@
 											{/if}
 										</div>
 
-										<!-- Baris 2: NIK & Tempat Lahir -->
-										<div class="sm:col-span-6">
+										<!-- Baris 2: NIK, Tempat Lahir & No. HP / WhatsApp -->
+										<div class="sm:col-span-4">
 											<label for={`new-nik-${idx}`} class="block text-[11px] font-semibold text-foreground mb-1">
 												NIK (Opsional, Bisa Kosong)
 											</label>
@@ -1795,12 +1824,12 @@
 												oninput={(e) => {
 													anggota.nik = e.currentTarget.value.replace(/\D/g, '');
 												}}
-												placeholder="3216xxxxxxxxxxxx (opsional, bisa kosong)"
+												placeholder="3216xxxxxxxxxxxx (opsional)"
 												class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 											/>
 										</div>
 
-										<div class="sm:col-span-6">
+										<div class="sm:col-span-4">
 											<label for={`new-tempat-${idx}`} class="block text-[11px] font-semibold text-foreground mb-1">
 												Tempat Lahir *
 											</label>
@@ -1812,6 +1841,36 @@
 												placeholder="Kota/Kabupaten kelahiran"
 												class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 											/>
+										</div>
+
+										<div class="sm:col-span-4">
+											<label for={`new-hp-${idx}`} class="block text-[11px] font-semibold text-foreground mb-1">
+												No. HP / WhatsApp {idx === 0 ? '*' : '(Opsional)'}
+											</label>
+											{#if idx === 0}
+												<input
+													id={`new-hp-${idx}`}
+													type="tel"
+													readonly
+													disabled
+													value={newNoTelepon || '-'}
+													placeholder="Mengikuti Nomor Akun"
+													class="w-full bg-secondary/30 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground/80 cursor-not-allowed focus:outline-none"
+												/>
+											{:else}
+												<input
+													id={`new-hp-${idx}`}
+													type="tel"
+													inputmode="numeric"
+													pattern="[0-9]*"
+													bind:value={anggota.noTelepon}
+													oninput={(e) => {
+														anggota.noTelepon = e.currentTarget.value.replace(/\D/g, '');
+													}}
+													placeholder="0812xxxxxxxx"
+													class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+												/>
+											{/if}
 										</div>
 
 										<!-- Baris 3: Tanggal Lahir, Umur, Status Pernikahan, Status Generus, Jenis Kelamin -->
@@ -2205,6 +2264,25 @@
 						bind:value={memberTempatLahir}
 						placeholder="Kota / Kabupaten Lahir"
 						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+					/>
+				</div>
+
+				<div>
+					<label for="memberNoTelepon" class="block font-semibold text-foreground mb-1">
+						No. HP / WhatsApp (Opsional)
+					</label>
+					<input
+						id="memberNoTelepon"
+						name="noTelepon"
+						type="tel"
+						inputmode="numeric"
+						pattern="[0-9]*"
+						bind:value={memberNoTelepon}
+						oninput={(e) => {
+							memberNoTelepon = e.currentTarget.value.replace(/\D/g, '');
+						}}
+						placeholder="0812xxxxxxxx (opsional)"
+						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 					/>
 				</div>
 
@@ -2804,13 +2882,19 @@
 
 					<div>
 						<label for="edit-noTelepon" class="block font-semibold text-foreground mb-1">
-							No. HP / WhatsApp
+							No. HP / WhatsApp {#if editingAnggota?.userId || (editingAnggota?.statusHubungan === 'Kepala Keluarga' && targetKeluargaForEdit?.kepalaKeluargaId)}<span class="text-destructive">* (Wajib memiliki akun)</span>{:else}<span class="text-foreground/50 text-[10px]">(Opsional)</span>{/if}
 						</label>
 						<input
 							type="tel"
 							id="edit-noTelepon"
 							name="noTelepon"
+							inputmode="numeric"
+							pattern="[0-9]*"
+							required={!!(editingAnggota?.userId || (editingAnggota?.statusHubungan === 'Kepala Keluarga' && targetKeluargaForEdit?.kepalaKeluargaId))}
 							bind:value={editAnggotaNoTelepon}
+							oninput={(e) => {
+								editAnggotaNoTelepon = e.currentTarget.value.replace(/\D/g, '');
+							}}
 							placeholder="Contoh: 08123456789"
 							class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground font-mono focus:ring-1 focus:ring-primary"
 						/>
@@ -3054,14 +3138,20 @@
 
 				<div>
 					<label for="accPhone" class="block font-medium text-foreground/80 mb-1">
-						Nomor HP / WhatsApp (Bisa untuk Login)
+						Nomor HP / WhatsApp (Wajib untuk Akun) <span class="text-destructive">*</span>
 					</label>
 					<input
 						id="accPhone"
 						name="noTelepon"
-						type="text"
+						type="tel"
+						inputmode="numeric"
+						pattern="[0-9]*"
+						required
 						bind:value={newAccountPhone}
-						placeholder="0812xxxx"
+						oninput={(e) => {
+							newAccountPhone = e.currentTarget.value.replace(/\D/g, '');
+						}}
+						placeholder="0812xxxxxxxx"
 						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary"
 					/>
 				</div>

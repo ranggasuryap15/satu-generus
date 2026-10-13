@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(app)/sensus/+page.svelte
-  @purpose Tampilan status dan rincian Kartu Keluarga serta Jamaah Mandiri/Perantau dengan fitur unmasking, ubah data domisili, NIK (opsional), penambahan/edit/hapus anggota ke KK sendiri dengan retensi scroll (mencegah jumping ke atas)
+  @purpose Tampilan status dan rincian Kartu Keluarga serta Jamaah Mandiri/Perantau dengan fitur unmasking, ubah data domisili, input & validasi nomor HP numerik (wajib jika punya akun, opsional jika tidak), penambahan/edit/hapus anggota ke KK sendiri dengan retensi scroll (mencegah jumping ke atas)
   @usedBy Route client '/sensus'
   @dependencies @lucide/svelte, $app/forms (enhance), $app/state (page), $lib/components/DateInput.svelte, $lib/utils (formatDateDDMMYYYY), $lib/keepScroll.ts (keepScrollSubmit), Svelte 5 Runes
   @publicFunctions toggleKk, copyKk, toggleNik, copyNik, openEditKk, closeEditKkModal, openEditAnggota, closeEditAnggotaModal, openTambahAnggota, closeTambahAnggotaModal
@@ -22,7 +22,8 @@
 		Trash2,
 		X,
 		AlertCircle,
-		CheckCircle
+		CheckCircle,
+		Phone
 	} from '@lucide/svelte';
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
@@ -67,6 +68,7 @@
 	let editAnggotaStatus = $state('');
 	let editAnggotaTgl = $state('');
 	let editAnggotaJk = $state('');
+	let editAnggotaNoTelepon = $state('');
 
 	// State Tambah Anggota (Persisten agar tidak hilang saat modal tertutup)
 	let newAnggotaNama = $state('');
@@ -74,6 +76,7 @@
 	let newAnggotaStatus = $state('Anak');
 	let newAnggotaTgl = $state('');
 	let newAnggotaJk = $state('Laki-laki');
+	let newAnggotaNoTelepon = $state('');
 
 	function resetTambahAnggota() {
 		newAnggotaNama = '';
@@ -81,6 +84,7 @@
 		newAnggotaStatus = 'Anak';
 		newAnggotaTgl = '';
 		newAnggotaJk = 'Laki-laki';
+		newAnggotaNoTelepon = '';
 	}
 
 	function openEditKk() {
@@ -115,6 +119,7 @@
 		editAnggotaStatus = anggota.statusHubungan;
 		editAnggotaTgl = anggota.tanggalLahir;
 		editAnggotaJk = anggota.jenisKelamin;
+		editAnggotaNoTelepon = anggota.noTelepon || '';
 		activeModal = 'editAnggota';
 	}
 
@@ -608,9 +613,17 @@
 							</div>
 						</div>
 
-						<div class="flex items-center gap-1.5 text-[11px] text-foreground/50 pt-1 border-t border-border/40">
-							<Calendar class="w-3 h-3" />
-							<span>Tgl Lahir: {formatDateDDMMYYYY(anggota.tanggalLahir)}</span>
+						<div class="flex items-center justify-between text-[11px] text-foreground/50 pt-1 border-t border-border/40 flex-wrap gap-2">
+							<div class="flex items-center gap-1.5">
+								<Calendar class="w-3 h-3" />
+								<span>Tgl Lahir: {formatDateDDMMYYYY(anggota.tanggalLahir)}</span>
+							</div>
+							{#if anggota.noTelepon}
+								<div class="flex items-center gap-1.5 font-mono text-foreground/70">
+									<Phone class="w-3 h-3" />
+									<span>{anggota.noTelepon}</span>
+								</div>
+							{/if}
 						</div>
 					</div>
 				{/each}
@@ -827,6 +840,24 @@
 					</select>
 				</div>
 
+				<div>
+					<label for="editNoTelepon" class="block font-medium text-foreground/80 mb-1.5">
+						No. HP / WhatsApp {#if selectedAnggota?.userId}<span class="text-destructive">* (Wajib memiliki akun)</span>{:else}<span class="text-foreground/50 text-[11px] font-normal">(Opsional)</span>{/if}
+					</label>
+					<input
+						id="editNoTelepon"
+						name="noTelepon"
+						type="tel"
+						inputmode="numeric"
+						pattern="[0-9]*"
+						required={!!selectedAnggota?.userId}
+						bind:value={editAnggotaNoTelepon}
+						oninput={(e) => { editAnggotaNoTelepon = e.currentTarget.value.replace(/\D/g, ''); }}
+						placeholder="Contoh: 08123456789"
+						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
+					/>
+				</div>
+
 				<div class="flex gap-2 pt-2">
 					<button
 						type="button"
@@ -960,6 +991,23 @@
 						<option value="Laki-laki">Laki-laki</option>
 						<option value="Perempuan">Perempuan</option>
 					</select>
+				</div>
+
+				<div>
+					<label for="newNoTelepon" class="block font-medium text-foreground/80 mb-1.5">
+						No. HP / WhatsApp <span class="text-foreground/50 text-[11px] font-normal">(Opsional)</span>
+					</label>
+					<input
+						id="newNoTelepon"
+						name="noTelepon"
+						type="tel"
+						inputmode="numeric"
+						pattern="[0-9]*"
+						bind:value={newAnggotaNoTelepon}
+						oninput={(e) => { newAnggotaNoTelepon = e.currentTarget.value.replace(/\D/g, ''); }}
+						placeholder="Contoh: 08123456789"
+						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
+					/>
 				</div>
 
 				<div class="flex gap-2 pt-2">

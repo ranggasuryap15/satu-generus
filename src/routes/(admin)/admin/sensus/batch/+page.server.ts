@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(admin)/admin/sensus/batch/+page.server.ts
- * @purpose Server load & action untuk batch insert hierarki keluarga, mengikat anggota ke kartu keluarga yang sama (dengan atau tanpa No KK), kalkulasi otomatis generus, dan pembuatan akun login
+ * @purpose Server load & action untuk batch insert hierarki keluarga, mengikat anggota ke kartu keluarga yang sama (dengan atau tanpa No KK), kalkulasi otomatis generus, validasi noTelepon (wajib jika buat akun, opsional jika tidak), dan pembuatan akun login
  * @usedBy src/routes/(admin)/admin/sensus/batch/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/auth, src/lib/server/scope, src/lib/generus, src/lib/utils, drizzle-orm
  * @publicFunctions load, actions.default
@@ -153,6 +153,26 @@ export const actions: Actions = {
 					});
 				}
 
+				const cleanHp = m.noTelepon ? m.noTelepon.trim().replace(/\D/g, '') : '';
+				if (m.buatAkun) {
+					if (!cleanHp) {
+						return fail(400, {
+							error: `Keluarga #${fIdx + 1} (${nama}): Nomor HP wajib diisi jika membuat akun login.`
+						});
+					}
+					if (!/^\d{8,16}$/.test(cleanHp)) {
+						return fail(400, {
+							error: `Keluarga #${fIdx + 1} (${nama}): Nomor HP harus berupa angka valid (8-16 digit).`
+						});
+					}
+				} else if (cleanHp) {
+					if (!/^\d{8,16}$/.test(cleanHp)) {
+						return fail(400, {
+							error: `Keluarga #${fIdx + 1} (${nama}): Nomor HP harus berupa angka valid (8-16 digit).`
+						});
+					}
+				}
+
 				let kId = m.kelompokId
 					? parseInt(String(m.kelompokId), 10)
 					: fam.kelompokId
@@ -239,13 +259,15 @@ export const actions: Actions = {
 									? parseInt(String(fam.kelompokId), 10)
 									: defaultKelompokId;
 
+							const cleanHp = m.noTelepon ? m.noTelepon.trim().replace(/\D/g, '') : null;
+
 							const [createdUser] = tx
 								.insert(users)
 								.values({
 									kelompokId: kId,
 									namaLengkap: m.namaLengkap.trim(),
 									email: userEmail,
-									noTelepon: m.noTelepon?.trim() || null,
+									noTelepon: cleanHp || null,
 									passwordHash: defaultPasswordHash
 								})
 								.returning()

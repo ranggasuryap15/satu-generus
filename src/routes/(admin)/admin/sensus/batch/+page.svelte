@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(admin)/admin/sensus/batch/+page.svelte
-  @purpose Antarmuka batch insert sensus massal terstruktur: grouping keluarga hierarkis untuk KK dan kartu baris tunggal datar untuk Jamaah Mandiri/Perantau, DateInput dengan manual typing & kalender, auto-kalkulasi generus, layout form responsif desktop & mobile, paste spreadsheet otomatis, dan opsi pembuatan akun
+  @purpose Antarmuka batch insert sensus massal terstruktur: grouping keluarga hierarkis untuk KK dan kartu baris tunggal datar untuk Jamaah Mandiri/Perantau, DateInput dengan manual typing & kalender, auto-kalkulasi generus, validasi noTelepon numerik (wajib jika buat akun), layout form responsif desktop & mobile, paste spreadsheet otomatis, dan opsi pembuatan akun
   @usedBy Route admin '/admin/sensus/batch'
   @dependencies @lucide/svelte, $app/forms, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/generus (hitungUmur, hitungStatusGenerus, getDaftarStatusKeluargaByGender, daftar konstanta), Svelte 5 Runes
   @publicFunctions addFamily, addPerantauFamily, removeFamily, addMemberToFamily, removeMember, clearFamilies, convertToPerantau, convertToFamily, onGlobalKelompokChange, onJenisKelaminChange, onStatusKeluargaChange, onTanggalLahirOrMenikahChange, processPastedSpreadsheet, toggleAllBuatAkun
@@ -1051,12 +1051,18 @@
 									for="telp-mandiri-{row.id}"
 									class="block text-[10px] font-semibold text-foreground/75 mb-1"
 								>
-									No. HP / WA
+									No. HP / WA {#if row.buatAkun}<span class="text-destructive">*</span>{/if}
 								</label>
 								<input
 									id="telp-mandiri-{row.id}"
-									type="text"
+									type="tel"
+									inputmode="numeric"
+									pattern="[0-9]*"
+									required={row.buatAkun}
 									bind:value={row.noTelepon}
+									oninput={(e) => {
+										row.noTelepon = e.currentTarget.value.replace(/\D/g, '');
+									}}
 									placeholder="0812xxxx"
 									class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary"
 								/>
@@ -1448,12 +1454,18 @@
 											<!-- No HP / WA -->
 											<div class="w-[calc(50%-4px)] sm:w-32 shrink-0">
 												<label for="telp-{row.id}" class="block text-[10px] font-semibold text-foreground/75 mb-1">
-													No. HP / WA
+													No. HP / WA {#if row.buatAkun}<span class="text-destructive">*</span>{/if}
 												</label>
 												<input
 													id="telp-{row.id}"
-													type="text"
+													type="tel"
+													inputmode="numeric"
+													pattern="[0-9]*"
+													required={row.buatAkun}
 													bind:value={row.noTelepon}
+													oninput={(e) => {
+														row.noTelepon = e.currentTarget.value.replace(/\D/g, '');
+													}}
 													placeholder="0812xxxx"
 													class="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary"
 												/>

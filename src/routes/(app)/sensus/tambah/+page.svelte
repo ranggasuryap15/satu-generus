@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(app)/sensus/tambah/+page.svelte
-  @purpose Form wizard interaktif 3-langkah pendaftaran sensus keluarga jamaah (No KK dan NIK opsional/nullable)
+  @purpose Form wizard interaktif 3-langkah pendaftaran sensus keluarga jamaah dengan input & validasi nomor HP numerik (wajib untuk kepala keluarga, opsional untuk anggota lain)
   @usedBy Route client '/sensus/tambah'
   @dependencies @lucide/svelte, $lib/components/DateInput.svelte, $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
   @publicFunctions nextStep, prevStep, addAnggota, removeAnggota
@@ -19,9 +19,9 @@
 	} from '@lucide/svelte';
 	import DateInput from '$lib/components/DateInput.svelte';
 	import { formatDateDDMMYYYY } from '$lib/utils';
-	import type { ActionData } from './$types';
+	import type { ActionData, PageData } from './$types';
 
-	let { form } = $props<{ form: ActionData }>();
+	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
 	// State Wizard
 	let step = $state(1);
@@ -43,16 +43,18 @@
 		statusHubungan: string;
 		tanggalLahir: string;
 		jenisKelamin: string;
+		noTelepon?: string;
 	}
 
 	let anggotaList = $state<AnggotaItem[]>([
 		{
 			id: '1',
-			namaLengkap: '',
+			namaLengkap: data.user?.namaLengkap || '',
 			nik: '',
 			statusHubungan: 'Kepala Keluarga',
 			tanggalLahir: '',
-			jenisKelamin: 'L'
+			jenisKelamin: 'L',
+			noTelepon: data.user?.noTelepon || ''
 		}
 	]);
 
@@ -88,6 +90,24 @@
 				errors.anggota = `Tanggal lahir anggota ke-${i + 1} wajib diisi.`;
 				return false;
 			}
+
+			const isKepala = a.statusHubungan === 'Kepala Keluarga' || i === 0;
+			const cleanHp = a.noTelepon ? a.noTelepon.trim().replace(/\D/g, '') : '';
+			if (isKepala) {
+				if (!cleanHp) {
+					errors.anggota = 'Nomor HP Kepala Keluarga (pemilik akun) wajib diisi.';
+					return false;
+				}
+				if (!/^\d{8,16}$/.test(cleanHp)) {
+					errors.anggota = 'Nomor HP Kepala Keluarga harus berupa angka valid (8-16 digit).';
+					return false;
+				}
+			} else if (cleanHp) {
+				if (!/^\d{8,16}$/.test(cleanHp)) {
+					errors.anggota = `Nomor HP anggota ke-${i + 1} (${a.namaLengkap || a.statusHubungan}) tidak valid (harus 8-16 digit angka).`;
+					return false;
+				}
+			}
 		}
 		return true;
 	}
@@ -111,7 +131,8 @@
 			nik: '',
 			statusHubungan: 'Anak',
 			tanggalLahir: '',
-			jenisKelamin: 'L'
+			jenisKelamin: 'L',
+			noTelepon: ''
 		});
 	}
 
@@ -327,6 +348,25 @@
 									class="bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 								/>
 							</div>
+
+							<div>
+								<label for={`hp-${idx}`} class="block text-sm font-semibold text-foreground/80 mb-1.5">
+									No. HP / WhatsApp {idx === 0 || anggota.statusHubungan === 'Kepala Keluarga' ? '*' : '(Opsional)'}
+								</label>
+								<input
+									id={`hp-${idx}`}
+									type="tel"
+									inputmode="numeric"
+									pattern="[0-9]*"
+									required={idx === 0 || anggota.statusHubungan === 'Kepala Keluarga'}
+									placeholder="0812xxxxxxxx"
+									bind:value={anggota.noTelepon}
+									oninput={(e) => {
+										anggota.noTelepon = e.currentTarget.value.replace(/\D/g, '');
+									}}
+									class="w-full bg-background border border-border rounded-lg px-3.5 py-2.5 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+								/>
+							</div>
 						</div>
 					{/each}
 				</div>
@@ -355,6 +395,7 @@
 								<div class="flex items-center gap-1.5 mt-0.5">
 									<span class="text-[10px] text-primary font-semibold">{a.statusHubungan}</span>
 									<span class="text-[11px] text-foreground/60 font-mono">• NIK: {a.nik || 'Belum diisi'}</span>
+									<span class="text-[11px] text-foreground/60 font-mono">• HP: {a.noTelepon || '-'}</span>
 								</div>
 							</div>
 							<span class="text-[10px] bg-secondary px-2 py-0.5 rounded text-foreground/70">

@@ -1,14 +1,14 @@
 /**
  * @file src/routes/(app)/sensus/tambah/+page.server.ts
- * @purpose Form action pendaftaran sensus KK/anggota keluarga dengan enkripsi AES-256-GCM; mengarahkan ke KK sendiri jika user sudah terdaftar
+ * @purpose Form action pendaftaran sensus KK/anggota keluarga dengan enkripsi AES-256-GCM, validasi noTelepon numerik (wajib untuk kepala keluarga yang memiliki akun, opsional untuk anggota lain)
  * @usedBy Wizard form sensus pada src/routes/(app)/sensus/tambah/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/sensus (getKeluargaForUser), src/lib/utils (normalizeDateToISO), src/lib/generus, drizzle-orm
  * @publicFunctions load, actions.default
- * @sideEffects Menulis record terenkripsi ke tabel keluarga dan anggota_keluarga dalam satu transaksi SQLite atomik
+ * @sideEffects Menulis record terenkripsi ke tabel keluarga, anggota_keluarga, dan sinkronisasi users.no_telepon dalam satu transaksi SQLite atomik
  */
 
 import { db } from "$lib/db";
-import { anggotaKeluarga, keluarga } from "$lib/db/schema";
+import { anggotaKeluarga, keluarga, users } from "$lib/db/schema";
 import { encryptSensitive } from "$lib/server/crypto";
 import { getKeluargaForUser } from "$lib/server/sensus";
 import { normalizeDateToISO } from "$lib/utils";
@@ -62,6 +62,7 @@ export const actions: Actions = {
       statusHubungan: string;
       tanggalLahir: string;
       jenisKelamin: string;
+      noTelepon?: string;
     }> = [];
 
     try {
@@ -101,6 +102,34 @@ export const actions: Actions = {
           noKk,
           alamatLengkap,
         });
+      }
+
+      const isKepala = a.statusHubungan === "Kepala Keluarga" || i === 0;
+      const cleanHp = a.noTelepon ? a.noTelepon.trim().replace(/\D/g, "") : "";
+
+      if (isKepala) {
+        if (!cleanHp) {
+          return fail(400, {
+            error: "Nomor HP Kepala Keluarga (pemilik akun) wajib diisi.",
+            noKk,
+            alamatLengkap,
+          });
+        }
+        if (!/^\d{8,16}$/.test(cleanHp)) {
+          return fail(400, {
+            error: "Nomor HP Kepala Keluarga harus berupa angka valid (8-16 digit).",
+            noKk,
+            alamatLengkap,
+          });
+        }
+      } else if (cleanHp) {
+        if (!/^\d{8,16}$/.test(cleanHp)) {
+          return fail(400, {
+            error: `Nomor HP anggota ke-${i + 1} (${a.namaLengkap || a.statusHubungan}) tidak valid (harus 8-16 digit angka).`,
+            noKk,
+            alamatLengkap,
+          });
+        }
       }
     }
 
@@ -152,27 +181,38 @@ export const actions: Actions = {
           }
         }
 
-        for (const a of anggotaList) {
+        for (let i = 0; i < anggotaList.length; i++) {
+          const a = anggotaList[i];
+          const isKepala = a.statusHubungan === "Kepala Keluarga" || i === 0;
+          const cleanHp = a.noTelepon ? a.noTelepon.trim().replace(/\D/g, "") : null;
           const nikVal = a.nik ? a.nik.trim() : "";
           const isoTgl = normalizeDateToISO(a.tanggalLahir);
           const statusPernikahan = resolveStatusPernikahan(a.statusHubungan);
           const umur = isoTgl ? hitungUmur(isoTgl) : 0;
           const statusGenerus = isoTgl ? hitungStatusGenerus(umur, statusPernikahan) : null;
 
+          if (isKepala && cleanHp && locals.user?.id) {
+            tx.update(users)
+              .set({ noTelepon: cleanHp })
+              .where(eq(users.id, locals.user.id))
+              .run();
+          }
+
           tx.insert(anggotaKeluarga)
             .values({
               keluargaId: targetKeluargaId,
-              userId: a.statusHubungan === "Kepala Keluarga" ? locals.user?.id : null,
+              userId: isKepala ? locals.user?.id : null,
               namaLengkap:
                 a.namaLengkap?.trim() || locals.user?.namaLengkap || "Anggota",
               nikEncrypted: nikVal ? encryptSensitive(nikVal) : null,
               statusHubungan: a.statusHubungan,
               tanggalLahir: isoTgl,
               jenisKelamin: a.jenisKelamin,
+              noTelepon: cleanHp || null,
               statusPernikahan,
               statusGenerus,
               statusJamaah: "Aktif",
-              isrun: a.statusHubungan === "Kepala Keluarga" ? "Ya" : "Tidak"
+              isrun: isKepala ? "Ya" : "Tidak"
             })
             .run();
         }

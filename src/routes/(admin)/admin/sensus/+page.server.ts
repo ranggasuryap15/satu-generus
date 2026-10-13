@@ -1,10 +1,10 @@
 /**
  * @file src/routes/(admin)/admin/sensus/+page.server.ts
- * @purpose Rekapitulasi sensus KK & Mandiri, metrik dashboard, penugasan dapukan pengurus KK, validasi integritas keunikan Kyai (maksimal 1 per lingkup), resolusi effectiveUserId & default isrun Kepala Keluarga, serta form actions sensus
+ * @purpose Rekapitulasi sensus KK & Mandiri, metrik dashboard, penugasan dapukan pengurus KK, validasi integritas keunikan Kyai (maksimal 1 per lingkup), sinkronisasi noTelepon (wajib jika punya akun, opsional jika tidak), resolusi effectiveUserId & default isrun Kepala Keluarga, serta form actions sensus
  * @usedBy src/routes/(admin)/admin/sensus/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/auth, src/lib/server/scope, src/lib/utils (normalizeDateToISO), src/lib/generus (hitungUmur, hitungStatusGenerus, isStatusHubunganMenikah, resolveStatusPernikahan, isStatusGenerusBelumMenikah), drizzle-orm
  * @publicFunctions load, actions.createSensus, actions.addAnggotaKeluarga, actions.updateAnggota, actions.updateKeluarga, actions.deleteSensus, actions.pindahKelompok, actions.toggleStatusJamaah, actions.createMemberAccount, actions.assignDapukan
- * @sideEffects Transaksi penulisan database tabel users, keluarga, anggota_keluarga, user_dapukan; query join multi-tabel terindeks; sinkronisasi user_id & default isrun Kepala Keluarga
+ * @sideEffects Transaksi penulisan database tabel users, keluarga, anggota_keluarga, user_dapukan; query join multi-tabel terindeks; sinkronisasi user_id, no_telepon & default isrun Kepala Keluarga
  */
 
 import { fail, redirect } from '@sveltejs/kit';
@@ -38,6 +38,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 				kepalaKeluargaId: keluarga.kepalaKeluargaId,
 				kepalaKeluargaNama: users.namaLengkap,
 				kepalaKeluargaEmail: users.email,
+				kepalaKeluargaNoTelepon: users.noTelepon,
 				kelompokId: users.kelompokId,
 				kelompokNama: kelompok.nama,
 				desaId: desa.id,
@@ -72,6 +73,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 				userId: anggotaKeluarga.userId,
 				userEmail: users.email,
 				userNama: users.namaLengkap,
+				userNoTelepon: users.noTelepon,
 				namaLengkap: anggotaKeluarga.namaLengkap,
 				nikEncrypted: anggotaKeluarga.nikEncrypted,
 				statusHubungan: anggotaKeluarga.statusHubungan,
@@ -174,7 +176,13 @@ export const load: PageServerLoad = async ({ locals }) => {
 				const umur = a.tanggalLahir ? hitungUmur(a.tanggalLahir) : 0;
 				const statusGenerusResolved = a.statusGenerus || (a.tanggalLahir ? hitungStatusGenerus(umur, statusPernikahanResolved || 'Belum Menikah') : null);
 
-				return {
+					const effectiveNoTelepon =
+						a.noTelepon ||
+						(a.userId ? a.userNoTelepon : null) ||
+						(a.statusHubungan === 'Kepala Keluarga' ? k.kepalaKeluargaNoTelepon : null) ||
+						'';
+
+					return {
 					id: a.id,
 					userId: effectiveUserId,
 					userEmail: effectiveUserEmail || null,
@@ -190,8 +198,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 					tempatLahirRaw: a.tempatLahir || '',
 					profesi: a.profesi || '-',
 					profesiRaw: a.profesi || '',
-					noTelepon: a.noTelepon || '-',
-					noTeleponRaw: a.noTelepon || '',
+					noTelepon: effectiveNoTelepon || '-',
+					noTeleponRaw: effectiveNoTelepon,
 					statusGenerus: statusGenerusResolved || '-',
 					statusGenerusRaw: statusGenerusResolved || '',
 					statusPernikahan: statusPernikahanResolved || '-',
@@ -369,6 +377,7 @@ export const actions: Actions = {
 		const formData = await request.formData();
 		const namaLengkap = formData.get('namaLengkap')?.toString()?.trim() || '';
 		const email = formData.get('email')?.toString()?.trim()?.toLowerCase() || '';
+		const noTelepon = formData.get('noTelepon')?.toString()?.trim() || '';
 		const kelompokIdStr = formData.get('kelompokId')?.toString()?.trim() || '';
 		const noKk = formData.get('noKk')?.toString()?.trim() || '';
 		const alamatLengkap = formData.get('alamatLengkap')?.toString()?.trim() || '';
@@ -380,6 +389,19 @@ export const actions: Actions = {
 		if (!namaLengkap || !email || isNaN(kelompokId)) {
 			return fail(400, {
 				error: 'Nama lengkap, email, dan kelompok basis wajib diisi.'
+			});
+		}
+
+		// Validasi No Telepon Wajib untuk Akun
+		const cleanNoTelepon = noTelepon.replace(/\D/g, '');
+		if (!cleanNoTelepon) {
+			return fail(400, {
+				error: 'Nomor HP/WhatsApp wajib diisi untuk pendaftaran akun jamaah.'
+			});
+		}
+		if (!/^\d{8,16}$/.test(cleanNoTelepon)) {
+			return fail(400, {
+				error: 'Nomor HP harus berupa angka valid (8-16 digit).'
 			});
 		}
 
@@ -412,6 +434,7 @@ export const actions: Actions = {
 			jenisKelamin: string;
 			statusPernikahan?: string;
 			statusGenerus?: string;
+			noTelepon?: string;
 		}> = [];
 
 		if (!isMandiri) {
@@ -434,6 +457,14 @@ export const actions: Actions = {
 					return fail(400, {
 						error: `Data anggota ke-${i + 1} belum lengkap (Status, Tanggal Lahir, dan Jenis Kelamin wajib diisi).`
 					});
+				}
+				if (a.noTelepon && a.noTelepon.trim()) {
+					const cleanAnggotaHp = a.noTelepon.trim().replace(/\D/g, '');
+					if (!/^\d{8,16}$/.test(cleanAnggotaHp)) {
+						return fail(400, {
+							error: `Nomor HP anggota ke-${i + 1} (${a.namaLengkap || a.statusHubungan}) tidak valid (harus 8-16 digit angka).`
+						});
+					}
 				}
 			}
 		} else {
@@ -462,7 +493,8 @@ export const actions: Actions = {
 					tanggalLahir: tanggalLahirMandiri,
 					jenisKelamin: jenisKelaminMandiri,
 					statusPernikahan: statusPernikahanMandiri,
-					statusGenerus: statusGenerusMandiri
+					statusGenerus: statusGenerusMandiri,
+					noTelepon: cleanNoTelepon
 				}
 			];
 		}
@@ -479,6 +511,7 @@ export const actions: Actions = {
 					.values({
 						namaLengkap,
 						email,
+						noTelepon: cleanNoTelepon,
 						passwordHash: defaultHash,
 						kelompokId
 					})
@@ -508,6 +541,9 @@ export const actions: Actions = {
 					const umur = isoTgl ? hitungUmur(isoTgl) : 0;
 					const calculatedGenerus = isoTgl ? hitungStatusGenerus(umur, memberPernikahan) : null;
 					const memberGenerus = (a as any).statusGenerus || calculatedGenerus;
+					const memberHp = isKepala
+						? cleanNoTelepon
+						: (a.noTelepon && a.noTelepon.trim() ? a.noTelepon.trim().replace(/\D/g, '') : null);
 
 					tx.insert(anggotaKeluarga)
 						.values({
@@ -521,6 +557,7 @@ export const actions: Actions = {
 							jenisKelamin: a.jenisKelamin,
 							statusPernikahan: memberPernikahan,
 							statusGenerus: memberGenerus || null,
+							noTelepon: memberHp,
 							statusJamaah: 'Aktif',
 							isrun: (!isMandiri && a.statusHubungan === 'Kepala Keluarga') ? 'Ya' : ((a as any).isrun || 'Tidak')
 						})
@@ -561,6 +598,7 @@ export const actions: Actions = {
 		const statusHubungan = formData.get('statusHubungan')?.toString()?.trim() || '';
 		const tanggalLahir = formData.get('tanggalLahir')?.toString()?.trim() || '';
 		const jenisKelamin = formData.get('jenisKelamin')?.toString()?.trim() || '';
+		const noTelepon = formData.get('noTelepon')?.toString()?.trim() || '';
 
 		if (!keluargaId) {
 			return fail(400, { error: 'ID Kartu Keluarga tidak valid.' });
@@ -600,6 +638,14 @@ export const actions: Actions = {
 			return fail(400, { error: 'Status hubungan, tanggal lahir, dan jenis kelamin wajib diisi.' });
 		}
 
+		let cleanNoTelepon: string | null = null;
+		if (noTelepon) {
+			cleanNoTelepon = noTelepon.replace(/\D/g, '');
+			if (!/^\d{8,16}$/.test(cleanNoTelepon)) {
+				return fail(400, { error: 'Nomor HP harus berupa angka valid (8-16 digit).' });
+			}
+		}
+
 		try {
 			const cleanNik = nik ? nik.trim().replace(/\D/g, '') : '';
 			const tempatLahir = formData.get('tempatLahir')?.toString()?.trim() || '';
@@ -625,6 +671,7 @@ export const actions: Actions = {
 					tanggalLahir: isoTgl,
 					jenisKelamin,
 					tempatLahir: tempatLahir || null,
+					noTelepon: cleanNoTelepon,
 					statusPernikahan: resolvedPernikahan,
 					statusGenerus: resolvedGenerus,
 					statusJamaah: 'Aktif',
@@ -658,8 +705,12 @@ export const actions: Actions = {
 		if (!password || password.length < 6) {
 			return fail(400, { errorAccount: 'Kata sandi akun minimal 6 karakter.' });
 		}
-		if (!email && !noTelepon) {
-			return fail(400, { errorAccount: 'Minimal isi Email atau Nomor HP untuk kredensial login.' });
+		const cleanNoTelepon = noTelepon.replace(/\D/g, '');
+		if (!cleanNoTelepon) {
+			return fail(400, { errorAccount: 'Nomor HP/WhatsApp wajib diisi untuk pembuatan akun anggota.' });
+		}
+		if (!/^\d{8,16}$/.test(cleanNoTelepon)) {
+			return fail(400, { errorAccount: 'Nomor HP harus berupa angka valid (8-16 digit).' });
 		}
 
 		const targetAnggota = db
@@ -708,7 +759,7 @@ export const actions: Actions = {
 						kelompokId,
 						namaLengkap: targetAnggota.namaLengkap || 'Jamaah',
 						email: email ? email.toLowerCase() : null,
-						noTelepon: noTelepon || targetAnggota.noTelepon || null,
+						noTelepon: cleanNoTelepon,
 						passwordHash
 					})
 					.returning()
@@ -717,7 +768,7 @@ export const actions: Actions = {
 				tx.update(anggotaKeluarga)
 					.set({
 						userId: newUser.id,
-						noTelepon: noTelepon || targetAnggota.noTelepon
+						noTelepon: cleanNoTelepon
 					})
 					.where(eq(anggotaKeluarga.id, anggotaId))
 					.run();
@@ -801,6 +852,24 @@ export const actions: Actions = {
 			});
 		}
 
+		const hasAccount =
+			!!existingAnggota.userId ||
+			(existingAnggota.statusHubungan === 'Kepala Keluarga' && !!parentKeluarga?.kepalaKeluargaId);
+		const cleanNoTelepon = noTelepon ? noTelepon.replace(/\D/g, '') : '';
+
+		if (hasAccount) {
+			if (!cleanNoTelepon) {
+				return fail(400, { error: 'Nomor HP wajib diisi karena anggota ini memiliki akun login.' });
+			}
+			if (!/^\d{8,16}$/.test(cleanNoTelepon)) {
+				return fail(400, { error: 'Nomor HP harus berupa angka valid (8-16 digit).' });
+			}
+		} else if (cleanNoTelepon) {
+			if (!/^\d{8,16}$/.test(cleanNoTelepon)) {
+				return fail(400, { error: 'Nomor HP harus berupa angka valid (8-16 digit).' });
+			}
+		}
+
 		const cleanNik = nik ? nik.trim().replace(/\D/g, '') : '';
 
 		try {
@@ -821,7 +890,7 @@ export const actions: Actions = {
 				jenisKelamin,
 				tempatLahir: tempatLahir || null,
 				profesi: profesi || null,
-				noTelepon: noTelepon || null,
+				noTelepon: cleanNoTelepon || null,
 				statusGenerus: resolvedGenerus || null,
 				statusPernikahan: resolvedPernikahan,
 				statusJamaah: statusJamaah === 'Aktif' ? 'Aktif' : 'Tidak Aktif',
@@ -842,7 +911,7 @@ export const actions: Actions = {
 				db.update(users)
 					.set({
 						namaLengkap,
-						noTelepon: noTelepon || null
+						noTelepon: cleanNoTelepon || null
 					})
 					.where(eq(users.id, existingAnggota.userId))
 					.run();
@@ -854,7 +923,7 @@ export const actions: Actions = {
 				db.update(users)
 					.set({
 						namaLengkap,
-						noTelepon: noTelepon || null
+						noTelepon: cleanNoTelepon || null
 					})
 					.where(eq(users.id, parentKeluarga.kepalaKeluargaId))
 					.run();
