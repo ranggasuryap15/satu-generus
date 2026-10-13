@@ -545,10 +545,10 @@
 											addPosNama = '';
 											showAddPosModal = true;
 										}}
-										class="px-2 py-0.5 rounded-md border border-border/80 bg-card hover:bg-secondary text-[11px] font-semibold text-primary flex items-center gap-1 transition-colors"
+										class="px-2.5 py-1 rounded-md border border-border/80 bg-card hover:bg-secondary text-[11px] font-semibold text-primary flex items-center gap-1 transition-colors shadow-2xs"
 									>
-										<Plus class="w-3 h-3" />
-										+ Tambah Uraian
+										<Plus class="w-3.5 h-3.5" />
+										<span>Tambah Uraian</span>
 									</button>
 								</td>
 								<td class="py-2.5 px-3 text-center border-l border-border"></td>
@@ -558,22 +558,8 @@
 							{#if cat.subPos.length === 0}
 								<tr class="border-b border-border/60 text-foreground/40 italic">
 									<td class="py-2.5 px-3 text-center border-r border-border">-</td>
-									<td class="py-2.5 px-4 border-r border-border" colspan="3">
-										<div class="flex items-center justify-between">
-											<span>Belum ada uraian di kategori ini.</span>
-											<button
-												type="button"
-												onclick={() => {
-													addPosParentId = cat.id;
-													addPosParentName = cat.nama;
-													addPosNama = '';
-													showAddPosModal = true;
-												}}
-												class="text-primary hover:underline font-semibold not-italic text-[11px]"
-											>
-												+ Tambah Uraian Pertama
-											</button>
-										</div>
+									<td class="py-2.5 px-4 border-r border-border text-[11px]" colspan="3">
+										Belum ada uraian di kategori ini.
 									</td>
 									<td class="py-2.5 px-3 text-center"></td>
 								</tr>
