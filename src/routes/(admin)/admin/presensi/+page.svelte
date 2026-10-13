@@ -1,9 +1,9 @@
 <!--
   @file src/routes/(admin)/admin/presensi/+page.svelte
-  @purpose Halaman rekapitulasi jadwal pengajian dan pembuat jadwal baru bagi admin dengan pagination tabel/kartu data, pemilihan lokasi interaktif serta scroll retention
+  @purpose Halaman rekapitulasi jadwal pengajian dan pembuat jadwal baru bagi admin dengan auto-fill lokasi default saat memilih kelompok (dapat diubah manual), pagination tabel/kartu data, pemilihan lokasi interaktif serta scroll retention
   @usedBy Route admin '/admin/presensi'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/components/LocationPicker.svelte, $lib/components/Pagination.svelte, $lib/utils (formatDateDDMMYYYY), $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
-  @publicFunctions openAddModal, closeAddModal, resetAddForm, isAddFormDirty
+  @publicFunctions openAddModal, closeAddModal, resetAddForm, isAddFormDirty, applyKelompokLocation
   @sideEffects Menampilkan data jadwal dan mengirim form pembuatan jadwal ke server via enhance dengan retensi scroll
 -->
 <script lang="ts">
@@ -30,6 +30,7 @@
 	let newLongitude = $state('');
 	let newRadiusMeter = $state(100);
 	let newGmapsUrl = $state('');
+	let lastAutoFilledKelompokId = $state<string | number>('');
 
 	const kelompokOptions = $derived(
 		(data.kelompokList || []).map((k: (typeof data.kelompokList)[number]) => ({
@@ -37,6 +38,31 @@
 			label: k.nama
 		}))
 	);
+
+	function applyKelompokLocation(kId: string | number) {
+		if (!kId) return;
+		const targetKelompok = (data.kelompokList || []).find(
+			(k: (typeof data.kelompokList)[number]) => k.id === Number(kId)
+		);
+		if (targetKelompok) {
+			newLokasiNama = targetKelompok.lokasiNama || targetKelompok.nama || '';
+			newLatitude = targetKelompok.latitude || '';
+			newLongitude = targetKelompok.longitude || '';
+			newRadiusMeter = targetKelompok.radiusMeter || 100;
+			newGmapsUrl =
+				targetKelompok.gmapsUrl ||
+				(targetKelompok.latitude && targetKelompok.longitude
+					? `https://www.google.com/maps?q=${targetKelompok.latitude},${targetKelompok.longitude}`
+					: '');
+		}
+	}
+
+	$effect(() => {
+		if (selectedKelompokId && selectedKelompokId !== lastAutoFilledKelompokId) {
+			lastAutoFilledKelompokId = selectedKelompokId;
+			applyKelompokLocation(selectedKelompokId);
+		}
+	});
 
 	function isAddFormDirty() {
 		return (
@@ -53,6 +79,7 @@
 		newNamaKegiatan = '';
 		newTanggal = '';
 		selectedKelompokId = '';
+		lastAutoFilledKelompokId = '';
 		newLokasiNama = '';
 		newLatitude = '';
 		newLongitude = '';
@@ -61,6 +88,9 @@
 	}
 
 	function openAddModal() {
+		if (data.kelompokList && data.kelompokList.length === 1 && !selectedKelompokId) {
+			selectedKelompokId = data.kelompokList[0].id;
+		}
 		showAddModal = true;
 	}
 
@@ -361,6 +391,7 @@
 							name="kelompokId"
 							options={kelompokOptions}
 							bind:value={selectedKelompokId}
+							onchange={(val) => applyKelompokLocation(val)}
 							required
 							placeholder="-- Pilih Kelompok --"
 							searchPlaceholder="Cari nama kelompok..."

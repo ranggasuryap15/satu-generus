@@ -1,10 +1,10 @@
 /**
  * @file src/routes/(admin)/admin/presensi/+page.server.ts
- * @purpose Memuat seluruh jadwal pengajian dengan urutan tanggal terdekat paling atas dan menangani aksi pembuatan jadwal kegiatan baru bagi admin dengan pembatasan wewenang scope wilayah
+ * @purpose Memuat seluruh jadwal pengajian dengan urutan tanggal terdekat paling atas dan menangani aksi pembuatan jadwal kegiatan baru bagi admin dengan pembatasan wewenang scope wilayah serta pewarisan lokasi default kelompok
  * @usedBy src/routes/(admin)/admin/presensi/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, src/lib/utils (normalizeDateToISO), drizzle-orm
  * @publicFunctions load, actions.createJadwal
- * @sideEffects Query jadwal (diurutkan tanggal terdekat) & rekap kehadiran sesuai scope, insert jadwal pengajian baru ke SQLite
+ * @sideEffects Query jadwal (diurutkan tanggal terdekat) & rekap kehadiran sesuai scope, insert jadwal pengajian baru ke SQLite dengan pewarisan lokasi kelompok
  */
 
 import { fail, redirect } from '@sveltejs/kit';
@@ -144,17 +144,41 @@ export const actions: Actions = {
 			});
 		}
 
+		let finalLokasiNama = lokasiNama;
+		let finalLatitude = latitude;
+		let finalLongitude = longitude;
+		let finalRadiusMeter = radiusMeter;
+		let finalGmapsUrl = gmapsUrl;
+
+		// Jika lokasi belum diisi manual, gunakan lokasi default kelompok
+		if (!finalLokasiNama || !finalLatitude || !finalLongitude || !finalGmapsUrl) {
+			const targetKelompok = db.select().from(kelompok).where(eq(kelompok.id, kelompokId)).get();
+			if (targetKelompok) {
+				if (!finalLokasiNama) finalLokasiNama = targetKelompok.lokasiNama || targetKelompok.nama;
+				if (!finalLatitude) finalLatitude = targetKelompok.latitude;
+				if (!finalLongitude) finalLongitude = targetKelompok.longitude;
+				if (targetKelompok.radiusMeter) finalRadiusMeter = targetKelompok.radiusMeter;
+				if (!finalGmapsUrl) {
+					finalGmapsUrl =
+						targetKelompok.gmapsUrl ||
+						(targetKelompok.latitude && targetKelompok.longitude
+							? `https://www.google.com/maps?q=${targetKelompok.latitude},${targetKelompok.longitude}`
+							: null);
+				}
+			}
+		}
+
 		try {
 			db.insert(presensiJadwal)
 				.values({
 					kelompokId,
 					tanggal: normalizeDateToISO(tanggal),
 					namaKegiatan,
-					lokasiNama,
-					latitude,
-					longitude,
-					radiusMeter,
-					gmapsUrl
+					lokasiNama: finalLokasiNama,
+					latitude: finalLatitude,
+					longitude: finalLongitude,
+					radiusMeter: finalRadiusMeter,
+					gmapsUrl: finalGmapsUrl
 				})
 				.run();
 		} catch (error) {
