@@ -11,13 +11,14 @@
 
 ## 1. Prinsip Desain Utama
 
+- **"Show, Don't Tell" (Visual-First):** Hindari paragraf panjang, penjelasan teknis, atau kalimat bertele-tele di antarmuka pengguna. Jika sebuah informasi (seperti validasi lokasi atau status data) bisa diwakili oleh warna, ikon, atau _badge_, gunakan itu.
 - **Client-Facing (Mobile-First):** UI/UX untuk _client_ difokuskan pada ukuran layar _smartphone_. Aksesibilitas menggunakan zona jempol (_thumb zone_).
 - **Admin-Facing (Desktop-First):** UI/UX untuk admin difokuskan pada visualisasi data luas, tabel, dan analitik di layar besar.
-- **Minimalis & High Legibility:** Penggunaan _whitespace_ yang longgar. Tidak ada elemen dekoratif yang tidak memiliki fungsi.
+- **Minimalis & High Legibility:** Penggunaan _whitespace_ yang longgar. Tidak ada elemen dekoratif yang tidak memiliki fungsi. Arahkan mata pengguna ke aksi utama menggunakan warna dan kontras, bukan teks.
 - **Responsive Navigation:** Seluruh aplikasi menggunakan **Bottom Navbar** saat diakses via _mobile_ (layar < 768px) dan otomatis berubah menjadi **Sidebar** saat diakses via desktop/tablet (layar >= 768px).
 - **Single Source of Truth:** Tidak ada duplikasi fitur. Misalnya, detail profil dan form edit disatukan dalam satu layar dengan mode _toggle_, menghindari penumpukan tumpukan navigasi (_navigation stack_).
-- **Dropdown Search:** Pada bagian dropdown yang berpotensi akan banyak data, seperti Daerah, Desa, Kelompok, maka buatkan Dropdown Search untuk memudahkan pencarian
-- **Format Tanggal Baku (DD-MM-YYYY):** Seluruh hal yang berkaitan dengan tanggal pada UI (tabel, kartu ringkasan, rincian sensus, tanggal lahir, jadwal presensi, serta seluruh formulir input tanggal) **wajib disajikan dan diinput dalam format DD-MM-YYYY** (contoh: `10-10-2026`). Seluruh input form tanggal wajib menggunakan komponen terstandarisasi `DateInput` (`src/lib/components/DateInput.svelte`) yang mendukung auto-masking pengetikan dan pemilih kalender visual. Penyimpanan database SQLite dinormalisasi secara terpusat ke standar ISO `YYYY-MM-DD` via helper `normalizeDateToISO()`, dan diformat kembali ke UI via `formatDateDDMMYYYY()` di `src/lib/utils.ts`.
+- **Dropdown Search:** Pada bagian dropdown yang berpotensi akan banyak data, seperti Daerah, Desa, Kelompok, maka buatkan Dropdown Search untuk memudahkan pencarian.
+- **Format Tanggal Baku (DD-MM-YYYY):** Seluruh hal yang berkaitan dengan tanggal pada UI (tabel, kartu ringkasan, rincian sensus, tanggal lahir, jadwal presensi, serta seluruh formulir input tanggal) **wajib disajikan dan diinput dalam format DD-MM-YYYY** (contoh: `10-10-2026`). Seluruh input form tanggal wajib menggunakan komponen terstandarisasi `DateInput` (`src/lib/components/DateInput.svelte`) yang mendukung auto-masking pengetikan dan pemilih kalender visual. Penyimpanan database SQLite dinormalisasi secara terpusat ke standar ISO `YYYY-MM-DD`.
 
 ## 2. Design Tokens
 
@@ -25,10 +26,9 @@
 
 - **Font Family:** `Poppins`, _sans-serif_. Dipilih karena bentuknya geometris, bulat, bersahabat, dan nyaman di mata.
 - **Skala Ukuran Responsif (Mobile-First vs Desktop):**
-  Untuk mencegah teks terasa kerdil di smartphone, menghindari bug *auto-zoom* pada iOS Safari (< 16px pada form input), serta memastikan kenyamanan baca optimal (*high legibility*):
-
+  Untuk mencegah teks terasa kerdil di smartphone, menghindari bug _auto-zoom_ pada iOS Safari (< 16px pada form input), serta memastikan kenyamanan baca optimal (_high legibility_):
   | Hierarki | Mobile (< 768px) | Desktop (>= 768px) | Penggunaan & Keterangan |
-  | :--- | :--- | :--- | :--- |
+  | :--------------------------------------- | :------------------------------------------------------------------ | :-------------------------------------------------------- | :------------------------------------------------------------ |
   | **H1 (Judul Halaman)** | `22px – 24px` (SemiBold 600 / Bold 700) | `28px – 32px` (Bold 700) | Header utama halaman aplikasi |
   | **H2 (Judul Kartu / Modal)** | `18px – 20px` (SemiBold 600) | `20px – 22px` (SemiBold 600) | Header kartu utama, judul modal pop-up |
   | **H3 (Sub-judul / Label Utama)** | `15px – 16px` (SemiBold 600) | `14px – 15px` (SemiBold 600) | Label form input, sub-header section |
@@ -36,77 +36,32 @@
   | **Body Small / Sub-text** | `14px` (Regular 400, Line-height 1.5) | `13px` (Regular 400, Line-height 1.5) | Teks pendukung, deskripsi, sublabel list |
   | **Caption / Badge / Helper** | `12px – 13px` (Medium 500) | `12px` (Regular 400 / Medium 500) | Badge status, tooltip, catatan bantuan (hindari < 12px di HP) |
 
-### B. Palet Warna & Mode Tema (Cool Midnight Slate & Vibrant Jade)
+### B. Semantik Warna & Palet (Cool Midnight Slate & Vibrant Jade)
 
-Sistem wajib mendeteksi preferensi tema perangkat (_system default_) dengan opsi _toggle_ manual.
-
-Menghindari abu-abu kusam flat (`#1F2937`) atau hitam pekat mati (`#000000`) yang merusak vibransi warna hijau. Menggunakan basis **Cool Midnight / Slate-Obsidian** (hitam dengan sedikit undertone slate/teal dingin 2–3%) untuk background serta **Vibrant Jade / Mid Emerald (500–600)** agar visual tetap segar, berwibawa, dan estetik di kedua mode.
+Warna digunakan sebagai alat komunikasi utama untuk status, meminimalisir penggunaan teks penjelas. Sistem wajib mendeteksi preferensi tema perangkat dengan opsi _toggle_ manual.
 
 #### 1. Rekomendasi Surface & Background (Midnight Slate)
 
-| Tipe Elemen                         | Mode Terang (Light) | Mode Gelap (Dark - Midnight Slate) | Karakteristik & Fungsi                                                                  |
-| :---------------------------------- | :------------------ | :--------------------------------- | :-------------------------------------------------------------------------------------- |
-| **Main Background / Canvas**        | `#F8FAFC`           | `#0B0F19`                          | Hitam slate dingin modern. Ramah di mata dan membuat aksen hijau terasa*pop-up*.        |
-| **Card / Container Level 1**        | `#FFFFFF`           | `#121826`                          | Warna card utama. Memberikan efek kedalaman/elevasi yang bersih dan mewah.              |
-| **Surface Level 2 / Input / Table** | `#F1F5F9`           | `#1A2338`                          | Background input form, dropdown select, baris tabel, atau hover card.                   |
-| **Border / Divider**                | `#E2E8F0`           | `#26324D`                          | Halus dan tidak kasar, memisahkan konten dengan rapi tanpa garis tegas yang mengganggu. |
+Menghindari abu-abu kusam flat (`#1F2937`) atau hitam pekat mati (`#000000`). Menggunakan basis Hitam Slate Dingin.
 
-#### 2. Warna Utama: Hijau Brand Identity (Vibrant Jade / Mid Emerald)
+| Tipe Elemen                         | Mode Terang (Light) | Mode Gelap (Dark) | Karakteristik & Fungsi                                                                  |
+| :---------------------------------- | :------------------ | :---------------- | :-------------------------------------------------------------------------------------- |
+| **Main Background / Canvas**        | `#F8FAFC`           | `#0B0F19`         | Hitam slate modern. Ramah di mata dan membuat aksen warna terasa*pop-up*.               |
+| **Card / Container Level 1**        | `#FFFFFF`           | `#121826`         | Warna card utama. Memberikan efek kedalaman/elevasi yang bersih dan mewah.              |
+| **Surface Level 2 / Input / Table** | `#F1F5F9`           | `#1A2338`         | Background input form, dropdown select, baris tabel, atau hover card.                   |
+| **Border / Divider**                | `#E2E8F0`           | `#26324D`         | Halus dan tidak kasar, memisahkan konten dengan rapi tanpa garis tegas yang mengganggu. |
 
-Menjaga keseimbangan antara wibawa di mode terang dan vibransi segar di mode gelap tanpa menyilaukan:
+#### 2. Warna Aksen & Indikator Status (Visual Feedback)
 
-- **Warna Universal (_Sweet-Spot_ Light & Dark):**
-  - `#05A875` (atau Tailwind **Emerald-500** `#10B981` / **Emerald-600** `#059669`).
-  - _Di mode terang:_ Cukup pekat untuk dibaca di atas putih, tetap berwibawa dan tidak pudar.
-  - _Di mode gelap:_ Bercahaya segar di atas background `#0B0F19` tanpa menusuk mata.
-- **Hierarki Shade Hijau:**
-  - **Brand Primary:** `#05A875` (Tombol utama, badge status sukses, icon aktif).
-  - **Brand Hover / Active:** `#04875E`.
-  - **Subtle Surface (Badge BG):**
-    - Mode Gelap: `rgba(5, 168, 117, 0.15)` (Badge hijau transparan).
-    - Mode Terang: `#E6F7F0`.
+Gantikan teks status yang panjang dengan warna yang merepresentasikan maknanya secara universal.
 
-#### 3. Warna Aksen & Status (Mid-Tone Seimbang)
-
-| Kegunaan / Status         | Hex Code  | Nama Shade     | Sifat di Mode Terang & Gelap                              |
-| :------------------------ | :-------- | :------------- | :-------------------------------------------------------- |
-| **Secondary / Teal**      | `#0D9488` | Teal Mid       | Menjembatani hijau dan biru untuk menu pendukung.         |
-| **Warning / Perhatian**   | `#F59E0B` | Warm Amber     | Emas/Kuning hangat, jelas untuk status pending / izin.    |
-| **Info / Jamaah Mandiri** | `#0284C7` | Ocean Blue     | Sejuk, kontras bagus di card hitam maupun putih.          |
-| **Danger / Ditolak**      | `#EF4444` | Soft Coral Red | Merah terang bersih untuk aksi destruktif & status tolak. |
-
-#### 4. Tipografi & Teks Kontras
-
-- **Mode Gelap:**
-  - Text Primary: `#F1F5F9` (Off-white, ramah di mata dibanding putih 100%).
-  - Text Muted / Subtitle: `#94A3B8` (Abu-abu keperakan elegan).
-- **Mode Terang:**
-  - Text Primary: `#0F172A` (Charcoal gelap tajam).
-  - Text Muted / Subtitle: `#64748B` (Slate abu-abu lembut).
-
-#### 5. Contoh Penerapan CSS Variables / Tailwind
-
-```css
-:root {
-  /* Brand Sweet Spot */
-  --color-primary: #059669;
-  --color-primary-hover: #047857;
-  --color-primary-light: #ecfdf5;
-}
-
-.dark {
-  /* Background Midnight Slate modern */
-  --bg-canvas: #0b0f19;
-  --bg-card: #121826;
-  --bg-elevated: #1a2338;
-  --border-muted: #26324d;
-
-  /* Primary lebih cerah 1 tingkat agar menyala di dark mode */
-  --color-primary: #10b981;
-  --color-primary-hover: #05a875;
-  --color-primary-light: rgba(16, 185, 129, 0.12);
-}
-```
+| Kegunaan / Status                    | Hex Code  | Nama Shade     | Penerapan "Show, Don't Tell"                                                                                         |
+| :----------------------------------- | :-------- | :------------- | :------------------------------------------------------------------------------------------------------------------- |
+| **Brand / Success (Valid/Berhasil)** | `#05A875` | Vibrant Jade   | Segala yang berjalan lancar (Lokasi GPS Valid, Data Tersimpan, Bukti Terverifikasi, Disetujui). Ikon centang/gembok. |
+| **Warning (Pending/Perhatian)**      | `#F59E0B` | Warm Amber     | Menunggu persetujuan, proses sedang berjalan, peringatan. Badge status "Pending", Ikon tanda seru.                   |
+| **Danger (Gagal/Ditolak/Error)**     | `#EF4444` | Soft Coral Red | Gagal presensi, di luar jangkauan, butuh perbaikan segera, data ditolak. Ikon silang.                                |
+| **Info / Jamaah Mandiri**            | `#0284C7` | Ocean Blue     | Informasi netral, panduan, atau label grup khusus.                                                                   |
+| **Neutral / Disabled**               | `#94A3B8` | Slate Muted    | Elemen yang belum bisa diakses, form*disabled*, informasi sekunder.                                                  |
 
 ## 3. Spesifikasi Tata Letak & Navigasi
 
@@ -122,7 +77,7 @@ Menjaga keseimbangan antara wibawa di mode terang dan vibransi segar di mode gel
 ### B. Pemisahan Tampilan Client vs Admin
 
 - **Tampilan Client (Aplikasi Utama):**
-  - Berorientasi pada _task_ (mengisi sensus, melihat jadwal, cek status, presensi, d).
+  - Berorientasi pada _task_ (mengisi sensus, melihat jadwal, cek status, presensi).
   - Menggunakan _Card Layout_ untuk menampilkan data (bukan tabel).
   - Input form menggunakan pendekatan _step-by-step_ (wizard) agar tidak mengintimidasi.
 - **Tampilan Admin (Dashboard):**
@@ -130,8 +85,16 @@ Menjaga keseimbangan antara wibawa di mode terang dan vibransi segar di mode gel
   - Menggunakan _Data Table_ yang mendukung _sorting_, _filtering_, dan _export/import_.
   - Memiliki halaman visualisasi _chart_ (grafik demografi).
 
-## 4. Standar Interaksi (UX)
+## 4. Standar Interaksi (UX) & Validasi Visual
 
+- **Validasi Visual (Ganti Teks dengan UI):**
+  - **DILARANG:** Menulis deskripsi teknis panjang. (Contoh Buruk: _"Lokasi kamu valid karena berada di jarak 45 meter, sedangkan batas toleransinya adalah 100 meter."_)
+  - **DIWAJIBKAN:** Gunakan indikator visual singkat. (Contoh Baik: Ikon _Checkmark_ hijau dengan teks **"Lokasi Sesuai"**).
+  - **Tabel/Data Display:** Ganti teks status panjang dengan _Pill/Badge_ berwarna (Kuning untuk "Pending", Hijau untuk "Disetujui"). Sembunyikan detail log waktu/admin di balik interaksi klik/hover.
+- **Feedback Sukses & Error (Toasts vs Alerts):**
+  - Setelah aksi CRUD (tambah/edit/hapus), gunakan _Toast notification_ (notifikasi kecil di sudut layar) yang menghilang dalam 3 detik (contoh: **"Data Tersimpan"**), daripada me-_redirect_ halaman atau memunculkan kotak _alert_ di tengah layar yang harus ditutup manual.
+  - Validasi error input form harus muncul secara _inline_ di bawah input teks secara _real-time_ (teks merah kecil + border merah), bukan melalui pop-up di akhir pengisian.
+- **Form & Input Guidance:** Jangan letakkan instruksi panjang di bawah form. Gunakan _placeholder_ yang jelas atau ikon _tooltip_ ( ℹ️ ) jika butuh penjelasan ekstra.
+- **Upload File:** Setelah gambar/file dipilih, cukup tampilkan _thumbnail_ gambar (_preview_) dengan border hijau tipis dan ikon centang. Tidak perlu teks "Gambar berhasil dipilih dan siap diunggah".
 - **Kondisi Data Kosong (Empty States):** Selalu tampilkan ilustrasi minimalis dengan satu baris teks penjelasan dan tombol _Call to Action_ (misal: "Belum ada data jamaah. [Tambah Data]").
-- **Validasi Form:** Error muncul secara _inline_ di bawah input teks secara _real-time_, bukan menggunakan _alert pop-up_ di akhir.
-- **Modal Eksekusi:** Aksi Hapus, Simpan Final, atau _Log Out_ menggunakan modal di tengah layar untuk kedua _device_ (Mobile/Desktop) dengan latar belakang di-blur tipis.
+- **Modal Konfirmasi Destruktif:** Aksi Hapus, Simpan Final, atau _Log Out_ menggunakan modal di tengah layar untuk kedua _device_ (Mobile/Desktop) dengan latar belakang di-blur tipis. Jangan gunakan `window.confirm()`.
