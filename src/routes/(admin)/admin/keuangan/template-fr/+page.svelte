@@ -252,6 +252,15 @@
 		return JSON.stringify(result);
 	});
 
+	// Helper query URL action untuk mengunci kelompokId, tahun, dan groupId agar tidak berpindah saat aksi form
+	const currentActionQuery = $derived(
+		`kelompokId=${data.selectedKelompokId || ''}&tahun=${data.tahun}${data.selectedGroupId ? `&groupId=${data.selectedGroupId}` : ''}`
+	);
+
+	function getActionUrl(actionName: string): string {
+		return `?/${actionName}&${currentActionQuery}`;
+	}
+
 	// Cegah refresh / reload / tutup tab browser saat sedang mengisi dan belum disimpan
 	$effect(() => {
 		const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -448,7 +457,7 @@
 									openConfirmModal({
 										title: `Hapus ${g.nama}?`,
 										message: `Apakah Anda yakin ingin menghapus ${g.nama}? Seluruh jamaah di group ini akan dilepas dari penugasan tarif.`,
-										actionUrl: '?/deleteGroup',
+										actionUrl: getActionUrl('deleteGroup'),
 										fields: {
 											kelompokId: data.selectedKelompokId,
 											groupId: g.id
@@ -489,7 +498,7 @@
 				<!-- FORM SIMPAN SPREADSHEET -->
 				<form
 					method="POST"
-					action="?/saveSpreadsheet"
+					action={getActionUrl('saveSpreadsheet')}
 					use:enhance={keepScrollSubmit({
 						beforeSubmit: () => { isSaving = true; },
 						onSuccess: () => { isDirty = false; },
@@ -619,7 +628,7 @@
 														openConfirmModal({
 															title: 'Hapus Baris Uraian',
 															message: `Apakah Anda yakin ingin menghapus uraian "${pos.nama}"? Angka pada baris ini akan dihapus dari seluruh group.`,
-															actionUrl: '?/deletePos',
+															actionUrl: getActionUrl('deletePos'),
 															fields: {
 																kelompokId: data.selectedKelompokId,
 																posId: pos.id
@@ -710,7 +719,7 @@
 									openConfirmModal({
 										title: 'Keluarkan Jamaah',
 										message: `Apakah Anda yakin ingin mengeluarkan ${j.namaLengkap} dari ${data.selectedGroup?.nama || 'group ini'}?`,
-										actionUrl: '?/removeJamaahFromGroup',
+										actionUrl: getActionUrl('removeJamaahFromGroup'),
 										fields: {
 											kelompokId: data.selectedKelompokId,
 											templateId: data.template?.id,
@@ -787,7 +796,7 @@
 
 			<form
 				method="POST"
-				action="?/createGroup"
+				action={getActionUrl('createGroup')}
 				use:enhance={keepScrollSubmit({
 					onSuccess: () => { showCreateGroupModal = false; }
 				})}
@@ -845,7 +854,7 @@
 
 			<form
 				method="POST"
-				action="?/duplicateGroup"
+				action={getActionUrl('duplicateGroup')}
 				use:enhance={keepScrollSubmit({
 					onSuccess: () => { showDuplicateModal = false; }
 				})}
@@ -903,13 +912,14 @@
 
 			<form
 				method="POST"
-				action="?/addPos"
+				action={getActionUrl('addPos')}
 				use:enhance={keepScrollSubmit({
 					onSuccess: () => { showAddPosModal = false; }
 				})}
 				class="space-y-3 text-xs"
 			>
 				<input type="hidden" name="kelompokId" value={data.selectedKelompokId} />
+				<input type="hidden" name="groupId" value={data.selectedGroupId} />
 				<input type="hidden" name="parentId" value={addPosParentId} />
 
 				<div>
@@ -1038,7 +1048,7 @@
 
 				<form
 					method="POST"
-					action="?/assignJamaahToGroup"
+					action={getActionUrl('assignJamaahToGroup')}
 					use:enhance={keepScrollSubmit({
 						onSuccess: () => {
 							showAddJamaahModal = false;

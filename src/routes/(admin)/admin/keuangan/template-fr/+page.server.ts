@@ -58,6 +58,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		? canManageFr(roles, 'Kelompok', selectedKelompokId)
 		: false;
 
+	// Pastikan kelompokId selalu persisten di URL agar aksi form tidak mereset ke kelompok lain
+	if (!urlKelompokId && selectedKelompokId) {
+		const targetUrl = new URL(url);
+		targetUrl.searchParams.set('kelompokId', String(selectedKelompokId));
+		targetUrl.searchParams.set('tahun', String(tahunParam));
+		throw redirect(303, targetUrl.pathname + targetUrl.search);
+	}
+
 	if (!selectedKelompokId) {
 		return {
 			adminScope,
