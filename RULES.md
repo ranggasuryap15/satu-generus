@@ -37,3 +37,10 @@
 - **MANDATORY use:enhance:** Selalu pasang atribut `use:enhance` pada setiap tag `<form>` untuk mencegah _full page reload_ saat data dikirim.
 - **RETURN DATA, NOT REDIRECT:** Setiap fungsi di `+page.server.js` harus mengembalikan objek status/pesan (contoh: `return { success: true, message: 'Sukses' }`), bukan melempar rute baru.
 - **REACTIVE UPDATES:** Gunakan data kembalian (_ActionData_ atau _stores_) untuk memperbarui UI di halaman yang sama secara instan (contoh: menutup modal, me-reset _form_, atau memunculkan notifikasi).
+
+### Mandatory Modal Confirmations (CRUD & Form Guards)
+- **NO NATIVE DIALOGS:** Dilarang menggunakan `window.confirm()` atau `window.alert()` bawaan browser. Wajib menggunakan komponen UI Modal kustom untuk seluruh konfirmasi di aplikasi.
+- **FORM CANCEL / CLOSE GUARD (DIRTY STATE):** Pada setiap form (Create/Update), lacak perubahan input (*dirty state*). Jika pengguna menekan tombol "Batal", "Tutup" (ikon X), atau klik area luar (*backdrop*) saat sedang mengisi atau mengubah *field*, tahan penutupan form dan tampilkan modal konfirmasi (contoh: *"Yakin meninggalkan? Perubahan belum disimpan"*). Jika form masih kosong/belum diubah, langsung tutup tanpa konfirmasi.
+- **CREATE & UPDATE CONFIRMATION:** Setiap aksi klik tombol "Simpan" (Create) atau "Ubah/Update" (Edit) tidak boleh langsung mengeksekusi pengiriman form ke server. Tampilkan terlebih dahulu modal konfirmasi (contoh: *"Yakin untuk menambahkan data ini?"* atau *"Yakin menyimpan perubahan?"*). Eksekusi pengiriman (`use:enhance` / `requestSubmit()`) hanya dijalankan setelah pengguna mengonfirmasi pada modal tersebut.
+- **DELETE CONFIRMATION:** Setiap aksi "Hapus" dari tabel atau daftar wajib memunculkan modal konfirmasi destruktif berwarna merah (contoh: *"Yakin untuk menghapus data ini? Tindakan tidak dapat dibatalkan"*) sebelum memanggil *form action* penghapusan.
+- **REUSABLE COMPONENT:** Gunakan satu komponen `<ConfirmModal />` terpusat atau *global store* agar tidak menduplikasi kode modal di setiap file `+page.svelte` yang memiliki fitur CRUD.
