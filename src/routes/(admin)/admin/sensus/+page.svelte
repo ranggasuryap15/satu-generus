@@ -2882,7 +2882,7 @@
 
 					<div>
 						<label for="edit-noTelepon" class="block font-semibold text-foreground mb-1">
-							No. HP / WhatsApp {#if editingAnggota?.userId || (editingAnggota?.statusHubungan === 'Kepala Keluarga' && targetKeluargaForEdit?.kepalaKeluargaId)}<span class="text-destructive">* (Wajib memiliki akun)</span>{:else}<span class="text-foreground/50 text-[10px]">(Opsional)</span>{/if}
+							No. HP / WhatsApp {#if editingAnggota?.userId || editingAnggota?.statusHubungan === 'Kepala Keluarga'}<span class="text-destructive">* (Wajib memiliki akun)</span>{:else}<span class="text-foreground/50 text-[10px]">(Opsional)</span>{/if}
 						</label>
 						<input
 							type="tel"
@@ -2890,7 +2890,7 @@
 							name="noTelepon"
 							inputmode="numeric"
 							pattern="[0-9]*"
-							required={!!(editingAnggota?.userId || (editingAnggota?.statusHubungan === 'Kepala Keluarga' && targetKeluargaForEdit?.kepalaKeluargaId))}
+							required={!!(editingAnggota?.userId || editingAnggota?.statusHubungan === 'Kepala Keluarga')}
 							bind:value={editAnggotaNoTelepon}
 							oninput={(e) => {
 								editAnggotaNoTelepon = e.currentTarget.value.replace(/\D/g, '');

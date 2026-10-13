@@ -32,6 +32,7 @@
 		Send,
 		ShieldCheck,
 		UploadCloud,
+		Users,
 		X,
 		XCircle
 	} from '@lucide/svelte';

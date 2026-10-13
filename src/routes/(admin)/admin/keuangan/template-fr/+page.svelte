@@ -110,7 +110,7 @@
 
 	// Filter Daftar Jamaah
 	const filteredJamaahList = $derived(
-		(data.jamaahTarifList || []).filter((j) => {
+		(data.jamaahTarifList || []).filter((j: any) => {
 			const q = searchJamaah.toLowerCase();
 			return (
 				j.namaLengkap.toLowerCase().includes(q) ||
@@ -125,7 +125,7 @@
 		if (selectedAnggotaIds.length === filteredJamaahList.length) {
 			selectedAnggotaIds = [];
 		} else {
-			selectedAnggotaIds = filteredJamaahList.map((j) => j.anggotaId);
+			selectedAnggotaIds = filteredJamaahList.map((j: any) => j.anggotaId);
 		}
 	}
 
@@ -1162,3 +1162,4 @@
 		</div>
 	</div>
 {/if}
+
