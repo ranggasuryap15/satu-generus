@@ -1,9 +1,9 @@
 <!--
   @file src/routes/(app)/fr/+page.svelte
-  @purpose Halaman antarmuka client jamaah untuk pengisian dan pelaporan Isrun/FR bulanan: tabel 4 kolom (No, Uraian, Jumlah Saran [Read-Only], Riil Bayar [Diisi Jamaah]), switcher anggota & periode, info QRIS/rekening kelompok, serta form upload bukti setor
+  @purpose Halaman antarmuka client jamaah untuk pengisian dan pelaporan Isrun/FR bulanan: tabel spreadsheet 4 kolom terstruktur per kategori induk (A. Hak Pusat, B. Hak Daerah, C. Hak Desa, D. Hak Kelompok) mirip template KU, input format angka ribuan aktif dengan nilai default kosong, switcher anggota & periode, info QRIS/rekening kelompok, serta form upload bukti setor
   @usedBy Route client '/fr' (diakses via Quick Access Beranda 'Isrun/FR')
-  @dependencies @lucide/svelte, $app/forms (enhance), $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
-  @publicFunctions handleCopySaranKeRiil, handleResetRiil, formatRupiah, submitForm
+  @dependencies @lucide/svelte, $app/forms (enhance), Svelte 5 Runes
+  @publicFunctions handleInputRiil, handleCopySaranKeRiil, handleResetRiil, formatRp, copyToClipboard
   @sideEffects Mengirim form data setoran FR mandiri ke server action simpanSetoran di SQLite
 -->
 <script lang="ts">
@@ -46,59 +46,116 @@
 	let showSuccessToast = $state(false);
 	let copiedRekeningText = $state<string | null>(null);
 
-	// Inisialisasi rincian pos
+	// Struktur data baris pos & kategori hierarkis
 	interface PosRow {
 		posId: string;
 		kode: string;
 		nama: string;
-		nominalJumlah: number;
-		nominalRiil: number;
+		isWajib?: boolean | number;
+		nominalJumlah: number; // Saran KU
+		nominalRiil: number; // Nilai angka riil
+		riilInputString: string; // Teks yang terformat di input
 	}
 
-	let rows = $state<PosRow[]>([]);
+	interface CategoryWithPos {
+		id: string;
+		nama: string;
+		labelKategori: string;
+		subPos: PosRow[];
+	}
 
+	let categories = $state<CategoryWithPos[]>([]);
+
+	// Inisialisasi struktur kategori & sub-pos dari server
 	$effect(() => {
-		// Sinkronkan data saat data.posList berganti
-		rows = (data.posList || []).map((p: any) => ({
-			posId: p.posId,
-			kode: p.kode,
-			nama: p.nama,
-			nominalJumlah: p.nominalJumlah,
-			nominalRiil: p.nominalRiilBayar
-		}));
+		if (data.categoriesWithPos) {
+			categories = data.categoriesWithPos.map((cat: any) => ({
+				id: cat.id,
+				nama: cat.nama,
+				labelKategori: cat.labelKategori,
+				subPos: (cat.subPos || []).map((p: any) => {
+					// Jika sudah ada riwayat setoran riil tersimpan (> 0), format ke string ribuan
+					// Jika belum ada / 0, field default KOSONG ("") bukan 0
+					const riilNum = Number(p.nominalRiilBayar) || 0;
+					return {
+						posId: p.posId,
+						kode: p.kode,
+						nama: p.nama,
+						isWajib: p.isWajib,
+						nominalJumlah: Number(p.nominalJumlah) || 0,
+						nominalRiil: riilNum,
+						riilInputString: riilNum > 0 ? riilNum.toLocaleString('id-ID') : ''
+					};
+				})
+			}));
+		} else {
+			categories = [];
+		}
 	});
 
-	// Derived total
-	const totalJumlahSaran = $derived(
-		rows.reduce((sum, r) => sum + (Number(r.nominalJumlah) || 0), 0)
-	);
+	// Handler input angka realtime terformat ribuan id-ID (field kosong saat 0)
+	function handleInputRiil(posId: string, rawVal: string) {
+		const digitsOnly = rawVal.replace(/\D/g, '');
+		const num = parseInt(digitsOnly, 10) || 0;
 
-	const totalRiilBayar = $derived(
-		rows.reduce((sum, r) => sum + (Number(r.nominalRiil) || 0), 0)
-	);
+		for (const cat of categories) {
+			const target = cat.subPos.find((p) => p.posId === posId);
+			if (target) {
+				target.nominalRiil = num;
+				// Format angka ribuan jika num > 0, jika 0 kembalikan string kosong
+				target.riilInputString = num > 0 ? num.toLocaleString('id-ID') : '';
+				break;
+			}
+		}
+	}
 
-	const selisihNominal = $derived(totalRiilBayar - totalJumlahSaran);
-
-	// Helper format Rupiah
+	// Helper format Rupiah tampilan
 	function formatRp(val: number): string {
 		return 'Rp ' + Number(val || 0).toLocaleString('id-ID');
 	}
 
 	// Action tombol cepat: Samakan semua Riil Bayar dengan Jumlah Saran KU
 	function handleCopySaranKeRiil() {
-		rows = rows.map((r) => ({
-			...r,
-			nominalRiil: r.nominalJumlah
-		}));
+		for (const cat of categories) {
+			for (const row of cat.subPos) {
+				row.nominalRiil = row.nominalJumlah;
+				row.riilInputString = row.nominalJumlah > 0 ? row.nominalJumlah.toLocaleString('id-ID') : '';
+			}
+		}
 	}
 
 	// Action tombol cepat: Kosongkan isian
 	function handleResetRiil() {
-		rows = rows.map((r) => ({
-			...r,
-			nominalRiil: 0
-		}));
+		for (const cat of categories) {
+			for (const row of cat.subPos) {
+				row.nominalRiil = 0;
+				row.riilInputString = '';
+			}
+		}
 	}
+
+	// Derived Total Jumlah Saran & Total Riil Bayar
+	const totalJumlahSaran = $derived.by(() => {
+		let sum = 0;
+		for (const cat of categories) {
+			for (const row of cat.subPos) {
+				sum += Number(row.nominalJumlah || 0);
+			}
+		}
+		return sum;
+	});
+
+	const totalRiilBayar = $derived.by(() => {
+		let sum = 0;
+		for (const cat of categories) {
+			for (const row of cat.subPos) {
+				sum += Number(row.nominalRiil || 0);
+			}
+		}
+		return sum;
+	});
+
+	const selisihNominal = $derived(totalRiilBayar - totalJumlahSaran);
 
 	// Salin nomor rekening ke clipboard
 	async function copyToClipboard(text: string) {
@@ -128,17 +185,21 @@
 	];
 
 	// Payload JSON untuk dikirim ke server action
-	const rincianJsonPayload = $derived(
-		JSON.stringify(
-			rows.map((r) => ({
-				posId: r.posId,
-				nama: r.nama,
-				kode: r.kode,
-				saran: r.nominalJumlah,
-				riil: r.nominalRiil
-			}))
-		)
-	);
+	const rincianJsonPayload = $derived.by(() => {
+		const list: Array<{ posId: string; nama: string; kode: string; saran: number; riil: number }> = [];
+		for (const cat of categories) {
+			for (const r of cat.subPos) {
+				list.push({
+					posId: r.posId,
+					nama: r.nama,
+					kode: r.kode,
+					saran: r.nominalJumlah,
+					riil: r.nominalRiil
+				});
+			}
+		}
+		return JSON.stringify(list);
+	});
 </script>
 
 <svelte:head>
@@ -340,13 +401,18 @@
 		<input type="hidden" name="rincian" value={rincianJsonPayload} />
 		<input type="hidden" name="metode" value={metodeBayar} />
 
-		<!-- Tabel Lembar 4 Kolom (Spreadsheet-like) -->
-		<section class="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+		<!-- Tabel Lembar 4 Kolom Spreadsheet (Compact di Mobile) -->
+		<section class="bg-card border border-border rounded-2xl shadow-xs overflow-hidden">
 			<!-- Header Toolbar -->
-			<div class="p-3.5 sm:p-4 bg-secondary/30 border-b border-border flex flex-wrap items-center justify-between gap-2.5">
+			<div class="p-3 sm:p-4 bg-secondary/30 border-b border-border flex flex-wrap items-center justify-between gap-2.5">
 				<div>
-					<h3 class="text-sm sm:text-base font-bold text-foreground">Lembar 4 Kolom Isrun/FR</h3>
-					<p class="text-[11px] text-foreground/60">
+					<h3 class="text-xs sm:text-sm font-bold text-foreground flex items-center gap-2">
+						<span>Lembar 4 Kolom Isrun/FR</span>
+						<span class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-teal-500/10 text-teal-700 dark:text-teal-300 border border-teal-500/20">
+							{data.groupNama}
+						</span>
+					</h3>
+					<p class="text-[11px] text-foreground/60 mt-0.5">
 						Isi nominal yang Anda setorkan pada kolom <strong>Riil Bayar</strong>
 					</p>
 				</div>
@@ -356,7 +422,7 @@
 						type="button"
 						onclick={handleCopySaranKeRiil}
 						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-500/10 hover:bg-teal-500/20 text-teal-700 dark:text-teal-300 border border-teal-500/25 text-xs font-bold transition-all active:scale-95 shadow-2xs"
-						title="Isi Riil Bayar sama persis dengan Jumlah Saran"
+						title="Isi Riil Bayar sama persis dengan Jumlah Saran KU"
 					>
 						<Copy class="w-3.5 h-3.5" />
 						<span>Samakan dgn Saran</span>
@@ -374,81 +440,106 @@
 				</div>
 			</div>
 
-			<!-- Tabel 4 Kolom -->
+			<!-- Tabel Spreadsheet 4 Kolom (Compact di Mobile) -->
 			<div class="overflow-x-auto">
-				<table class="w-full text-left text-xs sm:text-sm border-collapse">
+				<table class="w-full text-left border-collapse text-xs">
 					<thead>
-						<tr class="bg-secondary/40 border-b border-border text-foreground/70 text-[11px] font-bold uppercase tracking-wider">
-							<th class="py-2.5 px-3 w-12 text-center">No</th>
-							<th class="py-2.5 px-3">Uraian Pos Anggaran</th>
-							<th class="py-2.5 px-3 w-36 sm:w-44 text-right">
-								Jumlah (Saran KU)
+						<tr class="bg-secondary/70 text-foreground/80 border-b border-border font-bold">
+							<th class="py-2.5 px-2.5 sm:px-3 text-center w-10 sm:w-12 border-r border-border">No</th>
+							<th class="py-2.5 px-3 sm:px-4 border-r border-border min-w-36">Uraian Pos Anggaran</th>
+							<th class="py-2.5 px-3 sm:px-4 border-r border-border w-28 sm:w-44 text-right">
+								<span>Jumlah (Saran KU)</span>
 							</th>
-							<th class="py-2.5 px-3 w-40 sm:w-52 text-right bg-teal-500/5 text-teal-800 dark:text-teal-200">
-								Riil Bayar (Diisi Jamaah)
+							<th class="py-2.5 px-3 sm:px-4 text-right w-36 sm:w-48 bg-teal-500/5 text-teal-800 dark:text-teal-200">
+								<span>Riil Bayar</span>
+								<span class="block text-[10px] font-normal text-foreground/50">Diisi Jamaah</span>
 							</th>
 						</tr>
 					</thead>
-					<tbody class="divide-y divide-border/60">
-						{#if rows.length === 0}
+					<tbody>
+						{#if categories.length === 0}
 							<tr>
-								<td colspan="4" class="py-8 text-center text-foreground/60 text-xs">
-									Belum ada pos anggaran aktif di kelompok ini. Hubungi KU kelompok untuk konfigurasi template.
+								<td colspan="4" class="py-8 text-center text-foreground/60 text-xs italic">
+									Belum ada konfigurasi pos anggaran aktif di kelompok ini. Hubungi KU kelompok Anda.
 								</td>
 							</tr>
 						{:else}
-							{#each rows as row, idx}
-								<tr class="hover:bg-secondary/20 transition-colors">
-									<!-- 1. No -->
-									<td class="py-3 px-3 text-center font-bold text-foreground/60">
-										{idx + 1}
+							{#each categories as cat, catIdx}
+								<!-- BARIS KATEGORI INDUK (A. Hak Pusat, B. Hak Daerah, C. Hak Desa, D. Hak Kelompok) -->
+								<tr class="bg-secondary/40 border-b border-border font-bold text-foreground">
+									<td class="py-2 px-2.5 sm:px-3 border-r border-border text-center font-mono text-[11px] text-foreground/60">
+										{String.fromCharCode(65 + catIdx)}
 									</td>
-
-									<!-- 2. Uraian -->
-									<td class="py-3 px-3">
-										<div class="font-bold text-foreground">{row.nama}</div>
-										<div class="text-[10px] text-foreground/50 font-mono mt-0.5">
-											{row.kode}
-										</div>
-									</td>
-
-									<!-- 3. Jumlah (Angka saran KU - Read Only) -->
-									<td class="py-3 px-3 text-right">
-										<div class="font-bold text-foreground font-mono">
-											{formatRp(row.nominalJumlah)}
-										</div>
-										<span class="text-[10px] text-foreground/50">Min. disarankan</span>
-									</td>
-
-									<!-- 4. Riil Bayar (Diisi oleh jamaah) -->
-									<td class="py-2 px-3 text-right bg-teal-500/5">
-										<div class="flex items-center justify-end gap-1.5">
-											<span class="text-xs text-foreground/50 font-semibold select-none">Rp</span>
-											<input
-												type="number"
-												min="0"
-												step="1000"
-												bind:value={row.nominalRiil}
-												class="w-32 sm:w-36 h-9 px-2.5 text-right font-mono font-bold text-sm bg-background border border-teal-500/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 transition-all text-foreground"
-												placeholder="0"
-											/>
-										</div>
+									<td class="py-2 px-3 sm:px-4 border-r border-border tracking-wide text-xs" colspan="3">
+										{cat.labelKategori}
 									</td>
 								</tr>
+
+								<!-- SUB-POS DI BAWAH KATEGORI INDUK -->
+								{#if cat.subPos.length === 0}
+									<tr class="border-b border-border/60 text-foreground/40 italic">
+										<td class="py-2 px-2.5 text-center border-r border-border font-mono text-[11px]">-</td>
+										<td class="py-2 px-3 sm:px-4 border-r border-border text-[11px]" colspan="3">
+											Tidak ada uraian di kategori ini.
+										</td>
+									</tr>
+								{:else}
+									{#each cat.subPos as pos, posIdx}
+										<tr class="border-b border-border/60 hover:bg-secondary/20 transition-colors">
+											<!-- KOLOM 1: NO -->
+											<td class="py-2 px-2.5 sm:px-3 text-center border-r border-border font-mono text-foreground/70 text-xs">
+												{posIdx + 1}
+											</td>
+
+											<!-- KOLOM 2: URAIAN -->
+											<td class="py-2 px-3 sm:px-4 border-r border-border font-medium text-foreground text-xs">
+												<div class="flex items-center gap-1.5">
+													<span>{pos.nama}</span>
+													{#if pos.isWajib}
+														<span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 font-semibold uppercase">
+															Wajib
+														</span>
+													{/if}
+												</div>
+											</td>
+
+											<!-- KOLOM 3: JUMLAH (SARAN KU) -->
+											<td class="py-2 px-3 sm:px-4 border-r border-border text-right font-mono text-xs font-semibold text-foreground/80 whitespace-nowrap">
+												{formatRp(pos.nominalJumlah)}
+											</td>
+
+											<!-- KOLOM 4: RIIL BAYAR (FORMAT ANGKA AKTIF & DEFAULT KOSONG) -->
+											<td class="py-1.5 px-2 sm:px-3 bg-teal-500/5 text-right border-l border-border/60">
+												<div class="relative flex items-center justify-end">
+													<span class="absolute left-2.5 text-foreground/40 font-mono text-[11px] select-none">Rp</span>
+													<input
+														type="text"
+														inputmode="numeric"
+														value={pos.riilInputString}
+														oninput={(e) => handleInputRiil(pos.posId, e.currentTarget.value)}
+														placeholder="0"
+														class="w-full text-right font-mono font-bold py-1.5 pl-8 pr-2.5 bg-background hover:bg-background/90 focus:bg-background border border-border focus:border-teal-500 rounded-lg text-xs text-foreground focus:outline-none transition-all placeholder:text-foreground/30 shadow-2xs"
+													/>
+												</div>
+											</td>
+										</tr>
+									{/each}
+								{/if}
 							{/each}
 						{/if}
 					</tbody>
 
-					<!-- Baris Ringkasan TOTAL -->
+					<!-- BARIS TOTAL PALING BAWAH (PERSIS SEPERTI TEMPLATE KU) -->
 					<tfoot>
-						<tr class="bg-secondary/50 border-t-2 border-border font-bold">
-							<td colspan="2" class="py-3 px-3 text-right text-xs uppercase tracking-wider text-foreground">
+						<tr class="bg-secondary/70 border-t-2 border-border font-bold text-foreground">
+							<td class="py-2.5 px-2.5 text-center border-r border-border"></td>
+							<td class="py-2.5 px-3 sm:px-4 border-r border-border tracking-wider uppercase font-extrabold text-xs">
 								TOTAL SETORAN
 							</td>
-							<td class="py-3 px-3 text-right font-mono text-sm text-foreground">
+							<td class="py-2.5 px-3 sm:px-4 border-r border-border text-right font-mono font-extrabold text-xs text-foreground/90 whitespace-nowrap">
 								{formatRp(totalJumlahSaran)}
 							</td>
-							<td class="py-3 px-3 text-right font-mono text-base text-teal-600 dark:text-teal-400 bg-teal-500/10">
+							<td class="py-2.5 px-3 sm:px-4 text-right font-mono font-extrabold text-sm text-teal-600 dark:text-teal-400 bg-teal-500/10 whitespace-nowrap">
 								{formatRp(totalRiilBayar)}
 							</td>
 						</tr>
@@ -466,7 +557,7 @@
 				</div>
 				{#if totalRiilBayar > 0}
 					<div class="font-semibold {selisihNominal >= 0 ? 'text-teal-600 dark:text-teal-400' : 'text-amber-600 dark:text-amber-400'}">
-						{selisihNominal >= 0 ? '✓ Sesuai / Di atas anjuran saran' : `Selisih -${formatRp(Math.abs(selisihNominal))} dari saran`}
+						{selisihNominal >= 0 ? `✓ Sesuai / Di atas anjuran saran (+${formatRp(selisihNominal)})` : `Selisih -${formatRp(Math.abs(selisihNominal))} dari saran`}
 					</div>
 				{/if}
 			</div>

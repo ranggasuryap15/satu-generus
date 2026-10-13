@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(app)/fr/+page.server.ts
- * @purpose Backend controller halaman Isrun/FR client jamaah (Mobile-First): memuat lembar pos kewajiban FR kelompok 4-kolom (No, Uraian, Jumlah Saran, Riil Bayar), riwayat setoran per bulan, info rekening/QRIS kelompok, dan menangani pelaporan setoran mandiri jamaah
+ * @purpose Backend controller halaman Isrun/FR client jamaah (Mobile-First): memuat lembar pos kewajiban FR terstruktur per kategori induk (A. Hak Pusat, B. Hak Daerah, C. Hak Desa, D. Hak Kelompok) mirip template KU, riwayat setoran per bulan, info rekening/QRIS kelompok, dan menangani pelaporan setoran mandiri jamaah
  * @usedBy src/routes/(app)/fr/+page.svelte
  * @dependencies @sveltejs/kit, src/lib/db, src/lib/db/schema, src/lib/server/sensus, src/lib/server/upload, drizzle-orm, @paralleldrive/cuid2
  * @publicFunctions load, actions.simpanSetoran
@@ -22,7 +22,7 @@ import {
 	templateInfaqJamaah,
 	posAnggaranInfaq
 } from '$lib/db/schema';
-import { eq, and, desc, asc, inArray } from 'drizzle-orm';
+import { eq, and, or, isNull, desc, asc, inArray } from 'drizzle-orm';
 import { getKeluargaForUser } from '$lib/server/sensus';
 import { saveUploadedFile } from '$lib/server/upload';
 import { createId } from '@paralleldrive/cuid2';
@@ -139,6 +139,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			bulan: bulanParam,
 			template: null,
 			groupNama: '',
+			categoriesWithPos: [],
 			posList: [],
 			transaksiExisting: null,
 			kelompokNama,
@@ -148,7 +149,45 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	const activeAnggota = anggotaWajibList.find((a) => a.id === activeAnggotaId) || anggotaWajibList[0];
 
-	// 3. Ambil Template Infaq Aktif untuk Kelompok ini pada Tahun Terpilih
+	// 3. Ambil Transaksi Existing di Bulan & Tahun ini untuk Anggota Aktif
+	const existingTransaksi = sqlite
+		.prepare(
+			`SELECT id, tahun, bulan, nominal, status_bayar, catatan, updated_at
+			 FROM transaksi_fr
+			 WHERE anggota_keluarga_id = ? AND tahun = ? AND bulan = ?`
+		)
+		.get(activeAnggota.id, tahunParam, bulanParam) as
+		| {
+				id: string;
+				tahun: number;
+				bulan: number;
+				nominal: number;
+				status_bayar: string;
+				catatan: string | null;
+				updated_at: number;
+		  }
+		| undefined;
+
+	let existingBreakdown: Record<string, number> = {};
+	let existingMetode = 'Tunai';
+	let existingBuktiUrl = '';
+	let existingCatatanUser = '';
+
+	if (existingTransaksi?.catatan) {
+		try {
+			const parsed = JSON.parse(existingTransaksi.catatan);
+			if (parsed.breakdown && typeof parsed.breakdown === 'object') {
+				existingBreakdown = parsed.breakdown;
+			}
+			if (parsed.metode) existingMetode = parsed.metode;
+			if (parsed.buktiUrl) existingBuktiUrl = parsed.buktiUrl;
+			if (parsed.catatan) existingCatatanUser = parsed.catatan;
+		} catch (_) {
+			existingCatatanUser = existingTransaksi.catatan;
+		}
+	}
+
+	// 4. Ambil Template Infaq Aktif untuk Kelompok ini pada Tahun Terpilih
 	let template = userKelompokId
 		? (sqlite
 				.prepare(
@@ -172,7 +211,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			.get(userKelompokId) as any;
 	}
 
-	// 4. Cari Group Jamaah di template tersebut
+	// 5. Cari Group Jamaah di template tersebut
 	let groupId: string | null = null;
 	let groupNama = 'Standar';
 
@@ -207,114 +246,81 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		}
 	}
 
-	// 5. Muat Pos Anggaran (Uraian) dan Nominal Jumlah (Saran KU) untuk Group Terpilih
-	let posList: Array<{
-		posId: string;
-		kode: string;
-		nama: string;
-		nominalJumlah: number; // Angka minimum yang disarankan KU (Read-Only)
-		nominalRiilBayar: number; // Diisi oleh jamaah
-		keteranganTeks: string;
-	}> = [];
-
-	if (groupId) {
-		const rawGroupPos = sqlite
-			.prepare(
-				`SELECT gp.pos_id, p.kode, p.nama, gp.nominal_jumlah, gp.keterangan_teks, gp.urutan
-				 FROM template_infaq_group_pos gp
-				 JOIN pos_anggaran_infaq p ON gp.pos_id = p.id
-				 WHERE gp.group_id = ?
-				 ORDER BY gp.urutan ASC, p.urutan ASC`
+	// 6. Muat Struktur Pos Anggaran Lengkap (Hierarki Kategori Induk A-D & Sub-Pos) persis seperti Template KU
+	const rawAllPos = db
+		.select()
+		.from(posAnggaranInfaq)
+		.where(
+			and(
+				eq(posAnggaranInfaq.isActive, true),
+				or(
+					eq(posAnggaranInfaq.isWajib, true),
+					userKelompokId ? eq(posAnggaranInfaq.kelompokId, userKelompokId) : isNull(posAnggaranInfaq.kelompokId),
+					isNull(posAnggaranInfaq.kelompokId)
+				)
 			)
-			.all(groupId) as Array<{
-				pos_id: string;
-				kode: string;
-				nama: string;
-				nominal_jumlah: number;
-				keterangan_teks: string | null;
-				urutan: number;
-			}>;
-
-		posList = rawGroupPos.map((gp) => ({
-			posId: gp.pos_id,
-			kode: gp.kode,
-			nama: gp.nama,
-			nominalJumlah: gp.nominal_jumlah || 0,
-			nominalRiilBayar: 0,
-			keteranganTeks: gp.keterangan_teks || ''
-		}));
-	}
-
-	// Fallback jika belum ada group pos sama sekali: sediakan 4 Hak Wajib A-D default
-	if (posList.length === 0) {
-		const defaultHakWajib = sqlite
-			.prepare(
-				`SELECT id as pos_id, kode, nama FROM pos_anggaran_infaq WHERE is_wajib = 1 ORDER BY urutan ASC`
-			)
-			.all() as Array<{ pos_id: string; kode: string; nama: string }>;
-
-		posList = defaultHakWajib.map((h) => ({
-			posId: h.pos_id,
-			kode: h.kode,
-			nama: h.nama,
-			nominalJumlah: 0,
-			nominalRiilBayar: 0,
-			keteranganTeks: ''
-		}));
-	}
-
-	// 6. Muat Transaksi Existing di Bulan & Tahun ini
-	const existingTransaksi = sqlite
-		.prepare(
-			`SELECT id, tahun, bulan, nominal, status_bayar, catatan, updated_at
-			 FROM transaksi_fr
-			 WHERE anggota_keluarga_id = ? AND tahun = ? AND bulan = ?`
 		)
-		.get(activeAnggota.id, tahunParam, bulanParam) as
-		| {
-				id: string;
-				tahun: number;
-				bulan: number;
-				nominal: number;
-				status_bayar: string;
-				catatan: string | null;
-				updated_at: number;
-		  }
-		| undefined;
+		.orderBy(asc(posAnggaranInfaq.urutan), asc(posAnggaranInfaq.nama))
+		.all();
 
-	let existingBreakdown: Record<string, number> = {};
-	let existingMetode = 'Tunai';
-	let existingBuktiUrl = '';
-	let existingCatatanUser = '';
+	// Pisahkan kategori induk (parentId IS NULL) dan sub-pos anak (parentId IS NOT NULL)
+	const parentCategories = rawAllPos
+		.filter((p) => !p.parentId)
+		.sort((a, b) => a.urutan - b.urutan);
 
-	if (existingTransaksi?.catatan) {
-		try {
-			const parsed = JSON.parse(existingTransaksi.catatan);
-			if (parsed.breakdown && typeof parsed.breakdown === 'object') {
-				existingBreakdown = parsed.breakdown;
-			}
-			if (parsed.metode) existingMetode = parsed.metode;
-			if (parsed.buktiUrl) existingBuktiUrl = parsed.buktiUrl;
-			if (parsed.catatan) existingCatatanUser = parsed.catatan;
-		} catch (_) {
-			// catatan lama dalam format teks biasa
-			existingCatatanUser = existingTransaksi.catatan;
+	const subPosList = rawAllPos.filter((p) => !!p.parentId);
+
+	// Ambil nominal saran KU dari template_infaq_group_pos jika group ditemukan
+	const groupPosValues: Record<string, { nominalJumlah: number; keteranganTeks: string | null }> = {};
+	if (groupId) {
+		const rawGroupPos = db
+			.select()
+			.from(templateInfaqGroupPos)
+			.where(eq(templateInfaqGroupPos.groupId, groupId))
+			.all();
+
+		for (const gp of rawGroupPos) {
+			groupPosValues[gp.posId] = {
+				nominalJumlah: gp.nominalJumlah || 0,
+				keteranganTeks: gp.keteranganTeks || null
+			};
 		}
 	}
 
-	// Isi nominalRiilBayar jika sudah ada riwayat transaksi tersimpan
-	posList = posList.map((p) => {
-		let riil = 0;
-		if (existingBreakdown[p.posId] !== undefined) {
-			riil = Number(existingBreakdown[p.posId]) || 0;
-		} else if (existingTransaksi && existingTransaksi.nominal > 0 && posList.length === 1) {
-			riil = existingTransaksi.nominal;
-		}
+	// Bentuk array categoriesWithPos terstruktur
+	const categoriesWithPos = parentCategories.map((cat, idx) => {
+		const children = subPosList
+			.filter((sub) => sub.parentId === cat.id)
+			.sort((a, b) => a.urutan - b.urutan)
+			.map((sub) => {
+				const gVal = groupPosValues[sub.id];
+				let riil: number | null = null;
+				if (existingBreakdown[sub.id] !== undefined) {
+					riil = Number(existingBreakdown[sub.id]) || 0;
+				}
+
+				return {
+					posId: sub.id,
+					kode: sub.kode,
+					nama: sub.nama,
+					isWajib: sub.isWajib,
+					nominalJumlah: gVal?.nominalJumlah ?? 0,
+					nominalRiilBayar: riil,
+					keteranganTeks: gVal?.keteranganTeks ?? ''
+				};
+			});
+
+		const letter = String.fromCharCode(65 + idx);
 		return {
-			...p,
-			nominalRiilBayar: riil
+			id: cat.id,
+			nama: cat.nama,
+			labelKategori: `${letter}. ${cat.nama}`,
+			subPos: children
 		};
 	});
+
+	// Flat posList untuk kompatibilitas data
+	const posList = categoriesWithPos.flatMap((c) => c.subPos);
 
 	return {
 		hasAnggota: true,
@@ -324,6 +330,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		bulan: bulanParam,
 		template,
 		groupNama,
+		categoriesWithPos,
 		posList,
 		transaksiExisting: existingTransaksi
 			? {
