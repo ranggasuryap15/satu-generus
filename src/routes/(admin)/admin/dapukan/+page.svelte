@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(admin)/admin/dapukan/+page.svelte
-  @purpose Halaman manajemen struktur dapukan dan penugasan RBAC pengurus dengan pagination tabel/kartu data, proteksi wewenang 4S (Kyai/Penerobos di tingkat kelompok), penguncian scope wilayah, serta scroll retention (mencegah loncat ke atas saat assign/update/cabut penugasan)
+  @purpose Halaman manajemen struktur dapukan dan penugasan RBAC pengurus dengan dialog konfirmasi simpan penugasan, konfirmasi batal jika isian terisi, pagination data, proteksi wewenang 4S, penguncian scope wilayah, dan scroll retention
   @usedBy Route admin '/admin/dapukan'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/Pagination.svelte, $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
-  @publicFunctions openAssignModal, closeAssignModal, resetAssignForm, openEditModal, closeEditModal, confirmRemove
-  @sideEffects Menampilkan data dapukan/pengurus dan mengirim form mutasi pengurus ke server tanpa refresh kasar dan menjaga posisi scroll
+  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/Pagination.svelte, $app/forms (enhance), $lib/confirm.svelte (confirmAction)
+  @publicFunctions openAssignModal, closeAssignModal, resetAssignForm, handleAssignSubmit, openEditModal, closeEditModal, confirmRemove
+  @sideEffects Menampilkan data dapukan/pengurus dan mengirim form mutasi pengurus ke server dengan konfirmasi modal interaktif
 -->
 <script lang="ts">
 	import {
@@ -339,17 +339,54 @@
 			const ok = await confirmAction({
 				title: 'Tutup Formulir Penugasan?',
 				message:
-					'Ada isian penugasan yang belum disimpan. Tetap tutup modal? Isian Anda akan tetap tersimpan sebagai draf.',
-				confirmText: 'Ya, Tutup Modal',
+					'Ada isian penugasan yang belum disimpan. Tetap tutup formulir? Isian yang belum disimpan akan dibatalkan.',
+				confirmText: 'Ya, Tutup Formulir',
 				cancelText: 'Lanjut Mengisi',
 				variant: 'warning'
 			});
 			if (ok) {
+				resetAssignForm();
 				showAssignModal = false;
 			}
 		} else {
+			resetAssignForm();
 			showAssignModal = false;
 		}
+	}
+
+	async function handleAssignSubmit({ cancel }: { cancel: () => void }) {
+		const ok = await confirmAction({
+			title: 'Simpan Penugasan Pengurus?',
+			message:
+				'Pastikan nama jamaah, dapukan, dan wilayah wewenang sudah sesuai. Yakin ingin menyimpan penugasan pengurus ini?',
+			confirmText: 'Ya, Simpan',
+			cancelText: 'Batal',
+			variant: 'primary'
+		});
+
+		if (!ok) {
+			cancel();
+			return;
+		}
+
+		const scrollY = typeof window !== 'undefined' ? window.scrollY : 0;
+
+		return async ({
+			result,
+			update
+		}: {
+			result: any;
+			update: (options?: { reset?: boolean }) => Promise<void>;
+		}) => {
+			if (result.type === 'success') {
+				resetAssignForm();
+				showAssignModal = false;
+			}
+			await update({ reset: false });
+			if (typeof window !== 'undefined') {
+				window.scrollTo({ top: scrollY, behavior: 'instant' });
+			}
+		};
 	}
 
 	$effect(() => {
@@ -701,7 +738,7 @@
 			<form
 				method="POST"
 				action="?/assignDapukan"
-				use:enhance={keepScrollSubmit({ onSuccess: () => closeAssignModal() })}
+				use:enhance={handleAssignSubmit}
 				class="space-y-4"
 			>
 				<!-- Pilih User Jamaah -->
