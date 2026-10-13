@@ -436,11 +436,26 @@ export const actions: Actions = {
 			return fail(400, { message: 'Kelompok jamaah belum terdaftar dalam sistem' });
 		}
 
+		// Ambil transaksi existing di periode ini untuk mempertahankan buktiUrl lama jika tidak ada unggahan baru
+		const existing = sqlite
+			.prepare('SELECT id, catatan FROM transaksi_fr WHERE anggota_keluarga_id = ? AND tahun = ? AND bulan = ?')
+			.get(anggotaId, tahun, bulan) as { id: string; catatan: string | null } | undefined;
+
+		let finalBuktiUrl = buktiUrl;
+		if (!finalBuktiUrl && existing?.catatan) {
+			try {
+				const oldParsed = JSON.parse(existing.catatan);
+				if (oldParsed.buktiUrl) {
+					finalBuktiUrl = oldParsed.buktiUrl;
+				}
+			} catch (_) {}
+		}
+
 		// Buat payload catatan JSON yang merekam breakdown riil bayar per pos
 		const catatanPayload = JSON.stringify({
 			breakdown: breakdownMap,
 			metode,
-			buktiUrl: buktiUrl || undefined,
+			buktiUrl: finalBuktiUrl || undefined,
 			catatan: catatanTambahan.trim() || undefined,
 			diinputOleh: locals.user.namaLengkap,
 			tanggalLapor: new Date().toISOString()
@@ -449,11 +464,6 @@ export const actions: Actions = {
 		const now = Math.floor(Date.now() / 1000);
 		// Status bayar: Jika setor tunai atau konfirmasi transfer, beri status 'Menunggu Konfirmasi' agar KU dapat memverifikasi
 		const statusBayar = totalNominal > 0 ? 'Menunggu Konfirmasi' : 'Belum Bayar';
-
-		// Upsert ke transaksi_fr
-		const existing = sqlite
-			.prepare('SELECT id, bukti_url FROM transaksi_fr WHERE anggota_keluarga_id = ? AND tahun = ? AND bulan = ?')
-			.get(anggotaId, tahun, bulan) as any;
 
 		if (existing) {
 			sqlite

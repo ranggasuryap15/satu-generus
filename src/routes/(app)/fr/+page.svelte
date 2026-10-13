@@ -45,8 +45,30 @@
 	let metodeBayar = $state<'Tunai' | 'Transfer'>((data.transaksiExisting?.metode as any) || 'Tunai');
 	let catatanTambahan = $state(data.transaksiExisting?.catatan || '');
 	let showSuccessToast = $state(false);
+	let errorMessageToast = $state<string | null>(null);
 	let copiedRekeningText = $state<string | null>(null);
 	let zoomedQris = $state<{ url: string; atasNama: string } | null>(null);
+	let previewBukti = $state<string | null>(null);
+
+	function handleFileChange(e: Event) {
+		const target = e.target as HTMLInputElement;
+		const file = target.files?.[0];
+		if (file) {
+			const reader = new FileReader();
+			reader.onload = (evt) => {
+				previewBukti = evt.target?.result as string;
+			};
+			reader.readAsDataURL(file);
+		} else {
+			previewBukti = null;
+		}
+	}
+
+	function handleClearFile() {
+		previewBukti = null;
+		const input = document.getElementById('buktiFile') as HTMLInputElement | null;
+		if (input) input.value = '';
+	}
 
 	// Struktur data baris pos & kategori hierarkis
 	interface PosRow {
@@ -387,11 +409,25 @@
 		method="POST"
 		action="?/simpanSetoran"
 		enctype="multipart/form-data"
-		use:enhance={() => {
+		use:enhance={({ cancel }) => {
+			if (totalRiilBayar <= 0) {
+				errorMessageToast = 'Silakan isi nominal pada kolom Riil Bayar (minimal Rp 1) terlebih dahulu sebelum menyimpan.';
+				cancel();
+				return;
+			}
 			isSubmitting = true;
-			return async ({ update }) => {
+			errorMessageToast = null;
+			return async ({ update, result }) => {
 				await update();
 				isSubmitting = false;
+				if (result.type === 'success') {
+					showSuccessToast = true;
+					previewBukti = null;
+					window.scrollTo({ top: 0, behavior: 'smooth' });
+					setTimeout(() => {
+						showSuccessToast = false;
+					}, 5000);
+				}
 			};
 		}}
 		class="space-y-4 sm:space-y-6"
@@ -708,33 +744,58 @@
 						</div>
 					{/if}
 
-					<!-- Upload Bukti Transfer -->
-					<div class="space-y-1.5 pt-1">
+					<!-- Upload Bukti Transfer Interaktif -->
+					<div class="space-y-2 pt-1">
 						<label for="buktiFile" class="text-xs font-bold text-foreground/80 flex items-center gap-1.5">
 							<UploadCloud class="w-3.5 h-3.5 text-primary" />
-							Upload Bukti Transfer (Opsional)
+							Unggah Bukti Transfer (Foto / Screenshot / PDF)
 						</label>
-						<input
-							type="file"
-							id="buktiFile"
-							name="buktiFile"
-							accept="image/*,application/pdf"
-							class="w-full text-xs text-foreground/70 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer border border-border rounded-xl p-1 bg-background"
-						/>
-						{#if data.transaksiExisting?.buktiUrl}
-							<div class="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400 mt-1">
-								<CheckCircle2 class="w-3.5 h-3.5" />
-								<span>Bukti transfer sebelumnya telah terlampir</span>
-								<a
-									href={data.transaksiExisting.buktiUrl}
-									target="_blank"
-									rel="noreferrer"
-									class="underline font-semibold ml-1"
-								>
-									Lihat Bukti
-								</a>
-							</div>
-						{/if}
+						<div class="flex flex-col gap-2">
+							<input
+								type="file"
+								id="buktiFile"
+								name="buktiFile"
+								accept="image/*,application/pdf"
+								onchange={handleFileChange}
+								class="w-full text-xs text-foreground/70 file:mr-3 file:py-2 file:px-3.5 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer border border-border rounded-xl p-1.5 bg-background shadow-2xs"
+							/>
+
+							{#if previewBukti}
+								<div class="p-2.5 bg-secondary/40 rounded-xl border border-border flex items-center justify-between gap-3 animate-in fade-in">
+									<div class="flex items-center gap-2.5 min-w-0">
+										<img src={previewBukti} alt="Pratinjau Bukti" class="w-12 h-12 object-cover rounded-lg border border-border shrink-0 bg-black/10" />
+										<div class="min-w-0">
+											<p class="text-xs font-bold text-foreground truncate">File Bukti Terpilih</p>
+											<p class="text-[10px] text-teal-600 dark:text-teal-400 font-semibold">Siap diunggah saat simpan</p>
+										</div>
+									</div>
+									<button
+										type="button"
+										onclick={handleClearFile}
+										class="px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-500/10 rounded-lg transition-colors shrink-0"
+									>
+										Hapus
+									</button>
+								</div>
+							{/if}
+
+							{#if data.transaksiExisting?.buktiUrl && !previewBukti}
+								<div class="flex items-center justify-between p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs text-emerald-700 dark:text-emerald-300">
+									<div class="flex items-center gap-2">
+										<CheckCircle2 class="w-4 h-4 text-emerald-600 shrink-0" />
+										<span>Bukti transfer bulan ini sudah tersimpan</span>
+									</div>
+									<a
+										href={data.transaksiExisting.buktiUrl}
+										target="_blank"
+										rel="noreferrer"
+										class="font-bold underline hover:opacity-80 shrink-0"
+									>
+										Lihat Bukti
+									</a>
+								</div>
+							{/if}
+						</div>
 					</div>
 				</div>
 			{/if}
@@ -756,28 +817,54 @@
 			</div>
 		</section>
 
-		<!-- Tombol Submit Simpan -->
-		<div class="sticky bottom-4 z-20 bg-card/95 backdrop-blur-md border border-border p-3.5 sm:p-4 rounded-2xl shadow-xl flex items-center justify-between gap-3">
-			<div>
-				<p class="text-[11px] text-foreground/60 font-medium leading-none">Total yang Disetorkan</p>
-				<p class="text-base sm:text-xl font-bold font-mono text-teal-600 dark:text-teal-400 mt-0.5">
-					{formatRp(totalRiilBayar)}
-				</p>
-			</div>
+		<!-- Sticky Bottom Action Footer -->
+		<div class="sticky bottom-4 z-20 space-y-2">
+			{#if errorMessageToast}
+				<div class="p-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs flex items-center justify-between gap-2 shadow-lg backdrop-blur-md animate-in fade-in slide-in-from-bottom-2">
+					<div class="flex items-center gap-2">
+						<AlertCircle class="w-4 h-4 text-rose-600 shrink-0" />
+						<span class="font-semibold">{errorMessageToast}</span>
+					</div>
+					<button type="button" onclick={() => (errorMessageToast = null)} class="text-rose-600 hover:text-rose-800 p-0.5">
+						<X class="w-3.5 h-3.5" />
+					</button>
+				</div>
+			{/if}
 
-			<button
-				type="submit"
-				disabled={isSubmitting || totalRiilBayar <= 0}
-				class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs sm:text-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-teal-600/20"
-			>
-				{#if isSubmitting}
-					<RefreshCw class="w-4 h-4 animate-spin" />
-					<span>Menyimpan...</span>
-				{:else}
-					<Send class="w-4 h-4" />
-					<span>Simpan & Lapor Setoran</span>
-				{/if}
-			</button>
+			{#if showSuccessToast}
+				<div class="p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs flex items-center justify-between gap-2 shadow-lg backdrop-blur-md animate-in fade-in slide-in-from-bottom-2">
+					<div class="flex items-center gap-2">
+						<CheckCircle2 class="w-4 h-4 text-emerald-600 shrink-0" />
+						<span class="font-bold">Laporan setoran Isrun/FR berhasil dikirim dan tersimpan!</span>
+					</div>
+					<button type="button" onclick={() => (showSuccessToast = false)} class="text-emerald-600 hover:text-emerald-800 p-0.5">
+						<X class="w-3.5 h-3.5" />
+					</button>
+				</div>
+			{/if}
+
+			<div class="bg-card/95 backdrop-blur-md border border-border p-3.5 sm:p-4 rounded-2xl shadow-xl flex items-center justify-between gap-3">
+				<div>
+					<p class="text-[11px] text-foreground/60 font-medium leading-none">Total yang Disetorkan</p>
+					<p class="text-base sm:text-xl font-bold font-mono text-teal-600 dark:text-teal-400 mt-0.5">
+						{formatRp(totalRiilBayar)}
+					</p>
+				</div>
+
+				<button
+					type="submit"
+					disabled={isSubmitting}
+					class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs sm:text-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-teal-600/20 cursor-pointer"
+				>
+					{#if isSubmitting}
+						<RefreshCw class="w-4 h-4 animate-spin" />
+						<span>Menyimpan & Melaporkan...</span>
+					{:else}
+						<Send class="w-4 h-4" />
+						<span>Simpan & Lapor Setoran</span>
+					{/if}
+				</button>
+			</div>
 		</div>
 	</form>
 </div>
