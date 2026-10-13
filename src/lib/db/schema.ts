@@ -3,7 +3,7 @@
  * @purpose Definisi schema tabel Drizzle ORM untuk SQLite sesuai SCHEMA.md (termasuk wilayah, rekening/QRIS wilayah, anggota keluarga, sensus, presensi pengajian, transaksi setoran FR, pos anggaran infaq fleksibel, template infaq rutin & bundling tarif, jenis shodaqoh wilayah, dan transaksi shodaqoh jamaah)
  * @usedBy src/lib/db/index.ts, queries/actions di routes dan services
  * @dependencies drizzle-orm/sqlite-core, @paralleldrive/cuid2
- * @publicFunctions daerah, desa, kelompok, subKelompok, users, dapukan, userDapukan, keluarga, anggotaKeluarga, jadwalPengajianTemplate, presensiJadwal, presensiKehadiran, rekeningWilayah, transaksiFr, posAnggaranInfaq, templateInfaqRutin, templateInfaqBundle, templateInfaqPos, templateInfaqJamaah, jenisShodaqoh, transaksiShodaqoh
+ * @publicFunctions daerah, desa, kelompok, subKelompok, users, dapukan, userDapukan, keluarga, anggotaKeluarga, jadwalPengajianTemplate, presensiJadwal, presensiKehadiran, rekeningWilayah, transaksiFr, posAnggaranInfaq, templateInfaqRutin, templateInfaqGroup, templateInfaqGroupPos, templateInfaqBundle, templateInfaqPos, templateInfaqJamaah, jenisShodaqoh, transaksiShodaqoh
  * @sideEffects Mendefinisikan struktur tabel, relasi foreign key, dan indeks database SQLite
  */
 
@@ -418,6 +418,51 @@ export const templateInfaqRutin = sqliteTable(
 	]
 );
 
+export const templateInfaqGroup = sqliteTable(
+	'template_infaq_group',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => createId()),
+		templateId: text('template_id')
+			.notNull()
+			.references(() => templateInfaqRutin.id, { onDelete: 'cascade' }),
+		nama: text('nama').notNull(), // Contoh: 'Group A', 'Group B', 'Group Khusus'
+		keterangan: text('keterangan'),
+		urutan: integer('urutan').notNull().default(0),
+		createdAt: integer('created_at').notNull(),
+		updatedAt: integer('updated_at').notNull()
+	},
+	(table) => [
+		index('template_group_template_idx').on(table.templateId)
+	]
+);
+
+export const templateInfaqGroupPos = sqliteTable(
+	'template_infaq_group_pos',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => createId()),
+		groupId: text('group_id')
+			.notNull()
+			.references(() => templateInfaqGroup.id, { onDelete: 'cascade' }),
+		posId: text('pos_id')
+			.notNull()
+			.references(() => posAnggaranInfaq.id, { onDelete: 'cascade' }),
+		nominalJumlah: integer('nominal_jumlah').notNull().default(0), // Kolom "Jumlah" (Angka minimum yang disarankan)
+		nominalKeterangan: integer('nominal_keterangan').notNull().default(0), // Kolom "Keterangan" (Angka riil dibayar)
+		keteranganTeks: text('keterangan_teks'),
+		urutan: integer('urutan').notNull().default(0),
+		createdAt: integer('created_at').notNull(),
+		updatedAt: integer('updated_at').notNull()
+	},
+	(table) => [
+		index('group_pos_group_idx').on(table.groupId),
+		uniqueIndex('group_pos_unik_idx').on(table.groupId, table.posId)
+	]
+);
+
 export const templateInfaqBundle = sqliteTable(
 	'template_infaq_bundle',
 	{
@@ -471,6 +516,7 @@ export const templateInfaqJamaah = sqliteTable(
 		anggotaKeluargaId: text('anggota_keluarga_id')
 			.notNull()
 			.references(() => anggotaKeluarga.id, { onDelete: 'cascade' }),
+		groupId: text('group_id').references(() => templateInfaqGroup.id, { onDelete: 'set null' }),
 		bundleId: text('bundle_id').references(() => templateInfaqBundle.id, { onDelete: 'set null' }),
 		nominalTarget: integer('nominal_target').notNull().default(0),
 		isCustom: integer('is_custom', { mode: 'boolean' }).notNull().default(false),
@@ -479,6 +525,7 @@ export const templateInfaqJamaah = sqliteTable(
 	},
 	(table) => [
 		index('template_jamaah_template_idx').on(table.templateId),
+		index('template_jamaah_group_idx').on(table.groupId),
 		index('template_jamaah_bundle_idx').on(table.bundleId),
 		uniqueIndex('template_jamaah_unik_idx').on(table.templateId, table.anggotaKeluargaId)
 	]

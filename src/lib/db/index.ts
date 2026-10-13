@@ -4,7 +4,7 @@
  * @usedBy Backend server routes (+page.server.ts, +server.ts, hooks.server.ts, scripts migrasi/seed)
  * @dependencies better-sqlite3, drizzle-orm/better-sqlite3, src/lib/db/schema.ts
  * @publicFunctions db, sqlite
- * @sideEffects Membuka koneksi file database SQLite, mengaktifkan PRAGMA WAL & foreign_keys, auto-migrasi kolom & tabel skema (sub_kelompok, users, anggota_keluarga, jadwal_pengajian_template, presensi_jadwal, presensi_kehadiran, kelompok, desa, daerah, rekening_wilayah, transaksi_fr, pos_anggaran_infaq, template_infaq_rutin, template_infaq_bundle, template_infaq_pos, template_infaq_jamaah, jenis_shodaqoh, transaksi_shodaqoh), auto-sinkronisasi user_id, auto-seed 4 Hak Wajib default
+ * @sideEffects Membuka koneksi file database SQLite, mengaktifkan PRAGMA WAL & foreign_keys, auto-migrasi kolom & tabel skema (sub_kelompok, users, anggota_keluarga, jadwal_pengajian_template, presensi_jadwal, presensi_kehadiran, kelompok, desa, daerah, rekening_wilayah, transaksi_fr, pos_anggaran_infaq, template_infaq_rutin, template_infaq_group, template_infaq_group_pos, template_infaq_bundle, template_infaq_pos, template_infaq_jamaah, jenis_shodaqoh, transaksi_shodaqoh), auto-sinkronisasi user_id, auto-seed 4 Hak Wajib & sub-pos acuan
  */
 
 import Database from 'better-sqlite3';
@@ -591,6 +591,77 @@ try {
 		`);
 		for (const h of defaultHakWajib) {
 			insertStmt.run(h.id, h.kode, h.nama, `Alokasi wajib rutin untuk tingkat ${h.tingkatScope}`, h.tingkatScope, h.urutan, now, now);
+		}
+	}
+
+	// Auto-heal / migrasi tabel template_infaq_group dan template_infaq_group_pos (Spreadsheet Mode)
+	sqlite.exec(`
+		CREATE TABLE IF NOT EXISTS template_infaq_group (
+			id TEXT PRIMARY KEY NOT NULL,
+			template_id TEXT NOT NULL REFERENCES template_infaq_rutin(id) ON DELETE CASCADE,
+			nama TEXT NOT NULL,
+			keterangan TEXT,
+			urutan INTEGER NOT NULL DEFAULT 0,
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
+		);
+		CREATE INDEX IF NOT EXISTS template_group_template_idx ON template_infaq_group (template_id);
+
+		CREATE TABLE IF NOT EXISTS template_infaq_group_pos (
+			id TEXT PRIMARY KEY NOT NULL,
+			group_id TEXT NOT NULL REFERENCES template_infaq_group(id) ON DELETE CASCADE,
+			pos_id TEXT NOT NULL REFERENCES pos_anggaran_infaq(id) ON DELETE CASCADE,
+			nominal_jumlah INTEGER NOT NULL DEFAULT 0,
+			nominal_keterangan INTEGER NOT NULL DEFAULT 0,
+			keterangan_teks TEXT,
+			urutan INTEGER NOT NULL DEFAULT 0,
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
+		);
+		CREATE INDEX IF NOT EXISTS group_pos_group_idx ON template_infaq_group_pos (group_id);
+		CREATE UNIQUE INDEX IF NOT EXISTS group_pos_unik_idx ON template_infaq_group_pos (group_id, pos_id);
+	`);
+
+	// Auto-heal kolom group_id pada tabel template_infaq_jamaah jika belum ada
+	const rawTemplateJamaahInfo = sqlite.prepare('PRAGMA table_info(template_infaq_jamaah)').all() as Array<{ name: string }>;
+	const templateJamaahCols = rawTemplateJamaahInfo.map((c) => c.name);
+	if (!templateJamaahCols.includes('group_id')) {
+		sqlite.exec(`ALTER TABLE template_infaq_jamaah ADD COLUMN group_id TEXT REFERENCES template_infaq_group(id) ON DELETE SET NULL;`);
+		sqlite.exec(`CREATE INDEX IF NOT EXISTS template_jamaah_group_idx ON template_infaq_jamaah (group_id);`);
+	}
+
+	// Seed sub-pos standar acuan jika pos anak masih kosong
+	const countChildPos = sqlite.prepare("SELECT COUNT(*) as count FROM pos_anggaran_infaq WHERE parent_id IS NOT NULL").get() as { count: number };
+	if (!countChildPos || countChildPos.count === 0) {
+		const now = Date.now();
+		const standardSubPos = [
+			// A. Hak Pusat
+			{ id: 'sub_pusat_isrun', parentId: 'hw_pusat', kode: 'HW-PUSAT-01', nama: 'Isrun/FR', urutan: 1 },
+			// B. Hak Daerah
+			{ id: 'sub_daerah_tenaga', parentId: 'hw_daerah', kode: 'HW-DAERAH-01', nama: 'Tenaga SB, konsumsi', urutan: 1 },
+			{ id: 'sub_daerah_kendaraan', parentId: 'hw_daerah', kode: 'HW-DAERAH-02', nama: 'Kendaraan SB, Listrik, Sarpras', urutan: 2 },
+			{ id: 'sub_daerah_org', parentId: 'hw_daerah', kode: 'HW-DAERAH-03', nama: 'Organisasi', urutan: 3 },
+			{ id: 'sub_daerah_pondok', parentId: 'hw_daerah', kode: 'HW-DAERAH-04', nama: 'Operasional Pondok', urutan: 4 },
+			{ id: 'sub_daerah_ppg', parentId: 'hw_daerah', kode: 'HW-DAERAH-05', nama: 'PPG & Jimpitan', urutan: 5 },
+			{ id: 'sub_daerah_angsuran', parentId: 'hw_daerah', kode: 'HW-DAERAH-06', nama: 'Angsuran Ke Pusat', urutan: 6 },
+			{ id: 'sub_daerah_tanah', parentId: 'hw_daerah', kode: 'HW-DAERAH-07', nama: 'Pembelian Tanah Setu', urutan: 7 },
+			// C. Hak Desa
+			{ id: 'sub_desa_desa', parentId: 'hw_desa', kode: 'HW-DESA-01', nama: 'Desa', urutan: 1 },
+			// D. Hak Kelompok
+			{ id: 'sub_kelompok_kas', parentId: 'hw_kelompok', kode: 'HW-KELOMPOK-01', nama: 'Kas Umum', urutan: 1 },
+			{ id: 'sub_kelompok_org', parentId: 'hw_kelompok', kode: 'HW-KELOMPOK-02', nama: 'Organisasi', urutan: 2 },
+			{ id: 'sub_kelompok_sosial', parentId: 'hw_kelompok', kode: 'HW-KELOMPOK-03', nama: 'Dana Sosial', urutan: 3 },
+			{ id: 'sub_kelompok_pembangunan', parentId: 'hw_kelompok', kode: 'HW-KELOMPOK-04', nama: 'Kas Pembangunan', urutan: 4 },
+			{ id: 'sub_kelompok_ukhro', parentId: 'hw_kelompok', kode: 'HW-KELOMPOK-05', nama: 'Ukhro MT', urutan: 5 },
+			{ id: 'sub_kelompok_qurban', parentId: 'hw_kelompok', kode: 'HW-KELOMPOK-06', nama: 'Qurban', urutan: 6 }
+		];
+
+		const insertSubStmt = sqlite.prepare(`
+			INSERT OR IGNORE INTO pos_anggaran_infaq (id, parent_id, kode, nama, deskripsi, tingkat_scope, is_wajib, tipe_alokasi, urutan, is_active, created_at, updated_at)
+			VALUES (?, ?, ?, ?, '', 'Kelompok', 0, 'nominal', ?, 1, ?, ?)
+		`);
+		for (const s of standardSubPos) {
+			insertSubStmt.run(s.id, s.parentId, s.kode, s.nama, s.urutan, now, now);
 		}
 	}
 } catch (migErr) {
