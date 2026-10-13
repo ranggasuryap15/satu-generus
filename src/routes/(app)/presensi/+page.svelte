@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(app)/presensi/+page.svelte
-  @purpose Halaman presensi mandiri jamaah: Hadir Offline dengan validasi radius lokasi kelompok & kamera, Hadir Online wajib bukti gambar jika lokasi belum sesuai, dan permohonan Izin/Sakit
+  @purpose Halaman presensi mandiri jamaah: Hadir Offline dengan validasi radius lokasi kelompok & kamera, Hadir Online wajib bukti gambar jika lokasi belum sesuai, validasi integritas waktu presensi (wajib di tanggal yang sama dan minimal 1 jam sebelum kegiatan dimulai), dan permohonan Izin/Sakit
   @usedBy Route client '/presensi'
   @dependencies qrcode, @lucide/svelte, $app/forms, $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
   @publicFunctions captureLocation, calculateDistanceMeters, handleFotoChange, resetPresensiForm, openPreviewFoto, closePreviewFoto
@@ -356,6 +356,11 @@
 						cancel();
 						return;
 					}
+					if (selectedJadwal && selectedJadwal.bisaPresensi === false) {
+						alert(selectedJadwal.pesanStatusWaktu || 'Presensi belum dibuka untuk kegiatan ini.');
+						cancel();
+						return;
+					}
 					if (metodeKehadiran === 'offline' && (!latitude || !longitude)) {
 						alert('Lokasi GPS belum terdeteksi. Silakan klik tombol "Deteksi Lokasi GPS" terlebih dahulu.');
 						cancel();
@@ -397,10 +402,20 @@
 					>
 						{#each data.jadwalList as j}
 							<option value={j.id}>
-								{j.namaKegiatan} ({formatDateDDMMYYYY(j.tanggal)})
+								{j.namaKegiatan} ({formatDateDDMMYYYY(j.tanggal)}{j.jamMulai ? ` • ${j.jamMulai} WIB` : ''}){j.bisaPresensi === false ? ' [Presensi Belum Dibuka]' : ''}
 							</option>
 						{/each}
 					</select>
+
+					{#if selectedJadwal && selectedJadwal.bisaPresensi === false}
+						<div class="mt-2.5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 flex items-start gap-2.5 text-xs">
+							<Clock class="w-4 h-4 shrink-0 mt-0.5" />
+							<div class="space-y-0.5">
+								<p class="font-bold">Presensi Belum / Tidak Tersedia</p>
+								<p class="text-[11px] opacity-90">{selectedJadwal.pesanStatusWaktu}</p>
+							</div>
+						</div>
+					{/if}
 
 					{#if selectedJadwal?.lokasiNama || selectedJadwal?.latitudeVenue}
 						<div class="mt-2.5 p-3 rounded-xl bg-secondary/40 border border-border/80 flex items-start justify-between gap-3 text-xs">
@@ -680,7 +695,14 @@
 				</div>
 
 				<!-- Tombol Submit Presensi -->
-				{#if metodeKehadiran === 'offline' && isWithinRadius === false}
+				{#if selectedJadwal && selectedJadwal.bisaPresensi === false}
+					<div
+						class="w-full py-3 px-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs font-semibold text-center flex items-center justify-center gap-2"
+					>
+						<Clock class="w-4 h-4 shrink-0" />
+						<span>{selectedJadwal.pesanStatusWaktu || 'Presensi belum dibuka untuk kegiatan ini'}</span>
+					</div>
+				{:else if metodeKehadiran === 'offline' && isWithinRadius === false}
 					<button
 						type="button"
 						onclick={() => (metodeKehadiran = 'online')}
@@ -887,7 +909,7 @@
 									<h4 class="text-sm font-semibold text-foreground">{item.namaKegiatan}</h4>
 									<div class="flex items-center gap-1.5 text-xs text-foreground/60 mt-0.5">
 										<Clock class="w-3.5 h-3.5" />
-										<span>{formatDateDDMMYYYY(item.tanggal)}</span>
+										<span>{formatDateDDMMYYYY(item.tanggal)}{item.jamMulai ? ` • ${item.jamMulai} WIB` : ''}</span>
 									</div>
 								</div>
 

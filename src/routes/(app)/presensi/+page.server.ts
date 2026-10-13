@@ -1,10 +1,10 @@
 /**
  * @file src/routes/(app)/presensi/+page.server.ts
- * @purpose Memuat jadwal pengajian dengan fallback lokasi kelompok, QR token, dan validasi radius lokasi GPS offline / wajib bukti gambar jika di luar radius
+ * @purpose Memuat jadwal pengajian dengan fallback lokasi kelompok, QR token, dan validasi radius lokasi GPS offline / wajib bukti gambar jika di luar radius, serta validasi integritas waktu presensi (wajib di tanggal yang sama dan minimal 1 jam sebelum kegiatan dimulai)
  * @usedBy src/routes/(app)/presensi/+page.svelte
- * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm, src/lib/server/upload
+ * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm, src/lib/server/upload, src/lib/presensi-waktu
  * @publicFunctions load, actions.presensiMandiri, actions.ajukanIzin
- * @sideEffects Validasi jarak radius Haversine lokasi kelompok, menyimpan file foto ke root uploads/presensi, dan menulis presensi_kehadiran ke SQLite
+ * @sideEffects Validasi tanggal & jam mulai jadwal, validasi jarak radius Haversine lokasi kelompok, menyimpan file foto ke root uploads/presensi, dan menulis presensi_kehadiran ke SQLite
  */
 
 import { fail, redirect } from '@sveltejs/kit';
@@ -13,6 +13,7 @@ import { db } from '$lib/db';
 import { presensiJadwal, presensiKehadiran, kelompok } from '$lib/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
 import { saveUploadedFile } from '$lib/server/upload';
+import { validasiWaktuPresensi } from '$lib/presensi-waktu';
 
 async function saveUploadedFoto(
 	fileOrBase64: File | string | null | undefined,
@@ -65,10 +66,13 @@ export const load: PageServerLoad = async ({ locals }) => {
 		const venueRadius = j.radiusMeter || kelompokData?.radiusMeter || 100;
 		const venueNama = j.lokasiNama || kelompokData?.lokasiNama || kelompokData?.nama || null;
 		const venueGmaps = j.gmapsUrl || kelompokData?.gmapsUrl || null;
+		const statusWaktu = validasiWaktuPresensi(j.tanggal, j.jamMulai);
 
 		return {
 			id: j.id,
 			tanggal: j.tanggal,
+			jamMulai: j.jamMulai,
+			jamSelesai: j.jamSelesai,
 			namaKegiatan: j.namaKegiatan,
 			lokasiNama: venueNama,
 			latitudeVenue: venueLat,
@@ -85,7 +89,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 			keteranganIzin: rec?.keteranganIzin || null,
 			statusApproval: rec?.statusApproval || (rec ? 'Disetujui' : null),
 			catatanAdmin: rec?.catatanAdmin || null,
-			waktuScan: rec?.waktuScan || null
+			waktuScan: rec?.waktuScan || null,
+			bisaPresensi: statusWaktu.isValid,
+			pesanStatusWaktu: statusWaktu.error || null,
+			waktuBukaPresensi: statusWaktu.bukaPukul
 		};
 	});
 
@@ -131,6 +138,26 @@ export const actions: Actions = {
 			return fail(400, { error: 'Pilih jadwal kegiatan pengajian terlebih dahulu.' });
 		}
 
+		// Validasi Jadwal Kegiatan
+		const jadwal = db.select().from(presensiJadwal).where(eq(presensiJadwal.id, jadwalId)).get();
+		if (!jadwal) {
+			return fail(404, { error: 'Jadwal kegiatan pengajian tidak ditemukan.' });
+		}
+
+		if (jadwal.status !== 'aktif') {
+			return fail(400, {
+				error: `Kegiatan ini berstatus ${jadwal.status}, presensi tidak dapat dilakukan.`
+			});
+		}
+
+		// Validasi Integritas Waktu: Tanggal sama & jam minimal 1 jam sebelum jam dimulai
+		const validasiWaktu = validasiWaktuPresensi(jadwal.tanggal, jadwal.jamMulai);
+		if (!validasiWaktu.isValid) {
+			return fail(400, {
+				error: validasiWaktu.error
+			});
+		}
+
 		// Validasi Kriteria Hadir Offline
 		if (metode === 'offline') {
 			if (!latitude || !longitude) {
@@ -139,16 +166,15 @@ export const actions: Actions = {
 				});
 			}
 
-			// Ambil detail jadwal & kelompok untuk validasi jarak radius
-			const jadwal = db.select().from(presensiJadwal).where(eq(presensiJadwal.id, jadwalId)).get();
-			const targetKelompokId = jadwal?.kelompokId || locals.user.kelompokId;
+			// Ambil detail kelompok untuk validasi jarak radius
+			const targetKelompokId = jadwal.kelompokId || locals.user.kelompokId;
 			const targetKelompok = targetKelompokId
 				? db.select().from(kelompok).where(eq(kelompok.id, targetKelompokId)).get()
 				: null;
 
-			const targetLatStr = jadwal?.latitude || targetKelompok?.latitude || null;
-			const targetLngStr = jadwal?.longitude || targetKelompok?.longitude || null;
-			const targetRadius = jadwal?.radiusMeter || targetKelompok?.radiusMeter || 100;
+			const targetLatStr = jadwal.latitude || targetKelompok?.latitude || null;
+			const targetLngStr = jadwal.longitude || targetKelompok?.longitude || null;
+			const targetRadius = jadwal.radiusMeter || targetKelompok?.radiusMeter || 100;
 
 			if (!targetLatStr || !targetLngStr) {
 				return fail(400, {
