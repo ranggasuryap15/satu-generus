@@ -1,6 +1,6 @@
 <!--
   @file src/lib/components/navigation/BottomNavbar.svelte
-  @purpose Komponen navigasi bawah (Bottom Navbar) mobile client bergaya floating bar modern yang terangkat simetris dari bawah layar HP untuk mencegah tabrakan dengan tombol navigasi sistem Android/iOS
+  @purpose Komponen navigasi bawah (Bottom Navbar) client jamaah bergaya floating bar modern yang konsisten tampil di mode mobile maupun desktop terpusat (max-w-md)
   @usedBy src/routes/(app)/+layout.svelte
   @dependencies $app/state (page), @lucide/svelte (Home, Users, QrCode, User)
   @publicFunctions isItemActive
@@ -38,8 +38,8 @@
 </script>
 
 <nav
-	class="fixed bottom-3 inset-x-3 z-40 max-w-md mx-auto bg-card/95 backdrop-blur-md border border-border/90 rounded-2xl md:hidden shadow-xl px-1.5 py-1"
-	aria-label="Navigasi Utama Mobile"
+	class="fixed bottom-3 inset-x-3 z-40 max-w-md mx-auto bg-card/95 backdrop-blur-md border border-border/90 rounded-2xl shadow-xl px-1.5 py-1"
+	aria-label="Navigasi Utama Client"
 >
 	<div class="grid grid-cols-4 h-14 items-center">
 		{#each navItems as item}

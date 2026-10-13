@@ -51,6 +51,7 @@
     "tailwind-merge": "^3.7.0"
   },
   "allowScripts": {
-    "better-sqlite3@13.0.3": true
+    "better-sqlite3@13.0.3": true,
+    "esbuild": true
   }
 }
