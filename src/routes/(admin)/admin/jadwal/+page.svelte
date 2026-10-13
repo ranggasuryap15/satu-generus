@@ -401,7 +401,7 @@
 					: 'bg-card border border-border text-foreground/70 hover:text-foreground hover:bg-secondary'}"
 			>
 				<Users class="w-4 h-4" />
-				<span>Pengajian Tingkat Kelompok ({data.kelompokList.length} Kelompok)</span>
+				<span>Pengajian Tingkat Kelompok</span>
 			</button>
 		</div>
 	{/if}
