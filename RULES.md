@@ -22,12 +22,14 @@
 
 - Jangan pernah memuat kode yang berhubungan dengan _database_ (Drizzle) atau _crypto_ (Enkripsi) di dalam komponen `.svelte` atau file `.js` sisi _client_. Wajib letakkan di `+page.server.js` atau folder `src/lib/server/`.
 
-## 5. Eksekusi Perintah Terminal (PENTING)
+## 5. Eksekusi Perintah Terminal & Auto-Git (PENTING)
 
-- DILARANG KERAS menjalankan `npm run build` atau `npm run check` selama proses penulisan kode atau development lokal, kecuali diminta secara eksplisit.
+- **DILARANG KERAS** menjalankan `npm run build` atau `npm run check` selama proses penulisan kode atau development lokal, kecuali diminta secara eksplisit.
 - Proses development hanya menggunakan `npm run dev` (Vite HMR).
-- Evaluasi kode cukup dilakukan dengan melihat perubahan langsung di browser atau melalui linter bawaan IDE, bukan dengan memicu proses kompilasi penuh.
-- Setelah tidak ada error, maka lakukan `git commit`, `git push`, agar terdokumentasi dengan baik.
+- **AUTO-COMMIT & PUSH:** Setelah perubahan kode selesai dan dipastikan tidak ada error sintaks/linter, langsung jalankan `git commit` dan `git push` secara otomatis tanpa perlu menunggu instruksi.
+- **SELECTIVE STAGING (DILARANG `git add .`):** Saat melakukan auto-commit, wajib gunakan `git add <path_file_spesifik>` hanya pada file kode yang baru saja diubah/dibuat. Dilarang keras meng-commit file `.env`, database (`*.db`, `*.sqlite`), atau isi folder `uploads/`.
+- **CONVENTIONAL COMMITS:** Buat pesan commit otomatis yang singkat, jelas, dan berformat standar dalam Bahasa Indonesia (contoh: `feat(presensi): ubah path penyimpanan foto ke luar static` atau `fix(shodaqoh): hapus auto-redirect setelah aksi CRUD`).
+- **STOP ON GIT ERROR:** Jika perintah `git push` gagal karena alasan apa pun (seperti konflik), hentikan percobaan di terminal seketika dan laporkan ke pengguna (jangan mencoba melakukan *rebase* atau *force push* otomatis).
 
 ## 6. Hal yang harus diperhatikan
 
