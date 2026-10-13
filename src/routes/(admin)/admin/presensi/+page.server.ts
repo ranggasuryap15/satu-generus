@@ -1,17 +1,17 @@
 /**
  * @file src/routes/(admin)/admin/presensi/+page.server.ts
- * @purpose Memuat seluruh jadwal pengajian dan menangani aksi pembuatan jadwal kegiatan baru bagi admin dengan pembatasan wewenang scope wilayah
+ * @purpose Memuat seluruh jadwal pengajian dengan urutan tanggal terdekat paling atas dan menangani aksi pembuatan jadwal kegiatan baru bagi admin dengan pembatasan wewenang scope wilayah
  * @usedBy src/routes/(admin)/admin/presensi/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, src/lib/utils (normalizeDateToISO), drizzle-orm
  * @publicFunctions load, actions.createJadwal
- * @sideEffects Query jadwal & rekap kehadiran sesuai scope, insert jadwal pengajian baru ke SQLite
+ * @sideEffects Query jadwal (diurutkan tanggal terdekat) & rekap kehadiran sesuai scope, insert jadwal pengajian baru ke SQLite
  */
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '$lib/db';
 import { presensiJadwal, presensiKehadiran, kelompok } from '$lib/db/schema';
-import { eq, desc, inArray, or } from 'drizzle-orm';
+import { eq, desc, inArray, or, sql } from 'drizzle-orm';
 import { normalizeDateToISO } from '$lib/utils';
 import { getAdminScope, getAccessibleWilayah, isKelompokAllowed } from '$lib/server/scope';
 
@@ -76,7 +76,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 		})
 		.from(presensiJadwal)
 		.leftJoin(kelompok, eq(presensiJadwal.kelompokId, kelompok.id))
-		.orderBy(desc(presensiJadwal.tanggal));
+		.orderBy(
+			sql`ABS(julianday(${presensiJadwal.tanggal}) - julianday(date('now', 'localtime'))) ASC`,
+			sql`CASE WHEN ${presensiJadwal.tanggal} >= date('now', 'localtime') THEN 0 ELSE 1 END ASC`,
+			desc(presensiJadwal.tanggal)
+		);
 
 	const rawJadwal = jadwalCondition ? query.where(jadwalCondition).all() : query.all();
 

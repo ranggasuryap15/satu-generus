@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(admin)/admin/jadwal/+page.server.ts
- * @purpose Server load & actions untuk pengelolaan jadwal pengajian bertingkat (Desa & Kelompok), persistensi state tab & ID terpilih via URL parameter & cookies agar tidak ter-reset, template siklus rutin, generator sesi bulanan dengan pewarisan lokasi default Desa & Kelompok, serta penghapusan aman sesi pengajian (beserta presensi kehadiran terkait)
+ * @purpose Server load & actions untuk pengelolaan jadwal pengajian bertingkat (Desa & Kelompok), default NULL saat klik tab pengajian, persistensi filter terpilih setelah simpan/edit/hapus via URL parameter & cookies, template siklus rutin, generator sesi bulanan dengan pewarisan lokasi default Desa & Kelompok, serta penghapusan aman sesi pengajian (beserta presensi kehadiran terkait)
  * @usedBy src/routes/(admin)/admin/jadwal/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema (jadwalPengajianTemplate, presensiJadwal, presensiKehadiran, kelompok, desa), src/lib/server/scope, src/lib/jadwal, drizzle-orm
  * @publicFunctions load, actions.saveTemplate, actions.deleteTemplate, actions.generateSesiBulanan, actions.createSesiManual, actions.updateSesiOverride, actions.deleteSesi
@@ -52,35 +52,67 @@ export const load: PageServerLoad = async ({ locals, url, cookies }) => {
 	const currentTab: 'desa' | 'kelompok' = isKelompokOnly || effectiveTab === 'kelompok' ? 'kelompok' : 'desa';
 	cookies.set('admin_jadwal_tab', currentTab, { path: '/', httpOnly: false, sameSite: 'lax', maxAge: 60 * 60 * 24 * 7 });
 
-	// Penentuan Desa aktif
+	// Penentuan Desa aktif (default NULL saat klik tab desa / baru buka, dipertahankan setelah simpan/edit)
+	const isTabDesaExplicit = url.searchParams.has('tab') && url.searchParams.get('tab') === 'desa';
+	const urlDesaId = url.searchParams.get('desaId');
 	const cookieDesaId = cookies.get('admin_jadwal_desa_id');
-	const urlDesaId = url.searchParams.get('desaId') || cookieDesaId;
 	let selectedDesaId: number | null = null;
+
 	if (canManageDesa && accessibleWilayah.desaList.length > 0) {
-		if (urlDesaId && accessibleWilayah.desaList.some((d) => d.id === Number(urlDesaId))) {
-			selectedDesaId = Number(urlDesaId);
-		} else {
+		if (accessibleWilayah.desaList.length === 1) {
+			// Jika scope hanya 1 desa (misal Admin Desa), otomatis gunakan desa tersebut
 			selectedDesaId = accessibleWilayah.desaList[0].id;
+		} else if (urlDesaId && accessibleWilayah.desaList.some((d) => d.id === Number(urlDesaId))) {
+			// Jika ada desaId eksplisit di URL query
+			selectedDesaId = Number(urlDesaId);
+		} else if (isTabDesaExplicit && !urlDesaId) {
+			// Ketika klik tab desa, defaultnya adalah NULL
+			selectedDesaId = null;
+			cookies.delete('admin_jadwal_desa_id', { path: '/' });
+		} else if (!url.searchParams.has('tab') && !urlDesaId) {
+			// Buka halaman pertama kali tanpa query params, default NULL
+			selectedDesaId = null;
+		} else if (cookieDesaId && accessibleWilayah.desaList.some((d) => d.id === Number(cookieDesaId))) {
+			// Selesai simpan/edit form yang me-restore via cookie
+			selectedDesaId = Number(cookieDesaId);
+		} else {
+			selectedDesaId = null;
 		}
+
 		if (selectedDesaId) {
 			cookies.set('admin_jadwal_desa_id', String(selectedDesaId), { path: '/', httpOnly: false, sameSite: 'lax', maxAge: 60 * 60 * 24 * 7 });
 		}
 	}
 
-	// Penentuan Kelompok aktif
+	// Penentuan Kelompok aktif (default NULL saat klik tab kelompok, dipertahankan setelah simpan/edit)
+	const isTabKelompokExplicit = url.searchParams.has('tab') && url.searchParams.get('tab') === 'kelompok';
+	const urlKelompokId = url.searchParams.get('kelompokId');
 	const cookieKelompokId = cookies.get('admin_jadwal_kelompok_id');
-	const urlKelompokId = url.searchParams.get('kelompokId') || cookieKelompokId;
 	let selectedKelompokId: number | null = null;
+
 	if (accessibleWilayah.kelompokList.length > 0) {
-		if (urlKelompokId && accessibleWilayah.kelompokList.some((k) => k.id === Number(urlKelompokId))) {
-			selectedKelompokId = Number(urlKelompokId);
-		} else if (isKelompokOnly && adminScope.kelompokIds.length > 0) {
+		if (isKelompokOnly && adminScope.kelompokIds.length > 0) {
+			// Admin kelompok selalu terikat pada kelompoknya sendiri
 			selectedKelompokId = adminScope.kelompokIds[0];
-		} else if (locals.user.kelompokId && accessibleWilayah.kelompokList.some((k) => k.id === locals.user?.kelompokId)) {
-			selectedKelompokId = locals.user.kelompokId;
-		} else {
+		} else if (accessibleWilayah.kelompokList.length === 1) {
 			selectedKelompokId = accessibleWilayah.kelompokList[0].id;
+		} else if (urlKelompokId && accessibleWilayah.kelompokList.some((k) => k.id === Number(urlKelompokId))) {
+			// Jika ada kelompokId eksplisit di URL query
+			selectedKelompokId = Number(urlKelompokId);
+		} else if (isTabKelompokExplicit && !urlKelompokId) {
+			// Ketika klik tab kelompok, defaultnya adalah NULL
+			selectedKelompokId = null;
+			cookies.delete('admin_jadwal_kelompok_id', { path: '/' });
+		} else if (!url.searchParams.has('tab') && !urlKelompokId) {
+			// Buka halaman pertama kali tanpa query params, default NULL
+			selectedKelompokId = null;
+		} else if (cookieKelompokId && accessibleWilayah.kelompokList.some((k) => k.id === Number(cookieKelompokId))) {
+			// Selesai simpan/edit form yang me-restore via cookie
+			selectedKelompokId = Number(cookieKelompokId);
+		} else {
+			selectedKelompokId = null;
 		}
+
 		if (selectedKelompokId) {
 			cookies.set('admin_jadwal_kelompok_id', String(selectedKelompokId), { path: '/', httpOnly: false, sameSite: 'lax', maxAge: 60 * 60 * 24 * 7 });
 		}

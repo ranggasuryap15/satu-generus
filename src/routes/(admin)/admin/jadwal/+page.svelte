@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(admin)/admin/jadwal/+page.svelte
-  @purpose Antarmuka manajemen jadwal pengajian bertingkat (Desa & Kelompok), sinkronisasi tab aktif via URL query params & cookies persisten tanpa refresh merusak state, helper getActionUrl penjaga query params form submit (?/actionName&params), selector kelompok & desa tanpa refresh kasar, generator sesi bulanan, override mendadak, pewarisan lokasi default Desa & Kelompok pada sesi manual, penghapusan sesi & template dengan modal konfirmasi aman serta scroll retention (tanpa jumping ke atas)
+  @purpose Antarmuka manajemen jadwal pengajian bertingkat (Desa & Kelompok), default selector NULL saat klik tab pengajian, retensi filter terpilih setelah simpan/edit/hapus/override/generate via URL query params & cookies, helper getActionUrl penjaga query params form submit (?/actionName&params), selector kelompok & desa tanpa refresh kasar, generator sesi bulanan, override mendadak, pewarisan lokasi default Desa & Kelompok pada sesi manual, penghapusan sesi & template dengan modal konfirmasi aman serta scroll retention
   @usedBy Route admin '/admin/jadwal'
   @dependencies @lucide/svelte, $app/forms, $app/navigation, $app/state, $lib/confirm.svelte, $lib/keepScroll.ts, $lib/components/SearchableSelect.svelte, $lib/jadwal (getNamaHari, getMingguKe, formatDateIndoFull, formatWhatsAppReminder, generateWhatsAppLink, NAMA_HARI_INDO, NAMA_BULAN_INDO), Svelte 5 Runes
   @publicFunctions getActionUrl, switchTab, handleSelectKelompok, handleSelectDesa, openCreateTemplateModal, openEditTemplateModal, openOverrideModal, openWaModal, openGenerateModal, copyWaText
@@ -76,15 +76,13 @@
 		activeTab = newTab;
 		const targetUrl = new URL(page.url.href);
 		targetUrl.searchParams.set('tab', newTab);
-		if (newTab === 'kelompok' && data.selectedKelompokId) {
-			targetUrl.searchParams.set('kelompokId', String(data.selectedKelompokId));
-		} else if (newTab === 'desa' && data.selectedDesaId) {
-			targetUrl.searchParams.set('desaId', String(data.selectedDesaId));
-		}
+		// Ketika klik tab, defaultnya NULL
+		targetUrl.searchParams.delete('desaId');
+		targetUrl.searchParams.delete('kelompokId');
 		for (const key of Array.from(targetUrl.searchParams.keys())) {
 			if (key.startsWith('/')) targetUrl.searchParams.delete(key);
 		}
-		goto(targetUrl.toString(), { reset: false });
+		goto(targetUrl.toString(), { reset: false, invalidateAll: true });
 	}
 
 	function handleSelectKelompok(val: string | number) {
@@ -207,10 +205,10 @@
 
 	// Active Desa & Kelompok Nama
 	const activeDesaObj = $derived(
-		(data.desaList || []).find((d: DesaListItem) => d.id === data.selectedDesaId) || data.desaList[0]
+		(data.desaList || []).find((d: DesaListItem) => d.id === data.selectedDesaId) || null
 	);
 	const activeKelompokObj = $derived(
-		(data.kelompokList || []).find((k: KelompokListItem) => k.id === data.selectedKelompokId) || data.kelompokList[0]
+		(data.kelompokList || []).find((k: KelompokListItem) => k.id === data.selectedKelompokId) || null
 	);
 
 	function openCreateTemplateModal(scope: 'Desa' | 'Kelompok') {
@@ -437,8 +435,19 @@
 				</div>
 			{/if}
 
-			<!-- Bagian 1.A: Template Rutin Mingguan Desa (Minggu 1, 2, 3, 4, 5) -->
-			<section class="bg-card border border-border rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+			{#if !data.selectedDesaId}
+				<div class="text-center py-12 px-4 bg-card border border-border/80 rounded-2xl shadow-xs space-y-3">
+					<div class="p-3 bg-primary/10 text-primary w-fit mx-auto rounded-2xl">
+						<Home class="w-8 h-8" />
+					</div>
+					<h3 class="text-sm font-bold text-foreground">Pilih Desa Terlebih Dahulu</h3>
+					<p class="text-xs text-foreground/60 max-w-md mx-auto leading-relaxed">
+						Silakan pilih salah satu desa pada pilihan di atas untuk menampilkan pola rutin dan daftar sesi pengajian tingkat desa.
+					</p>
+				</div>
+			{:else}
+				<!-- Bagian 1.A: Template Rutin Mingguan Desa (Minggu 1, 2, 3, 4, 5) -->
+				<section class="bg-card border border-border rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
 				<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/70 pb-3">
 					<div>
 						<h2 class="text-sm font-bold text-foreground flex items-center gap-2">
@@ -540,6 +549,7 @@
 										use:enhance={keepScrollSubmit()}
 									>
 										<input type="hidden" name="id" value={tmpl.id} />
+										<input type="hidden" name="desaId" value={data.selectedDesaId || ''} />
 										<button
 											type="button"
 											onclick={async (e) => {
@@ -689,6 +699,7 @@
 										use:enhance={keepScrollSubmit()}
 									>
 										<input type="hidden" name="id" value={sesi.id} />
+										<input type="hidden" name="desaId" value={data.selectedDesaId || ''} />
 										<button
 											type="button"
 											onclick={async (e) => {
@@ -715,6 +726,7 @@
 					</div>
 				{/if}
 			</section>
+			{/if}
 		</div>
 	{/if}
 
@@ -750,8 +762,19 @@
 				</div>
 			{/if}
 
-			<!-- Bagian 2.A: Pola Rutin Kelompok (2x atau 3x Seminggu) -->
-			<section class="bg-card border border-border rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+			{#if !data.selectedKelompokId}
+				<div class="text-center py-12 px-4 bg-card border border-border/80 rounded-2xl shadow-xs space-y-3">
+					<div class="p-3 bg-primary/10 text-primary w-fit mx-auto rounded-2xl">
+						<Users class="w-8 h-8" />
+					</div>
+					<h3 class="text-sm font-bold text-foreground">Pilih Kelompok Terlebih Dahulu</h3>
+					<p class="text-xs text-foreground/60 max-w-md mx-auto leading-relaxed">
+						Silakan pilih salah satu kelompok pada pilihan di atas untuk menampilkan pola rutin dan daftar sesi pengajian tingkat kelompok.
+					</p>
+				</div>
+			{:else}
+				<!-- Bagian 2.A: Pola Rutin Kelompok (2x atau 3x Seminggu) -->
+				<section class="bg-card border border-border rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
 				<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/70 pb-3">
 					<div>
 						<h2 class="text-sm font-bold text-foreground flex items-center gap-2">
@@ -853,6 +876,7 @@
 										use:enhance={keepScrollSubmit()}
 									>
 										<input type="hidden" name="id" value={tmpl.id} />
+										<input type="hidden" name="kelompokId" value={data.selectedKelompokId || ''} />
 										<button
 											type="button"
 											onclick={async (e) => {
@@ -1002,6 +1026,7 @@
 										use:enhance={keepScrollSubmit()}
 									>
 										<input type="hidden" name="id" value={sesi.id} />
+										<input type="hidden" name="kelompokId" value={data.selectedKelompokId || ''} />
 										<button
 											type="button"
 											onclick={async (e) => {
@@ -1028,6 +1053,7 @@
 					</div>
 				{/if}
 			</section>
+			{/if}
 		</div>
 	{/if}
 </div>
@@ -1274,6 +1300,8 @@
 				class="space-y-3.5 text-xs"
 			>
 				<input type="hidden" name="id" value={editingSesi.id} />
+				<input type="hidden" name="desaId" value={editingSesi.desaId || data.selectedDesaId || ''} />
+				<input type="hidden" name="kelompokId" value={editingSesi.kelompokId || data.selectedKelompokId || ''} />
 
 				<!-- Tanggal Sesi (Readonly) -->
 				<div>
