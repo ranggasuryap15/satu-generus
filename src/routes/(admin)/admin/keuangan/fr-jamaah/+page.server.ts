@@ -1,16 +1,16 @@
 /**
  * @file src/routes/(admin)/admin/keuangan/fr-jamaah/+page.server.ts
- * @purpose Backend controller halaman FR Jamaah: memuat daftar jamaah wajib isrun per kelompok terpilih beserta status peran (Pengurus / Jamaah Biasa) dan menangani batch upsert setoran bulanan shodaqoh FR khusus KU & Superadmin
+ * @purpose Backend controller halaman FR Jamaah: memuat daftar jamaah wajib isrun per kelompok terpilih beserta status peran, bukti transfer jamaah, rincian breakdown pos, dan menangani batch upsert setoran bulanan serta approval setoran mandiri khusus KU & Superadmin
  * @usedBy src/routes/(admin)/admin/keuangan/fr-jamaah/+page.svelte
  * @dependencies @sveltejs/kit, src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm, @paralleldrive/cuid2
- * @publicFunctions load, actions.saveFr
- * @sideEffects DB read pada anggota_keluarga, keluarga, users, user_dapukan, dapukan, kelompok, dan transaksi_fr; atomic batch upsert write pada transaksi_fr
+ * @publicFunctions load, actions.saveFr, actions.approveSetoran, actions.rejectSetoran
+ * @sideEffects DB read pada anggota_keluarga, keluarga, users, user_dapukan, dapukan, kelompok, pos_anggaran_infaq, dan transaksi_fr; atomic update/upsert write pada transaksi_fr
  */
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import { db, sqlite } from '$lib/db';
-import { anggotaKeluarga, keluarga, users, kelompok, desa, transaksiFr, userDapukan, dapukan } from '$lib/db/schema';
+import { anggotaKeluarga, keluarga, users, kelompok, desa, transaksiFr, userDapukan, dapukan, posAnggaranInfaq } from '$lib/db/schema';
 import { eq, and, asc, inArray } from 'drizzle-orm';
 import { getAdminScope, getAccessibleWilayah, canAccessKeuangan, canManageFr } from '$lib/server/scope';
 import { createId } from '@paralleldrive/cuid2';
@@ -54,6 +54,13 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		? canManageFr(roles, 'Kelompok', selectedKelompokId)
 		: false;
 
+	type BreakdownItem = {
+		posId: string;
+		nama: string;
+		kode: string;
+		nominal: number;
+	};
+
 	let jamaahList: Array<{
 		id: string;
 		namaLengkap: string;
@@ -68,6 +75,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		nominal: number;
 		statusBayar: string;
 		catatan: string;
+		rawCatatan: string;
+		buktiUrl: string | null;
+		metode: string | null;
+		tanggalLapor: string | null;
+		diinputOleh: string | null;
+		breakdownItems: BreakdownItem[];
 		updatedAt: number | null;
 		isPengurus: boolean;
 		dapukanNama: string | null;
@@ -170,12 +183,75 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				}
 			}
 
-			// 4. Gabungkan data jamaah dengan transaksi periode aktif & status pengurus
+			// 4. Query kamus pos anggaran infaq untuk resolusi nama pos pada breakdown
+			const posRows = db
+				.select({
+					id: posAnggaranInfaq.id,
+					nama: posAnggaranInfaq.nama,
+					kode: posAnggaranInfaq.kode
+				})
+				.from(posAnggaranInfaq)
+				.all();
+
+			const posMap = new Map<string, { nama: string; kode: string }>();
+			for (const p of posRows) {
+				posMap.set(p.id, { nama: p.nama, kode: p.kode });
+			}
+
+			// 5. Gabungkan data jamaah dengan transaksi periode aktif, status pengurus, dan bukti upload
 			jamaahList = rawJamaah.map((j) => {
 				const existing = frMap.get(j.id);
 				const targetUid = j.statusHubungan === 'Kepala Keluarga' ? j.kepalaKeluargaId : j.userId;
 				const dapukanName = targetUid ? userDapukanMap.get(targetUid) : null;
 				const isPengurus = Boolean(dapukanName);
+
+				let buktiUrl: string | null = null;
+				const breakdownItems: BreakdownItem[] = [];
+				let metode: string | null = null;
+				let catatanUser = '';
+				let tanggalLapor: string | null = null;
+				let diinputOleh: string | null = null;
+
+				if (existing?.catatan) {
+					try {
+						const parsed = JSON.parse(existing.catatan);
+						if (parsed && typeof parsed === 'object') {
+							buktiUrl = parsed.buktiUrl || null;
+							metode = parsed.metode || null;
+							catatanUser = parsed.catatan || '';
+							tanggalLapor = parsed.tanggalLapor || null;
+							diinputOleh = parsed.diinputOleh || null;
+
+							if (parsed.breakdown && typeof parsed.breakdown === 'object') {
+								for (const [posId, nom] of Object.entries(parsed.breakdown)) {
+									const nVal = Number(nom) || 0;
+									if (nVal > 0) {
+										const pos = posMap.get(posId);
+										breakdownItems.push({
+											posId,
+											nama: pos?.nama || 'Pos Anggaran',
+											kode: pos?.kode || '',
+											nominal: nVal
+										});
+									}
+								}
+							}
+						}
+					} catch (_) {
+						catatanUser = existing.catatan || '';
+					}
+				}
+
+				let statusBayar = 'Belum';
+				if (existing) {
+					if (existing.statusBayar === 'Menunggu Konfirmasi' || existing.statusBayar === 'Menunggu') {
+						statusBayar = 'Menunggu Konfirmasi';
+					} else if (existing.statusBayar === 'Diterima' || existing.statusBayar === 'Lunas') {
+						statusBayar = 'Diterima';
+					} else if (existing.nominal > 0) {
+						statusBayar = 'Diterima';
+					}
+				}
 
 				return {
 					id: j.id,
@@ -189,8 +265,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 					kepalaKeluargaNama: j.kepalaKeluargaNama,
 					transaksiId: existing?.id || null,
 					nominal: existing?.nominal ?? 0,
-					statusBayar: existing?.statusBayar ?? (existing?.nominal ? 'Lunas' : 'Belum'),
-					catatan: existing?.catatan ?? '',
+					statusBayar,
+					catatan: catatanUser,
+					rawCatatan: existing?.catatan ?? '',
+					buktiUrl,
+					metode: metode || (existing?.nominal ? 'Tunai' : null),
+					tanggalLapor,
+					diinputOleh,
+					breakdownItems,
 					updatedAt: existing?.updatedAt ?? null,
 					isPengurus,
 					dapukanNama: dapukanName || null
@@ -343,6 +425,130 @@ export const actions: Actions = {
 		return {
 			success: true,
 			message: `Berhasil menyimpan data FR untuk ${items.length} jamaah.`
+		};
+	},
+
+	/**
+	 * Menyetujui setoran shodaqoh FR mandiri dari jamaah (Khusus KU / Superadmin)
+	 */
+	approveSetoran: async ({ request, locals }) => {
+		if (!locals.user || !locals.isAdmin) {
+			return fail(401, { error: 'Sesi kedaluwarsa. Silakan login kembali.' });
+		}
+
+		const formData = await request.formData();
+		const kelompokId = Number(formData.get('kelompokId') || 0);
+		const transaksiId = formData.get('transaksiId') ? String(formData.get('transaksiId')) : null;
+		const anggotaId = formData.get('anggotaId') ? String(formData.get('anggotaId')) : null;
+		const tahun = Number(formData.get('tahun') || 0);
+		const bulan = Number(formData.get('bulan') || 0);
+
+		if (!kelompokId || (!transaksiId && (!anggotaId || !tahun || !bulan))) {
+			return fail(400, { error: 'Parameter persetujuan setoran tidak lengkap.' });
+		}
+
+		const canEdit = canManageFr(locals.roles || [], 'Kelompok', kelompokId);
+		if (!canEdit) {
+			return fail(403, {
+				error: 'Akses ditolak: Hanya pengurus KU/Bendahara atau Superadmin yang berwenang menyetujui setoran FR.'
+			});
+		}
+
+		const now = Math.floor(Date.now() / 1000);
+		const userId = locals.user.id;
+
+		try {
+			if (transaksiId) {
+				sqlite
+					.prepare(
+						`UPDATE transaksi_fr
+						 SET status_bayar = 'Diterima',
+						     updated_by_user_id = ?,
+						     updated_at = ?
+						 WHERE id = ?`
+					)
+					.run(userId, now, transaksiId);
+			} else if (anggotaId && tahun && bulan) {
+				sqlite
+					.prepare(
+						`UPDATE transaksi_fr
+						 SET status_bayar = 'Diterima',
+						     updated_by_user_id = ?,
+						     updated_at = ?
+						 WHERE anggota_keluarga_id = ? AND tahun = ? AND bulan = ?`
+					)
+					.run(userId, now, anggotaId, tahun, bulan);
+			}
+		} catch (err: any) {
+			console.error('[FR Approve Error]:', err);
+			return fail(500, { error: `Gagal menyetujui setoran: ${err?.message || 'Database error'}` });
+		}
+
+		return {
+			success: true,
+			message: 'Setoran Isrun/FR jamaah berhasil disetujui & berstatus Diterima.'
+		};
+	},
+
+	/**
+	 * Mengembalikan status setoran atau menolak (Khusus KU / Superadmin)
+	 */
+	rejectSetoran: async ({ request, locals }) => {
+		if (!locals.user || !locals.isAdmin) {
+			return fail(401, { error: 'Sesi kedaluwarsa. Silakan login kembali.' });
+		}
+
+		const formData = await request.formData();
+		const kelompokId = Number(formData.get('kelompokId') || 0);
+		const transaksiId = formData.get('transaksiId') ? String(formData.get('transaksiId')) : null;
+		const anggotaId = formData.get('anggotaId') ? String(formData.get('anggotaId')) : null;
+		const tahun = Number(formData.get('tahun') || 0);
+		const bulan = Number(formData.get('bulan') || 0);
+
+		if (!kelompokId || (!transaksiId && (!anggotaId || !tahun || !bulan))) {
+			return fail(400, { error: 'Parameter pembatalan setoran tidak lengkap.' });
+		}
+
+		const canEdit = canManageFr(locals.roles || [], 'Kelompok', kelompokId);
+		if (!canEdit) {
+			return fail(403, {
+				error: 'Akses ditolak: Hanya pengurus KU/Bendahara atau Superadmin yang berwenang mengubah status setoran FR.'
+			});
+		}
+
+		const now = Math.floor(Date.now() / 1000);
+		const userId = locals.user.id;
+
+		try {
+			if (transaksiId) {
+				sqlite
+					.prepare(
+						`UPDATE transaksi_fr
+						 SET status_bayar = 'Belum',
+						     updated_by_user_id = ?,
+						     updated_at = ?
+						 WHERE id = ?`
+					)
+					.run(userId, now, transaksiId);
+			} else if (anggotaId && tahun && bulan) {
+				sqlite
+					.prepare(
+						`UPDATE transaksi_fr
+						 SET status_bayar = 'Belum',
+						     updated_by_user_id = ?,
+						     updated_at = ?
+						 WHERE anggota_keluarga_id = ? AND tahun = ? AND bulan = ?`
+					)
+					.run(userId, now, anggotaId, tahun, bulan);
+			}
+		} catch (err: any) {
+			console.error('[FR Reject Error]:', err);
+			return fail(500, { error: `Gagal mengubah status setoran: ${err?.message || 'Database error'}` });
+		}
+
+		return {
+			success: true,
+			message: 'Status setoran berhasil dikembalikan ke Belum.'
 		};
 	}
 };

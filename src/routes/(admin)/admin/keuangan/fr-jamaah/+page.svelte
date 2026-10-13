@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(admin)/admin/keuangan/fr-jamaah/+page.svelte
-  @purpose Halaman FR Jamaah: daftar kartu simetris mobile & tabel desktop dengan informasi nama, kepala keluarga, dan peran (Pengurus / Jamaah Biasa), inline editing nominal shodaqoh FR, ekspor data CSV/Excel, dan sticky floating save bar
+  @purpose Halaman FR Jamaah: daftar kartu simetris mobile & tabel desktop dengan informasi nama, kepala keluarga, peran, status konfirmasi setoran (Menunggu/Diterima/Belum), modal detail rincian pos & pratinjau bukti transfer interaktif, approval setoran mandiri khusus KU, inline editing nominal, dan ekspor data CSV
   @usedBy Route admin '/admin/keuangan/fr-jamaah'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
-  @publicFunctions handleNominalChange, handleCatatanChange, resetChanges, submitSave, exportToCsv
-  @sideEffects Mengirim form batch upsert transaksi FR via action ?/saveFr dengan menjaga scroll; ekspor CSV langsung di browser client; input nominal membuka dial pad murni angka (inputmode=numeric, pattern=[0-9]*)
+  @publicFunctions handleNominalChange, handleCatatanChange, resetChanges, submitSave, exportToCsv, openDetail, closeDetail
+  @sideEffects Mengirim form batch upsert transaksi FR via action ?/saveFr; action ?/approveSetoran & ?/rejectSetoran di dalam modal detail dengan menjaga scroll; ekspor CSV di client
 -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
@@ -14,16 +14,23 @@
 	  AlertCircle,
 	  Building2,
 	  Check,
+	  CheckCircle2,
 	  ChevronDown,
+	  Clock,
 	  Download,
+	  ExternalLink,
+	  Eye,
 	  Filter,
 	  HandCoins,
+	  Image,
 	  Layers,
 	  Lock,
 	  RotateCcw,
 	  Save,
 	  Search,
-	  ShieldCheck
+	  ShieldCheck,
+	  Wallet,
+	  X
 	} from '@lucide/svelte';
 	import type { ActionData, PageData } from './$types';
 
@@ -45,6 +52,68 @@
 	// Tracking Perubahan Data (Inline Edit)
 	let editedValues = $state<Record<string, { nominal: number; catatan: string }>>({});
 	let isSaving = $state(false);
+
+	// State Modal Detail & Approval
+	type BreakdownItem = {
+		posId: string;
+		nama: string;
+		kode: string;
+		nominal: number;
+	};
+
+	type JamaahItem = {
+		id: string;
+		namaLengkap: string;
+		jenisKelamin: string;
+		statusGenerus: string | null;
+		statusHubungan: string;
+		profesi: string | null;
+		noTelepon: string | null;
+		keluargaId: string;
+		kepalaKeluargaNama: string | null;
+		transaksiId: string | null;
+		nominal: number;
+		statusBayar: string;
+		catatan: string;
+		rawCatatan: string;
+		buktiUrl: string | null;
+		metode: string | null;
+		tanggalLapor: string | null;
+		diinputOleh: string | null;
+		breakdownItems: BreakdownItem[];
+		updatedAt: number | null;
+		isPengurus: boolean;
+		dapukanNama: string | null;
+	};
+
+	let selectedDetailJamaah = $state<JamaahItem | null>(null);
+	let zoomedBuktiUrl = $state<string | null>(null);
+	let isApproving = $state(false);
+	let isRejecting = $state(false);
+
+	function openDetail(j: JamaahItem) {
+		selectedDetailJamaah = j;
+	}
+
+	function closeDetail() {
+		selectedDetailJamaah = null;
+	}
+
+	function formatTanggalLapor(isoString: string | null): string {
+		if (!isoString) return '-';
+		try {
+			const d = new Date(isoString);
+			return d.toLocaleDateString('id-ID', {
+				day: 'numeric',
+				month: 'short',
+				year: 'numeric',
+				hour: '2-digit',
+				minute: '2-digit'
+			});
+		} catch {
+			return isoString;
+		}
+	}
 
 	// Opsi Bulan & Tahun
 	const bulanNames = [
@@ -80,25 +149,6 @@
 		}
 		window.location.href = `/admin/keuangan/fr-jamaah?kelompokId=${selectedKelompok}&tahun=${selectedTahun}&bulan=${selectedBulan}`;
 	}
-
-	type JamaahItem = {
-		id: string;
-		namaLengkap: string;
-		jenisKelamin: string;
-		statusGenerus: string | null;
-		statusHubungan: string;
-		profesi: string | null;
-		noTelepon: string | null;
-		keluargaId: string;
-		kepalaKeluargaNama: string | null;
-		transaksiId: string | null;
-		nominal: number;
-		statusBayar: string;
-		catatan: string;
-		updatedAt: number | null;
-		isPengurus: boolean;
-		dapukanNama: string | null;
-	};
 
 	function handleNominalInput(anggotaId: string, valueStr: string) {
 		const rawDigits = valueStr.replace(/\D/g, '');
@@ -459,7 +509,7 @@
 						{@const effCatatan = getEffectiveCatatan(j)}
 						{@const isRowDirty = editedValues[j.id] !== undefined && (editedValues[j.id].nominal !== j.nominal || editedValues[j.id].catatan !== j.catatan)}
 						<div class="bg-card border border-border rounded-2xl p-3.5 space-y-3 shadow-xs transition-all {isRowDirty ? 'border-primary/60 bg-primary/5 ring-1 ring-primary/20' : 'hover:border-border/80'}">
-							<!-- Header Kartu: No, Nama Jamaah & Status -->
+							<!-- Header Kartu: No, Nama Jamaah & Status + Tombol Detail -->
 							<div class="flex items-start justify-between gap-3">
 								<div class="flex items-start gap-2.5 min-w-0 flex-1">
 									<span class="w-6 h-6 rounded-lg bg-secondary text-foreground/70 font-mono text-xs font-bold flex items-center justify-center shrink-0 mt-0.5 border border-border/60">
@@ -485,17 +535,44 @@
 									</div>
 								</div>
 
-								<!-- Badge Status Pembayaran -->
-								{#if effNominal > 0}
-									<span class="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-2xs">
-										<Check class="w-3 h-3 stroke-[2.5]" />
-										<span>Lunas</span>
-									</span>
-								{:else}
-									<span class="shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-secondary text-foreground/50 border border-border">
-										Belum
-									</span>
-								{/if}
+								<!-- Status Pembayaran & Tombol Aksi Detail -->
+								<div class="flex items-center gap-1.5 shrink-0">
+									{#if j.statusBayar === 'Menunggu Konfirmasi' || j.statusBayar === 'Menunggu'}
+										<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+											<Clock class="w-2.5 h-2.5 stroke-[2.5]" />
+											<span>Menunggu</span>
+										</span>
+									{:else if j.statusBayar === 'Diterima'}
+										<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+											<Check class="w-2.5 h-2.5 stroke-[2.5]" />
+											<span>Diterima</span>
+										</span>
+									{:else if effNominal > 0}
+										<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+											<Check class="w-2.5 h-2.5 stroke-[2.5]" />
+											<span>Lunas</span>
+										</span>
+									{:else}
+										<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-secondary text-foreground/50 border border-border">
+											Belum
+										</span>
+									{/if}
+
+									<button
+										type="button"
+										onclick={() => openDetail(j)}
+										class="inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[11px] font-semibold transition-all {j.buktiUrl ? 'bg-primary/10 hover:bg-primary/20 text-primary border-primary/30 font-bold shadow-2xs' : 'bg-secondary hover:bg-secondary/80 text-foreground/80 border-border'}"
+										title="Buka detail rincian dan bukti transfer"
+									>
+										{#if j.buktiUrl}
+											<Image class="w-3 h-3 text-primary" />
+											<span>Bukti</span>
+										{:else}
+											<Eye class="w-3 h-3" />
+											<span>Detail</span>
+										{/if}
+									</button>
+								</div>
 							</div>
 
 							<!-- Form Input Simetris: Nominal (Kiri) & Catatan (Kanan) -->
@@ -553,14 +630,15 @@
 				</div>
 
 				<div class="hidden md:block border border-border rounded-xl overflow-x-auto shadow-xs">
-					<table class="w-full text-left text-xs min-w-[720px]">
+					<table class="w-full text-left text-xs min-w-[760px]">
 						<thead class="bg-secondary/60 text-foreground/70 uppercase text-[11px] tracking-wider border-b border-border">
 							<tr>
 								<th class="py-2 px-3.5 font-semibold w-12 text-center">No</th>
 								<th class="py-2 px-4 font-semibold">Nama Jamaah</th>
 								<th class="py-2 px-4 font-semibold">Kepala Keluarga</th>
-								<th class="py-2 px-4 font-semibold w-48">Nominal FR (Rp)</th>
-								<th class="py-2 px-3 font-semibold w-24 text-center">Status</th>
+								<th class="py-2 px-4 font-semibold w-44">Nominal FR (Rp)</th>
+								<th class="py-2 px-3 font-semibold w-28 text-center">Status</th>
+								<th class="py-2 px-3 font-semibold w-28 text-center">Aksi / Bukti</th>
 								<th class="py-2 px-4 font-semibold">Catatan / Keterangan</th>
 							</tr>
 						</thead>
@@ -620,15 +698,46 @@
 
 									<!-- Status Pembayaran -->
 									<td class="py-2 px-3 text-center">
-										{#if effNominal > 0}
-											<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-												Lunas
+										{#if j.statusBayar === 'Menunggu Konfirmasi' || j.statusBayar === 'Menunggu'}
+											<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+												<Clock class="w-3 h-3 stroke-[2.5]" />
+												<span>Menunggu</span>
+											</span>
+										{:else if j.statusBayar === 'Diterima'}
+											<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+												<Check class="w-3 h-3 stroke-[2.5]" />
+												<span>Diterima</span>
+											</span>
+										{:else if effNominal > 0}
+											<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+												<Check class="w-3 h-3 stroke-[2.5]" />
+												<span>Lunas</span>
 											</span>
 										{:else}
-											<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-secondary text-foreground/50">
+											<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-secondary text-foreground/50 border border-border">
 												Belum
 											</span>
 										{/if}
+									</td>
+
+									<!-- Tombol Aksi & Bukti Transfer -->
+									<td class="py-2 px-3 text-center">
+										<button
+											type="button"
+											onclick={() => openDetail(j)}
+											class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-all {j.buktiUrl ? 'bg-primary/10 hover:bg-primary/20 text-primary border-primary/30 ring-1 ring-primary/20 font-bold' : 'bg-secondary/60 hover:bg-secondary text-foreground/80 border-border'}"
+											title="Buka rincian setoran dan bukti transfer"
+										>
+											{#if j.buktiUrl}
+												<div class="w-4 h-4 rounded overflow-hidden shrink-0 border border-primary/40 bg-card">
+													<img src={j.buktiUrl} alt="Bukti" class="w-full h-full object-cover" />
+												</div>
+												<span class="text-[11px]">Bukti</span>
+											{:else}
+												<Eye class="w-3.5 h-3.5" />
+												<span class="text-[11px]">Detail</span>
+											{/if}
+										</button>
 									</td>
 
 									<!-- Catatan -->
@@ -653,6 +762,355 @@
 					</table>
 				</div>
 			{/if}
+		</div>
+	{/if}
+
+	<!-- MODAL DETAIL SETORAN & APPROVAL (SYARAT BUKA DETAIL SEBELUM BISA APPROVE) -->
+	{#if selectedDetailJamaah}
+		<div class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+			<div
+				class="bg-card border border-border rounded-2xl w-full max-w-xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
+				role="dialog"
+				aria-modal="true"
+				aria-labelledby="modalDetailTitle"
+			>
+				<!-- Modal Header -->
+				<div class="p-4 sm:p-5 border-b border-border flex items-start justify-between gap-3 bg-secondary/30">
+					<div>
+						<div class="flex items-center gap-2">
+							<HandCoins class="w-5 h-5 text-primary" />
+							<h3 id="modalDetailTitle" class="text-base sm:text-lg font-bold text-foreground">
+								Detail Setoran FR Jamaah
+							</h3>
+						</div>
+						<p class="text-xs text-foreground/60 mt-0.5">
+							Periode {bulanNames[data.bulan - 1]} {data.tahun} • {data.selectedKelompokNama}
+						</p>
+					</div>
+					<button
+						type="button"
+						onclick={closeDetail}
+						class="w-8 h-8 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground/70 hover:text-foreground flex items-center justify-center transition-colors border border-border shrink-0"
+						aria-label="Tutup modal"
+					>
+						<X class="w-4 h-4" />
+					</button>
+				</div>
+
+				<!-- Modal Body (Scrollable) -->
+				<div class="p-4 sm:p-5 space-y-4 overflow-y-auto max-h-[calc(92vh-140px)] text-xs">
+					<!-- Profil Singkat Jamaah -->
+					<div class="p-3.5 rounded-xl bg-secondary/40 border border-border/70 space-y-2">
+						<div class="flex items-start justify-between gap-2">
+							<div>
+								<div class="text-sm font-bold text-foreground">{selectedDetailJamaah.namaLengkap}</div>
+								<div class="text-foreground/60 text-[11px] mt-0.5">
+									Kepala Keluarga: <span class="text-foreground font-semibold">{selectedDetailJamaah.kepalaKeluargaNama || '-'}</span>
+									{#if selectedDetailJamaah.statusHubungan}
+										<span> • {selectedDetailJamaah.statusHubungan}</span>
+									{/if}
+								</div>
+							</div>
+							{#if selectedDetailJamaah.isPengurus}
+								<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 shrink-0">
+									Pengurus ({selectedDetailJamaah.dapukanNama || 'Dapukan'})
+								</span>
+							{:else}
+								<span class="px-2 py-0.5 rounded text-[10px] font-medium bg-secondary text-foreground/60 border border-border shrink-0">
+									Jamaah Biasa
+								</span>
+							{/if}
+						</div>
+
+						{#if selectedDetailJamaah.noTelepon}
+							<div class="text-[11px] text-foreground/60">
+								No. Telepon / WA: <span class="font-mono text-foreground">{selectedDetailJamaah.noTelepon}</span>
+							</div>
+						{/if}
+					</div>
+
+					<!-- Ringkasan Status & Nominal -->
+					<div class="grid grid-cols-2 gap-3">
+						<div class="p-3.5 rounded-xl bg-card border border-border space-y-1">
+							<span class="text-[11px] text-foreground/50 font-medium">Total Nominal Setoran</span>
+							<div class="text-base sm:text-lg font-bold font-mono text-primary">
+								{formatRupiah(selectedDetailJamaah.nominal)}
+							</div>
+							<div class="text-[10px] text-foreground/50">
+								Metode: <span class="font-semibold text-foreground">{selectedDetailJamaah.metode || 'Tunai'}</span>
+							</div>
+						</div>
+
+						<div class="p-3.5 rounded-xl bg-card border border-border space-y-1">
+							<span class="text-[11px] text-foreground/50 font-medium">Status Konfirmasi</span>
+							<div>
+								{#if selectedDetailJamaah.statusBayar === 'Menunggu Konfirmasi' || selectedDetailJamaah.statusBayar === 'Menunggu'}
+									<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+										<Clock class="w-3 h-3 stroke-[2.5]" />
+										<span>Menunggu</span>
+									</span>
+								{:else if selectedDetailJamaah.statusBayar === 'Diterima' || selectedDetailJamaah.statusBayar === 'Lunas'}
+									<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+										<Check class="w-3 h-3 stroke-[2.5]" />
+										<span>Diterima / Lunas</span>
+									</span>
+								{:else}
+									<span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-secondary text-foreground/50 border border-border">
+										Belum Setor
+									</span>
+								{/if}
+							</div>
+							{#if selectedDetailJamaah.tanggalLapor}
+								<div class="text-[10px] text-foreground/50 truncate">
+									Lapor: {formatTanggalLapor(selectedDetailJamaah.tanggalLapor)}
+								</div>
+							{/if}
+						</div>
+					</div>
+
+					<!-- BUKTI TRANSFER (GAMBAR DAPAT DIKLIK & DIPERBESAR) -->
+					<div class="space-y-2">
+						<div class="flex items-center justify-between">
+							<span class="font-bold text-foreground flex items-center gap-1.5">
+								<Image class="w-4 h-4 text-primary" />
+								<span>Bukti Transfer / Pembayaran</span>
+							</span>
+							{#if selectedDetailJamaah.buktiUrl}
+								<span class="text-[10px] text-primary font-medium">Klik gambar untuk memperbesar</span>
+							{/if}
+						</div>
+
+						{#if selectedDetailJamaah.buktiUrl}
+							<div class="relative group rounded-xl border border-border overflow-hidden bg-secondary/30 flex items-center justify-center p-2">
+								<button
+									type="button"
+									onclick={() => (zoomedBuktiUrl = selectedDetailJamaah?.buktiUrl || null)}
+									class="relative block w-full focus:outline-none cursor-pointer"
+									title="Klik untuk memperbesar gambar bukti transfer"
+								>
+									<img
+										src={selectedDetailJamaah.buktiUrl}
+										alt="Bukti Transfer {selectedDetailJamaah.namaLengkap}"
+										class="max-h-56 mx-auto rounded-lg object-contain transition-transform group-hover:scale-[1.02] duration-200"
+									/>
+									<div class="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
+										<span class="px-3 py-1.5 rounded-lg bg-black/75 text-white text-[11px] font-semibold flex items-center gap-1.5 shadow-md">
+											<Search class="w-3.5 h-3.5" />
+											<span>Perbesar Gambar</span>
+										</span>
+									</div>
+								</button>
+							</div>
+						{:else}
+							<div class="p-4 rounded-xl border border-dashed border-border text-center text-foreground/50 bg-secondary/20">
+								<Wallet class="w-6 h-6 mx-auto mb-1.5 opacity-40" />
+								<p class="font-medium text-[11px]">Tidak ada lampiran bukti transfer gambar.</p>
+								<p class="text-[10px] mt-0.5">Setoran tunai langsung ke KU atau dicatat secara offline.</p>
+							</div>
+						{/if}
+					</div>
+
+					<!-- Rincian Pos Anggaran (Breakdown) -->
+					{#if selectedDetailJamaah.breakdownItems && selectedDetailJamaah.breakdownItems.length > 0}
+						<div class="space-y-2">
+							<span class="font-bold text-foreground flex items-center gap-1.5">
+								<Layers class="w-4 h-4 text-primary" />
+								<span>Rincian Pos Anggaran</span>
+							</span>
+							<div class="border border-border rounded-xl overflow-hidden">
+								<table class="w-full text-left text-[11px]">
+									<thead class="bg-secondary/60 text-foreground/70 uppercase text-[10px] tracking-wider border-b border-border">
+										<tr>
+											<th class="py-1.5 px-3 font-semibold">Pos Anggaran</th>
+											<th class="py-1.5 px-3 font-semibold text-right">Nominal</th>
+										</tr>
+									</thead>
+									<tbody class="divide-y divide-border/60">
+										{#each selectedDetailJamaah.breakdownItems as item}
+											<tr class="hover:bg-secondary/20">
+												<td class="py-2 px-3 text-foreground font-medium">
+													{item.nama}
+													{#if item.kode}
+														<span class="text-foreground/40 text-[10px] ml-1">({item.kode})</span>
+													{/if}
+												</td>
+												<td class="py-2 px-3 text-right font-mono font-bold text-foreground">
+													{formatRupiah(item.nominal)}
+												</td>
+											</tr>
+										{/each}
+									</tbody>
+								</table>
+							</div>
+						</div>
+					{/if}
+
+					<!-- Catatan Jamaah -->
+					{#if selectedDetailJamaah.catatan}
+						<div class="p-3 rounded-xl bg-secondary/30 border border-border space-y-1">
+							<span class="font-bold text-foreground/70 text-[11px]">Catatan dari Jamaah:</span>
+							<p class="text-foreground italic whitespace-pre-wrap leading-relaxed">
+								"{selectedDetailJamaah.catatan}"
+							</p>
+						</div>
+					{/if}
+				</div>
+
+				<!-- Modal Footer: Tombol Approval KU -->
+				<div class="p-4 sm:p-5 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3 bg-secondary/20">
+					<button
+						type="button"
+						onclick={closeDetail}
+						class="w-full sm:w-auto px-4 py-2 rounded-xl border border-border bg-card hover:bg-secondary text-foreground text-xs font-semibold transition-colors"
+					>
+						Tutup
+					</button>
+
+					{#if data.canEdit}
+						<div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+							{#if selectedDetailJamaah.statusBayar === 'Menunggu Konfirmasi' || selectedDetailJamaah.statusBayar === 'Menunggu' || selectedDetailJamaah.statusBayar === 'Belum'}
+								<!-- Form Approve Setoran Khusus di dalam Modal Detail -->
+								<form
+									method="POST"
+									action={`?kelompokId=${data.selectedKelompokId}&tahun=${data.tahun}&bulan=${data.bulan}&/approveSetoran`}
+									use:enhance={keepScrollSubmit({
+										beforeSubmit: () => {
+											isApproving = true;
+										},
+										onSuccess: () => {
+											isApproving = false;
+											if (selectedDetailJamaah) {
+												selectedDetailJamaah.statusBayar = 'Diterima';
+												const found = (data.jamaahList as JamaahItem[]).find((x) => x.id === selectedDetailJamaah?.id);
+												if (found) found.statusBayar = 'Diterima';
+											}
+										},
+										onError: () => {
+											isApproving = false;
+										},
+										onFinally: () => {
+											isApproving = false;
+										}
+									})}
+								>
+									<input type="hidden" name="kelompokId" value={data.selectedKelompokId} />
+									<input type="hidden" name="tahun" value={data.tahun} />
+									<input type="hidden" name="bulan" value={data.bulan} />
+									<input type="hidden" name="anggotaId" value={selectedDetailJamaah.id} />
+									{#if selectedDetailJamaah.transaksiId}
+										<input type="hidden" name="transaksiId" value={selectedDetailJamaah.transaksiId} />
+									{/if}
+
+									<button
+										type="submit"
+										disabled={isApproving}
+										class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all disabled:opacity-50"
+									>
+										<CheckCircle2 class="w-4 h-4" />
+										<span>{isApproving ? 'Memproses...' : 'Terima Setoran'}</span>
+									</button>
+								</form>
+							{:else}
+								<!-- Status sudah Diterima / Lunas -->
+								<div class="flex items-center gap-2">
+									<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+										<Check class="w-4 h-4 stroke-[2.5]" />
+										<span>Setoran Telah Diterima</span>
+									</span>
+
+									<!-- Opsi pembatalan/reset jika salah approve -->
+									<form
+										method="POST"
+										action={`?kelompokId=${data.selectedKelompokId}&tahun=${data.tahun}&bulan=${data.bulan}&/rejectSetoran`}
+										use:enhance={keepScrollSubmit({
+											beforeSubmit: () => {
+												isRejecting = true;
+											},
+											onSuccess: () => {
+												isRejecting = false;
+												if (selectedDetailJamaah) {
+													selectedDetailJamaah.statusBayar = 'Belum';
+													const found = (data.jamaahList as JamaahItem[]).find((x) => x.id === selectedDetailJamaah?.id);
+													if (found) found.statusBayar = 'Belum';
+												}
+											},
+											onError: () => {
+												isRejecting = false;
+											},
+											onFinally: () => {
+												isRejecting = false;
+											}
+										})}
+									>
+										<input type="hidden" name="kelompokId" value={data.selectedKelompokId} />
+										<input type="hidden" name="tahun" value={data.tahun} />
+										<input type="hidden" name="bulan" value={data.bulan} />
+										<input type="hidden" name="anggotaId" value={selectedDetailJamaah.id} />
+										{#if selectedDetailJamaah.transaksiId}
+											<input type="hidden" name="transaksiId" value={selectedDetailJamaah.transaksiId} />
+										{/if}
+
+										<button
+											type="submit"
+											disabled={isRejecting}
+											class="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-[11px] font-semibold text-destructive hover:bg-destructive/10 border border-destructive/20 transition-all disabled:opacity-50"
+											title="Batalkan penerimaan setoran"
+										>
+											<RotateCcw class="w-3 h-3" />
+											<span>{isRejecting ? 'Batal...' : 'Kembalikan ke Belum'}</span>
+										</button>
+									</form>
+								</div>
+							{/if}
+						</div>
+					{/if}
+				</div>
+			</div>
+		</div>
+	{/if}
+
+	<!-- MODAL ZOOM GAMBAR BUKTI (LIGHTBOX FULLSCREEN) -->
+	{#if zoomedBuktiUrl}
+		<div
+			class="fixed inset-0 z-70 flex items-center justify-center p-3 sm:p-6 bg-black/90 backdrop-blur-md animate-in fade-in duration-200"
+			role="dialog"
+			aria-modal="true"
+			tabindex="-1"
+			onclick={() => (zoomedBuktiUrl = null)}
+			onkeydown={(e) => {
+				if (e.key === 'Escape') zoomedBuktiUrl = null;
+			}}
+		>
+			<div
+				class="relative max-w-4xl max-h-[90vh] flex flex-col items-center justify-center"
+				onclick={(e) => e.stopPropagation()}
+				role="presentation"
+			>
+				<button
+					type="button"
+					onclick={() => (zoomedBuktiUrl = null)}
+					class="absolute -top-10 right-0 sm:-right-10 w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-colors"
+					aria-label="Tutup pratinjau zoom"
+				>
+					<X class="w-5 h-5" />
+				</button>
+				<img
+					src={zoomedBuktiUrl}
+					alt="Bukti Transfer Diperbesar"
+					class="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl border border-white/10"
+				/>
+				<div class="mt-3 flex items-center gap-2">
+					<a
+						href={zoomedBuktiUrl}
+						target="_blank"
+						rel="noopener noreferrer"
+						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-semibold backdrop-blur-xs transition-colors"
+					>
+						<ExternalLink class="w-3.5 h-3.5" />
+						<span>Buka Gambar Asli</span>
+					</a>
+				</div>
+			</div>
 		</div>
 	{/if}
 
