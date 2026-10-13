@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(app)/shodaqoh/+page.svelte
-  @purpose Halaman shodaqoh & infaq mobile-first untuk jamaah: scan QRIS, salin nomor rekening bank, pengiriman konfirmasi transfer beserta bukti transfer, pemantauan riwayat status verifikasi, dan struk digital resmi (e-receipt)
+  @purpose Halaman shodaqoh & infaq mobile-first untuk jamaah: scan QRIS, salin nomor rekening bank, pengiriman konfirmasi transfer beserta bukti transfer, pemantauan riwayat status verifikasi dengan filter status & pencarian, dan struk digital resmi (e-receipt)
   @usedBy Route client '/shodaqoh'
   @dependencies @lucide/svelte, $app/forms, Svelte 5 Runes
   @publicFunctions printReceipt
@@ -22,10 +22,12 @@
 		Copy,
 		ExternalLink,
 		FileText,
+		Filter,
 		HeartHandshake,
 		Image as ImageIcon,
 		Printer,
 		QrCode,
+		Search,
 		Send,
 		ShieldCheck,
 		UploadCloud,
@@ -43,6 +45,27 @@
 	let isFormOpen = $state(false);
 	let copiedId = $state<string | null>(null);
 	let selectedReceipt = $state<(typeof data.riwayatSaya)[number] | null>(null);
+
+	// Filter Riwayat Status & Search
+	let filterRiwayatStatus = $state<'Semua' | 'Menunggu' | 'Disetujui' | 'Ditolak'>('Semua');
+	let searchRiwayat = $state('');
+
+	const filteredRiwayatSaya = $derived(
+		(data.riwayatSaya || []).filter((r: (typeof data.riwayatSaya)[number]) => {
+			if (filterRiwayatStatus === 'Menunggu' && r.statusApproval !== 'Menunggu Persetujuan') return false;
+			if (filterRiwayatStatus === 'Disetujui' && r.statusApproval !== 'Disetujui') return false;
+			if (filterRiwayatStatus === 'Ditolak' && r.statusApproval !== 'Ditolak') return false;
+			if (searchRiwayat.trim()) {
+				const q = searchRiwayat.toLowerCase();
+				return (
+					r.namaJenisShodaqoh.toLowerCase().includes(q) ||
+					(r.catatan && r.catatan.toLowerCase().includes(q)) ||
+					(r.metodePembayaran && r.metodePembayaran.toLowerCase().includes(q))
+				);
+			}
+			return true;
+		})
+	);
 
 	function printReceipt() {
 		if (typeof window !== 'undefined') {
@@ -244,12 +267,49 @@
 	<!-- Riwayat Shodaqoh Saya (Jika Login) -->
 	{#if data.user && data.riwayatSaya.length > 0}
 		<div class="space-y-3 pt-2">
-			<h3 class="text-xs font-bold text-foreground uppercase tracking-wider">
-				Riwayat Konfirmasi Saya
-			</h3>
+			<div class="flex items-center justify-between">
+				<h3 class="text-xs font-bold text-foreground uppercase tracking-wider">
+					Riwayat Konfirmasi Saya ({filteredRiwayatSaya.length})
+				</h3>
+			</div>
 
+			<!-- Filter Status & Pencarian Riwayat -->
 			<div class="space-y-2">
-				{#each data.riwayatSaya as rw}
+				<div class="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+					{#each ['Semua', 'Menunggu', 'Disetujui', 'Ditolak'] as st}
+						<button
+							type="button"
+							onclick={() => (filterRiwayatStatus = st as any)}
+							class="px-3 py-1 rounded-full text-xs font-semibold shrink-0 transition-all {filterRiwayatStatus === st
+								? 'bg-primary text-primary-foreground shadow-xs'
+								: 'bg-secondary/70 hover:bg-secondary text-foreground/70'}"
+						>
+							{st}
+						</button>
+					{/each}
+				</div>
+
+				<div class="relative">
+					<Search class="w-3.5 h-3.5 text-foreground/40 absolute left-3 top-1/2 -translate-y-1/2" />
+					<input
+						type="search"
+						bind:value={searchRiwayat}
+						placeholder="Cari jenis, doa/niat, metode..."
+						class="w-full bg-secondary/50 border border-border rounded-xl pl-8.5 pr-3 py-1.5 text-xs text-foreground placeholder:text-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary"
+					/>
+				</div>
+			</div>
+
+			{#if filteredRiwayatSaya.length === 0}
+				<div class="p-6 text-center rounded-2xl border border-dashed border-border bg-card/40 space-y-1">
+					<p class="text-xs font-semibold text-foreground">Tidak Ada Riwayat</p>
+					<p class="text-[11px] text-foreground/50">
+						Tidak ditemukan data shodaqoh dengan filter status "{filterRiwayatStatus}" {searchRiwayat ? `atau kata kunci "${searchRiwayat}"` : ''}.
+					</p>
+				</div>
+			{:else}
+				<div class="space-y-2">
+					{#each filteredRiwayatSaya as rw}
 					<div class="border border-border bg-card rounded-2xl p-3.5 shadow-2xs space-y-2">
 						<div class="flex items-center justify-between gap-3">
 							<div class="space-y-0.5 min-w-0">
@@ -300,6 +360,7 @@
 					</div>
 				{/each}
 			</div>
+			{/if}
 		</div>
 	{/if}
 </div>
