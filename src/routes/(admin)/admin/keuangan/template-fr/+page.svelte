@@ -1,14 +1,14 @@
 <!--
   @file src/routes/(admin)/admin/keuangan/template-fr/+page.svelte
-  @purpose Halaman Spreadsheet Template FR: lembar kerja 4 kolom fleksibel (No, Uraian, Jumlah, Keterangan), kategori default A-D untuk diisi manual oleh KU, SearchableSelect filter kelompok, pengelolaan Group Tarif (Group A, Group B, dst), duplikasi group cepat, paste dari spreadsheet, penetapan jamaah massal, dan modal konfirmasi hapus kustom
+  @purpose Halaman Spreadsheet Template FR: lembar kerja 4 kolom fleksibel (No, Uraian, Jumlah, Keterangan), kategori default A-D untuk diisi manual oleh KU, SearchableSelect filter kelompok, proteksi anti-refresh saat mengisi data, pengelolaan Group Tarif, duplikasi group cepat, paste dari spreadsheet, penetapan jamaah massal, dan modal konfirmasi hapus kustom
   @usedBy Route admin '/admin/keuangan/template-fr'
-  @dependencies @lucide/svelte, $app/forms, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/keepScroll.ts
+  @dependencies @lucide/svelte, $app/forms, $app/navigation (goto, beforeNavigate), Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/keepScroll.ts
   @publicFunctions formatRupiah, saveSpreadsheet, handleCellPaste, copyJumlahToKeterangan, openConfirmModal, closeConfirmModal, openDuplicateModal, openAddJamaahModal, openAddPosModal
   @sideEffects Mengirim batch data nilai spreadsheet via ?/saveSpreadsheet, mutasi group via ?/createGroup & ?/duplicateGroup, mutasi pos anggaran via ?/addPos, dan memasukkan jamaah secara massal via ?/assignJamaahToGroup
 -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { goto } from '$app/navigation';
+	import { goto, beforeNavigate } from '$app/navigation';
 	import { page } from '$app/state';
 	import { keepScrollSubmit } from '$lib/keepScroll';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
@@ -251,6 +251,34 @@
 		}));
 		return JSON.stringify(result);
 	});
+
+	// Cegah refresh / reload / tutup tab browser saat sedang mengisi dan belum disimpan
+	$effect(() => {
+		const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+			if (isDirty && !isSaving) {
+				e.preventDefault();
+				e.returnValue = '';
+				return '';
+			}
+		};
+
+		window.addEventListener('beforeunload', handleBeforeUnload);
+		return () => {
+			window.removeEventListener('beforeunload', handleBeforeUnload);
+		};
+	});
+
+	// Cegah navigasi internal SPA (pindah tab, kelompok, atau menu) saat ada perubahan belum disimpan
+	beforeNavigate((navigation) => {
+		if (isDirty && !isSaving) {
+			const konfirmasi = confirm(
+				'Data spreadsheet sedang diisi dan belum disimpan. Yakin ingin meninggalkan halaman ini? Perubahan yang belum disimpan akan hilang.'
+			);
+			if (!konfirmasi) {
+				navigation.cancel();
+			}
+		}
+	});
 </script>
 
 <svelte:window
@@ -260,6 +288,22 @@
 			e.preventDefault();
 			const saveBtn = document.getElementById('btn-save-spreadsheet');
 			if (saveBtn) saveBtn.click();
+		}
+
+		// Cegah refresh shortcut (F5, Ctrl+R, Cmd+R) saat sedang mengisi spreadsheet
+		if (
+			(e.key === 'F5' || ((e.ctrlKey || e.metaKey) && (e.key === 'r' || e.key === 'R'))) &&
+			isDirty &&
+			!isSaving
+		) {
+			e.preventDefault();
+			const konfirmasi = confirm(
+				'Data spreadsheet sedang diisi dan belum disimpan. Yakin ingin me-refresh halaman? Perubahan yang belum disimpan akan hilang.'
+			);
+			if (konfirmasi) {
+				isDirty = false;
+				window.location.reload();
+			}
 		}
 	}}
 />
