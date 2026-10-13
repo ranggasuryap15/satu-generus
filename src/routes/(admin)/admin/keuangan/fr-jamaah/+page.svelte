@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(admin)/admin/keuangan/fr-jamaah/+page.svelte
-  @purpose Halaman FR Jamaah: daftar kartu simetris mobile dengan visibilitas nama & nominal angka yang jelas + tabel desktop data jamaah wajib isrun dengan inline editing nominal shodaqoh (numeric keypad only), ekspor data CSV/Excel, dan sticky floating save bar di atas bottom navbar mobile (z-50 bottom-20), diproteksi khusus KU (read-only bagi Kyai & Aghnia)
+  @purpose Halaman FR Jamaah: daftar kartu simetris mobile & tabel desktop dengan informasi nama, kepala keluarga, dan peran (Pengurus / Jamaah Biasa), inline editing nominal shodaqoh FR, ekspor data CSV/Excel, dan sticky floating save bar
   @usedBy Route admin '/admin/keuangan/fr-jamaah'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
   @publicFunctions handleNominalChange, handleCatatanChange, resetChanges, submitSave, exportToCsv
@@ -97,6 +97,8 @@
 		statusBayar: string;
 		catatan: string;
 		updatedAt: number | null;
+		isPengurus: boolean;
+		dapukanNama: string | null;
 	};
 
 	function handleNominalInput(anggotaId: string, valueStr: string) {
@@ -172,7 +174,8 @@
 			return (
 				j.namaLengkap.toLowerCase().includes(q) ||
 				(j.kepalaKeluargaNama && j.kepalaKeluargaNama.toLowerCase().includes(q)) ||
-				(j.statusGenerus && j.statusGenerus.toLowerCase().includes(q))
+				(j.isPengurus ? 'pengurus' : 'jamaah biasa').includes(q) ||
+				(j.dapukanNama && j.dapukanNama.toLowerCase().includes(q))
 			);
 		})
 	);
@@ -208,18 +211,18 @@
 
 		const namaBulan = bulanNames[data.bulan - 1] || `Bulan ${data.bulan}`;
 		const rows: string[][] = [
-			['No', 'Nama Jamaah', 'Status Hubungan', 'Generus', 'Kepala Keluarga', 'Periode', 'Nominal FR (Rp)', 'Status Bayar', 'Catatan']
+			['No', 'Nama Jamaah', 'Kepala Keluarga', 'Peran / Dapukan', 'Periode', 'Nominal FR (Rp)', 'Status Bayar', 'Catatan']
 		];
 
 		filteredJamaah.forEach((j: JamaahItem, idx: number) => {
 			const effNominal = getEffectiveNominal(j);
 			const effCatatan = getEffectiveCatatan(j);
+			const peranStr = j.isPengurus ? `Pengurus (${j.dapukanNama || '-'})` : 'Jamaah Biasa';
 			rows.push([
 				String(idx + 1),
 				`"${(j.namaLengkap || '').replace(/"/g, '""')}"`,
-				`"${(j.statusHubungan || '').replace(/"/g, '""')}"`,
-				`"${(j.statusGenerus || '-').replace(/"/g, '""')}"`,
 				`"${(j.kepalaKeluargaNama || '-').replace(/"/g, '""')}"`,
+				`"${peranStr.replace(/"/g, '""')}"`,
 				`"${namaBulan} ${data.tahun}"`,
 				String(effNominal || 0),
 				effNominal > 0 ? 'Lunas' : 'Belum',
@@ -461,14 +464,16 @@
 											{j.namaLengkap}
 										</h4>
 										<div class="flex flex-wrap items-center gap-1.5 text-[11px] text-foreground/60 mt-0.5">
-											<span>{j.statusHubungan}</span>
-											{#if j.statusGenerus}
-												<span>•</span>
-												<span class="text-foreground/75 font-medium">{j.statusGenerus}</span>
-											{/if}
 											{#if j.kepalaKeluargaNama}
-												<span>•</span>
 												<span class="truncate">KK: {j.kepalaKeluargaNama}</span>
+												<span>•</span>
+											{/if}
+											{#if j.isPengurus}
+												<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20">
+													Pengurus{j.dapukanNama ? ` (${j.dapukanNama})` : ''}
+												</span>
+											{:else}
+												<span class="text-foreground/50 font-medium">Jamaah Biasa</span>
 											{/if}
 										</div>
 									</div>
@@ -563,16 +568,16 @@
 										{idx + 1}
 									</td>
 
-									<!-- Nama & Detail Generus -->
+									<!-- Nama & Status Peran Pengurus / Jamaah -->
 									<td class="py-2.5 px-4">
 										<div class="font-bold text-foreground text-sm tracking-tight">{j.namaLengkap}</div>
 										<div class="flex items-center gap-1.5 text-[11px] text-foreground/60 mt-0.5">
-											<span>{j.statusHubungan}</span>
-											{#if j.statusGenerus}
-												<span>•</span>
-												<span class="inline-block px-1.5 py-0.2 rounded bg-secondary font-medium">
-													{j.statusGenerus}
+											{#if j.isPengurus}
+												<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20">
+													Pengurus{j.dapukanNama ? ` (${j.dapukanNama})` : ''}
 												</span>
+											{:else}
+												<span class="text-foreground/50">Jamaah Biasa</span>
 											{/if}
 										</div>
 									</td>

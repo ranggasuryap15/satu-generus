@@ -1,17 +1,17 @@
 /**
  * @file src/routes/(admin)/admin/keuangan/fr-jamaah/+page.server.ts
- * @purpose Backend controller halaman FR Jamaah: memuat daftar jamaah wajib isrun per kelompok terpilih dan menangani batch upsert setoran bulanan shodaqoh FR khusus KU & Superadmin
+ * @purpose Backend controller halaman FR Jamaah: memuat daftar jamaah wajib isrun per kelompok terpilih beserta status peran (Pengurus / Jamaah Biasa) dan menangani batch upsert setoran bulanan shodaqoh FR khusus KU & Superadmin
  * @usedBy src/routes/(admin)/admin/keuangan/fr-jamaah/+page.svelte
  * @dependencies @sveltejs/kit, src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm, @paralleldrive/cuid2
  * @publicFunctions load, actions.saveFr
- * @sideEffects DB read pada anggota_keluarga, keluarga, users, kelompok, dan transaksi_fr; atomic batch upsert write pada transaksi_fr
+ * @sideEffects DB read pada anggota_keluarga, keluarga, users, user_dapukan, dapukan, kelompok, dan transaksi_fr; atomic batch upsert write pada transaksi_fr
  */
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import { db, sqlite } from '$lib/db';
-import { anggotaKeluarga, keluarga, users, kelompok, desa, transaksiFr } from '$lib/db/schema';
-import { eq, and, asc } from 'drizzle-orm';
+import { anggotaKeluarga, keluarga, users, kelompok, desa, transaksiFr, userDapukan, dapukan } from '$lib/db/schema';
+import { eq, and, asc, inArray } from 'drizzle-orm';
 import { getAdminScope, getAccessibleWilayah, canAccessKeuangan, canManageFr } from '$lib/server/scope';
 import { createId } from '@paralleldrive/cuid2';
 
@@ -69,6 +69,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		statusBayar: string;
 		catatan: string;
 		updatedAt: number | null;
+		isPengurus: boolean;
+		dapukanNama: string | null;
 	}> = [];
 
 	let selectedKelompokNama = '';
@@ -104,6 +106,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 					profesi: anggotaKeluarga.profesi,
 					noTelepon: anggotaKeluarga.noTelepon,
 					keluargaId: anggotaKeluarga.keluargaId,
+					userId: anggotaKeluarga.userId,
+					kepalaKeluargaId: keluarga.kepalaKeluargaId,
 					kepalaKeluargaNama: users.namaLengkap
 				})
 				.from(anggotaKeluarga)
@@ -137,9 +141,42 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				frMap.set(f.anggotaKeluargaId, f);
 			}
 
-			// 3. Gabungkan data jamaah dengan transaksi periode aktif
+			// 3. Query penugasan pengurus (userDapukan) untuk akun jamaah / kepala keluarga
+			const targetUserIds = Array.from(
+				new Set(
+					rawJamaah
+						.map((j: (typeof rawJamaah)[number]) => (j.statusHubungan === 'Kepala Keluarga' ? j.kepalaKeluargaId : j.userId))
+						.filter((uid: string | null | undefined): uid is string => Boolean(uid))
+				)
+			);
+
+			const userDapukanMap = new Map<string, string>();
+			if (targetUserIds.length > 0) {
+				const rawDapukan = db
+					.select({
+						userId: userDapukan.userId,
+						namaDapukan: dapukan.namaDapukan,
+						namaDapukanCustom: userDapukan.namaDapukanCustom
+					})
+					.from(userDapukan)
+					.leftJoin(dapukan, eq(userDapukan.dapukanId, dapukan.id))
+					.where(inArray(userDapukan.userId, targetUserIds))
+					.all();
+
+				for (const d of rawDapukan) {
+					if (!userDapukanMap.has(d.userId)) {
+						userDapukanMap.set(d.userId, d.namaDapukan || d.namaDapukanCustom || 'Pengurus');
+					}
+				}
+			}
+
+			// 4. Gabungkan data jamaah dengan transaksi periode aktif & status pengurus
 			jamaahList = rawJamaah.map((j) => {
 				const existing = frMap.get(j.id);
+				const targetUid = j.statusHubungan === 'Kepala Keluarga' ? j.kepalaKeluargaId : j.userId;
+				const dapukanName = targetUid ? userDapukanMap.get(targetUid) : null;
+				const isPengurus = Boolean(dapukanName);
+
 				return {
 					id: j.id,
 					namaLengkap: j.namaLengkap || 'Tanpa Nama',
@@ -154,7 +191,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 					nominal: existing?.nominal ?? 0,
 					statusBayar: existing?.statusBayar ?? (existing?.nominal ? 'Lunas' : 'Belum'),
 					catatan: existing?.catatan ?? '',
-					updatedAt: existing?.updatedAt ?? null
+					updatedAt: existing?.updatedAt ?? null,
+					isPengurus,
+					dapukanNama: dapukanName || null
 				};
 			});
 		}
