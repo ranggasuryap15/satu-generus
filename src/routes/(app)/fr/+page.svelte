@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(app)/fr/+page.svelte
-  @purpose Halaman antarmuka client jamaah untuk pengisian dan pelaporan Isrun/FR bulanan: tabel spreadsheet 4 kolom terstruktur per kategori induk (A. Hak Pusat, B. Hak Daerah, C. Hak Desa, D. Hak Kelompok) mirip template KU, validasi input angka murni aktif & auto-format ribuan id-ID dengan nilai default kosong, pemisahan struktur kartu rekening bank & kartu QRIS dengan tab switcher rapi (zoomable QRIS & 1-klik salin no rekening), switcher anggota & periode, serta form upload bukti setor
+  @purpose Halaman antarmuka client jamaah untuk pengisian dan pelaporan Isrun/FR bulanan: tabel spreadsheet 4 kolom terstruktur per kategori induk (A-D) mirip template KU, validasi format angka aktif, pemisahan kartu bank & QRIS, penguncian antarmuka otomatis (read-only/pasif) jika setoran telah disetujui KU, serta jalur komplain langsung ke KU
   @usedBy Route client '/fr' (diakses via Quick Access Beranda 'Isrun/FR')
   @dependencies @lucide/svelte, $app/forms (enhance), Svelte 5 Runes
   @publicFunctions handleInputRiil, handleNumberKeyDown, handleCopySaranKeRiil, handleResetRiil, formatRp, copyToClipboard
-  @sideEffects Mengirim form data setoran FR mandiri ke server action simpanSetoran di SQLite
+  @sideEffects Mengirim form data setoran FR mandiri ke server action simpanSetoran di SQLite (ditolak jika sudah berstatus Diterima/Lunas)
 -->
 <script lang="ts">
 	import {
@@ -22,6 +22,9 @@
 		HandCoins,
 		Info,
 		Layers,
+		Lock,
+		MessageCircleWarning,
+		Phone,
 		QrCode,
 		RefreshCw,
 		Send,
@@ -37,6 +40,11 @@
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
+	// Status apakah setoran bulan ini sudah divalidasi & disetujui oleh KU
+	const isApproved = $derived(
+		data.transaksiExisting?.statusBayar === 'Diterima' || data.transaksiExisting?.statusBayar === 'Lunas'
+	);
+
 	// State interaktif
 	let isSubmitting = $state(false);
 	let selectedBulan = $state(data.bulan);
@@ -49,6 +57,7 @@
 	let copiedRekeningText = $state<string | null>(null);
 	let zoomedQris = $state<{ url: string; atasNama: string } | null>(null);
 	let previewBukti = $state<string | null>(null);
+	let showModalKomplain = $state(false);
 
 	// Pemisahan saluran Rekening Bank & QRIS Resmi
 	const rekeningBankList = $derived(
@@ -256,6 +265,21 @@
 		}
 		return JSON.stringify(list);
 	});
+
+	// Link WhatsApp untuk pengajuan komplain/revisi ke KU
+	const namaBulanTerpilih = $derived(
+		bulanOptions.find((b) => b.val === selectedBulan)?.label || `Bulan ${selectedBulan}`
+	);
+
+	const waKomplainLink = $derived.by(() => {
+		const rawPhone = (data.kuKontak?.noTelepon || '').replace(/\D/g, '');
+		if (!rawPhone) return null;
+		const formattedPhone = rawPhone.startsWith('0') ? '62' + rawPhone.slice(1) : rawPhone;
+		const namaJamaah = data.activeAnggota?.namaLengkap || 'Jamaah';
+		const nominalStr = formatRp(data.transaksiExisting?.nominal || totalRiilBayar);
+		const pesan = `Assalamu'alaikum Warahmatullahi Wabarakatuh, KU ${data.kuKontak?.nama || data.kelompokNama}.\n\nSaya *${namaJamaah}* bermaksud mengonfirmasi / mengajukan komplain terkait setoran Isrun/FR bulan *${namaBulanTerpilih} ${selectedTahun}* (Nominal tercatat: ${nominalStr}).\n\nKeterangan perbaikan:\n[Tuliskan revisi atau kendala di sini]\n\nMohon bantuannya untuk ditinjau kembali. Jazakumullahu khairan.`;
+		return `https://wa.me/${formattedPhone}?text=${encodeURIComponent(pesan)}`;
+	});
 </script>
 
 <svelte:head>
@@ -391,9 +415,9 @@
 			<div class="flex items-center gap-2">
 				<span class="text-xs text-foreground/60 font-medium">Status Setoran:</span>
 				{#if data.transaksiExisting}
-					{#if data.transaksiExisting.statusBayar === 'Lunas'}
+					{#if data.transaksiExisting.statusBayar === 'Diterima' || data.transaksiExisting.statusBayar === 'Lunas'}
 						<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-							<CheckCircle2 class="w-3.5 h-3.5" /> Lunas
+							<CheckCircle2 class="w-3.5 h-3.5" /> {data.transaksiExisting.statusBayar}
 						</span>
 					{:else if data.transaksiExisting.statusBayar === 'Menunggu Konfirmasi'}
 						<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
@@ -416,6 +440,38 @@
 			</div>
 		</div>
 	</section>
+
+	<!-- Banner Kunci Data Pasif Jika Sudah Diapprove KU -->
+	{#if isApproved}
+		<div class="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+			<div class="flex items-start gap-3">
+				<div class="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
+					<Lock class="w-5 h-5" />
+				</div>
+				<div>
+					<div class="flex items-center gap-2">
+						<p class="text-xs sm:text-sm font-bold text-foreground">
+							Setoran Sudah Disetujui KU ({data.transaksiExisting?.statusBayar})
+						</p>
+						<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+							Data Terkunci
+						</span>
+					</div>
+					<p class="text-xs text-foreground/70 mt-0.5">
+						Setoran bulan ini telah divalidasi oleh KU dan masuk ke kas. Formulir menjadi pasif (read-only) demi keamanan pembukuan.
+					</p>
+				</div>
+			</div>
+			<button
+				type="button"
+				onclick={() => (showModalKomplain = true)}
+				class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-200 border border-amber-500/30 text-xs font-bold transition-all active:scale-95 shrink-0 cursor-pointer shadow-2xs"
+			>
+				<MessageCircleWarning class="w-4 h-4 text-amber-600 dark:text-amber-400" />
+				<span>Komplain ke KU</span>
+			</button>
+		</div>
+	{/if}
 
 	<!-- Feedback Alert Berhasil / Gagal -->
 	{#if form?.success}
@@ -491,8 +547,9 @@
 					<button
 						type="button"
 						onclick={handleCopySaranKeRiil}
-						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-500/10 hover:bg-teal-500/20 text-teal-700 dark:text-teal-300 border border-teal-500/25 text-xs font-bold transition-all active:scale-95 shadow-2xs"
-						title="Isi Riil Bayar sama persis dengan Jumlah Saran KU"
+						disabled={isApproved}
+						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-500/10 hover:bg-teal-500/20 text-teal-700 dark:text-teal-300 border border-teal-500/25 text-xs font-bold transition-all active:scale-95 shadow-2xs disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
+						title={isApproved ? 'Terkunci karena setoran sudah disetujui' : 'Isi Riil Bayar sama persis dengan Jumlah Saran KU'}
 					>
 						<Copy class="w-3.5 h-3.5" />
 						<span>Samakan dgn Saran</span>
@@ -501,8 +558,9 @@
 					<button
 						type="button"
 						onclick={handleResetRiil}
-						class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground/70 border border-border text-xs font-semibold transition-all active:scale-95"
-						title="Kosongkan nilai riil bayar"
+						disabled={isApproved}
+						class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground/70 border border-border text-xs font-semibold transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
+						title={isApproved ? 'Terkunci karena setoran sudah disetujui' : 'Kosongkan nilai riil bayar'}
 					>
 						<RefreshCw class="w-3.5 h-3.5" />
 						<span class="hidden sm:inline">Reset</span>
@@ -578,19 +636,26 @@
 												{formatRp(pos.nominalJumlah)}
 											</td>
 
-											<!-- KOLOM 4: RIIL BAYAR (FORMAT ANGKA AKTIF & DEFAULT KOSONG) -->
-											<td class="py-1.5 px-2 sm:px-3 bg-teal-500/5 text-right border-l border-border/60">
+											<!-- KOLOM 4: RIIL BAYAR (FORMAT ANGKA AKTIF & DEFAULT KOSONG, PASIF JIKA SUDAH DISETUJUI) -->
+											<td class="py-1.5 px-2 sm:px-3 {isApproved ? 'bg-secondary/40' : 'bg-teal-500/5'} text-right border-l border-border/60">
 												<div class="relative flex items-center justify-end">
-													<span class="absolute left-2.5 text-foreground/40 font-mono text-[11px] select-none">Rp</span>
+													{#if isApproved}
+														<Lock class="w-3 h-3 absolute left-2 text-foreground/40 pointer-events-none" />
+													{:else}
+														<span class="absolute left-2.5 text-foreground/40 font-mono text-[11px] select-none">Rp</span>
+													{/if}
 													<input
 														type="text"
 														inputmode="numeric"
 														pattern="[0-9]*"
+														disabled={isApproved}
 														value={pos.riilInputString}
 														onkeydown={handleNumberKeyDown}
 														oninput={(e) => handleInputRiil(pos.posId, e.currentTarget)}
-														placeholder="0"
-														class="w-full text-right font-mono font-bold py-1.5 pl-8 pr-2.5 bg-background hover:bg-background/90 focus:bg-background border border-border focus:border-teal-500 rounded-lg text-xs text-foreground focus:outline-none transition-all placeholder:text-foreground/30 shadow-2xs"
+														placeholder={isApproved ? '-' : '0'}
+														class="w-full text-right font-mono font-bold py-1.5 pl-8 pr-2.5 rounded-lg text-xs transition-all {isApproved
+															? 'bg-secondary/60 text-foreground/75 cursor-not-allowed border-border/60 select-none'
+															: 'bg-background hover:bg-background/90 focus:bg-background border border-border focus:border-teal-500 text-foreground shadow-2xs placeholder:text-foreground/30'}"
 													/>
 												</div>
 											</td>
@@ -642,14 +707,15 @@
 				<h3 class="text-sm sm:text-base font-bold text-foreground">Metode Penyetoran</h3>
 			</div>
 
-			<!-- Selector Metode: Tunai vs Transfer -->
+			<!-- Selector Metode: Tunai vs Transfer (Terkunci jika isApproved) -->
 			<div class="grid grid-cols-2 gap-3">
 				<button
 					type="button"
+					disabled={isApproved}
 					onclick={() => (metodeBayar = 'Tunai')}
 					class="p-3 rounded-2xl border text-left transition-all flex items-center gap-3 {metodeBayar === 'Tunai'
 						? 'border-primary bg-primary/10 shadow-xs'
-						: 'border-border bg-secondary/30 hover:bg-secondary/60'}"
+						: 'border-border bg-secondary/30 hover:bg-secondary/60'} {isApproved ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}"
 				>
 					<div class="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
 						<Banknote class="w-5 h-5" />
@@ -662,10 +728,11 @@
 
 				<button
 					type="button"
+					disabled={isApproved}
 					onclick={() => (metodeBayar = 'Transfer')}
 					class="p-3 rounded-2xl border text-left transition-all flex items-center gap-3 {metodeBayar === 'Transfer'
 						? 'border-primary bg-primary/10 shadow-xs'
-						: 'border-border bg-secondary/30 hover:bg-secondary/60'}"
+						: 'border-border bg-secondary/30 hover:bg-secondary/60'} {isApproved ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}"
 				>
 					<div class="w-9 h-9 rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0">
 						<CreditCard class="w-5 h-5" />
@@ -831,14 +898,21 @@
 							Unggah Bukti Transfer (Foto / Screenshot / PDF)
 						</label>
 						<div class="flex flex-col gap-2">
-							<input
-								type="file"
-								id="buktiFile"
-								name="buktiFile"
-								accept="image/*,application/pdf"
-								onchange={handleFileChange}
-								class="w-full text-xs text-foreground/70 file:mr-3 file:py-2 file:px-3.5 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer border border-border rounded-xl p-1.5 bg-background shadow-2xs"
-							/>
+							{#if !isApproved}
+								<input
+									type="file"
+									id="buktiFile"
+									name="buktiFile"
+									accept="image/*,application/pdf"
+									onchange={handleFileChange}
+									class="w-full text-xs text-foreground/70 file:mr-3 file:py-2 file:px-3.5 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer border border-border rounded-xl p-1.5 bg-background shadow-2xs"
+								/>
+							{:else}
+								<div class="p-2.5 bg-secondary/50 rounded-xl border border-border text-xs text-foreground/60 flex items-center gap-2">
+									<Lock class="w-3.5 h-3.5 text-foreground/40 shrink-0" />
+									<span>Bukti transfer terkunci karena setoran sudah disetujui KU.</span>
+								</div>
+							{/if}
 
 							{#if previewBukti}
 								<div class="p-2.5 bg-secondary/40 rounded-xl border border-border flex items-center justify-between gap-3 animate-in fade-in">
@@ -863,7 +937,7 @@
 								<div class="flex items-center justify-between p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs text-emerald-700 dark:text-emerald-300">
 									<div class="flex items-center gap-2">
 										<CheckCircle2 class="w-4 h-4 text-emerald-600 shrink-0" />
-										<span>Bukti transfer bulan ini sudah tersimpan</span>
+										<span>Bukti transfer tersimpan & terverifikasi KU</span>
 									</div>
 									<a
 										href={data.transaksiExisting.buktiUrl}
@@ -880,7 +954,7 @@
 				</div>
 			{/if}
 
-			<!-- Catatan Tambahan -->
+			<!-- Catatan Tambahan (Readonly jika isApproved) -->
 			<div class="space-y-1.5">
 				<label for="catatan" class="text-xs font-bold text-foreground/80 flex items-center gap-1.5">
 					<FileText class="w-3.5 h-3.5 text-primary" />
@@ -889,10 +963,13 @@
 				<textarea
 					id="catatan"
 					name="catatan"
+					disabled={isApproved}
 					bind:value={catatanTambahan}
 					rows="2"
-					placeholder="Contoh: Titip lewat mas Andi / Ditransfer via rekening BCA istri..."
-					class="w-full px-3 py-2 text-xs sm:text-sm bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 text-foreground"
+					placeholder={isApproved ? '-' : 'Contoh: Titip lewat mas Andi / Ditransfer via rekening BCA istri...'}
+					class="w-full px-3 py-2 text-xs sm:text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all {isApproved
+						? 'bg-secondary/60 text-foreground/75 cursor-not-allowed select-none'
+						: 'bg-background text-foreground'}"
 				></textarea>
 			</div>
 		</section>
@@ -931,19 +1008,42 @@
 					</p>
 				</div>
 
-				<button
-					type="submit"
-					disabled={isSubmitting}
-					class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs sm:text-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-teal-600/20 cursor-pointer"
-				>
-					{#if isSubmitting}
-						<RefreshCw class="w-4 h-4 animate-spin" />
-						<span>Menyimpan & Melaporkan...</span>
-					{:else}
-						<Send class="w-4 h-4" />
-						<span>Simpan & Lapor Setoran</span>
-					{/if}
-				</button>
+				{#if isApproved}
+					<div class="flex items-center gap-2">
+						<button
+							type="button"
+							onclick={() => (showModalKomplain = true)}
+							class="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-200 border border-amber-500/30 font-bold text-xs sm:text-sm transition-all active:scale-95 shadow-2xs cursor-pointer"
+						>
+							<MessageCircleWarning class="w-4 h-4 text-amber-600 dark:text-amber-400" />
+							<span>Komplain ke KU</span>
+						</button>
+
+						<button
+							type="button"
+							disabled={true}
+							class="inline-flex items-center gap-2 px-3.5 sm:px-4 py-2.5 rounded-xl bg-secondary text-foreground/50 border border-border font-bold text-xs sm:text-sm cursor-not-allowed select-none"
+							title="Setoran sudah disetujui KU, formulir tidak dapat diubah lagi"
+						>
+							<Lock class="w-4 h-4 text-foreground/40" />
+							<span>Setoran Sudah Disetujui</span>
+						</button>
+					</div>
+				{:else}
+					<button
+						type="submit"
+						disabled={isSubmitting}
+						class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs sm:text-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-teal-600/20 cursor-pointer"
+					>
+						{#if isSubmitting}
+							<RefreshCw class="w-4 h-4 animate-spin" />
+							<span>Menyimpan & Melaporkan...</span>
+						{:else}
+							<Send class="w-4 h-4" />
+							<span>Simpan & Lapor Setoran</span>
+						{/if}
+					</button>
+				{/if}
 			</div>
 		</div>
 	</form>
@@ -985,6 +1085,127 @@
 				<p class="text-[11px] text-foreground/60 leading-relaxed">
 					Buka aplikasi mobile banking atau e-wallet Anda, lalu scan QRIS di atas untuk melakukan transfer setoran.
 				</p>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- MODAL KOMPLAIN / REVISI KE KU -->
+{#if showModalKomplain}
+	<div
+		class="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4"
+		role="dialog"
+		aria-modal="true"
+		tabindex="-1"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) showModalKomplain = false;
+		}}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') showModalKomplain = false;
+		}}
+	>
+		<div class="bg-card border border-border rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 text-left animate-in fade-in zoom-in-95">
+			<div class="flex items-center justify-between pb-3 border-b border-border">
+				<div class="flex items-center gap-2.5">
+					<div class="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+						<MessageCircleWarning class="w-4 h-4" />
+					</div>
+					<div>
+						<h3 class="text-sm sm:text-base font-bold text-foreground">Komplain / Koreksi Setoran</h3>
+						<p class="text-[11px] text-foreground/60">Hubungi KU jika nominal setoran tidak sesuai</p>
+					</div>
+				</div>
+				<button
+					type="button"
+					onclick={() => (showModalKomplain = false)}
+					class="p-1.5 rounded-lg text-foreground/60 hover:text-foreground hover:bg-secondary cursor-pointer"
+					aria-label="Tutup Dialog Komplain"
+				>
+					<X class="w-4 h-4" />
+				</button>
+			</div>
+
+			<!-- Rincian Data Setoran Terkunci -->
+			<div class="p-3.5 bg-secondary/40 rounded-2xl border border-border/80 space-y-2 text-xs">
+				<div class="flex items-center justify-between">
+					<span class="text-foreground/60">Nama Jamaah:</span>
+					<strong class="text-foreground">{data.activeAnggota?.namaLengkap || 'Jamaah'}</strong>
+				</div>
+				<div class="flex items-center justify-between">
+					<span class="text-foreground/60">Periode Setoran:</span>
+					<strong class="text-foreground">{namaBulanTerpilih} {selectedTahun}</strong>
+				</div>
+				<div class="flex items-center justify-between">
+					<span class="text-foreground/60">Nominal Disetujui:</span>
+					<strong class="font-mono text-teal-600 dark:text-teal-400 font-bold">
+						{formatRp(data.transaksiExisting?.nominal || totalRiilBayar)}
+					</strong>
+				</div>
+				<div class="flex items-center justify-between">
+					<span class="text-foreground/60">Status Verifikasi:</span>
+					<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+						{data.transaksiExisting?.statusBayar || 'Diterima'}
+					</span>
+				</div>
+			</div>
+
+			<!-- Informasi KU Kelompok -->
+			<div class="space-y-2 text-xs">
+				<p class="text-foreground/70 leading-relaxed">
+					Data setoran yang telah disetujui dikunci secara sistem untuk menjaga keabsahan buku kas kelompok. Bila ada kekeliruan nominal, salah input, atau bukti transfer keliru, silakan komunikasikan ke KU kelompok:
+				</p>
+
+				<div class="p-3 bg-card border border-border rounded-xl space-y-1">
+					<p class="text-[11px] text-foreground/50 uppercase font-semibold">Petugas KU Kelompok</p>
+					<p class="text-xs font-bold text-foreground">
+						{data.kuKontak?.nama || `Pengurus KU ${data.kelompokNama}`}
+					</p>
+					{#if data.kuKontak?.noTelepon}
+						<p class="font-mono text-xs text-foreground/70 flex items-center gap-1.5 pt-0.5">
+							<Phone class="w-3.5 h-3.5 text-teal-600" />
+							<span>{data.kuKontak.noTelepon}</span>
+						</p>
+					{/if}
+				</div>
+			</div>
+
+			<!-- Tombol WhatsApp & Salin -->
+			<div class="space-y-2 pt-1">
+				{#if waKomplainLink}
+					<a
+						href={waKomplainLink}
+						target="_blank"
+						rel="noopener noreferrer"
+						class="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm transition-all shadow-md shadow-emerald-600/20 active:scale-95"
+					>
+						<MessageCircleWarning class="w-4 h-4" />
+						<span>Hubungi KU via WhatsApp</span>
+					</a>
+				{/if}
+
+				{#if data.kuKontak?.noTelepon}
+					<button
+						type="button"
+						onclick={() => copyToClipboard(data.kuKontak!.noTelepon!)}
+						class="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-secondary hover:bg-secondary/80 border border-border text-foreground font-semibold text-xs transition-all active:scale-95 cursor-pointer"
+					>
+						{#if copiedRekeningText === data.kuKontak.noTelepon}
+							<CheckCircle2 class="w-3.5 h-3.5 text-emerald-500" />
+							<span class="text-emerald-600 font-bold">Nomor KU Disalin</span>
+						{:else}
+							<Copy class="w-3.5 h-3.5 text-foreground/60" />
+							<span>Salin Nomor Telepon KU</span>
+						{/if}
+					</button>
+				{/if}
+
+				<button
+					type="button"
+					onclick={() => (showModalKomplain = false)}
+					class="w-full py-2 text-xs font-semibold text-foreground/60 hover:text-foreground text-center cursor-pointer"
+				>
+					Tutup
+				</button>
 			</div>
 		</div>
 	</div>

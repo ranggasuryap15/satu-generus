@@ -1,10 +1,10 @@
 /**
  * @file src/routes/(app)/fr/+page.server.ts
- * @purpose Backend controller halaman Isrun/FR client jamaah (Mobile-First): memuat lembar pos kewajiban FR terstruktur per kategori induk (A. Hak Pusat, B. Hak Daerah, C. Hak Desa, D. Hak Kelompok) mirip template KU, riwayat setoran per bulan, info rekening/QRIS kelompok, dan menangani pelaporan setoran mandiri jamaah
+ * @purpose Backend controller halaman Isrun/FR client jamaah (Mobile-First): memuat lembar pos kewajiban FR terstruktur per kategori induk (A-D), riwayat setoran per bulan, info rekening/QRIS kelompok, kontak KU kelompok untuk komplain, serta proteksi penguncian data setoran yang sudah disetujui KU
  * @usedBy src/routes/(app)/fr/+page.svelte
  * @dependencies @sveltejs/kit, src/lib/db, src/lib/db/schema, src/lib/server/sensus, src/lib/server/upload, drizzle-orm, @paralleldrive/cuid2
  * @publicFunctions load, actions.simpanSetoran
- * @sideEffects DB read pada anggota_keluarga, keluarga, template_infaq_rutin, template_infaq_group, template_infaq_group_pos, pos_anggaran_infaq, rekening_wilayah, transaksi_fr; DB upsert ke transaksi_fr; penyimpanan file upload bukti transfer ke uploads/bukti-transfer
+ * @sideEffects DB read pada anggota_keluarga, keluarga, template_infaq_rutin, template_infaq_group, template_infaq_group_pos, pos_anggaran_infaq, rekening_wilayah, transaksi_fr, users, user_dapukan; DB upsert ke transaksi_fr; penyimpanan file upload bukti transfer ke uploads/bukti-transfer
  */
 
 import { fail, redirect } from '@sveltejs/kit';
@@ -143,7 +143,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			posList: [],
 			transaksiExisting: null,
 			kelompokNama,
-			rekeningList
+			rekeningList,
+			kuKontak: null
 		};
 	}
 
@@ -322,6 +323,33 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// Flat posList untuk kompatibilitas data
 	const posList = categoriesWithPos.flatMap((c) => c.subPos);
 
+	// 7. Ambil kontak KU / Bendahara kelompok untuk jalur komplain langsung
+	let kuKontak: { nama: string; noTelepon: string | null } | null = null;
+	if (userKelompokId) {
+		kuKontak = (sqlite
+			.prepare(
+				`SELECT u.nama_lengkap as nama, u.no_telepon as noTelepon
+				 FROM users u
+				 JOIN user_dapukan ud ON u.id = ud.user_id
+				 JOIN dapukan d ON ud.dapukan_id = d.id
+				 WHERE ud.kelompok_id = ? AND (d.nama_dapukan LIKE '%KU%' OR d.nama_dapukan LIKE '%Bendahara%' OR d.nama_dapukan LIKE '%Keuangan%')
+				 ORDER BY u.id ASC LIMIT 1`
+			)
+			.get(userKelompokId) as { nama: string; noTelepon: string | null } | undefined) ?? null;
+
+		if (!kuKontak) {
+			kuKontak = (sqlite
+				.prepare(
+					`SELECT u.nama_lengkap as nama, u.no_telepon as noTelepon
+					 FROM users u
+					 JOIN user_dapukan ud ON u.id = ud.user_id
+					 WHERE ud.kelompok_id = ?
+					 ORDER BY u.id ASC LIMIT 1`
+				)
+				.get(userKelompokId) as { nama: string; noTelepon: string | null } | undefined) ?? null;
+		}
+	}
+
 	return {
 		hasAnggota: true,
 		anggotaWajibList,
@@ -344,7 +372,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			  }
 			: null,
 		kelompokNama,
-		rekeningList
+		rekeningList,
+		kuKontak
 	};
 };
 
@@ -436,10 +465,17 @@ export const actions: Actions = {
 			return fail(400, { message: 'Kelompok jamaah belum terdaftar dalam sistem' });
 		}
 
-		// Ambil transaksi existing di periode ini untuk mempertahankan buktiUrl lama jika tidak ada unggahan baru
+		// Ambil transaksi existing di periode ini
 		const existing = sqlite
-			.prepare('SELECT id, catatan FROM transaksi_fr WHERE anggota_keluarga_id = ? AND tahun = ? AND bulan = ?')
-			.get(anggotaId, tahun, bulan) as { id: string; catatan: string | null } | undefined;
+			.prepare('SELECT id, status_bayar, catatan FROM transaksi_fr WHERE anggota_keluarga_id = ? AND tahun = ? AND bulan = ?')
+			.get(anggotaId, tahun, bulan) as { id: string; status_bayar: string; catatan: string | null } | undefined;
+
+		// Proteksi: Jika setoran sudah divalidasi dan disetujui oleh KU ('Diterima' atau 'Lunas'), tolak manipulasi/pengubahan data
+		if (existing && (existing.status_bayar === 'Diterima' || existing.status_bayar === 'Lunas')) {
+			return fail(400, {
+				message: 'Setoran Isrun/FR bulan ini telah divalidasi dan disetujui oleh KU. Anda tidak dapat mengubah data ini lagi. Silakan ajukan komplain jika ada ketidaksesuaian.'
+			});
+		}
 
 		let finalBuktiUrl = buktiUrl;
 		if (!finalBuktiUrl && existing?.catatan) {
