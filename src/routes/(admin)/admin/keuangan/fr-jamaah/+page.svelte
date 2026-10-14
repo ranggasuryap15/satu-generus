@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(admin)/admin/keuangan/fr-jamaah/+page.svelte
-  @purpose Halaman FR Jamaah: daftar kartu simetris mobile & tabel desktop dengan informasi nama, kepala keluarga, peran, status konfirmasi setoran (Menunggu/Diterima/Belum), modal detail rincian pos & pratinjau bukti transfer interaktif, approval setoran mandiri khusus KU, inline editing nominal, dan ekspor data CSV
+  @purpose Halaman FR Jamaah: daftar kartu mobile & tabel desktop dengan informasi nama, kepala keluarga, peran, status konfirmasi setoran (Menunggu/Diterima/Belum), nominal readonly di list luar, modal detail interaktif dengan dukungan input manual offline/buku fisik per pos anggaran atau total langsung, serta approval setoran mandiri khusus KU dan ekspor CSV
   @usedBy Route admin '/admin/keuangan/fr-jamaah'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
-  @publicFunctions handleNominalChange, handleCatatanChange, resetChanges, submitSave, exportToCsv, openDetail, closeDetail
-  @sideEffects Mengirim form batch upsert transaksi FR via action ?/saveFr; action ?/approveSetoran & ?/rejectSetoran di dalam modal detail dengan menjaga scroll; ekspor CSV di client
+  @publicFunctions openDetail, closeDetail, handleModalPosInput, handleModalTotalInput, handleNumberKeyDown, exportToCsv, formatRupiah
+  @sideEffects Mengirim form input manual via ?/saveSetoranManual; approval/reject via ?/approveSetoran & ?/rejectSetoran; ekspor CSV di client
 -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
@@ -18,6 +18,7 @@
 	  ChevronDown,
 	  Clock,
 	  Download,
+	  Edit3,
 	  ExternalLink,
 	  Eye,
 	  Filter,
@@ -49,11 +50,7 @@
 		selectedBulan = data.bulan;
 	});
 
-	// Tracking Perubahan Data (Inline Edit)
-	let editedValues = $state<Record<string, { nominal: number; catatan: string }>>({});
-	let isSaving = $state(false);
-
-	// State Modal Detail & Approval
+	// State Modal Detail, Approval & Input Manual KU
 	type BreakdownItem = {
 		posId: string;
 		nama: string;
@@ -90,9 +87,41 @@
 	let zoomedBuktiUrl = $state<string | null>(null);
 	let isApproving = $state(false);
 	let isRejecting = $state(false);
+	let isSavingModal = $state(false);
+
+	// Form State di dalam Modal Detail KU
+	let modalNominal = $state(0);
+	let modalNominalInputStr = $state('');
+	let modalMetode = $state<'Tunai' | 'Transfer'>('Tunai');
+	let modalStatusBayar = $state<string>('Diterima');
+	let modalCatatan = $state('');
+	let modalBreakdown = $state<Record<string, number>>({});
+	let modalBreakdownStrings = $state<Record<string, string>>({});
+	let activeInputMode = $state<'breakdown' | 'total'>('breakdown');
 
 	function openDetail(j: JamaahItem) {
 		selectedDetailJamaah = j;
+		modalNominal = j.nominal || 0;
+		modalNominalInputStr = j.nominal ? j.nominal.toLocaleString('id-ID') : '';
+		modalMetode = (j.metode as any) || 'Tunai';
+		modalStatusBayar = j.statusBayar === 'Belum' || !j.statusBayar ? 'Diterima' : j.statusBayar;
+		modalCatatan = j.catatan || '';
+
+		const bd: Record<string, number> = {};
+		const bdStr: Record<string, string> = {};
+		let hasBreakdown = false;
+
+		if (j.breakdownItems && j.breakdownItems.length > 0) {
+			for (const item of j.breakdownItems) {
+				bd[item.posId] = item.nominal;
+				bdStr[item.posId] = item.nominal ? item.nominal.toLocaleString('id-ID') : '';
+				if (item.nominal > 0) hasBreakdown = true;
+			}
+		}
+
+		modalBreakdown = bd;
+		modalBreakdownStrings = bdStr;
+		activeInputMode = hasBreakdown || (data.categoriesWithPos && data.categoriesWithPos.length > 0) ? 'breakdown' : 'total';
 	}
 
 	function closeDetail() {
@@ -150,70 +179,47 @@
 		window.location.href = `/admin/keuangan/fr-jamaah?kelompokId=${selectedKelompok}&tahun=${selectedTahun}&bulan=${selectedBulan}`;
 	}
 
-	function handleNominalInput(anggotaId: string, valueStr: string) {
+	function handleModalPosInput(posId: string, valueStr: string) {
 		const rawDigits = valueStr.replace(/\D/g, '');
 		const num = rawDigits ? parseInt(rawDigits, 10) : 0;
-		const curCatatan = editedValues[anggotaId]?.catatan ?? (data.jamaahList.find((j: JamaahItem) => j.id === anggotaId)?.catatan || '');
-		editedValues = {
-			...editedValues,
-			[anggotaId]: {
-				nominal: num,
-				catatan: curCatatan
-			}
-		};
+		modalBreakdown = { ...modalBreakdown, [posId]: num };
+		modalBreakdownStrings = { ...modalBreakdownStrings, [posId]: num ? num.toLocaleString('id-ID') : '' };
+
+		// Hitung ulang total penjumlahan seluruh pos breakdown
+		const total = Object.values(modalBreakdown).reduce((acc, v) => acc + (v || 0), 0);
+		modalNominal = total;
+		modalNominalInputStr = total ? total.toLocaleString('id-ID') : '';
 	}
 
-	function handleCatatanInput(anggotaId: string, val: string) {
-		const curNominal = editedValues[anggotaId]?.nominal ?? (data.jamaahList.find((j: JamaahItem) => j.id === anggotaId)?.nominal || 0);
-		editedValues = {
-			...editedValues,
-			[anggotaId]: {
-				nominal: curNominal,
-				catatan: val
-			}
-		};
+	function handleModalTotalInput(valueStr: string) {
+		const rawDigits = valueStr.replace(/\D/g, '');
+		const num = rawDigits ? parseInt(rawDigits, 10) : 0;
+		modalNominal = num;
+		modalNominalInputStr = num ? num.toLocaleString('id-ID') : '';
 	}
 
-	function getEffectiveNominal(j: JamaahItem): number {
-		return editedValues[j.id]?.nominal !== undefined ? editedValues[j.id].nominal : j.nominal;
+	function handleNumberKeyDown(e: KeyboardEvent) {
+		if (
+			[
+				'Backspace',
+				'Delete',
+				'Tab',
+				'Escape',
+				'Enter',
+				'ArrowLeft',
+				'ArrowRight',
+				'Home',
+				'End'
+			].includes(e.key) ||
+			(e.ctrlKey && ['a', 'c', 'v', 'x'].includes(e.key.toLowerCase())) ||
+			(e.metaKey && ['a', 'c', 'v', 'x'].includes(e.key.toLowerCase()))
+		) {
+			return;
+		}
+		if (!/^\d$/.test(e.key)) {
+			e.preventDefault();
+		}
 	}
-
-	function getEffectiveCatatan(j: JamaahItem): string {
-		return editedValues[j.id]?.catatan !== undefined ? editedValues[j.id].catatan : j.catatan;
-	}
-
-	const dirtyCount = $derived(
-		Object.keys(editedValues).filter((id) => {
-			const original = data.jamaahList.find((j: JamaahItem) => j.id === id);
-			if (!original) return false;
-			return (
-				editedValues[id].nominal !== original.nominal ||
-				editedValues[id].catatan !== original.catatan
-			);
-		}).length
-	);
-
-	function resetChanges() {
-		editedValues = {};
-	}
-
-	// Payload JSON untuk dikirim ke action saveFr
-	const dirtyPayloadJson = $derived(
-		JSON.stringify(
-			Object.entries(editedValues)
-				.filter(([id, val]) => {
-					const orig = data.jamaahList.find((j: JamaahItem) => j.id === id);
-					if (!orig) return false;
-					return val.nominal !== orig.nominal || val.catatan !== orig.catatan;
-				})
-				.map(([id, val]) => ({
-					anggotaId: id,
-					nominal: val.nominal,
-					statusBayar: val.nominal > 0 ? 'Lunas' : 'Belum',
-					catatan: val.catatan
-				}))
-		)
-	);
 
 	// Filtering Jamaah di Tabel
 	const filteredJamaah = $derived(
@@ -232,10 +238,10 @@
 	// Perhitungan Agregat Real-time
 	const totalWajib = $derived(data.jamaahList.length);
 	const totalSudahSetor = $derived(
-		data.jamaahList.filter((j: JamaahItem) => getEffectiveNominal(j) > 0).length
+		data.jamaahList.filter((j: JamaahItem) => (j.nominal || 0) > 0).length
 	);
 	const totalNominal = $derived(
-		data.jamaahList.reduce((acc: number, j: JamaahItem) => acc + getEffectiveNominal(j), 0)
+		data.jamaahList.reduce((acc: number, j: JamaahItem) => acc + (j.nominal || 0), 0)
 	);
 
 	function formatRupiah(num: number): string {
@@ -246,15 +252,6 @@
 		}).format(num);
 	}
 
-	$effect(() => {
-		if (form?.success) {
-			editedValues = {};
-			isSaving = false;
-		} else if (form?.error) {
-			isSaving = false;
-		}
-	});
-
 	function exportToCsv() {
 		if (!data.jamaahList || data.jamaahList.length === 0) return;
 
@@ -264,8 +261,6 @@
 		];
 
 		filteredJamaah.forEach((j: JamaahItem, idx: number) => {
-			const effNominal = getEffectiveNominal(j);
-			const effCatatan = getEffectiveCatatan(j);
 			const peranStr = j.isPengurus ? `Pengurus (${j.dapukanNama || '-'})` : 'Jamaah Biasa';
 			rows.push([
 				String(idx + 1),
@@ -273,9 +268,9 @@
 				`"${(j.kepalaKeluargaNama || '-').replace(/"/g, '""')}"`,
 				`"${peranStr.replace(/"/g, '""')}"`,
 				`"${namaBulan} ${data.tahun}"`,
-				String(effNominal || 0),
-				effNominal > 0 ? 'Lunas' : 'Belum',
-				`"${(effCatatan || '').replace(/"/g, '""')}"`
+				String(j.nominal || 0),
+				j.nominal > 0 ? (j.statusBayar || 'Lunas') : 'Belum',
+				`"${(j.catatan || '').replace(/"/g, '""')}"`
 			]);
 		});
 
@@ -505,11 +500,8 @@
 				<!-- DAFTAR KARTU MOBILE (md:hidden): card simetris dengan nama & angka nominal yang jelas -->
 				<div class="md:hidden space-y-2.5">
 					{#each filteredJamaah as j, idx (j.id)}
-						{@const effNominal = getEffectiveNominal(j)}
-						{@const effCatatan = getEffectiveCatatan(j)}
-						{@const isRowDirty = editedValues[j.id] !== undefined && (editedValues[j.id].nominal !== j.nominal || editedValues[j.id].catatan !== j.catatan)}
-						<div class="bg-card border border-border rounded-2xl p-3.5 space-y-3 shadow-xs transition-all {isRowDirty ? 'border-primary/60 bg-primary/5 ring-1 ring-primary/20' : 'hover:border-border/80'}">
-							<!-- Header Kartu: No, Nama Jamaah & Status + Tombol Detail -->
+						<div class="bg-card border border-border rounded-2xl p-3.5 space-y-3 shadow-xs transition-all hover:border-border/80">
+							<!-- Header Kartu: No, Nama Jamaah & Status + Tombol Detail/Input -->
 							<div class="flex items-start justify-between gap-3">
 								<div class="flex items-start gap-2.5 min-w-0 flex-1">
 									<span class="w-6 h-6 rounded-lg bg-secondary text-foreground/70 font-mono text-xs font-bold flex items-center justify-center shrink-0 mt-0.5 border border-border/60">
@@ -547,7 +539,7 @@
 											<Check class="w-2.5 h-2.5 stroke-[2.5]" />
 											<span>Diterima</span>
 										</span>
-									{:else if effNominal > 0}
+									{:else if j.nominal > 0}
 										<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
 											<Check class="w-2.5 h-2.5 stroke-[2.5]" />
 											<span>Lunas</span>
@@ -561,12 +553,15 @@
 									<button
 										type="button"
 										onclick={() => openDetail(j)}
-										class="inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[11px] font-semibold transition-all {j.buktiUrl ? 'bg-primary/10 hover:bg-primary/20 text-primary border-primary/30 font-bold shadow-2xs' : 'bg-secondary hover:bg-secondary/80 text-foreground/80 border-border'}"
-										title="Buka detail rincian dan bukti transfer"
+										class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-all {j.buktiUrl ? 'bg-primary/10 hover:bg-primary/20 text-primary border-primary/30 font-bold shadow-2xs' : data.canEdit && (j.nominal === 0 || j.statusBayar === 'Belum') ? 'bg-primary/10 hover:bg-primary/20 text-primary border-primary/30 font-bold' : 'bg-secondary hover:bg-secondary/80 text-foreground/80 border-border'}"
+										title="Buka detail rincian, bukti transfer, atau input manual KU"
 									>
 										{#if j.buktiUrl}
 											<Image class="w-3 h-3 text-primary" />
 											<span>Bukti</span>
+										{:else if data.canEdit && (j.nominal === 0 || j.statusBayar === 'Belum')}
+											<Edit3 class="w-3 h-3 text-primary" />
+											<span>Input KU</span>
 										{:else}
 											<Eye class="w-3 h-3" />
 											<span>Detail</span>
@@ -575,54 +570,18 @@
 								</div>
 							</div>
 
-							<!-- Form Input Simetris: Nominal (Kiri) & Catatan (Kanan) -->
-							<div class="pt-2.5 border-t border-border/50">
-								{#if data.canEdit}
-									<div class="grid grid-cols-12 gap-2">
-										<!-- Input Nominal Angka Jelas & Tegas -->
-										<div class="col-span-6 relative">
-											<span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold font-mono text-primary">
-												Rp
-											</span>
-											<input
-												type="text"
-												inputmode="numeric"
-												pattern="[0-9]*"
-												autocomplete="off"
-												value={effNominal ? effNominal.toLocaleString('id-ID') : ''}
-												oninput={(e) => handleNominalInput(j.id, (e.target as HTMLInputElement).value)}
-												placeholder="0"
-												aria-label="Nominal FR {j.namaLengkap}"
-												class="w-full pl-8 pr-2.5 py-2 rounded-xl border text-sm font-mono font-bold tracking-wide transition-all focus:outline-none focus:ring-1 {isRowDirty ? 'border-primary bg-primary/10 text-primary focus:ring-primary ring-1 ring-primary/30' : 'border-border bg-secondary/40 text-foreground focus:ring-primary'}"
-											/>
-										</div>
-
-										<!-- Input Catatan Seimbang & Simetris -->
-										<div class="col-span-6">
-											<input
-												type="text"
-												value={effCatatan}
-												oninput={(e) => handleCatatanInput(j.id, (e.target as HTMLInputElement).value)}
-												placeholder="Catatan..."
-												aria-label="Catatan {j.namaLengkap}"
-												class="w-full px-3 py-2 rounded-xl border text-xs transition-all focus:outline-none focus:ring-1 {isRowDirty ? 'border-primary/50 bg-primary/5' : 'border-border bg-secondary/40 text-foreground focus:ring-primary'}"
-											/>
-										</div>
-									</div>
-								{:else}
-									<div class="flex items-center justify-between text-xs py-0.5">
-										<div class="flex items-center gap-1.5">
-											<span class="text-[11px] text-foreground/50">Nominal:</span>
-											<span class="font-mono font-bold text-sm text-foreground">
-												{formatRupiah(effNominal)}
-											</span>
-										</div>
-										{#if effCatatan}
-											<span class="text-xs text-foreground/60 italic truncate max-w-[50%]">
-												{effCatatan}
-											</span>
-										{/if}
-									</div>
+							<!-- Nominal & Catatan Bersih (Readonly di luar) -->
+							<div class="pt-2.5 border-t border-border/50 flex items-center justify-between text-xs">
+								<div class="flex items-center gap-2">
+									<span class="text-[11px] text-foreground/50 font-medium">Nominal FR:</span>
+									<span class="font-mono font-bold text-sm text-foreground">
+										{j.nominal > 0 ? formatRupiah(j.nominal) : '-'}
+									</span>
+								</div>
+								{#if j.catatan}
+									<span class="text-xs text-foreground/60 italic truncate max-w-[50%]" title={j.catatan}>
+										"{j.catatan}"
+									</span>
 								{/if}
 							</div>
 						</div>
@@ -633,27 +592,24 @@
 					<table class="w-full text-left text-xs min-w-[760px]">
 						<thead class="bg-secondary/60 text-foreground/70 uppercase text-[11px] tracking-wider border-b border-border">
 							<tr>
-								<th class="py-2 px-3.5 font-semibold w-12 text-center">No</th>
-								<th class="py-2 px-4 font-semibold">Nama Jamaah</th>
-								<th class="py-2 px-4 font-semibold">Kepala Keluarga</th>
-								<th class="py-2 px-4 font-semibold w-44">Nominal FR (Rp)</th>
-								<th class="py-2 px-3 font-semibold w-28 text-center">Status</th>
-								<th class="py-2 px-3 font-semibold w-28 text-center">Aksi / Bukti</th>
-								<th class="py-2 px-4 font-semibold">Catatan / Keterangan</th>
+								<th class="py-2.5 px-3.5 font-semibold w-12 text-center">No</th>
+								<th class="py-2.5 px-4 font-semibold">Nama Jamaah</th>
+								<th class="py-2.5 px-4 font-semibold">Kepala Keluarga</th>
+								<th class="py-2.5 px-4 font-semibold w-40">Nominal FR (Rp)</th>
+								<th class="py-2.5 px-3 font-semibold w-28 text-center">Status</th>
+								<th class="py-2.5 px-3 font-semibold w-32 text-center">Aksi / Bukti</th>
+								<th class="py-2.5 px-4 font-semibold">Catatan / Keterangan</th>
 							</tr>
 						</thead>
 						<tbody class="divide-y divide-border">
 							{#each filteredJamaah as j, idx (j.id)}
-								{@const effNominal = getEffectiveNominal(j)}
-								{@const effCatatan = getEffectiveCatatan(j)}
-								{@const isRowDirty = editedValues[j.id] !== undefined && (editedValues[j.id].nominal !== j.nominal || editedValues[j.id].catatan !== j.catatan)}
-								<tr class="hover:bg-secondary/30 transition-colors {isRowDirty ? 'bg-primary/5' : ''}">
-									<td class="py-2.5 px-3.5 text-center text-foreground/50 font-mono font-semibold">
+								<tr class="hover:bg-secondary/30 transition-colors">
+									<td class="py-3 px-3.5 text-center text-foreground/50 font-mono font-semibold">
 										{idx + 1}
 									</td>
 
 									<!-- Nama & Status Peran Pengurus / Jamaah -->
-									<td class="py-2.5 px-4">
+									<td class="py-3 px-4">
 										<div class="font-bold text-foreground text-sm tracking-tight">{j.namaLengkap}</div>
 										<div class="flex items-center gap-1.5 text-[11px] text-foreground/60 mt-0.5">
 											{#if j.isPengurus}
@@ -667,37 +623,23 @@
 									</td>
 
 									<!-- Kepala Keluarga -->
-									<td class="py-2.5 px-4 text-foreground/80 text-xs">
+									<td class="py-3 px-4 text-foreground/80 text-xs">
 										{j.kepalaKeluargaNama || '-'}
 									</td>
 
-									<!-- Input Nominal (Inline Editable) -->
-									<td class="py-2.5 px-4">
-										{#if data.canEdit}
-											<div class="relative">
-												<span class="absolute left-3 top-1/2 -translate-y-1/2 text-foreground/50 font-mono text-xs font-bold">
-													Rp
-												</span>
-												<input
-													type="text"
-													inputmode="numeric"
-													pattern="[0-9]*"
-													autocomplete="off"
-													value={effNominal ? effNominal.toLocaleString('id-ID') : ''}
-													oninput={(e) => handleNominalInput(j.id, (e.target as HTMLInputElement).value)}
-													placeholder="0"
-													class="w-full pl-9 pr-3 py-2 rounded-lg border text-sm font-mono font-bold tracking-wide transition-all focus:outline-none focus:ring-1 {isRowDirty ? 'border-primary bg-primary/10 text-primary focus:ring-primary' : 'border-border bg-secondary/50 text-foreground focus:ring-primary'}"
-												/>
-											</div>
-										{:else}
+									<!-- Nominal FR (Readonly display, diedit di dalam modal detail) -->
+									<td class="py-3 px-4">
+										{#if j.nominal > 0}
 											<span class="font-mono font-bold text-sm text-foreground">
-												{formatRupiah(effNominal)}
+												{formatRupiah(j.nominal)}
 											</span>
+										{:else}
+											<span class="font-mono text-sm text-foreground/40 font-medium">-</span>
 										{/if}
 									</td>
 
 									<!-- Status Pembayaran -->
-									<td class="py-2 px-3 text-center">
+									<td class="py-2.5 px-3 text-center">
 										{#if j.statusBayar === 'Menunggu Konfirmasi' || j.statusBayar === 'Menunggu'}
 											<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
 												<Clock class="w-3 h-3 stroke-[2.5]" />
@@ -708,7 +650,7 @@
 												<Check class="w-3 h-3 stroke-[2.5]" />
 												<span>Diterima</span>
 											</span>
-										{:else if effNominal > 0}
+										{:else if j.nominal > 0}
 											<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
 												<Check class="w-3 h-3 stroke-[2.5]" />
 												<span>Lunas</span>
@@ -721,18 +663,21 @@
 									</td>
 
 									<!-- Tombol Aksi & Bukti Transfer -->
-									<td class="py-2 px-3 text-center">
+									<td class="py-2.5 px-3 text-center">
 										<button
 											type="button"
 											onclick={() => openDetail(j)}
-											class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-all {j.buktiUrl ? 'bg-primary/10 hover:bg-primary/20 text-primary border-primary/30 ring-1 ring-primary/20 font-bold' : 'bg-secondary/60 hover:bg-secondary text-foreground/80 border-border'}"
-											title="Buka rincian setoran dan bukti transfer"
+											class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all {j.buktiUrl ? 'bg-primary/10 hover:bg-primary/20 text-primary border-primary/30 ring-1 ring-primary/20 font-bold shadow-2xs' : data.canEdit && (j.nominal === 0 || j.statusBayar === 'Belum') ? 'bg-primary/10 hover:bg-primary/20 text-primary border-primary/30 font-bold' : 'bg-secondary/60 hover:bg-secondary text-foreground/80 border-border'}"
+											title={j.buktiUrl ? 'Lihat bukti transfer & detail setoran' : data.canEdit ? 'Input manual setoran / detail' : 'Lihat detail setoran'}
 										>
 											{#if j.buktiUrl}
 												<div class="w-4 h-4 rounded overflow-hidden shrink-0 border border-primary/40 bg-card">
 													<img src={j.buktiUrl} alt="Bukti" class="w-full h-full object-cover" />
 												</div>
 												<span class="text-[11px]">Bukti</span>
+											{:else if data.canEdit && (j.nominal === 0 || j.statusBayar === 'Belum')}
+												<Edit3 class="w-3.5 h-3.5 text-primary" />
+												<span class="text-[11px]">Input KU</span>
 											{:else}
 												<Eye class="w-3.5 h-3.5" />
 												<span class="text-[11px]">Detail</span>
@@ -741,20 +686,10 @@
 									</td>
 
 									<!-- Catatan -->
-									<td class="py-2 px-4">
-										{#if data.canEdit}
-											<input
-												type="text"
-												value={effCatatan}
-												oninput={(e) => handleCatatanInput(j.id, (e.target as HTMLInputElement).value)}
-												placeholder="Opsional..."
-												class="w-full px-2.5 py-1.5 rounded-lg border text-xs transition-all focus:outline-none focus:ring-1 {isRowDirty ? 'border-primary/50 bg-primary/5' : 'border-border bg-secondary/50 text-foreground focus:ring-primary'}"
-											/>
-										{:else}
-											<span class="text-xs text-foreground/60 italic">
-												{effCatatan || '-'}
-											</span>
-										{/if}
+									<td class="py-3 px-4">
+										<span class="text-xs text-foreground/70 italic truncate block max-w-xs" title={j.catatan}>
+											{j.catatan || '-'}
+										</span>
 									</td>
 								</tr>
 							{/each}
@@ -829,45 +764,6 @@
 						{/if}
 					</div>
 
-					<!-- Ringkasan Status & Nominal -->
-					<div class="grid grid-cols-2 gap-3">
-						<div class="p-3.5 rounded-xl bg-card border border-border space-y-1">
-							<span class="text-[11px] text-foreground/50 font-medium">Total Nominal Setoran</span>
-							<div class="text-base sm:text-lg font-bold font-mono text-primary">
-								{formatRupiah(selectedDetailJamaah.nominal)}
-							</div>
-							<div class="text-[10px] text-foreground/50">
-								Metode: <span class="font-semibold text-foreground">{selectedDetailJamaah.metode || 'Tunai'}</span>
-							</div>
-						</div>
-
-						<div class="p-3.5 rounded-xl bg-card border border-border space-y-1">
-							<span class="text-[11px] text-foreground/50 font-medium">Status Konfirmasi</span>
-							<div>
-								{#if selectedDetailJamaah.statusBayar === 'Menunggu Konfirmasi' || selectedDetailJamaah.statusBayar === 'Menunggu'}
-									<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-										<Clock class="w-3 h-3 stroke-[2.5]" />
-										<span>Menunggu</span>
-									</span>
-								{:else if selectedDetailJamaah.statusBayar === 'Diterima' || selectedDetailJamaah.statusBayar === 'Lunas'}
-									<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-										<Check class="w-3 h-3 stroke-[2.5]" />
-										<span>Diterima / Lunas</span>
-									</span>
-								{:else}
-									<span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-secondary text-foreground/50 border border-border">
-										Belum Setor
-									</span>
-								{/if}
-							</div>
-							{#if selectedDetailJamaah.tanggalLapor}
-								<div class="text-[10px] text-foreground/50 truncate">
-									Lapor: {formatTanggalLapor(selectedDetailJamaah.tanggalLapor)}
-								</div>
-							{/if}
-						</div>
-					</div>
-
 					<!-- BUKTI TRANSFER (GAMBAR DAPAT DIKLIK & DIPERBESAR) -->
 					<div class="space-y-2">
 						<div class="flex items-center justify-between">
@@ -902,74 +798,295 @@
 								</button>
 							</div>
 						{:else}
-							<div class="p-4 rounded-xl border border-dashed border-border text-center text-foreground/50 bg-secondary/20">
-								<Wallet class="w-6 h-6 mx-auto mb-1.5 opacity-40" />
+							<div class="p-3.5 rounded-xl border border-dashed border-border text-center text-foreground/50 bg-secondary/20">
+								<Wallet class="w-5 h-5 mx-auto mb-1 opacity-40" />
 								<p class="font-medium text-[11px]">Tidak ada lampiran bukti transfer gambar.</p>
-								<p class="text-[10px] mt-0.5">Setoran tunai langsung ke KU atau dicatat secara offline.</p>
+								<p class="text-[10px] mt-0.5 text-foreground/40">Setoran tunai via buku fisik langsung ke KU atau dicatat offline.</p>
 							</div>
 						{/if}
 					</div>
 
-					<!-- Rincian Pos Anggaran (Breakdown) -->
-					{#if selectedDetailJamaah.breakdownItems && selectedDetailJamaah.breakdownItems.length > 0}
-						<div class="space-y-2">
-							<span class="font-bold text-foreground flex items-center gap-1.5">
-								<Layers class="w-4 h-4 text-primary" />
-								<span>Rincian Pos Anggaran</span>
-							</span>
-							<div class="border border-border rounded-xl overflow-hidden">
-								<table class="w-full text-left text-[11px]">
-									<thead class="bg-secondary/60 text-foreground/70 uppercase text-[10px] tracking-wider border-b border-border">
-										<tr>
-											<th class="py-1.5 px-3 font-semibold">Pos Anggaran</th>
-											<th class="py-1.5 px-3 font-semibold text-right">Nominal</th>
-										</tr>
-									</thead>
-									<tbody class="divide-y divide-border/60">
-										{#each selectedDetailJamaah.breakdownItems as item}
-											<tr class="hover:bg-secondary/20">
-												<td class="py-2 px-3 text-foreground font-medium">
-													{item.nama}
-													{#if item.kode}
-														<span class="text-foreground/40 text-[10px] ml-1">({item.kode})</span>
-													{/if}
-												</td>
-												<td class="py-2 px-3 text-right font-mono font-bold text-foreground">
-													{formatRupiah(item.nominal)}
-												</td>
-											</tr>
-										{/each}
-									</tbody>
-								</table>
-							</div>
-						</div>
-					{/if}
+					<!-- FORM INPUT & EDIT SETORAN MANUAL FLEKSIBEL KHUSUS KU -->
+					{#if data.canEdit}
+						<form
+							id="formManualKu"
+							method="POST"
+							action={`?kelompokId=${data.selectedKelompokId}&tahun=${data.tahun}&bulan=${data.bulan}&/saveSetoranManual`}
+							use:enhance={keepScrollSubmit({
+								beforeSubmit: () => {
+									isSavingModal = true;
+								},
+								onSuccess: () => {
+									isSavingModal = false;
+									if (selectedDetailJamaah) {
+										selectedDetailJamaah.nominal = modalNominal;
+										selectedDetailJamaah.statusBayar = modalStatusBayar;
+										selectedDetailJamaah.metode = modalMetode;
+										selectedDetailJamaah.catatan = modalCatatan;
 
-					<!-- Catatan Jamaah -->
-					{#if selectedDetailJamaah.catatan}
-						<div class="p-3 rounded-xl bg-secondary/30 border border-border space-y-1">
-							<span class="font-bold text-foreground/70 text-[11px]">Catatan dari Jamaah:</span>
-							<p class="text-foreground italic whitespace-pre-wrap leading-relaxed">
-								"{selectedDetailJamaah.catatan}"
-							</p>
+										// Update breakdown items untuk display lokal
+										const newItems: BreakdownItem[] = [];
+										for (const [posId, nom] of Object.entries(modalBreakdown)) {
+											if (nom > 0) {
+												let pNama = 'Pos Anggaran';
+												let pKode = '';
+												for (const cat of (data.categoriesWithPos || [])) {
+													const found = (cat.subPos || []).find((p: any) => p.posId === posId);
+													if (found) {
+														pNama = found.nama;
+														pKode = found.kode;
+														break;
+													}
+												}
+												newItems.push({ posId, nama: pNama, kode: pKode, nominal: nom });
+											}
+										}
+										selectedDetailJamaah.breakdownItems = newItems;
+
+										const found = (data.jamaahList as JamaahItem[]).find((x) => x.id === selectedDetailJamaah?.id);
+										if (found) {
+											found.nominal = modalNominal;
+											found.statusBayar = modalStatusBayar;
+											found.metode = modalMetode;
+											found.catatan = modalCatatan;
+											found.breakdownItems = newItems;
+										}
+									}
+									closeDetail();
+								},
+								onError: () => {
+									isSavingModal = false;
+								},
+								onFinally: () => {
+									isSavingModal = false;
+								}
+							})}
+							class="border border-primary/20 bg-primary/5 rounded-2xl p-4 space-y-4"
+						>
+							<input type="hidden" name="kelompokId" value={data.selectedKelompokId} />
+							<input type="hidden" name="anggotaId" value={selectedDetailJamaah.id} />
+							<input type="hidden" name="tahun" value={data.tahun} />
+							<input type="hidden" name="bulan" value={data.bulan} />
+							<input type="hidden" name="nominal" value={modalNominal} />
+							<input type="hidden" name="metode" value={modalMetode} />
+							<input type="hidden" name="statusBayar" value={modalStatusBayar} />
+							<input type="hidden" name="catatan" value={modalCatatan} />
+							<input type="hidden" name="breakdownJson" value={JSON.stringify(modalBreakdown)} />
+
+							<!-- Header Form KU -->
+							<div class="flex flex-wrap items-center justify-between gap-2 border-b border-primary/10 pb-3">
+								<div class="flex items-center gap-2">
+									<div class="w-7 h-7 rounded-lg bg-primary/15 text-primary flex items-center justify-center shrink-0">
+										<Edit3 class="w-4 h-4" />
+									</div>
+									<div>
+										<h5 class="text-xs font-bold text-foreground">Input / Koreksi Setoran oleh KU</h5>
+										<p class="text-[10px] text-foreground/60">Input buku fisik tradisional atau koreksi rincian setoran</p>
+									</div>
+								</div>
+
+								<!-- Mode Switcher: Pos vs Total -->
+								<div class="inline-flex p-0.5 bg-card rounded-xl border border-border text-[11px] shadow-2xs">
+									<button
+										type="button"
+										onclick={() => (activeInputMode = 'breakdown')}
+										class="px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer {activeInputMode === 'breakdown' ? 'bg-primary text-primary-foreground shadow-xs' : 'text-foreground/60 hover:text-foreground'}"
+									>
+										Rincian Pos
+									</button>
+									<button
+										type="button"
+										onclick={() => (activeInputMode = 'total')}
+										class="px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer {activeInputMode === 'total' ? 'bg-primary text-primary-foreground shadow-xs' : 'text-foreground/60 hover:text-foreground'}"
+									>
+										Total Saja
+									</button>
+								</div>
+							</div>
+
+							<!-- Pilihan Metode & Status -->
+							<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+								<div class="space-y-1.5">
+									<label class="text-[11px] font-semibold text-foreground/70">Metode Penyetoran:</label>
+									<div class="grid grid-cols-2 gap-2">
+										<button
+											type="button"
+											onclick={() => (modalMetode = 'Tunai')}
+											class="px-3 py-2 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer {modalMetode === 'Tunai' ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 ring-1 ring-emerald-500/20' : 'bg-card border-border text-foreground/60 hover:text-foreground'}"
+										>
+											<Wallet class="w-3.5 h-3.5" />
+											<span>Tunai (Buku)</span>
+										</button>
+										<button
+											type="button"
+											onclick={() => (modalMetode = 'Transfer')}
+											class="px-3 py-2 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer {modalMetode === 'Transfer' ? 'bg-primary/15 text-primary border-primary/30 ring-1 ring-primary/20' : 'bg-card border-border text-foreground/60 hover:text-foreground'}"
+										>
+											<Building2 class="w-3.5 h-3.5" />
+											<span>Transfer</span>
+										</button>
+									</div>
+								</div>
+
+								<div class="space-y-1.5">
+									<label class="text-[11px] font-semibold text-foreground/70">Status Penyetoran:</label>
+									<div class="grid grid-cols-2 gap-2">
+										<button
+											type="button"
+											onclick={() => (modalStatusBayar = 'Diterima')}
+											class="px-3 py-2 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer {modalStatusBayar === 'Diterima' ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 ring-1 ring-emerald-500/20' : 'bg-card border-border text-foreground/60 hover:text-foreground'}"
+										>
+											<CheckCircle2 class="w-3.5 h-3.5" />
+											<span>Diterima</span>
+										</button>
+										<button
+											type="button"
+											onclick={() => (modalStatusBayar = 'Menunggu Konfirmasi')}
+											class="px-3 py-2 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer {modalStatusBayar === 'Menunggu Konfirmasi' ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 ring-1 ring-amber-500/20' : 'bg-card border-border text-foreground/60 hover:text-foreground'}"
+										>
+											<Clock class="w-3.5 h-3.5" />
+											<span>Menunggu</span>
+										</button>
+									</div>
+								</div>
+							</div>
+
+							{#if activeInputMode === 'breakdown'}
+								<!-- INPUT PER POS ANGGARAN (A. Hak Pusat s/d D. Hak Kelompok) -->
+								<div class="space-y-2.5 pt-1">
+									<div class="flex items-center justify-between">
+										<label class="text-[11px] font-semibold text-foreground/80 flex items-center gap-1.5">
+											<Layers class="w-3.5 h-3.5 text-primary" />
+											<span>Nominal per Pos Sesuai Buku Setoran:</span>
+										</label>
+										<span class="text-[10px] text-foreground/50">Otomatis dijumlah ke Total</span>
+									</div>
+
+									{#if data.categoriesWithPos && data.categoriesWithPos.length > 0}
+										<div class="border border-border/80 rounded-xl overflow-hidden bg-card divide-y divide-border/60">
+											{#each data.categoriesWithPos as cat}
+												<div class="bg-secondary/60 px-3 py-1.5 text-[11px] font-bold text-foreground">
+													{cat.labelKategori}
+												</div>
+												<div class="divide-y divide-border/40">
+													{#each cat.subPos as pos}
+														<div class="p-2 sm:px-3 flex items-center justify-between gap-3 hover:bg-secondary/20 transition-colors">
+															<div class="min-w-0 flex-1">
+																<div class="text-xs font-medium text-foreground truncate">
+																	{pos.nama}
+																</div>
+																{#if pos.kode}
+																	<span class="text-[10px] text-foreground/50 font-mono">({pos.kode})</span>
+																{/if}
+															</div>
+															<div class="relative w-36 sm:w-44 shrink-0">
+																<span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold font-mono text-foreground/50">
+																	Rp
+																</span>
+																<input
+																	type="text"
+																	inputmode="numeric"
+																	pattern="[0-9]*"
+																	placeholder="0"
+																	value={modalBreakdownStrings[pos.posId] || ''}
+																	onkeydown={handleNumberKeyDown}
+																	oninput={(e) => handleModalPosInput(pos.posId, (e.target as HTMLInputElement).value)}
+																	class="w-full pl-8 pr-2.5 py-1.5 rounded-lg border border-border bg-card text-foreground font-mono text-xs font-bold text-right focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
+																/>
+															</div>
+														</div>
+													{/each}
+												</div>
+											{/each}
+										</div>
+									{:else}
+										<div class="p-3 bg-secondary/40 rounded-xl text-center text-xs text-foreground/60">
+											Belum ada pos anggaran infaq yang dikonfigurasikan. Gunakan mode "Total Saja".
+										</div>
+									{/if}
+								</div>
+							{:else}
+								<!-- INPUT TOTAL NOMINAL LANGSUNG -->
+								<div class="space-y-1.5 pt-1">
+									<label class="text-[11px] font-semibold text-foreground/80">Total Nominal Setoran Langsung:</label>
+									<div class="relative">
+										<span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold font-mono text-primary">
+											Rp
+										</span>
+										<input
+											type="text"
+											inputmode="numeric"
+											pattern="[0-9]*"
+											placeholder="0"
+											value={modalNominalInputStr}
+											onkeydown={handleNumberKeyDown}
+											oninput={(e) => handleModalTotalInput((e.target as HTMLInputElement).value)}
+											class="w-full pl-10 pr-3 py-2.5 rounded-xl border border-border bg-card text-foreground font-mono text-base font-bold tracking-wide focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
+										/>
+									</div>
+								</div>
+							{/if}
+
+							<!-- Total Nominal Kalkulasi Realtime -->
+							<div class="p-3 rounded-xl bg-card border border-border/80 flex items-center justify-between shadow-2xs">
+								<div>
+									<p class="text-[10px] text-foreground/50 uppercase font-semibold">Total Terhitung</p>
+									<p class="text-[11px] text-foreground/70 font-medium">Nominal yang akan tercatat di sistem</p>
+								</div>
+								<div class="text-base sm:text-lg font-bold font-mono text-primary">
+									{formatRupiah(modalNominal)}
+								</div>
+							</div>
+
+							<!-- Catatan KU -->
+							<div class="space-y-1.5">
+								<label class="text-[11px] font-semibold text-foreground/80">Catatan / Keterangan KU:</label>
+								<input
+									type="text"
+									bind:value={modalCatatan}
+									placeholder="Contoh: Disetor via buku fisik tradisional ke KU"
+									class="w-full px-3 py-2 rounded-xl border border-border bg-card text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
+								/>
+							</div>
+						</form>
+					{:else}
+						<!-- Mode Read-only untuk Non-KU (Kyai / Aghnia) -->
+						<div class="p-3.5 rounded-xl bg-secondary/40 border border-border space-y-2">
+							<div class="flex items-center justify-between">
+								<span class="text-xs font-bold text-foreground">Total Nominal:</span>
+								<span class="font-mono font-bold text-base text-primary">{formatRupiah(selectedDetailJamaah.nominal)}</span>
+							</div>
+							<div class="flex items-center justify-between text-xs text-foreground/70">
+								<span>Metode:</span>
+								<span class="font-semibold text-foreground">{selectedDetailJamaah.metode || 'Tunai'}</span>
+							</div>
+							<div class="flex items-center justify-between text-xs text-foreground/70">
+								<span>Status:</span>
+								<span class="font-semibold text-foreground">{selectedDetailJamaah.statusBayar}</span>
+							</div>
+							{#if selectedDetailJamaah.catatan}
+								<div class="pt-1 text-xs text-foreground/70 italic border-t border-border/50">
+									"{selectedDetailJamaah.catatan}"
+								</div>
+							{/if}
 						</div>
 					{/if}
 				</div>
 
-				<!-- Modal Footer: Tombol Approval KU -->
+				<!-- Modal Footer: Tombol Approval / Simpan KU -->
 				<div class="p-4 sm:p-5 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3 bg-secondary/20">
 					<button
 						type="button"
 						onclick={closeDetail}
-						class="w-full sm:w-auto px-4 py-2 rounded-xl border border-border bg-card hover:bg-secondary text-foreground text-xs font-semibold transition-colors"
+						class="w-full sm:w-auto px-4 py-2 rounded-xl border border-border bg-card hover:bg-secondary text-foreground text-xs font-semibold transition-colors cursor-pointer"
 					>
 						Tutup
 					</button>
 
 					{#if data.canEdit}
-						<div class="flex items-center gap-2 w-full sm:w-auto justify-end">
-							{#if selectedDetailJamaah.statusBayar === 'Menunggu Konfirmasi' || selectedDetailJamaah.statusBayar === 'Menunggu' || selectedDetailJamaah.statusBayar === 'Belum'}
-								<!-- Form Approve Setoran Khusus di dalam Modal Detail -->
+						<div class="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+							<!-- Jika status Menunggu Konfirmasi: Beri opsi 1-klik Approve langsung -->
+							{#if selectedDetailJamaah.statusBayar === 'Menunggu Konfirmasi' || selectedDetailJamaah.statusBayar === 'Menunggu'}
 								<form
 									method="POST"
 									action={`?kelompokId=${data.selectedKelompokId}&tahun=${data.tahun}&bulan=${data.bulan}&/approveSetoran`}
@@ -984,6 +1101,7 @@
 												const found = (data.jamaahList as JamaahItem[]).find((x) => x.id === selectedDetailJamaah?.id);
 												if (found) found.statusBayar = 'Diterima';
 											}
+											closeDetail();
 										},
 										onError: () => {
 											isApproving = false;
@@ -1003,65 +1121,78 @@
 
 									<button
 										type="submit"
-										disabled={isApproving}
-										class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all disabled:opacity-50"
+										disabled={isApproving || isSavingModal}
+										class="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+										title="Setujui langsung tanpa mengubah nominal"
 									>
-										<CheckCircle2 class="w-4 h-4" />
-										<span>{isApproving ? 'Memproses...' : 'Terima Setoran'}</span>
+										<CheckCircle2 class="w-3.5 h-3.5" />
+										<span>{isApproving ? 'Memproses...' : 'Terima Langsung'}</span>
 									</button>
 								</form>
-							{:else}
-								<!-- Status sudah Diterima / Lunas -->
-								<div class="flex items-center gap-2">
-									<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-										<Check class="w-4 h-4 stroke-[2.5]" />
-										<span>Setoran Telah Diterima</span>
-									</span>
-
-									<!-- Opsi pembatalan/reset jika salah approve -->
-									<form
-										method="POST"
-										action={`?kelompokId=${data.selectedKelompokId}&tahun=${data.tahun}&bulan=${data.bulan}&/rejectSetoran`}
-										use:enhance={keepScrollSubmit({
-											beforeSubmit: () => {
-												isRejecting = true;
-											},
-											onSuccess: () => {
-												isRejecting = false;
-												if (selectedDetailJamaah) {
-													selectedDetailJamaah.statusBayar = 'Belum';
-													const found = (data.jamaahList as JamaahItem[]).find((x) => x.id === selectedDetailJamaah?.id);
-													if (found) found.statusBayar = 'Belum';
-												}
-											},
-											onError: () => {
-												isRejecting = false;
-											},
-											onFinally: () => {
-												isRejecting = false;
-											}
-										})}
-									>
-										<input type="hidden" name="kelompokId" value={data.selectedKelompokId} />
-										<input type="hidden" name="tahun" value={data.tahun} />
-										<input type="hidden" name="bulan" value={data.bulan} />
-										<input type="hidden" name="anggotaId" value={selectedDetailJamaah.id} />
-										{#if selectedDetailJamaah.transaksiId}
-											<input type="hidden" name="transaksiId" value={selectedDetailJamaah.transaksiId} />
-										{/if}
-
-										<button
-											type="submit"
-											disabled={isRejecting}
-											class="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-[11px] font-semibold text-destructive hover:bg-destructive/10 border border-destructive/20 transition-all disabled:opacity-50"
-											title="Batalkan penerimaan setoran"
-										>
-											<RotateCcw class="w-3 h-3" />
-											<span>{isRejecting ? 'Batal...' : 'Kembalikan ke Belum'}</span>
-										</button>
-									</form>
-								</div>
 							{/if}
+
+							<!-- Jika status sudah Diterima: Opsi Kembalikan ke Belum -->
+							{#if selectedDetailJamaah.statusBayar === 'Diterima' || selectedDetailJamaah.statusBayar === 'Lunas'}
+								<form
+									method="POST"
+									action={`?kelompokId=${data.selectedKelompokId}&tahun=${data.tahun}&bulan=${data.bulan}&/rejectSetoran`}
+									use:enhance={keepScrollSubmit({
+										beforeSubmit: () => {
+											isRejecting = true;
+										},
+										onSuccess: () => {
+											isRejecting = false;
+											if (selectedDetailJamaah) {
+												selectedDetailJamaah.statusBayar = 'Belum';
+												const found = (data.jamaahList as JamaahItem[]).find((x) => x.id === selectedDetailJamaah?.id);
+												if (found) found.statusBayar = 'Belum';
+											}
+											closeDetail();
+										},
+										onError: () => {
+											isRejecting = false;
+										},
+										onFinally: () => {
+											isRejecting = false;
+										}
+									})}
+								>
+									<input type="hidden" name="kelompokId" value={data.selectedKelompokId} />
+									<input type="hidden" name="tahun" value={data.tahun} />
+									<input type="hidden" name="bulan" value={data.bulan} />
+									<input type="hidden" name="anggotaId" value={selectedDetailJamaah.id} />
+									{#if selectedDetailJamaah.transaksiId}
+										<input type="hidden" name="transaksiId" value={selectedDetailJamaah.transaksiId} />
+									{/if}
+
+									<button
+										type="submit"
+										disabled={isRejecting || isSavingModal}
+										class="inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold text-destructive hover:bg-destructive/10 border border-destructive/20 transition-all disabled:opacity-50 cursor-pointer"
+										title="Kembalikan status setoran menjadi belum bayar"
+									>
+										<RotateCcw class="w-3.5 h-3.5" />
+										<span>{isRejecting ? 'Batal...' : 'Kembalikan ke Belum'}</span>
+									</button>
+								</form>
+							{/if}
+
+							<!-- Tombol Simpan Form Manual KU -->
+							<button
+								type="submit"
+								form="formManualKu"
+								disabled={isSavingModal || isApproving || isRejecting}
+								class="inline-flex items-center justify-center gap-1.5 px-5 py-2 rounded-xl text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+							>
+								<Save class="w-3.5 h-3.5" />
+								<span>
+									{isSavingModal
+										? 'Menyimpan...'
+										: selectedDetailJamaah.statusBayar === 'Diterima' || selectedDetailJamaah.statusBayar === 'Lunas'
+											? 'Simpan Perubahan'
+											: 'Simpan & Terima Setoran'}
+								</span>
+							</button>
 						</div>
 					{/if}
 				</div>
@@ -1110,67 +1241,6 @@
 						<span>Buka Gambar Asli</span>
 					</a>
 				</div>
-			</div>
-		</div>
-	{/if}
-
-	<!-- STICKY FLOATING ACTION BAR (MENGIKUTI SCROLL SAAT ADA PERUBAHAN) -->
-	{#if dirtyCount > 0 && data.canEdit}
-		<div class="fixed left-3 right-3 bottom-20 md:bottom-6 md:left-72 z-50 bg-card/95 backdrop-blur-md border border-primary/30 rounded-2xl p-3 shadow-2xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-3 duration-200">
-			<div class="flex items-center gap-2 pl-2">
-				<span class="w-2.5 h-2.5 rounded-full bg-primary animate-pulse"></span>
-				<div class="text-xs font-semibold text-foreground">
-					<span>{dirtyCount} data jamaah diubah</span>
-					<span class="text-foreground/50 font-normal hidden sm:inline">• Belum disimpan</span>
-				</div>
-			</div>
-
-			<div class="flex items-center gap-2">
-				<button
-					type="button"
-					onclick={resetChanges}
-					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-foreground/70 hover:bg-secondary transition-colors"
-				>
-					<RotateCcw class="w-3.5 h-3.5" />
-					<span class="hidden sm:inline">Batal</span>
-				</button>
-
-				<form
-					method="POST"
-					action={`?kelompokId=${data.selectedKelompokId}&tahun=${data.tahun}&bulan=${data.bulan}&/saveFr`}
-					use:enhance={keepScrollSubmit({
-						beforeSubmit: () => {
-							isSaving = true;
-						},
-						onSuccess: () => {
-							editedValues = {};
-							isSaving = false;
-						},
-						onError: () => {
-							isSaving = false;
-						},
-						onFinally: () => {
-							isSaving = false;
-						}
-					})}
-				>
-					<input type="hidden" name="kelompokId" value={data.selectedKelompokId} />
-					<input type="hidden" name="tahun" value={data.tahun} />
-					<input type="hidden" name="bulan" value={data.bulan} />
-					<input type="hidden" name="desaId" value={data.desaId ?? ''} />
-					<input type="hidden" name="daerahId" value={data.daerahId ?? ''} />
-					<input type="hidden" name="itemsJson" value={dirtyPayloadJson} />
-
-					<button
-						type="submit"
-						disabled={isSaving}
-						class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-50"
-					>
-						<Save class="w-4 h-4" />
-						<span class="sm:hidden">{isSaving ? 'Menyimpan...' : 'Simpan'}</span>
-						<span class="hidden sm:inline">{isSaving ? 'Menyimpan...' : 'Simpan Semua Perubahan'}</span>
-					</button>
-				</form>
 			</div>
 		</div>
 	{/if}

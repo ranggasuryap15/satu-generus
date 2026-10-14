@@ -1,9 +1,9 @@
 /**
  * @file src/routes/(admin)/admin/keuangan/fr-jamaah/+page.server.ts
- * @purpose Backend controller halaman FR Jamaah: memuat daftar jamaah wajib isrun per kelompok terpilih beserta status peran, bukti transfer jamaah, rincian breakdown pos, dan menangani batch upsert setoran bulanan serta approval setoran mandiri khusus KU & Superadmin
+ * @purpose Backend controller halaman FR Jamaah: memuat daftar jamaah wajib isrun per kelompok terpilih beserta status peran, bukti transfer jamaah, rincian breakdown pos, hierarki pos anggaran infaq (Hak Pusat s/d Hak Kelompok), serta menangani batch upsert setoran, approval/reject setoran, dan input/edit setoran manual fleksibel khusus KU
  * @usedBy src/routes/(admin)/admin/keuangan/fr-jamaah/+page.svelte
  * @dependencies @sveltejs/kit, src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm, @paralleldrive/cuid2
- * @publicFunctions load, actions.saveFr, actions.approveSetoran, actions.rejectSetoran
+ * @publicFunctions load, actions.saveFr, actions.saveSetoranManual, actions.approveSetoran, actions.rejectSetoran
  * @sideEffects DB read pada anggota_keluarga, keluarga, users, user_dapukan, dapukan, kelompok, pos_anggaran_infaq, dan transaksi_fr; atomic update/upsert write pada transaksi_fr
  */
 
@@ -11,7 +11,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import { db, sqlite } from '$lib/db';
 import { anggotaKeluarga, keluarga, users, kelompok, desa, transaksiFr, userDapukan, dapukan, posAnggaranInfaq } from '$lib/db/schema';
-import { eq, and, asc, inArray } from 'drizzle-orm';
+import { eq, and, asc, inArray, or, isNull } from 'drizzle-orm';
 import { getAdminScope, getAccessibleWilayah, canAccessKeuangan, canManageFr } from '$lib/server/scope';
 import { createId } from '@paralleldrive/cuid2';
 
@@ -84,6 +84,18 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		updatedAt: number | null;
 		isPengurus: boolean;
 		dapukanNama: string | null;
+	}> = [];
+
+	let categoriesWithPos: Array<{
+		id: string;
+		nama: string;
+		labelKategori: string;
+		subPos: Array<{
+			posId: string;
+			kode: string;
+			nama: string;
+			isWajib: boolean;
+		}>;
 	}> = [];
 
 	let selectedKelompokNama = '';
@@ -183,20 +195,61 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				}
 			}
 
-			// 4. Query kamus pos anggaran infaq untuk resolusi nama pos pada breakdown
+			// 4. Query kamus pos anggaran infaq untuk resolusi nama pos pada breakdown & form input KU
 			const posRows = db
 				.select({
 					id: posAnggaranInfaq.id,
+					parentId: posAnggaranInfaq.parentId,
 					nama: posAnggaranInfaq.nama,
-					kode: posAnggaranInfaq.kode
+					kode: posAnggaranInfaq.kode,
+					isWajib: posAnggaranInfaq.isWajib,
+					urutan: posAnggaranInfaq.urutan
 				})
 				.from(posAnggaranInfaq)
+				.where(
+					and(
+						eq(posAnggaranInfaq.isActive, true),
+						or(
+							eq(posAnggaranInfaq.isWajib, true),
+							selectedKelompokId ? eq(posAnggaranInfaq.kelompokId, selectedKelompokId) : isNull(posAnggaranInfaq.kelompokId),
+							isNull(posAnggaranInfaq.kelompokId)
+						)
+					)
+				)
+				.orderBy(asc(posAnggaranInfaq.urutan), asc(posAnggaranInfaq.nama))
 				.all();
 
 			const posMap = new Map<string, { nama: string; kode: string }>();
 			for (const p of posRows) {
 				posMap.set(p.id, { nama: p.nama, kode: p.kode });
 			}
+
+			// Bentuk struktur hierarki pos (A. Hak Pusat, B. Hak Daerah, dst) untuk modal input KU
+			const parentCategories = posRows
+				.filter((p) => !p.parentId)
+				.sort((a, b) => a.urutan - b.urutan);
+
+			const subPosList = posRows.filter((p) => !!p.parentId);
+
+			categoriesWithPos = parentCategories.map((cat, idx) => {
+				const children = subPosList
+					.filter((sub) => sub.parentId === cat.id)
+					.sort((a, b) => a.urutan - b.urutan)
+					.map((sub) => ({
+						posId: sub.id,
+						kode: sub.kode,
+						nama: sub.nama,
+						isWajib: Boolean(sub.isWajib)
+					}));
+
+				const letter = String.fromCharCode(65 + idx);
+				return {
+					id: cat.id,
+					nama: cat.nama,
+					labelKategori: `${letter}. ${cat.nama}`,
+					subPos: children
+				};
+			});
 
 			// 5. Gabungkan data jamaah dengan transaksi periode aktif, status pengurus, dan bukti upload
 			jamaahList = rawJamaah.map((j) => {
@@ -297,7 +350,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		bulan: bulanParam,
 		canEdit,
 		isFinanceAdmin,
-		jamaahList
+		jamaahList,
+		categoriesWithPos
 	};
 };
 
@@ -425,6 +479,137 @@ export const actions: Actions = {
 		return {
 			success: true,
 			message: `Berhasil menyimpan data FR untuk ${items.length} jamaah.`
+		};
+	},
+
+	/**
+	 * Menyimpan / memperbarui setoran Isrun/FR jamaah secara manual oleh KU
+	 * (Mendukung jamaah setor buku fisik offline maupun verifikasi koreksi online)
+	 */
+	saveSetoranManual: async ({ request, locals }) => {
+		if (!locals.user || !locals.isAdmin) {
+			return fail(401, { error: 'Sesi kedaluwarsa. Silakan login kembali.' });
+		}
+
+		const formData = await request.formData();
+		const kelompokId = Number(formData.get('kelompokId') || 0);
+		const anggotaId = String(formData.get('anggotaId') || '');
+		const tahun = Number(formData.get('tahun') || 0);
+		const bulan = Number(formData.get('bulan') || 0);
+		const nominal = Math.max(0, Math.floor(Number(formData.get('nominal')) || 0));
+		const metode = String(formData.get('metode') || 'Tunai');
+		const statusBayar = String(formData.get('statusBayar') || 'Diterima');
+		const catatanText = String(formData.get('catatan') || '');
+		const breakdownJson = String(formData.get('breakdownJson') || '{}');
+
+		if (!kelompokId || !anggotaId || !tahun || !bulan) {
+			return fail(400, { error: 'Parameter setoran tidak lengkap.' });
+		}
+
+		const canEdit = canManageFr(locals.roles || [], 'Kelompok', kelompokId);
+		if (!canEdit) {
+			return fail(403, {
+				error: 'Akses ditolak: Hanya pengurus KU/Bendahara atau Superadmin yang berwenang menyimpan setoran FR.'
+			});
+		}
+
+		let parsedBreakdown: Record<string, number> = {};
+		try {
+			parsedBreakdown = JSON.parse(breakdownJson);
+		} catch (_) {
+			parsedBreakdown = {};
+		}
+
+		// Dapatkan wilayah desa & daerah
+		const kRow = db
+			.select({
+				id: kelompok.id,
+				desaId: kelompok.desaId,
+				daerahId: desa.daerahId
+			})
+			.from(kelompok)
+			.leftJoin(desa, eq(kelompok.desaId, desa.id))
+			.where(eq(kelompok.id, kelompokId))
+			.get();
+
+		const safeDesaId = kRow?.desaId || null;
+		const safeDaerahId = kRow?.daerahId || null;
+
+		// Cek transaksi existing untuk mempertahankan file buktiUrl jika ada
+		const existing = sqlite
+			.prepare('SELECT id, catatan FROM transaksi_fr WHERE anggota_keluarga_id = ? AND tahun = ? AND bulan = ?')
+			.get(anggotaId, tahun, bulan) as { id: string; catatan: string | null } | undefined;
+
+		let existingBuktiUrl: string | undefined = undefined;
+		if (existing?.catatan) {
+			try {
+				const oldP = JSON.parse(existing.catatan);
+				if (oldP.buktiUrl) existingBuktiUrl = oldP.buktiUrl;
+			} catch (_) {}
+		}
+
+		const now = Math.floor(Date.now() / 1000);
+		const userId = locals.user.id;
+
+		const catatanPayload = JSON.stringify({
+			breakdown: parsedBreakdown,
+			metode: metode || 'Tunai',
+			buktiUrl: existingBuktiUrl || undefined,
+			catatan: catatanText.trim() || undefined,
+			diinputOleh: `${locals.user.namaLengkap} (KU)`,
+			tanggalLapor: new Date().toISOString()
+		});
+
+		try {
+			sqlite
+				.prepare(
+					`INSERT INTO transaksi_fr (
+						id,
+						anggota_keluarga_id,
+						kelompok_id,
+						desa_id,
+						daerah_id,
+						tahun,
+						bulan,
+						nominal,
+						status_bayar,
+						catatan,
+						updated_by_user_id,
+						created_at,
+						updated_at
+					) VALUES (
+						?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+					)
+					ON CONFLICT(anggota_keluarga_id, tahun, bulan) DO UPDATE SET
+						nominal = excluded.nominal,
+						status_bayar = excluded.status_bayar,
+						catatan = excluded.catatan,
+						updated_by_user_id = excluded.updated_by_user_id,
+						updated_at = excluded.updated_at`
+				)
+				.run(
+					createId(),
+					anggotaId,
+					kelompokId,
+					safeDesaId,
+					safeDaerahId,
+					tahun,
+					bulan,
+					nominal,
+					statusBayar,
+					catatanPayload,
+					userId,
+					now,
+					now
+				);
+		} catch (err: any) {
+			console.error('[FR Save Manual Error]:', err);
+			return fail(500, { error: `Gagal menyimpan setoran: ${err?.message || 'Database error'}` });
+		}
+
+		return {
+			success: true,
+			message: `Data setoran Isrun/FR jamaah berhasil disimpan (Status: ${statusBayar}).`
 		};
 	},
 
