@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(admin)/admin/keuangan/template-fr/+page.svelte
-  @purpose Halaman Spreadsheet Template FR: lembar kerja 4 kolom fleksibel (No, Uraian, Jumlah, Keterangan), validasi angka murni & auto-format ribuan untuk kedua kolom, penambahan baris uraian baru realtime langsung di tabel spreadsheet, seleksi kelompok adaptif (default null untuk admin multi-kelompok & auto-select untuk admin kelompok), persistensi filter kelompok & tahun saat edit/simpan, pengelolaan Group Tarif, duplikasi group cepat, penetapan jamaah massal, dan modal konfirmasi hapus kustom
+  @purpose Halaman Spreadsheet Template FR: lembar kerja 4 kolom fleksibel (No, Uraian, Jumlah, Keterangan), validasi angka & format ribuan titik tanpa konflik pattern HTML5 untuk kedua kolom, penambahan baris uraian baru realtime langsung di tabel spreadsheet, seleksi kelompok adaptif (default null untuk admin multi-kelompok & auto-select untuk admin kelompok), persistensi filter kelompok & tahun saat edit/simpan, pengelolaan Group Tarif, duplikasi group cepat, penetapan jamaah massal, dan modal konfirmasi hapus kustom
   @usedBy Route admin '/admin/keuangan/template-fr'
   @dependencies @lucide/svelte, svelte (tick), $app/forms, $app/navigation (goto, beforeNavigate), Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/keepScroll.ts
   @publicFunctions formatRupiah, updateCell, handleNumberKeyDown, copyJumlahToKeterangan, handleAddRealtimeRow, handleRemoveRealtimeRow, handleCellPaste, handleFilterChange, handleGroupSwitch, openConfirmModal, closeConfirmModal, toggleSelectAllAvailable, toggleSelectJamaah, getActionUrl
@@ -743,7 +743,6 @@
 												<input
 													type="text"
 													inputmode="numeric"
-													pattern="[0-9]*"
 													class="w-full text-right font-mono font-semibold py-1.5 pl-8 pr-2.5 bg-secondary/30 hover:bg-secondary/50 focus:bg-background border border-transparent focus:border-primary rounded-lg text-xs text-foreground focus:outline-none transition-all"
 													value={cell.nominalJumlah ? Number(cell.nominalJumlah).toLocaleString('id-ID') : ''}
 													onkeydown={handleNumberKeyDown}
@@ -761,7 +760,6 @@
 												<input
 													type="text"
 													inputmode="numeric"
-													pattern="[0-9]*"
 													class="w-full text-right font-mono font-semibold py-1.5 pl-8 pr-2.5 bg-secondary/30 hover:bg-secondary/50 focus:bg-background border border-transparent focus:border-primary rounded-lg text-xs text-foreground focus:outline-none transition-all"
 													value={cell.nominalKeterangan ? Number(cell.nominalKeterangan).toLocaleString('id-ID') : ''}
 													onkeydown={handleNumberKeyDown}

@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(app)/fr/+page.svelte
-  @purpose Halaman antarmuka client jamaah untuk pengisian dan pelaporan Isrun/FR bulanan: filter jamaah & periode stacked atas-bawah responsif (bebas mepet), tabel spreadsheet 4 kolom terstruktur per kategori induk (A-D) mirip template KU, validasi format angka aktif, pemisahan kartu bank & QRIS, penguncian antarmuka otomatis (read-only/pasif) jika setoran telah disetujui KU, serta jalur komplain langsung ke KU
+  @purpose Halaman antarmuka client jamaah untuk pengisian dan pelaporan Isrun/FR bulanan: filter jamaah & periode stacked atas-bawah responsif (bebas mepet), tabel spreadsheet 4 kolom terstruktur per kategori induk (A-D) mirip template KU, format pemisah ribuan titik tanpa konflik pattern HTML5, pemisahan kartu bank & QRIS, penguncian antarmuka otomatis (read-only/pasif) jika setoran telah disetujui KU, serta jalur komplain langsung ke KU
   @usedBy Route client '/fr' (diakses via Quick Access Beranda 'Isrun/FR')
   @dependencies @lucide/svelte, $app/forms (enhance), Svelte 5 Runes
   @publicFunctions handleInputRiil, handleNumberKeyDown, handleCopySaranKeRiil, handleResetRiil, formatRp, copyToClipboard
@@ -633,7 +633,6 @@
 													<input
 														type="text"
 														inputmode="numeric"
-														pattern="[0-9]*"
 														disabled={isApproved}
 														value={pos.riilInputString}
 														onkeydown={handleNumberKeyDown}
