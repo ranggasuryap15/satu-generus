@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(admin)/admin/wilayah/+page.svelte
-  @purpose Halaman manajemen Data Wilayah lengkap dengan dual presentation (compact cards mobile & table desktop) di tab Kelompok, Desa, & Sub-Kelompok, pagination di setiap tab, tautan cepat ke halaman dedicated Profil & Rekening Wilayah, 1 tombol Tambah Wilayah cerdas (hierarki Daerah -> Desa -> Kelompok -> Sub-Kelompok), modal edit unit wilayah (Kelompok, Desa, Sub-Kelompok), modal detail desa & kelompok dengan Leaflet LocationPicker, fitur 'Hubungkan ke Lokasi', kontrol RBAC visual dengan null-safe reactivity guard, checklist hapus massal & single delete, serta scroll retention (mencegah loncat ke atas saat edit/hapus)
+  @purpose Halaman manajemen Data Wilayah lengkap dengan dual presentation (compact cards mobile & table desktop) di tab Kelompok, Desa, & Sub-Kelompok, pagination di setiap tab, tautan cepat ke halaman dedicated Profil & Rekening Wilayah, 1 tombol Tambah Wilayah cerdas (hierarki Daerah -> Desa -> Kelompok -> Sub-Kelompok), modal edit unit wilayah (Kelompok, Desa, Sub-Kelompok) dan filter wilayah berbasis SearchableSelect, modal detail desa & kelompok dengan Leaflet LocationPicker, fitur 'Hubungkan ke Lokasi', kontrol RBAC visual dengan null-safe reactivity guard, checklist hapus massal & single delete, serta scroll retention (mencegah loncat ke atas saat edit/hapus)
   @usedBy Route admin '/admin/wilayah'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/LocationPicker.svelte, $lib/components/Pagination.svelte, $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
   @publicFunctions openUnifiedAddModal, closeUnifiedAddModal, openEditKelompok, closeEditKelompok, openEditDesa, closeEditDesa, openEditSubKelompok, closeEditSubKelompok, openKelompokDetail, closeKelompokDetail, openDesaDetail, closeDesaDetail, handleConnectToKelompok, handleDisconnectKelompok, resetFilter, toggleSelectKelompok, toggleSelectAllKelompok, openDeleteSingleKelompok, openDeleteBatchKelompok, closeDeleteModal
@@ -403,6 +403,21 @@
 			return String(d.daerahId) === String(selectedFilterDaerahId);
 		})
 	);
+
+	// Opsi Filter Daerah & Desa untuk SearchableSelect
+	const filterDaerahOptions = $derived([
+		{ value: '', label: 'Semua Daerah' },
+		...daerahOptions
+	]);
+
+	const filterDesaOptions = $derived([
+		{ value: '', label: 'Semua Desa' },
+		...filteredDesaFilterOptions.map((d: (typeof data.desaList)[number]) => ({
+			value: d.id,
+			label: d.nama,
+			sublabel: d.daerahNama ? `Daerah ${d.daerahNama}` : undefined
+		}))
+	]);
 
 	// Hitung Filter Aktif
 	const activeFilterCount = $derived(
@@ -901,29 +916,28 @@
 			<!-- Desktop Filter Options (Otomatis Tampil di Desktop, md:flex) -->
 			<div class="hidden md:flex items-center gap-2.5 flex-wrap">
 				<!-- Filter Daerah -->
-				<div class="w-40">
-					<select
+				<div class="w-48">
+					<SearchableSelect
+						name="filterDaerahDesktop"
+						options={filterDaerahOptions}
 						bind:value={selectedFilterDaerahId}
-						class="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:bg-background transition-all"
-					>
-						<option value="">Semua Daerah</option>
-						{#each (data.daerahList || []) as d}
-							<option value={d.id}>{d.nama}</option>
-						{/each}
-					</select>
+						placeholder="Semua Daerah"
+						searchPlaceholder="Cari daerah..."
+						onchange={() => {
+							selectedFilterDesaId = '';
+						}}
+					/>
 				</div>
 
 				<!-- Filter Desa -->
-				<div class="w-44">
-					<select
+				<div class="w-52">
+					<SearchableSelect
+						name="filterDesaDesktop"
+						options={filterDesaOptions}
 						bind:value={selectedFilterDesaId}
-						class="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:bg-background transition-all"
-					>
-						<option value="">Semua Desa</option>
-						{#each filteredDesaFilterOptions as d}
-							<option value={d.id}>{d.nama}</option>
-						{/each}
-					</select>
+						placeholder="Semua Desa"
+						searchPlaceholder="Cari desa..."
+					/>
 				</div>
 
 				<!-- Tombol Reset Filter -->
@@ -945,33 +959,34 @@
 			<div class="block md:hidden border-t border-border p-3.5 bg-secondary/20 space-y-3">
 				<div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
 					<div>
-						<label class="block text-[10.5px] font-semibold text-foreground/70 mb-1">
+						<label for="filter-daerah-mobile" class="block text-[10.5px] font-semibold text-foreground/70 mb-1">
 							Saring Berdasarkan Daerah
 						</label>
-						<select
+						<SearchableSelect
+							id="filter-daerah-mobile"
+							name="filterDaerahMobile"
+							options={filterDaerahOptions}
 							bind:value={selectedFilterDaerahId}
-							class="w-full bg-card border border-border rounded-lg px-2.5 py-2 text-xs text-foreground focus:ring-1 focus:ring-primary"
-						>
-							<option value="">Semua Daerah</option>
-							{#each (data.daerahList || []) as d}
-								<option value={d.id}>{d.nama}</option>
-							{/each}
-						</select>
+							placeholder="Semua Daerah"
+							searchPlaceholder="Cari daerah..."
+							onchange={() => {
+								selectedFilterDesaId = '';
+							}}
+						/>
 					</div>
 
 					<div>
-						<label class="block text-[10.5px] font-semibold text-foreground/70 mb-1">
+						<label for="filter-desa-mobile" class="block text-[10.5px] font-semibold text-foreground/70 mb-1">
 							Saring Berdasarkan Desa
 						</label>
-						<select
+						<SearchableSelect
+							id="filter-desa-mobile"
+							name="filterDesaMobile"
+							options={filterDesaOptions}
 							bind:value={selectedFilterDesaId}
-							class="w-full bg-card border border-border rounded-lg px-2.5 py-2 text-xs text-foreground focus:ring-1 focus:ring-primary"
-						>
-							<option value="">Semua Desa</option>
-							{#each filteredDesaFilterOptions as d}
-								<option value={d.id}>{d.nama}</option>
-							{/each}
-						</select>
+							placeholder="Semua Desa"
+							searchPlaceholder="Cari desa..."
+						/>
 					</div>
 				</div>
 
@@ -2487,7 +2502,7 @@
 		aria-modal="true"
 	>
 		<div
-			class="bg-card border border-border rounded-2xl max-w-lg w-full flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+			class="bg-card border border-border rounded-2xl max-w-lg w-full flex flex-col shadow-2xl overflow-visible animate-in fade-in zoom-in-95 duration-150"
 		>
 			<div class="p-4 sm:p-5 border-b border-border flex items-center justify-between">
 				<div class="flex items-center gap-2.5">
@@ -2552,18 +2567,15 @@
 						<span>Desa Induk</span>
 						<span class="text-destructive">*</span>
 					</label>
-					<select
+					<SearchableSelect
 						id="edit-desa-kelompok"
 						name="desaId"
+						options={desaOptions}
 						bind:value={editKelompokDesaId}
 						required
-						class="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-xs text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary outline-hidden cursor-pointer"
-					>
-						<option value="" disabled>-- Pilih Desa Induk --</option>
-						{#each data.desaList as d}
-							<option value={d.id}>{d.nama} ({d.daerahNama || 'Daerah'})</option>
-						{/each}
-					</select>
+						placeholder="-- Pilih Desa Induk --"
+						searchPlaceholder="Cari nama desa..."
+					/>
 				</div>
 
 				<div class="flex items-center justify-end gap-2 pt-3 border-t border-border">
@@ -2594,7 +2606,7 @@
 		aria-modal="true"
 	>
 		<div
-			class="bg-card border border-border rounded-2xl max-w-lg w-full flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+			class="bg-card border border-border rounded-2xl max-w-lg w-full flex flex-col shadow-2xl overflow-visible animate-in fade-in zoom-in-95 duration-150"
 		>
 			<div class="p-4 sm:p-5 border-b border-border flex items-center justify-between">
 				<div class="flex items-center gap-2.5">
@@ -2659,18 +2671,15 @@
 						<span>Daerah Induk</span>
 						<span class="text-destructive">*</span>
 					</label>
-					<select
+					<SearchableSelect
 						id="edit-daerah-desa"
 						name="daerahId"
+						options={daerahOptions}
 						bind:value={editDesaDaerahId}
 						required
-						class="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-xs text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary outline-hidden cursor-pointer"
-					>
-						<option value="" disabled>-- Pilih Daerah Induk --</option>
-						{#each data.daerahList as dr}
-							<option value={dr.id}>{dr.nama} ({dr.kotaKabupaten}, {dr.provinsi})</option>
-						{/each}
-					</select>
+						placeholder="-- Pilih Daerah Induk --"
+						searchPlaceholder="Cari nama daerah..."
+					/>
 				</div>
 
 				<div class="flex items-center justify-end gap-2 pt-3 border-t border-border">
@@ -2701,7 +2710,7 @@
 		aria-modal="true"
 	>
 		<div
-			class="bg-card border border-border rounded-2xl max-w-lg w-full flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+			class="bg-card border border-border rounded-2xl max-w-lg w-full flex flex-col shadow-2xl overflow-visible animate-in fade-in zoom-in-95 duration-150"
 		>
 			<div class="p-4 sm:p-5 border-b border-border flex items-center justify-between">
 				<div class="flex items-center gap-2.5">
@@ -2766,18 +2775,15 @@
 						<span>Kelompok Induk</span>
 						<span class="text-destructive">*</span>
 					</label>
-					<select
+					<SearchableSelect
 						id="edit-kelompok-subkelompok"
 						name="kelompokId"
+						options={kelompokOptions}
 						bind:value={editSubKelompokKelompokId}
 						required
-						class="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-xs text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary outline-hidden cursor-pointer"
-					>
-						<option value="" disabled>-- Pilih Kelompok Induk --</option>
-						{#each data.kelompokList as kl}
-							<option value={kl.id}>{kl.nama} (Desa {kl.desaNama || '-'})</option>
-						{/each}
-					</select>
+						placeholder="-- Pilih Kelompok Induk --"
+						searchPlaceholder="Cari nama kelompok..."
+					/>
 				</div>
 
 				<div class="flex items-center justify-end gap-2 pt-3 border-t border-border">
