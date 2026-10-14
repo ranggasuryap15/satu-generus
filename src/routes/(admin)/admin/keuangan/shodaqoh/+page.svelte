@@ -1,16 +1,17 @@
 <!--
   @file src/routes/(admin)/admin/keuangan/shodaqoh/+page.svelte
-  @purpose Halaman manajemen shodaqoh wilayah untuk admin (KU & Kyai): rekapitulasi metrik, ekspor CSV transaksi, tanda terima/struk digital resmi, visualisasi grafik donasi bulanan, verifikasi & approval bukti transfer, CRUD rekening/QRIS, seleksi wilayah adaptif (default null jika banyak wilayah, auto-select kelompok sendiri untuk admin kelompok), serta isolasi alokasi jenis shodaqoh dengan preservasi tab & URL wilayah
+  @purpose Halaman manajemen shodaqoh wilayah untuk admin (KU & Kyai): rekapitulasi metrik, ekspor CSV transaksi, tanda terima/struk digital resmi, visualisasi grafik donasi bulanan, verifikasi & approval bukti transfer, manajemen rekening & QRIS bergaya profil wilayah (kartu modern, salin no rek, preview popup QRIS, tambah/edit modal, hapus dengan modal konfirmasi), serta isolasi alokasi jenis shodaqoh dengan preservasi tab & URL wilayah
   @usedBy Route admin '/admin/keuangan/shodaqoh'
-  @dependencies @lucide/svelte, $app/navigation, $app/forms (enhance), $app/state, Svelte 5 Runes, formatRupiah, $lib/components/SearchableSelect.svelte, $lib/keepScroll.ts (keepScrollSubmit)
-  @publicFunctions exportToCsv, switchTab, changeWilayah, changeStatusFilter, printReceiptAdmin
-  @sideEffects Melakukan approval/penolakan transaksi shodaqoh, mutasi jenis shodaqoh, pembaruan rekening/QRIS via form actions dengan menjaga scroll position dan URL tab/scope/id, ekspor CSV, serta cetak tanda terima/struk resmi
+  @dependencies @lucide/svelte, $app/navigation, $app/forms (enhance), $app/state, Svelte 5 Runes, formatRupiah, $lib/components/SearchableSelect.svelte, $lib/keepScroll.ts (keepScrollSubmit), $lib/confirm.svelte (confirmAction)
+  @publicFunctions exportToCsv, switchTab, changeWilayah, changeStatusFilter, printReceiptAdmin, copyToClipboard, openAddRekeningModal, openEditRekeningModal, closeRekeningModal, handleQrisFileChange
+  @sideEffects Melakukan approval/penolakan transaksi shodaqoh, mutasi jenis shodaqoh, pembuatan & pembaruan & penghapusan rekening/QRIS via form actions dengan menjaga scroll position dan URL tab/scope/id, ekspor CSV, cetak tanda terima/struk resmi, serta penyalinan teks clipboard
 -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { keepScrollSubmit } from '$lib/keepScroll';
+	import { confirmAction } from '$lib/confirm.svelte';
 	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
 	import {
 		AlertCircle,
@@ -18,10 +19,13 @@
 		Banknote,
 		Building2,
 		Calendar,
+		Check,
 		CheckCircle2,
 		ChevronRight,
 		Clock,
 		Coins,
+		Copy,
+		CreditCard,
 		Download,
 		ExternalLink,
 		Eye,
@@ -33,6 +37,8 @@
 		Image as ImageIcon,
 		Landmark,
 		Layers,
+		Lock,
+		Pencil,
 		Plus,
 		Printer,
 		QrCode,
@@ -76,15 +82,106 @@
 	let jenisNama = $state('');
 	let jenisDeskripsi = $state('');
 
-	// Modal Form Tambah Rekening / QRIS
+	// State Modal Preview QRIS
+	let previewQrisUrl = $state<string | null>(null);
+	let previewQrisTitle = $state<string>('');
+
+	// State Feedback Salin Rekening
+	let copiedRekeningId = $state<string | null>(null);
+
+	// State Modal Tambah / Edit Rekening & QRIS
 	let isAddRekeningOpen = $state(false);
+	let isEditingRekening = $state(false);
+	let editRekeningId = $state('');
 	let rekeningMetodeTipe = $state<'bank' | 'qris'>('bank');
 	let rekeningNamaBank = $state('Bank Syariah Indonesia (BSI)');
 	let rekeningNomor = $state('');
 	let rekeningAtasNama = $state('');
 	let rekeningTujuan = $state('Infaq & Shodaqoh');
 	let rekeningKeterangan = $state('');
+	let rekeningIsActive = $state(true);
+	let inputQrisMode = $state<'upload' | 'url'>('upload');
+	let qrisFilePreview = $state<string | null>(null);
 	let rekeningQrisUrl = $state('');
+
+	function openAddRekeningModal() {
+		isEditingRekening = false;
+		editRekeningId = '';
+		rekeningMetodeTipe = 'bank';
+		rekeningNamaBank = 'Bank Syariah Indonesia (BSI)';
+		rekeningNomor = '';
+		rekeningAtasNama = '';
+		rekeningTujuan = 'Infaq & Shodaqoh';
+		rekeningKeterangan = '';
+		rekeningIsActive = true;
+		inputQrisMode = 'upload';
+		qrisFilePreview = null;
+		rekeningQrisUrl = '';
+		isAddRekeningOpen = true;
+	}
+
+	function openEditRekeningModal(rek: (typeof data.listRekening)[number]) {
+		isEditingRekening = true;
+		editRekeningId = rek.id;
+		if (rek.qrisImageUrl || rek.namaBank?.toUpperCase() === 'QRIS') {
+			rekeningMetodeTipe = 'qris';
+			rekeningNamaBank = rek.namaBank || 'QRIS';
+			rekeningNomor = rek.nomorRekening === '-' ? '' : rek.nomorRekening;
+			rekeningQrisUrl = rek.qrisImageUrl || '';
+			qrisFilePreview = rek.qrisImageUrl || null;
+			inputQrisMode = rek.qrisImageUrl ? 'url' : 'upload';
+		} else {
+			rekeningMetodeTipe = 'bank';
+			rekeningNamaBank = rek.namaBank;
+			rekeningNomor = rek.nomorRekening;
+			rekeningQrisUrl = '';
+			qrisFilePreview = null;
+			inputQrisMode = 'upload';
+		}
+		rekeningAtasNama = rek.atasNama;
+		rekeningTujuan = rek.tipeTujuan || 'Infaq & Shodaqoh';
+		rekeningKeterangan = rek.keterangan || '';
+		rekeningIsActive = rek.isActive ?? true;
+		isAddRekeningOpen = true;
+	}
+
+	function closeRekeningModal() {
+		isAddRekeningOpen = false;
+	}
+
+	function handleQrisFileChange(event: Event) {
+		const target = event.target as HTMLInputElement;
+		const file = target.files?.[0];
+		if (file) {
+			const reader = new FileReader();
+			reader.onload = (e) => {
+				qrisFilePreview = (e.target?.result as string) || null;
+			};
+			reader.readAsDataURL(file);
+		} else {
+			qrisFilePreview = null;
+		}
+	}
+
+	async function copyToClipboard(text: string, id: string) {
+		try {
+			await navigator.clipboard.writeText(text);
+			copiedRekeningId = id;
+			setTimeout(() => {
+				if (copiedRekeningId === id) copiedRekeningId = null;
+			}, 2000);
+		} catch (e) {
+			console.error('Gagal menyalin:', e);
+		}
+	}
+
+	const standardAlokasi = ['Infaq & Shodaqoh', 'Pembangunan', 'Kas Sosial', 'Lainnya'];
+	const alokasiOptions = $derived([
+		...standardAlokasi.map((a) => ({ value: a, label: a })),
+		...((data.listJenisShodaqoh || [])
+			.map((j: any) => ({ value: j.nama, label: j.nama }))
+			.filter((opt: any) => !standardAlokasi.includes(opt.value)))
+	]);
 
 	// Modal Penolakan Transaksi
 	let rejectModalOpen = $state(false);
@@ -793,9 +890,16 @@
 									<input type="hidden" name="tab" value={activeTab} />
 									<button
 										type="submit"
-										class="text-rose-500 hover:text-rose-700 font-semibold transition-colors flex items-center gap-1"
-										onclick={(e) => {
-											if (!confirm(`Hapus jenis shodaqoh "${j.nama}"?`)) e.preventDefault();
+										class="text-rose-500 hover:text-rose-700 font-semibold transition-colors flex items-center gap-1 cursor-pointer"
+										onclick={async (e) => {
+											e.preventDefault();
+											const ok = await confirmAction({
+												title: 'Hapus Jenis Shodaqoh?',
+												message: `Yakin ingin menghapus jenis shodaqoh "${j.nama}"?`,
+												confirmText: 'Ya, Hapus',
+												variant: 'danger'
+											});
+											if (ok) e.currentTarget.form?.requestSubmit();
 										}}
 									>
 										<Trash2 class="w-3 h-3" /> Hapus
@@ -811,20 +915,34 @@
 
 	<!-- TAB 3: REKENING & QRIS WILAYAH -->
 	{#if activeTab === 'rekening'}
-		<div class="bg-card border border-border rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
-			<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+		<div class="bg-card border border-border rounded-2xl p-5 shadow-xs space-y-4">
+			<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
 				<div>
-					<h3 class="text-sm font-bold text-foreground">Rekening Bank & QRIS ({data.activeWilayahInfo.nama})</h3>
-					<p class="text-xs text-foreground/60">
-						Tautan atau nomor rekening transfer yang dapat digunakan oleh jamaah saat berinfaq.
+					<div class="flex items-center gap-2">
+						<CreditCard class="w-5 h-5 text-primary" />
+						<h2 class="text-base font-bold text-foreground">Rekening & QRIS Shodaqoh</h2>
+						{#if data.canManage}
+							<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+								<ShieldCheck class="w-3.5 h-3.5" />
+								KU / Superadmin
+							</span>
+						{:else}
+							<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-secondary text-foreground/60">
+								<Lock class="w-3.5 h-3.5" />
+								Read-Only
+							</span>
+						{/if}
+					</div>
+					<p class="text-xs text-foreground/50 mt-0.5">
+						Rekening resmi penerimaan infaq/shodaqoh jamaah untuk {data.activeScope} {data.activeWilayahInfo.nama}.
 					</p>
 				</div>
 
 				{#if data.canManage}
 					<button
 						type="button"
-						onclick={() => (isAddRekeningOpen = true)}
-						class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-all shadow-xs active:scale-95 self-start"
+						onclick={openAddRekeningModal}
+						class="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors shadow-xs"
 					>
 						<Plus class="w-4 h-4" />
 						<span>Tambah Rekening / QRIS</span>
@@ -832,56 +950,85 @@
 				{/if}
 			</div>
 
+			<!-- Daftar Kartu Rekening -->
 			{#if data.listRekening.length === 0}
-				<div class="py-12 text-center space-y-2">
-					<div class="w-12 h-12 rounded-full bg-secondary text-foreground/40 mx-auto flex items-center justify-center">
-						<QrCode class="w-6 h-6" />
-					</div>
-					<p class="text-xs font-semibold text-foreground">Belum Ada Rekening atau QRIS</p>
-					<p class="text-[11px] text-foreground/50">
-						Tambahkan rekening bank atau upload gambar QRIS untuk wilayah ini.
-					</p>
+				<div class="p-8 text-center text-foreground/50 text-xs rounded-xl border border-dashed border-border">
+					Belum ada nomor rekening atau QRIS shodaqoh yang ditambahkan untuk wilayah ini.
 				</div>
 			{:else}
-				<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+				<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
 					{#each data.listRekening as rek}
-						<div class="border border-border rounded-2xl p-4 bg-card flex flex-col justify-between shadow-2xs space-y-3">
+						<div class="bg-card border border-border rounded-xl p-4 shadow-xs space-y-3 relative overflow-hidden flex flex-col justify-between">
 							<div class="space-y-2">
-								<div class="flex items-center justify-between">
-									<span class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
-										{rek.namaBank}
-									</span>
-									<span class="text-[10px] text-foreground/50">{rek.tipeTujuan}</span>
+								<div class="flex items-start justify-between gap-2">
+									<div>
+										<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary">
+											{rek.tipeTujuan}
+										</span>
+										<h3 class="text-sm font-bold text-foreground mt-1">{rek.namaBank}</h3>
+									</div>
+
+									{#if rek.qrisImageUrl}
+										<button
+											type="button"
+											onclick={() => {
+												previewQrisUrl = rek.qrisImageUrl;
+												previewQrisTitle = `${rek.namaBank} - ${rek.atasNama}`;
+											}}
+											class="p-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-primary transition-colors cursor-pointer"
+											title="Lihat Kode QRIS"
+										>
+											<QrCode class="w-5 h-5" />
+										</button>
+									{/if}
 								</div>
 
-								{#if rek.qrisImageUrl}
-									<div class="w-full h-44 rounded-xl bg-secondary/50 border border-border overflow-hidden flex items-center justify-center p-2">
-										<img
-											src={rek.qrisImageUrl}
-											alt="QRIS {rek.atasNama}"
-											class="max-h-full max-w-full object-contain rounded-lg"
-										/>
+								<div class="bg-secondary/40 rounded-lg p-2.5 space-y-1">
+									<div class="flex items-center justify-between gap-2">
+										<span class="font-mono text-sm font-bold text-foreground tracking-wide select-all">
+											{#if rek.qrisImageUrl && (!rek.nomorRekening || rek.nomorRekening === '-')}
+												QRIS Shodaqoh Digital
+											{:else}
+												{rek.nomorRekening}
+											{/if}
+										</span>
+										{#if rek.nomorRekening && rek.nomorRekening !== '-'}
+											<button
+												type="button"
+												onclick={() => copyToClipboard(rek.nomorRekening, rek.id)}
+												class="p-1 text-foreground/50 hover:text-foreground transition-colors cursor-pointer"
+												title="Salin Nomor Rekening"
+											>
+												{#if copiedRekeningId === rek.id}
+													<Check class="w-3.5 h-3.5 text-emerald-500" />
+												{:else}
+													<Copy class="w-3.5 h-3.5" />
+												{/if}
+											</button>
+										{/if}
 									</div>
-								{:else}
-									<div class="p-3 bg-secondary/30 rounded-xl space-y-1">
-										<p class="text-xs text-foreground/60">Nomor Rekening:</p>
-										<p class="font-mono text-base font-bold text-foreground select-all tracking-wider">
-											{rek.nomorRekening}
-										</p>
-									</div>
-								{/if}
-
-								<div>
-									<p class="text-[11px] text-foreground/60">Atas Nama:</p>
-									<p class="text-xs font-bold text-foreground">{rek.atasNama}</p>
+									<p class="text-xs text-foreground/60 truncate font-medium">a.n. {rek.atasNama}</p>
 								</div>
+
 								{#if rek.keterangan}
-									<p class="text-[10px] text-foreground/50 italic">{rek.keterangan}</p>
+									<p class="text-xs text-foreground/50 italic line-clamp-2">
+										"{rek.keterangan}"
+									</p>
 								{/if}
 							</div>
 
+							<!-- Aksi Rekening (Hanya KU / Superadmin) -->
 							{#if data.canManage}
-								<div class="pt-2 border-t border-border flex justify-end">
+								<div class="pt-2 border-t border-border/50 flex items-center justify-end gap-1.5">
+									<button
+										type="button"
+										onclick={() => openEditRekeningModal(rek)}
+										class="p-1.5 rounded-lg text-primary hover:bg-primary/10 transition-colors cursor-pointer"
+										title="Ubah Rekening"
+									>
+										<Pencil class="w-3.5 h-3.5" />
+									</button>
+
 									<form method="POST" action={`?scope=${data.activeScope}&id=${data.activeId}&tab=${activeTab}&/deleteRekening`} use:enhance={keepScrollSubmit()}>
 										<input type="hidden" name="id" value={rek.id} />
 										<input type="hidden" name="scope" value={data.activeScope} />
@@ -889,12 +1036,20 @@
 										<input type="hidden" name="tab" value={activeTab} />
 										<button
 											type="submit"
-											class="text-rose-500 hover:text-rose-700 font-semibold text-xs flex items-center gap-1 transition-colors"
-											onclick={(e) => {
-												if (!confirm('Hapus rekening/QRIS ini?')) e.preventDefault();
+											onclick={async (e) => {
+												e.preventDefault();
+												const ok = await confirmAction({
+													title: 'Hapus Rekening Shodaqoh?',
+													message: `Yakin ingin menghapus rekening ${rek.namaBank} (${rek.nomorRekening})?`,
+													confirmText: 'Ya, Hapus Rekening',
+													variant: 'danger'
+												});
+												if (ok) e.currentTarget.form?.requestSubmit();
 											}}
+											class="p-1.5 rounded-lg text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+											title="Hapus Rekening"
 										>
-											<Trash2 class="w-3.5 h-3.5" /> Hapus
+											<Trash2 class="w-3.5 h-3.5" />
 										</button>
 									</form>
 								</div>
@@ -1073,40 +1228,54 @@
 	</div>
 {/if}
 
-<!-- MODAL TAMBAH REKENING / QRIS -->
+<!-- MODAL TAMBAH / UBAH REKENING ATAU QRIS -->
 {#if isAddRekeningOpen}
 	<div class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-		<div class="bg-card border border-border rounded-2xl max-w-lg w-full p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
-			<div class="flex items-center justify-between">
-				<h3 class="text-sm font-bold text-foreground">Tambah Rekening / QRIS ({data.activeWilayahInfo.nama})</h3>
+		<div class="bg-card border border-border rounded-2xl max-w-lg w-full p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+			<div class="flex items-center justify-between pb-2 border-b border-border">
+				<div>
+					<h3 class="text-sm font-bold text-foreground">
+						{isEditingRekening ? 'Ubah' : 'Tambah'} Rekening / QRIS ({data.activeWilayahInfo.nama})
+					</h3>
+					<p class="text-[11px] text-foreground/50">
+						{isEditingRekening ? 'Perbarui data nomor rekening atau QRIS shodaqoh.' : 'Tambahkan nomor rekening transfer atau QRIS penerima infaq/shodaqoh.'}
+					</p>
+				</div>
 				<button
 					type="button"
-					onclick={() => (isAddRekeningOpen = false)}
-					class="p-1.5 rounded-lg text-foreground/60 hover:text-foreground hover:bg-secondary"
+					onclick={closeRekeningModal}
+					class="p-1.5 rounded-lg text-foreground/60 hover:text-foreground hover:bg-secondary cursor-pointer"
+					aria-label="Tutup Modal"
 				>
 					<X class="w-4 h-4" />
 				</button>
 			</div>
 
-			<form method="POST" action={`?scope=${data.activeScope}&id=${data.activeId}&tab=${activeTab}&/saveRekening`} enctype="multipart/form-data" use:enhance={keepScrollSubmit({
-				onSuccess: () => {
-					isAddRekeningOpen = false;
-					rekeningNomor = '';
-					rekeningAtasNama = '';
-					rekeningQrisUrl = '';
-				}
-			})}>
+			<form
+				method="POST"
+				action={`?scope=${data.activeScope}&id=${data.activeId}&tab=${activeTab}&/saveRekening`}
+				enctype="multipart/form-data"
+				use:enhance={keepScrollSubmit({
+					onSuccess: () => {
+						closeRekeningModal();
+					}
+				})}
+				class="space-y-3.5 text-xs"
+			>
 				<input type="hidden" name="scope" value={data.activeScope} />
 				<input type="hidden" name="targetId" value={data.activeId} />
 				<input type="hidden" name="tab" value={activeTab} />
 				<input type="hidden" name="metodeTipe" value={rekeningMetodeTipe} />
+				{#if isEditingRekening}
+					<input type="hidden" name="rekeningId" value={editRekeningId} />
+				{/if}
 
 				<!-- Switcher Tipe: Transfer Bank vs QRIS -->
-				<div class="grid grid-cols-2 gap-2 p-1 bg-secondary rounded-xl text-xs">
+				<div class="grid grid-cols-2 gap-2 p-1 bg-secondary/60 rounded-xl text-xs">
 					<button
 						type="button"
 						onclick={() => (rekeningMetodeTipe = 'bank')}
-						class="py-2 rounded-lg font-bold transition-all flex items-center justify-center gap-1.5 {rekeningMetodeTipe === 'bank'
+						class="py-2 rounded-lg font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer {rekeningMetodeTipe === 'bank'
 							? 'bg-card text-foreground shadow-xs'
 							: 'text-foreground/60'}"
 					>
@@ -1115,7 +1284,7 @@
 					<button
 						type="button"
 						onclick={() => (rekeningMetodeTipe = 'qris')}
-						class="py-2 rounded-lg font-bold transition-all flex items-center justify-center gap-1.5 {rekeningMetodeTipe === 'qris'
+						class="py-2 rounded-lg font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer {rekeningMetodeTipe === 'qris'
 							? 'bg-card text-foreground shadow-xs'
 							: 'text-foreground/60'}"
 					>
@@ -1123,101 +1292,234 @@
 					</button>
 				</div>
 
-				<div class="space-y-3 text-xs pt-2">
-					{#if rekeningMetodeTipe === 'bank'}
-						<div class="space-y-1">
-							<label class="font-semibold text-foreground" for="namaBankInput">Nama Bank</label>
-							<input
-								id="namaBankInput"
-								type="text"
-								name="namaBank"
-								bind:value={rekeningNamaBank}
-								placeholder="Contoh: BCA, BSI, Mandiri, BRI"
-								class="w-full bg-secondary/60 border border-border rounded-xl px-3 py-2 text-foreground focus:ring-1 focus:ring-primary outline-none"
-								required
-							/>
-						</div>
-
-						<div class="space-y-1">
-							<label class="font-semibold text-foreground" for="nomorRekeningInput">Nomor Rekening</label>
-							<input
-								id="nomorRekeningInput"
-								type="text"
-								name="nomorRekening"
-								bind:value={rekeningNomor}
-								placeholder="Contoh: 1234567890"
-								class="w-full bg-secondary/60 border border-border rounded-xl px-3 py-2 font-mono text-foreground focus:ring-1 focus:ring-primary outline-none"
-								required
-							/>
-						</div>
-					{:else}
-						<div class="space-y-1">
-							<label class="font-semibold text-foreground" for="qrisFileInput">Upload Gambar QRIS</label>
-							<input
-								id="qrisFileInput"
-								type="file"
-								name="qrisImage"
-								accept="image/*"
-								class="w-full bg-secondary/60 border border-border rounded-xl px-3 py-2 text-foreground text-xs file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:bg-primary file:text-primary-foreground file:font-semibold"
-								required
-							/>
-						</div>
-					{/if}
-
+				{#if rekeningMetodeTipe === 'bank'}
 					<div class="space-y-1">
-						<label class="font-semibold text-foreground" for="atasNamaInput">Atas Nama (Pemilik Rekening / QRIS)</label>
+						<label class="font-semibold text-foreground" for="namaBankInput">Nama Bank *</label>
 						<input
-							id="atasNamaInput"
+							id="namaBankInput"
 							type="text"
-							name="atasNama"
-							bind:value={rekeningAtasNama}
-							placeholder="Nama pemilik resmi atau nama kelompok"
-							class="w-full bg-secondary/60 border border-border rounded-xl px-3 py-2 text-foreground focus:ring-1 focus:ring-primary outline-none"
+							name="namaBank"
+							bind:value={rekeningNamaBank}
+							placeholder="Contoh: Bank Syariah Indonesia (BSI), BCA, Mandiri"
+							class="w-full bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-foreground focus:ring-1 focus:ring-primary outline-none"
 							required
 						/>
 					</div>
 
 					<div class="space-y-1">
-						<label class="font-semibold text-foreground" for="tipeTujuanInput">Tipe Tujuan / Alokasi</label>
+						<label class="font-semibold text-foreground" for="nomorRekeningInput">Nomor Rekening *</label>
 						<input
-							id="tipeTujuanInput"
+							id="nomorRekeningInput"
 							type="text"
-							name="tipeTujuan"
-							bind:value={rekeningTujuan}
-							placeholder="Contoh: Infaq & Shodaqoh, Pembangunan"
-							class="w-full bg-secondary/60 border border-border rounded-xl px-3 py-2 text-foreground focus:ring-1 focus:ring-primary outline-none"
+							name="nomorRekening"
+							bind:value={rekeningNomor}
+							placeholder="Contoh: 1234567890"
+							class="w-full bg-secondary/50 border border-border rounded-xl px-3.5 py-2 font-mono text-foreground focus:ring-1 focus:ring-primary outline-none"
+							required
+						/>
+					</div>
+				{:else}
+					<!-- Bagian QRIS -->
+					<div class="space-y-1">
+						<label class="font-semibold text-foreground" for="namaBankInputQris">Label QRIS / Penyedia</label>
+						<input
+							id="namaBankInputQris"
+							type="text"
+							name="namaBank"
+							bind:value={rekeningNamaBank}
+							placeholder="Contoh: QRIS, Gopay Merchant, Nobu"
+							class="w-full bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-foreground focus:ring-1 focus:ring-primary outline-none"
 						/>
 					</div>
 
-					<div class="space-y-1">
-						<label class="font-semibold text-foreground" for="keteranganRekeningInput">Catatan Tambahan (Opsional)</label>
-						<input
-							id="keteranganRekeningInput"
-							type="text"
-							name="keterangan"
-							bind:value={rekeningKeterangan}
-							placeholder="Contoh: Khusus shodaqoh pembangunan gedung"
-							class="w-full bg-secondary/60 border border-border rounded-xl px-3 py-2 text-foreground focus:ring-1 focus:ring-primary outline-none"
-						/>
+					<div class="space-y-2 p-3 bg-secondary/30 border border-border rounded-xl">
+						<div class="flex items-center justify-between">
+							<span class="block text-xs font-semibold text-foreground">
+								Gambar QRIS Shodaqoh *
+							</span>
+							<div class="flex items-center gap-1 text-[11px]">
+								<button
+									type="button"
+									onclick={() => (inputQrisMode = 'upload')}
+									class="px-2 py-0.5 rounded font-medium transition-colors cursor-pointer {inputQrisMode === 'upload' ? 'bg-primary text-primary-foreground' : 'text-foreground/60 hover:text-foreground'}"
+								>
+									Unggah Berkas
+								</button>
+								<button
+									type="button"
+									onclick={() => (inputQrisMode = 'url')}
+									class="px-2 py-0.5 rounded font-medium transition-colors cursor-pointer {inputQrisMode === 'url' ? 'bg-primary text-primary-foreground' : 'text-foreground/60 hover:text-foreground'}"
+								>
+									Tautan URL
+								</button>
+							</div>
+						</div>
+
+						{#if inputQrisMode === 'upload'}
+							<input
+								type="file"
+								id="qrisFileInput"
+								name="qrisFile"
+								accept="image/*"
+								onchange={handleQrisFileChange}
+								class="w-full text-xs text-foreground/80 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
+								required={!isEditingRekening && !qrisFilePreview && !rekeningQrisUrl}
+							/>
+							<p class="text-[11px] text-foreground/50">
+								Format: PNG, JPG, JPEG, WEBP.
+							</p>
+						{:else}
+							<input
+								type="text"
+								id="rekeningQrisUrlInput"
+								name="qrisImageUrl"
+								bind:value={rekeningQrisUrl}
+								oninput={() => (qrisFilePreview = rekeningQrisUrl)}
+								placeholder="https://... atau /uploads/qris/..."
+								class="w-full bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+								required={!isEditingRekening && !qrisFilePreview}
+							/>
+						{/if}
+
+						{#if qrisFilePreview || rekeningQrisUrl}
+							<div class="pt-2 flex items-center gap-3">
+								<div class="w-16 h-16 bg-white rounded-lg p-1 border border-border shrink-0 flex items-center justify-center overflow-hidden">
+									<img
+										src={qrisFilePreview || rekeningQrisUrl}
+										alt="Preview QRIS"
+										class="max-w-full max-h-full object-contain"
+									/>
+								</div>
+								<span class="text-xs text-foreground/60">
+									Pratinjau gambar QRIS yang akan ditampilkan kepada jamaah.
+								</span>
+							</div>
+						{/if}
 					</div>
+				{/if}
+
+				<div class="space-y-1">
+					<label class="font-semibold text-foreground" for="atasNamaInput">Atas Nama (Pemilik Rekening / QRIS) *</label>
+					<input
+						id="atasNamaInput"
+						type="text"
+						name="atasNama"
+						bind:value={rekeningAtasNama}
+						placeholder="Nama pemilik rekening atau nama kelompok"
+						class="w-full bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-foreground focus:ring-1 focus:ring-primary outline-none"
+						required
+					/>
 				</div>
 
-				<div class="flex justify-end gap-2 pt-4">
+				<div class="space-y-1">
+					<label class="font-semibold text-foreground" for="tipeTujuanInput">Tipe Alokasi / Tujuan Shodaqoh *</label>
+					<SearchableSelect
+						id="tipeTujuanInput"
+						name="tipeTujuan"
+						options={alokasiOptions}
+						bind:value={rekeningTujuan}
+						allowCustom={true}
+						customLabel="Gunakan alokasi baru"
+						searchPlaceholder="Cari alokasi atau ketik nama alokasi baru..."
+						placeholder="-- Pilih Alokasi Shodaqoh --"
+						required={true}
+					/>
+					<p class="text-[11px] text-foreground/50">
+						Pilih alokasi standar atau ketik langsung nama alokasi baru.
+					</p>
+				</div>
+
+				<div class="space-y-1">
+					<label class="font-semibold text-foreground" for="keteranganRekeningInput">Catatan / Pesan Shodaqoh (Opsional)</label>
+					<input
+						id="keteranganRekeningInput"
+						type="text"
+						name="keterangan"
+						bind:value={rekeningKeterangan}
+						placeholder="Misal: Mohon sertakan berita transfer atau konfirmasi ke bendahara."
+						class="w-full bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-foreground focus:ring-1 focus:ring-primary outline-none"
+					/>
+				</div>
+
+				{#if isEditingRekening}
+					<div class="flex items-center gap-2 pt-1">
+						<input
+							type="checkbox"
+							id="rekeningIsActiveInput"
+							name="isActive"
+							value="1"
+							bind:checked={rekeningIsActive}
+							class="rounded border-border text-primary focus:ring-primary"
+						/>
+						<label for="rekeningIsActiveInput" class="text-xs font-medium text-foreground cursor-pointer">
+							Rekening aktif (Dapat dilihat jamaah saat berinfaq)
+						</label>
+					</div>
+				{/if}
+
+				<div class="flex justify-end gap-2 pt-3 border-t border-border">
 					<button
 						type="button"
-						onclick={() => (isAddRekeningOpen = false)}
-						class="px-3 py-2 rounded-xl text-xs font-semibold bg-secondary hover:bg-secondary/80 text-foreground"
+						onclick={closeRekeningModal}
+						class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-secondary hover:bg-secondary/80 text-foreground cursor-pointer transition-colors"
 					>
 						Batal
 					</button>
 					<button
 						type="submit"
-						class="px-4 py-2 rounded-xl text-xs font-bold bg-primary text-primary-foreground shadow-xs hover:bg-primary/90"
+						class="px-4 py-2 rounded-xl text-xs font-bold bg-primary text-primary-foreground shadow-xs hover:bg-primary/90 cursor-pointer transition-colors"
 					>
-						Simpan Rekening
+						{isEditingRekening
+							? rekeningMetodeTipe === 'qris'
+								? 'Simpan QRIS'
+								: 'Simpan Rekening'
+							: rekeningMetodeTipe === 'qris'
+								? 'Tambah QRIS'
+								: 'Tambah Rekening'}
 					</button>
 				</div>
 			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- MODAL PREVIEW QRIS -->
+{#if previewQrisUrl}
+	<div
+		class="fixed inset-0 z-60 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
+		role="dialog"
+		aria-modal="true"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) previewQrisUrl = null;
+		}}
+	>
+		<div class="bg-card border border-border rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4 text-center animate-in fade-in zoom-in-95">
+			<div class="flex items-center justify-between pb-2 border-b border-border">
+				<h3 class="font-bold text-sm text-foreground">{previewQrisTitle || 'Kode QRIS Shodaqoh'}</h3>
+				<button
+					type="button"
+					onclick={() => (previewQrisUrl = null)}
+					class="p-1 rounded-lg text-foreground/40 hover:text-foreground transition-colors cursor-pointer"
+					aria-label="Tutup Preview QRIS"
+				>
+					<X class="w-4 h-4" />
+				</button>
+			</div>
+
+			<div class="p-3 bg-white rounded-xl shadow-inner flex items-center justify-center">
+				<img
+					src={previewQrisUrl}
+					alt="QRIS Shodaqoh"
+					class="max-w-full max-h-72 object-contain rounded"
+					onerror={(e) => {
+						(e.currentTarget as HTMLImageElement).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>';
+					}}
+				/>
+			</div>
+
+			<p class="text-xs text-foreground/60">
+				Pindai QRIS ini melalui aplikasi M-Banking atau Dompet Digital untuk menyalurkan shodaqoh.
+			</p>
 		</div>
 	</div>
 {/if}

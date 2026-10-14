@@ -1,10 +1,10 @@
 /**
  * @file src/routes/(admin)/admin/keuangan/shodaqoh/+page.server.ts
- * @purpose Backend controller manajemen shodaqoh berjenjang wilayah (Kelompok, Desa, Daerah): rekapitulasi statistik & grafik transaksi, approval bukti transfer, CRUD rekening & QRIS, seleksi wilayah adaptif (default null jika banyak wilayah, auto-select kelompok sendiri untuk admin kelompok), serta isolasi jenis shodaqoh khusus KU dan Kyai
+ * @purpose Backend controller manajemen shodaqoh berjenjang wilayah (Kelompok, Desa, Daerah): rekapitulasi statistik & grafik transaksi, approval bukti transfer, CRUD rekening & QRIS (insert, update, delete), seleksi wilayah adaptif (default null jika banyak wilayah, auto-select kelompok sendiri untuk admin kelompok), serta isolasi jenis shodaqoh khusus KU dan Kyai
  * @usedBy src/routes/(admin)/admin/keuangan/shodaqoh/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm, @sveltejs/kit, src/lib/server/upload
  * @publicFunctions load, actions (approve, reject, addJenis, deleteJenis, saveRekening, deleteRekening)
- * @sideEffects Mutasi status approval transaksi shodaqoh, pembuatan jenis shodaqoh scoped, dan modifikasi data rekening/QRIS di SQLite
+ * @sideEffects Mutasi status approval transaksi shodaqoh, pembuatan jenis shodaqoh scoped, serta mutasi (tambah, perbarui, hapus) data rekening & QRIS wilayah di SQLite
  */
 
 import { fail, redirect } from '@sveltejs/kit';
@@ -487,15 +487,14 @@ export const actions: Actions = {
 
 		const formData = await request.formData();
 		const scope = (formData.get('scope') as 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok') || (url.searchParams.get('scope') as any);
-		const targetId = Number(formData.get('targetId') || url.searchParams.get('id'));
+		const targetId = Number(formData.get('targetId') || formData.get('id') || url.searchParams.get('id'));
 		const tab = (formData.get('tab') as string) || url.searchParams.get('tab') || 'rekening';
-		const metodeTipe = formData.get('metodeTipe') as 'bank' | 'qris'; // 'bank' | 'qris'
-		const namaBank = ((formData.get('namaBank') as string) || (metodeTipe === 'qris' ? 'QRIS' : '')).trim();
-		const nomorRekening = ((formData.get('nomorRekening') as string) || (metodeTipe === 'qris' ? '-' : '')).trim();
+		const rekeningId = (formData.get('rekeningId') as string) || null;
+		const metodeTipe = (formData.get('metodeTipe') as 'bank' | 'qris') || (formData.get('metode') as 'bank' | 'qris') || 'bank';
 		const atasNama = ((formData.get('atasNama') as string) || '').trim();
 		const tipeTujuan = ((formData.get('tipeTujuan') as string) || 'Infaq & Shodaqoh').trim();
-		const keterangan = ((formData.get('keterangan') as string) || '').trim();
-		const qrisFileOrUrl = formData.get('qrisImage');
+		const keterangan = ((formData.get('keterangan') as string) || '').trim() || null;
+		const isActive = formData.has('isActive') ? (formData.get('isActive') === '1' || formData.get('isActive') === 'true') : true;
 
 		if (!canManageShodaqoh(locals.roles || [], scope, targetId)) {
 			return fail(403, { message: 'Hanya KU dan Kyai yang dapat mengelola rekening/QRIS' });
@@ -505,34 +504,79 @@ export const actions: Actions = {
 			return fail(400, { message: 'Nama pemilik rekening/QRIS (Atas Nama) wajib diisi' });
 		}
 
-		let qrisImageUrl: string | null = null;
+		let existing = null;
+		if (rekeningId) {
+			existing = db.select().from(rekeningWilayah).where(eq(rekeningWilayah.id, rekeningId)).get();
+		}
+
+		let namaBank = '';
+		let nomorRekening = '';
+		let qrisImageUrl: string | null = existing?.qrisImageUrl ?? null;
+
 		if (metodeTipe === 'qris') {
-			qrisImageUrl = await saveUploadedQris(qrisFileOrUrl);
+			namaBank = String(formData.get('namaBank') || 'QRIS').trim() || 'QRIS';
+			nomorRekening = String(formData.get('nomorRekening') || '-').trim() || '-';
+
+			const qrisFile = formData.get('qrisFile') || formData.get('qrisImage');
+			const qrisUrlText = String(formData.get('qrisImageUrl') || '').trim();
+
+			if ((qrisFile instanceof File && qrisFile.size > 0) || qrisUrlText) {
+				qrisImageUrl = await saveUploadedQris(
+					qrisFile instanceof File && qrisFile.size > 0 ? qrisFile : qrisUrlText
+				);
+			}
+
 			if (!qrisImageUrl) {
-				return fail(400, { message: 'File gambar atau link QRIS wajib diunggah untuk metode QRIS' });
+				return fail(400, { message: 'File gambar atau tautan QRIS wajib diunggah untuk metode QRIS' });
+			}
+		} else {
+			// Transfer Bank
+			namaBank = String(formData.get('namaBank') || '').trim();
+			nomorRekening = String(formData.get('nomorRekening') || '').trim();
+			qrisImageUrl = null;
+
+			if (!namaBank || !nomorRekening) {
+				return fail(400, { message: 'Nama bank dan nomor rekening wajib diisi untuk transfer bank' });
 			}
 		}
 
 		const now = Math.floor(Date.now() / 1000);
 
-		db.insert(rekeningWilayah)
-			.values({
-				tingkatScope: scope,
-				daerahId: scope === 'Daerah' ? targetId : null,
-				desaId: scope === 'Desa' ? targetId : null,
-				kelompokId: scope === 'Kelompok' ? targetId : null,
-				namaBank,
-				nomorRekening,
-				atasNama,
-				tipeTujuan,
-				qrisImageUrl,
-				keterangan: keterangan || null,
-				isActive: true,
-				createdAt: now
-			})
-			.run();
+		if (rekeningId && existing) {
+			db.update(rekeningWilayah)
+				.set({
+					namaBank,
+					nomorRekening,
+					atasNama,
+					tipeTujuan,
+					qrisImageUrl,
+					keterangan,
+					isActive
+				})
+				.where(eq(rekeningWilayah.id, rekeningId))
+				.run();
 
-		return { success: true, message: `Rekening/QRIS ${namaBank} berhasil disimpan`, scope, id: targetId, tab };
+			return { success: true, message: `Rekening/QRIS ${namaBank} berhasil diperbarui`, scope, id: targetId, tab };
+		} else {
+			db.insert(rekeningWilayah)
+				.values({
+					tingkatScope: scope,
+					daerahId: scope === 'Daerah' ? targetId : null,
+					desaId: scope === 'Desa' ? targetId : null,
+					kelompokId: scope === 'Kelompok' ? targetId : null,
+					namaBank,
+					nomorRekening,
+					atasNama,
+					tipeTujuan,
+					qrisImageUrl,
+					keterangan,
+					isActive,
+					createdAt: now
+				})
+				.run();
+
+			return { success: true, message: `Rekening/QRIS ${namaBank} berhasil disimpan`, scope, id: targetId, tab };
+		}
 	},
 
 	deleteRekening: async ({ request, url, locals }) => {
@@ -541,9 +585,9 @@ export const actions: Actions = {
 		}
 
 		const formData = await request.formData();
-		const id = formData.get('id') as string;
+		const id = (formData.get('id') as string) || (formData.get('rekeningId') as string);
 		const scope = (formData.get('scope') as 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok') || (url.searchParams.get('scope') as any);
-		const targetId = Number(formData.get('targetId') || url.searchParams.get('id'));
+		const targetId = Number(formData.get('targetId') || formData.get('id') || url.searchParams.get('id'));
 		const tab = (formData.get('tab') as string) || url.searchParams.get('tab') || 'rekening';
 
 		if (!canManageShodaqoh(locals.roles || [], scope, targetId)) {
