@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(app)/+page.svelte
-  @purpose Halaman beranda client/jamaah (Mobile-First) dengan standar Zero Over-Information: launcher Quick Access, jadwal pengajian, dan modal ekosistem aplikasi
+  @purpose Halaman beranda client/jamaah (Mobile-First) dengan standar Zero Over-Information: launcher Quick Access 4 kolom (Presensi, Isrun/FR, Keluarga, SI-PPG), jadwal pengajian, dan modal ekosistem aplikasi
   @usedBy Route utama client '/'
   @dependencies @lucide/svelte, $lib/utils (formatDateDDMMYYYY), $lib/jadwal (formatDateIndoFull), Svelte 5 Runes
   @publicFunctions openAppDetail, closeModals
@@ -82,8 +82,8 @@
 			</button>
 		</div>
 
-		<!-- Grid Ikon Aplikasi: 5 Kolom Proporsional di Mobile & Tablet -->
-		<div class="grid grid-cols-5 gap-2 sm:gap-3 text-center">
+		<!-- Grid Ikon Aplikasi: 4 Kolom Proporsional di Mobile & Tablet -->
+		<div class="grid grid-cols-4 gap-2 sm:gap-4 text-center">
 			<!-- 1. Presensi -->
 			<a
 				href="/presensi"
@@ -134,20 +134,6 @@
 				</div>
 				<span class="text-[11px] sm:text-xs font-semibold text-foreground mt-1.5 leading-tight group-hover:text-primary transition-colors">
 					SI-PPG
-				</span>
-			</button>
-
-			<!-- 5. Lainnya (Etc) -->
-			<button
-				type="button"
-				onclick={() => (showAppsModal = true)}
-				class="flex flex-col items-center group transition-all"
-			>
-				<div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-secondary border border-border text-foreground/70 flex items-center justify-center shadow-xs group-hover:scale-105 group-hover:text-primary group-active:scale-95 transition-all">
-					<LayoutGrid class="w-6 h-6 stroke-[2.2]" />
-				</div>
-				<span class="text-xs sm:text-sm font-semibold text-foreground mt-1.5 leading-tight group-hover:text-primary transition-colors">
-					Lainnya
 				</span>
 			</button>
 		</div>
@@ -306,21 +292,6 @@
 				</a>
 
 				<a
-					href="/sensus"
-					onclick={closeModals}
-					class="flex items-center gap-3 p-2.5 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/70 transition-colors"
-				>
-					<div class="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
-						<Users class="w-5 h-5" />
-					</div>
-					<div class="flex-1 min-w-0">
-						<h4 class="text-xs font-bold text-foreground">Data Keluarga (Sensus)</h4>
-						<p class="text-[11px] text-foreground/60 truncate">Kelola data KK & anggota keluarga</p>
-					</div>
-					<ChevronRight class="w-4 h-4 text-foreground/40 shrink-0" />
-				</a>
-
-				<a
 					href="/fr"
 					onclick={closeModals}
 					class="flex items-center gap-3 p-2.5 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/70 transition-colors"
@@ -337,6 +308,39 @@
 					</div>
 					<ChevronRight class="w-4 h-4 text-foreground/40 shrink-0" />
 				</a>
+
+				<a
+					href="/sensus"
+					onclick={closeModals}
+					class="flex items-center gap-3 p-2.5 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/70 transition-colors"
+				>
+					<div class="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
+						<Users class="w-5 h-5" />
+					</div>
+					<div class="flex-1 min-w-0">
+						<h4 class="text-xs font-bold text-foreground">Data Keluarga (Sensus)</h4>
+						<p class="text-[11px] text-foreground/60 truncate">Kelola data KK & anggota keluarga</p>
+					</div>
+					<ChevronRight class="w-4 h-4 text-foreground/40 shrink-0" />
+				</a>
+
+				<button
+					type="button"
+					onclick={() => openAppDetail('ppg')}
+					class="flex items-center gap-3 p-2.5 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/70 text-left transition-colors w-full"
+				>
+					<div class="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+						<GraduationCap class="w-5 h-5" />
+					</div>
+					<div class="flex-1 min-w-0">
+						<div class="flex items-center gap-1.5">
+							<h4 class="text-xs font-bold text-foreground">SI-PPG</h4>
+							<span class="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-700 dark:text-purple-300">Ekosistem</span>
+						</div>
+						<p class="text-[11px] text-foreground/60 truncate">Sistem Pembinaan Penggerak Pembina Generus</p>
+					</div>
+					<ChevronRight class="w-4 h-4 text-foreground/40 shrink-0" />
+				</button>
 
 				<a
 					href="/shodaqoh"
@@ -370,56 +374,6 @@
 					</div>
 					<ChevronRight class="w-4 h-4 text-foreground/40 shrink-0" />
 				</button>
-
-				<button
-					type="button"
-					onclick={() => openAppDetail('ppg')}
-					class="flex items-center gap-3 p-2.5 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/70 text-left transition-colors w-full"
-				>
-					<div class="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
-						<GraduationCap class="w-5 h-5" />
-					</div>
-					<div class="flex-1 min-w-0">
-						<div class="flex items-center gap-1.5">
-							<h4 class="text-xs font-bold text-foreground">SI-PPG</h4>
-							<span class="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-700 dark:text-purple-300">Ekosistem</span>
-						</div>
-						<p class="text-[11px] text-foreground/60 truncate">Sistem Pembinaan Penggerak Pembina Generus</p>
-					</div>
-					<ChevronRight class="w-4 h-4 text-foreground/40 shrink-0" />
-				</button>
-
-				{#if data.hasKeluarga}
-					<a
-						href="/sensus?tambah=1"
-						onclick={closeModals}
-						class="flex items-center gap-3 p-2.5 rounded-xl border border-dashed border-border hover:bg-secondary/40 transition-colors"
-					>
-						<div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-							<Users class="w-5 h-5" />
-						</div>
-						<div class="flex-1 min-w-0">
-							<h4 class="text-sm font-bold text-foreground">Tambah Sensus Anggota</h4>
-							<p class="text-xs text-foreground/60 truncate">Tambah anggota keluarga ke KK Anda</p>
-						</div>
-						<ChevronRight class="w-4 h-4 text-foreground/40 shrink-0" />
-					</a>
-				{:else}
-					<a
-						href="/sensus/tambah"
-						onclick={closeModals}
-						class="flex items-center gap-3 p-2.5 rounded-xl border border-dashed border-border hover:bg-secondary/40 transition-colors"
-					>
-						<div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-							<Users class="w-5 h-5" />
-						</div>
-						<div class="flex-1 min-w-0">
-							<h4 class="text-sm font-bold text-foreground">Daftar Sensus Baru</h4>
-							<p class="text-xs text-foreground/60 truncate">Registrasi mandiri data keluarga jamaah</p>
-						</div>
-						<ChevronRight class="w-4 h-4 text-foreground/40 shrink-0" />
-					</a>
-				{/if}
 			</div>
 		</div>
 	</div>
