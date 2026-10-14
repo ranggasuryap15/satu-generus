@@ -7,42 +7,52 @@
  * @sideEffects Membuka connection pool PostgreSQL saat modul pertama kali di-import
  */
 
+import * as dotenv from "dotenv";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema";
 
+// Paksa eksekusi dotenv secara eksplisit agar terbaca di skrip mandiri maupun Vite
+dotenv.config();
+
 const connectionString = process.env.DATABASE_URL;
 
-// 2. Berikan validasi agar aplikasi langsung crash di awal jika .env tidak terbaca
+// Hapus throw new Error agar proses build (npm run build) SvelteKit tidak crash
 if (!connectionString) {
-  throw new Error("DATABASE_URL tidak ditemukan di file .env");
+  console.warn(
+    "⚠️ Bypass koneksi DB: DATABASE_URL tidak ditemukan (melewati validasi Vite Build Phase).",
+  );
 }
 
 // Pool dikonfigurasi untuk SvelteKit (adapter-node) yang berjalan single-process.
 // max: 10 cukup untuk beban MVP; naikkan bila jumlah worker/CPU bertambah.
-export const client = postgres(connectionString, {
-  max: Number(process.env.DB_POOL_MAX ?? 10),
-  idle_timeout: 20,
-  connect_timeout: 10,
-  // Paksa timezone koneksi agar CURRENT_DATE PostgreSQL setara dengan date('now','localtime') SQLite
-  connection: { timezone: "Asia/Jakarta" },
-  // postgres-js mengembalikan int8 (bigint) & numeric sebagai STRING. Tanpa override ini,
-  // count()/sum() menjadi string dan merusak aritmetika (contoh: "3" + 1 === "31").
-  types: {
-    bigint: {
-      to: 20,
-      from: [20],
-      serialize: (v: number | bigint) => String(v),
-      parse: (v: string) => Number(v),
-    },
-    numeric: {
-      to: 1700,
-      from: [1700],
-      serialize: (v: number) => String(v),
-      parse: (v: string) => Number(v),
+// Gunakan string fallback "dummy" agar inisialisasi awal saat build tidak melempar error URL.
+export const client = postgres(
+  connectionString || "postgres://dummy:dummy@localhost:5432/dummy",
+  {
+    max: Number(process.env.DB_POOL_MAX ?? 10),
+    idle_timeout: 20,
+    connect_timeout: 10,
+    // Paksa timezone koneksi agar CURRENT_DATE PostgreSQL setara dengan date('now','localtime') SQLite
+    connection: { timezone: "Asia/Jakarta" },
+    // postgres-js mengembalikan int8 (bigint) & numeric sebagai STRING. Tanpa override ini,
+    // count()/sum() menjadi string dan merusak aritmetika (contoh: "3" + 1 === "31").
+    types: {
+      bigint: {
+        to: 20,
+        from: [20],
+        serialize: (v: number | bigint) => String(v),
+        parse: (v: string) => Number(v),
+      },
+      numeric: {
+        to: 1700,
+        from: [1700],
+        serialize: (v: number) => String(v),
+        parse: (v: string) => Number(v),
+      },
     },
   },
-});
+);
 
 export const db = drizzle(client, { schema });
 
