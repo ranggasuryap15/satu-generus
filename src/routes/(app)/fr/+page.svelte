@@ -975,10 +975,10 @@
 			{/if}
 
 			{#if showSuccessToast}
-				<div class="p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs flex items-center justify-between gap-2 shadow-lg backdrop-blur-md animate-in fade-in slide-in-from-bottom-2">
+				<div class="p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs flex items-center justify-between gap-2 shadow-lg backdrop-blur-md animate-in fade-in slide-in-from-bottom-2">
 					<div class="flex items-center gap-2">
 						<CheckCircle2 class="w-4 h-4 text-emerald-600 shrink-0" />
-						<span class="font-bold">Laporan setoran Isrun/FR berhasil dikirim dan tersimpan!</span>
+						<span class="font-bold">Laporan FR Tersimpan</span>
 					</div>
 					<button type="button" onclick={() => (showSuccessToast = false)} class="text-emerald-600 hover:text-emerald-800 p-0.5">
 						<X class="w-3.5 h-3.5" />
@@ -986,47 +986,45 @@
 				</div>
 			{/if}
 
-			<div class="bg-card/95 backdrop-blur-md border border-border p-3.5 sm:p-4 rounded-2xl shadow-xl flex items-center justify-between gap-3">
-				<div>
-					<p class="text-[11px] text-foreground/60 font-medium leading-none">Total yang Disetorkan</p>
-					<p class="text-base sm:text-xl font-bold font-mono text-teal-600 dark:text-teal-400 mt-0.5">
+			<div class="bg-card/95 backdrop-blur-md border border-border p-3 sm:p-3.5 rounded-xl shadow-lg flex items-center justify-between gap-3">
+				<div class="min-w-0">
+					<p class="text-[10px] sm:text-[11px] text-foreground/60 font-medium leading-none">Total Setoran</p>
+					<p class="text-sm sm:text-lg font-bold font-mono text-teal-600 dark:text-teal-400 mt-1 truncate">
 						{formatRp(totalRiilBayar)}
 					</p>
 				</div>
 
 				{#if isApproved}
-					<div class="flex items-center gap-2">
+					<div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
 						<button
 							type="button"
 							onclick={() => (showModalKomplain = true)}
-							class="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-200 border border-amber-500/30 font-bold text-xs sm:text-sm transition-all active:scale-95 shadow-2xs cursor-pointer"
+							class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-200 border border-amber-500/30 font-bold text-xs transition-all active:scale-95 cursor-pointer shadow-2xs whitespace-nowrap"
 						>
-							<MessageCircleWarning class="w-4 h-4 text-amber-600 dark:text-amber-400" />
-							<span>Komplain ke KU</span>
+							<MessageCircleWarning class="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+							<span>Komplain</span>
 						</button>
 
-						<button
-							type="button"
-							disabled={true}
-							class="inline-flex items-center gap-2 px-3.5 sm:px-4 py-2.5 rounded-xl bg-secondary text-foreground/50 border border-border font-bold text-xs sm:text-sm cursor-not-allowed select-none"
-							title="Setoran sudah disetujui KU, formulir tidak dapat diubah lagi"
+						<div
+							class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-secondary text-foreground/60 border border-border font-medium text-xs select-none whitespace-nowrap"
+							title="Setoran sudah disetujui KU"
 						>
-							<Lock class="w-4 h-4 text-foreground/40" />
-							<span>Setoran Sudah Disetujui</span>
-						</button>
+							<Lock class="w-3.5 h-3.5 text-foreground/40 shrink-0" />
+							<span>Terkunci</span>
+						</div>
 					</div>
 				{:else}
 					<button
 						type="submit"
 						disabled={isSubmitting}
-						class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs sm:text-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-teal-600/20 cursor-pointer"
+						class="inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs sm:text-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shadow-teal-600/20 cursor-pointer shrink-0 whitespace-nowrap"
 					>
 						{#if isSubmitting}
-							<RefreshCw class="w-4 h-4 animate-spin" />
-							<span>Menyimpan & Melaporkan...</span>
+							<RefreshCw class="w-3.5 h-3.5 animate-spin shrink-0" />
+							<span>Menyimpan...</span>
 						{:else}
-							<Send class="w-4 h-4" />
-							<span>Simpan & Lapor Setoran</span>
+							<Send class="w-3.5 h-3.5 shrink-0" />
+							<span>Simpan Setoran</span>
 						{/if}
 					</button>
 				{/if}
