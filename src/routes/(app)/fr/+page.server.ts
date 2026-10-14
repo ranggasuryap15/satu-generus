@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(app)/fr/+page.server.ts
- * @purpose Backend controller halaman Isrun/FR client jamaah (Mobile-First): memuat lembar pos kewajiban FR terstruktur per kategori induk (A-D), riwayat setoran per bulan, info rekening/QRIS kelompok, kontak KU kelompok untuk komplain, serta proteksi penguncian data setoran yang sudah disetujui KU
+ * @purpose Backend controller halaman Isrun/FR client jamaah (Mobile-First): memuat lembar pos kewajiban FR terstruktur per kategori induk (A-D), reset breakdown angka menjadi 0 saat status Belum/dikembalikan ke Belum, riwayat setoran per bulan, info rekening/QRIS kelompok, kontak KU kelompok untuk komplain, serta proteksi penguncian data setoran yang sudah disetujui KU
  * @usedBy src/routes/(app)/fr/+page.svelte
  * @dependencies @sveltejs/kit, src/lib/db, src/lib/db/schema, src/lib/server/sensus, src/lib/server/upload, drizzle-orm, @paralleldrive/cuid2
  * @publicFunctions load, actions.simpanSetoran
@@ -169,12 +169,15 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		  }
 		| undefined;
 
+	const isStatusBelum = !existingTransaksi || existingTransaksi.status_bayar === 'Belum' || existingTransaksi.status_bayar === 'Belum Bayar';
+
 	let existingBreakdown: Record<string, number> = {};
 	let existingMetode = 'Tunai';
 	let existingBuktiUrl = '';
 	let existingCatatanUser = '';
 
-	if (existingTransaksi?.catatan) {
+	// Jika status setoran adalah Belum (atau dikembalikan ke Belum oleh KU), breakdown angka otomatis kembali 0 / bersih
+	if (existingTransaksi?.catatan && !isStatusBelum) {
 		try {
 			const parsed = JSON.parse(existingTransaksi.catatan);
 			if (parsed.breakdown && typeof parsed.breakdown === 'object') {
@@ -363,11 +366,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		transaksiExisting: existingTransaksi
 			? {
 					id: existingTransaksi.id,
-					nominal: existingTransaksi.nominal,
+					nominal: isStatusBelum ? 0 : existingTransaksi.nominal,
 					statusBayar: existingTransaksi.status_bayar,
-					metode: existingMetode,
-					buktiUrl: existingBuktiUrl,
-					catatan: existingCatatanUser,
+					metode: isStatusBelum ? 'Tunai' : existingMetode,
+					buktiUrl: isStatusBelum ? '' : existingBuktiUrl,
+					catatan: isStatusBelum ? '' : existingCatatanUser,
 					updatedAt: existingTransaksi.updated_at
 			  }
 			: null,

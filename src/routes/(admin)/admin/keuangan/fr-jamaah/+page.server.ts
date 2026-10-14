@@ -734,6 +734,7 @@ export const actions: Actions = {
 						`UPDATE transaksi_fr
 						 SET status_bayar = 'Belum',
 						     nominal = 0,
+						     catatan = NULL,
 						     updated_by_user_id = ?,
 						     updated_at = ?
 						 WHERE id = ?`
@@ -745,6 +746,7 @@ export const actions: Actions = {
 						`UPDATE transaksi_fr
 						 SET status_bayar = 'Belum',
 						     nominal = 0,
+						     catatan = NULL,
 						     updated_by_user_id = ?,
 						     updated_at = ?
 						 WHERE anggota_keluarga_id = ? AND tahun = ? AND bulan = ?`
