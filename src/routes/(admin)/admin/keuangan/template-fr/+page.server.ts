@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(admin)/admin/keuangan/template-fr/+page.server.ts
- * @purpose Controller backend Spreadsheet Template FR: mengelola lembar kerja 4 kolom (No, Uraian, Jumlah, Keterangan), group tarif (Group A, B, dst), duplikasi group, penyimpanan sel spreadsheet massal, dan penetapan jamaah secara bersamaan
+ * @purpose Controller backend Spreadsheet Template FR: mengelola lembar kerja 4 kolom (No, Uraian, Jumlah, Keterangan), group tarif (Group A, B, dst), duplikasi group, penyimpanan sel spreadsheet massal, seleksi kelompok adaptif (default null untuk admin multi-kelompok, auto-select kelompok sendiri untuk admin kelompok), serta penetapan jamaah massal
  * @usedBy src/routes/(admin)/admin/keuangan/template-fr/+page.svelte
  * @dependencies @sveltejs/kit, src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm, @paralleldrive/cuid2
  * @publicFunctions load, actions.saveSpreadsheet, actions.createGroup, actions.duplicateGroup, actions.deleteGroup, actions.addPos, actions.updatePos, actions.deletePos, actions.assignJamaahToGroup, actions.removeJamaahFromGroup
@@ -41,25 +41,31 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const tahunParam = Number(url.searchParams.get('tahun')) || currentYear;
 	const urlKelompokId = url.searchParams.get('kelompokId');
 
-	// Penentuan kelompok terpilih
+	// Penentuan kelompok terpilih:
+	// - Jika ada query param kelompokId, validasi akses dan gunakan.
+	// - Jika TIDAK ada query param:
+	//   * Untuk Admin Kelompok: langsung otomatis muncul kelompoknya sendiri dan sematkan ke URL.
+	//   * Untuk Admin tingkat atas (Desa/Daerah/Pusat): default NULL (harus dipilih manual lewat dropdown).
 	let selectedKelompokId: number | null = null;
+	const isAdminKelompok =
+		adminScope.level === 'Kelompok' &&
+		(adminScope.kelompokIds.length > 0 || Boolean(locals.user.kelompokId));
+
 	if (urlKelompokId) {
 		const parsed = Number(urlKelompokId);
-		if (adminScope.isPusat || accessibleWilayah.allowedKelompokIdSet.has(parsed)) {
+		if (parsed > 0 && (adminScope.isPusat || accessibleWilayah.allowedKelompokIdSet.has(parsed))) {
 			selectedKelompokId = parsed;
 		}
-	} else if (adminScope.level === 'Kelompok' && adminScope.kelompokIds.length > 0) {
-		selectedKelompokId = adminScope.kelompokIds[0];
-	} else if (accessibleWilayah.kelompokList.length > 0) {
-		selectedKelompokId = accessibleWilayah.kelompokList[0].id;
+	} else if (isAdminKelompok) {
+		selectedKelompokId = adminScope.kelompokIds[0] || locals.user.kelompokId || null;
 	}
 
 	const canEdit = selectedKelompokId
 		? canManageFr(roles, 'Kelompok', selectedKelompokId)
 		: false;
 
-	// Pastikan kelompokId selalu persisten di URL agar aksi form tidak mereset ke kelompok lain
-	if (!urlKelompokId && selectedKelompokId) {
+	// Pastikan kelompokId selalu persisten di URL khusus untuk admin kelompok agar formulir tidak mereset
+	if (!urlKelompokId && selectedKelompokId && isAdminKelompok) {
 		const targetUrl = new URL(url);
 		targetUrl.searchParams.set('kelompokId', String(selectedKelompokId));
 		targetUrl.searchParams.set('tahun', String(tahunParam));
@@ -76,9 +82,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			template: null,
 			groups: [],
 			selectedGroupId: null,
+			selectedGroup: null,
 			categoriesWithPos: [],
 			groupPosValues: {},
-			jamaahList: [],
+			jamaahInSelectedGroup: [],
 			allKelompokJamaah: []
 		};
 	}

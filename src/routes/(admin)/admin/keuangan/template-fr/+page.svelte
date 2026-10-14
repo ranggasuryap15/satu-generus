@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(admin)/admin/keuangan/template-fr/+page.svelte
-  @purpose Halaman Spreadsheet Template FR: lembar kerja 4 kolom fleksibel (No, Uraian, Jumlah, Keterangan), validasi angka murni & auto-format ribuan untuk kedua kolom (Jumlah & Keterangan), penambahan baris uraian baru realtime langsung di tabel spreadsheet tanpa modal popup, kategori default A-D untuk diisi manual oleh KU, SearchableSelect filter kelompok, proteksi anti-refresh saat mengisi data, pengelolaan Group Tarif, duplikasi group cepat, paste dari spreadsheet, penetapan jamaah massal, dan modal konfirmasi hapus kustom
+  @purpose Halaman Spreadsheet Template FR: lembar kerja 4 kolom fleksibel (No, Uraian, Jumlah, Keterangan), validasi angka murni & auto-format ribuan untuk kedua kolom, penambahan baris uraian baru realtime langsung di tabel spreadsheet, seleksi kelompok adaptif (default null untuk admin multi-kelompok & auto-select untuk admin kelompok), persistensi filter kelompok & tahun saat edit/simpan, pengelolaan Group Tarif, duplikasi group cepat, penetapan jamaah massal, dan modal konfirmasi hapus kustom
   @usedBy Route admin '/admin/keuangan/template-fr'
   @dependencies @lucide/svelte, svelte (tick), $app/forms, $app/navigation (goto, beforeNavigate), Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/keepScroll.ts
   @publicFunctions formatRupiah, updateCell, handleNumberKeyDown, copyJumlahToKeterangan, handleAddRealtimeRow, handleRemoveRealtimeRow, handleCellPaste, handleFilterChange, handleGroupSwitch, openConfirmModal, closeConfirmModal, toggleSelectAllAvailable, toggleSelectJamaah, getActionUrl
@@ -245,10 +245,15 @@
 		}))
 	);
 
-	// Filter Kelompok & Tahun
-	function handleFilterChange(kId: number, yr: number) {
+	// Filter Kelompok & Tahun dengan persistensi parameter URL yang presisi
+	function handleFilterChange(kId: number | string | null | undefined, yr: number) {
 		const url = new URL(page.url.href);
-		url.searchParams.set('kelompokId', String(kId));
+		const numId = Number(kId);
+		if (numId && numId > 0) {
+			url.searchParams.set('kelompokId', String(numId));
+		} else {
+			url.searchParams.delete('kelompokId');
+		}
 		url.searchParams.set('tahun', String(yr));
 		url.searchParams.delete('groupId');
 		goto(url.toString());
@@ -261,6 +266,10 @@
 			}
 		}
 		const url = new URL(page.url.href);
+		if (data.selectedKelompokId) {
+			url.searchParams.set('kelompokId', String(data.selectedKelompokId));
+		}
+		url.searchParams.set('tahun', String(data.tahun));
 		url.searchParams.set('groupId', gId);
 		goto(url.toString());
 	}
@@ -466,19 +475,24 @@
 					<SearchableSelect
 						name="kelompokId"
 						options={kelompokOptions}
-						value={data.selectedKelompokId || ''}
+						value={data.selectedKelompokId ? String(data.selectedKelompokId) : ''}
 						placeholder="-- Pilih Kelompok --"
 						searchPlaceholder="Cari kelompok..."
-						onchange={(val) => handleFilterChange(Number(val), data.tahun)}
+						onchange={(val) => handleFilterChange(val ? Number(val) : null, data.tahun)}
 					/>
+				</div>
+			{:else if data.accessibleWilayah.kelompokList.length === 1}
+				<div class="px-3 py-2 rounded-lg bg-secondary/80 border border-border text-xs font-bold text-foreground flex items-center gap-1.5">
+					<Layers class="w-3.5 h-3.5 text-primary" />
+					<span>{data.accessibleWilayah.kelompokList[0].nama}</span>
 				</div>
 			{/if}
 
 			<div class="w-24">
 				<select
-					class="w-full bg-secondary/50 border border-border text-foreground text-sm rounded-lg px-2.5 py-2.5 focus:outline-none focus:ring-1 focus:ring-primary font-mono font-semibold"
+					class="w-full bg-secondary/50 border border-border text-foreground text-sm rounded-lg px-2.5 py-2.5 focus:outline-none focus:ring-1 focus:ring-primary font-mono font-semibold cursor-pointer"
 					value={data.tahun}
-					onchange={(e) => handleFilterChange(data.selectedKelompokId || 0, Number(e.currentTarget.value))}
+					onchange={(e) => handleFilterChange(data.selectedKelompokId, Number(e.currentTarget.value))}
 				>
 					{#each [data.tahun - 1, data.tahun, data.tahun + 1] as yr}
 						<option value={yr}>{yr}</option>
@@ -503,10 +517,16 @@
 	{/if}
 
 	{#if !data.selectedKelompokId}
-		<div class="p-12 text-center bg-card border border-border rounded-2xl">
-			<AlertCircle class="w-10 h-10 text-foreground/40 mx-auto mb-3" />
-			<h3 class="text-sm font-semibold text-foreground">Pilih Kelompok Terlebih Dahulu</h3>
-			<p class="text-xs text-foreground/60 mt-1">Silakan tentukan kelompok binaan di filter atas untuk membuka lembar kerja.</p>
+		<div class="p-12 text-center bg-card border border-border rounded-2xl shadow-xs space-y-3">
+			<div class="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto shadow-2xs">
+				<Filter class="w-6 h-6" />
+			</div>
+			<div>
+				<h3 class="text-sm sm:text-base font-bold text-foreground">Pilih Kelompok Terlebih Dahulu</h3>
+				<p class="text-xs text-foreground/60 max-w-md mx-auto mt-1 leading-relaxed">
+					Silakan tentukan kelompok binaan pada filter di pojok kanan atas untuk membuka dan mengelola lembar spreadsheet template FR.
+				</p>
+			</div>
 		</div>
 	{:else}
 		<!-- BARIS TABS GROUP TARIF (GROUP A, GROUP B, DST) -->
@@ -948,7 +968,13 @@
 				method="POST"
 				action={getActionUrl('createGroup')}
 				use:enhance={keepScrollSubmit({
-					onSuccess: () => { showCreateGroupModal = false; }
+					onSuccess: (result) => {
+						showCreateGroupModal = false;
+						newGroupName = '';
+						if (result.type === 'success' && (result.data as any)?.createdGroupId) {
+							handleGroupSwitch((result.data as any).createdGroupId);
+						}
+					}
 				})}
 				class="space-y-3 text-xs"
 			>
@@ -1006,7 +1032,13 @@
 				method="POST"
 				action={getActionUrl('duplicateGroup')}
 				use:enhance={keepScrollSubmit({
-					onSuccess: () => { showDuplicateModal = false; }
+					onSuccess: (result) => {
+						showDuplicateModal = false;
+						duplicateNewName = '';
+						if (result.type === 'success' && (result.data as any)?.newGroupId) {
+							handleGroupSwitch((result.data as any).newGroupId);
+						}
+					}
 				})}
 				class="space-y-3 text-xs"
 			>
