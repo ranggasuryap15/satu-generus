@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(admin)/admin/dapukan/+page.server.ts
- * @purpose Memuat daftar struktur dapukan, penugasan RBAC pengurus dengan proteksi hierarki wilayah jamaah, validasi integritas keunikan Kyai, pencegahan penugasan manual Superadmin/Admin Pusat, serta mutasi penugasan
+ * @purpose Memuat daftar struktur dapukan dan penugasan RBAC pengurus yang dibatasi hierarki scope (hanya scope sendiri dan ke bawah), validasi integritas keunikan Kyai, pencegahan penugasan manual Superadmin/Admin Pusat, serta mutasi penugasan
  * @usedBy src/routes/(admin)/admin/dapukan/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm
  * @publicFunctions load, actions.assignDapukan, actions.updateDapukan, actions.removeDapukan
@@ -12,7 +12,14 @@ import type { Actions, PageServerLoad } from './$types';
 import { db, first } from '#lib/db/index.js';
 import { dapukan, userDapukan, users, daerah, desa, kelompok } from '#lib/db/schema.js';
 import { eq, desc, and, ne } from 'drizzle-orm';
-import { getAdminScope, getAccessibleWilayah, isKelompokAllowed, canManageDapukan } from '#lib/server/scope.js';
+import {
+	getAdminScope,
+	getAccessibleWilayah,
+	getDapukanScopeCondition,
+	isDapukanAssignableManually,
+	isKelompokAllowed,
+	canManageDapukan
+} from '#lib/server/scope.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user || !locals.isAdmin) {
@@ -50,8 +57,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 		.leftJoin(daerah, eq(userDapukan.daerahId, daerah.id))
 		.leftJoin(desa, eq(userDapukan.desaId, desa.id))
 		.leftJoin(kelompok, eq(userDapukan.kelompokId, kelompok.id))
+		// Batasi sesuai hierarki: admin hanya melihat dapukan pada scope-nya dan ke bawah
+		.where(getDapukanScopeCondition(adminScope, accessible))
 		.orderBy(desc(userDapukan.id))
 );
+
 	// 3. Opsi Users Jamaah join Wilayah Basis untuk pilihan penugasan yang tersaring
 	const rawUserList = (await db
 		.select({
@@ -174,11 +184,10 @@ export const actions: Actions = {
 			if (!selectedDapukan) {
 				return fail(400, { error: 'Dapukan tetap tidak ditemukan.' });
 			}
-			const dapukanNameClean = selectedDapukan.namaDapukan.trim().toLowerCase();
-			if (dapukanNameClean === 'superadmin' || dapukanNameClean.includes('superadmin')) {
+			if (!isDapukanAssignableManually(selectedDapukan.namaDapukan)) {
 				return fail(400, { error: 'Dapukan Superadmin tidak dapat ditugaskan secara manual.' });
 			}
-			if (dapukanNameClean === 'admin pusat') {
+			if (selectedDapukan.namaDapukan.trim().toLowerCase() === 'admin pusat') {
 				return fail(400, { error: 'Dapukan Admin Pusat tidak dapat ditugaskan secara manual.' });
 			}
 		}
@@ -414,11 +423,10 @@ export const actions: Actions = {
 			if (!selectedDapukan) {
 				return fail(400, { error: 'Dapukan tetap tidak ditemukan.' });
 			}
-			const dapukanNameClean = selectedDapukan.namaDapukan.trim().toLowerCase();
-			if (dapukanNameClean === 'superadmin' || dapukanNameClean.includes('superadmin')) {
+			if (!isDapukanAssignableManually(selectedDapukan.namaDapukan)) {
 				return fail(400, { error: 'Dapukan Superadmin tidak dapat ditugaskan secara manual.' });
 			}
-			if (dapukanNameClean === 'admin pusat') {
+			if (selectedDapukan.namaDapukan.trim().toLowerCase() === 'admin pusat') {
 				return fail(400, { error: 'Dapukan Admin Pusat tidak dapat ditugaskan secara manual.' });
 			}
 		}

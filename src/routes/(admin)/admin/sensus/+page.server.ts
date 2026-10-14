@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(admin)/admin/sensus/+page.server.ts
- * @purpose Rekapitulasi sensus KK & Mandiri, metrik dashboard, penugasan dapukan pengurus KK, validasi integritas keunikan Kyai (maksimal 1 per lingkup), sinkronisasi noTelepon (wajib jika punya akun, opsional jika tidak), resolusi effectiveUserId & default isrun Kepala Keluarga, serta form actions sensus
+ * @purpose Rekapitulasi sensus KK & Mandiri, metrik dashboard, penugasan dapukan pengurus KK, validasi integritas keunikan Kyai (maksimal 1 per lingkup), sinkronisasi noTelepon (wajib jika punya akun, opsional jika tidak), resolusi effectiveUserId & default isrun Kepala Keluarga, serta form actions sensus; email kepala keluarga bersifat opsional (login utama via Nomor HP); pencegahan penugasan manual Superadmin
  * @usedBy src/routes/(admin)/admin/sensus/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/auth, src/lib/server/scope, src/lib/utils (normalizeDateToISO), src/lib/generus (hitungUmur, hitungStatusGenerus, isStatusHubunganMenikah, resolveStatusPernikahan, isStatusGenerusBelumMenikah), drizzle-orm
  * @publicFunctions load, actions.createSensus, actions.addAnggotaKeluarga, actions.updateAnggota, actions.updateKeluarga, actions.deleteSensus, actions.pindahKelompok, actions.toggleStatusJamaah, actions.createMemberAccount, actions.assignDapukan
@@ -14,7 +14,13 @@ import { keluarga, anggotaKeluarga, users, kelompok, desa, daerah, userDapukan, 
 import { eq, desc, inArray, and, isNotNull, ne } from 'drizzle-orm';
 import { decryptSensitive, encryptSensitive, maskSensitive } from '#lib/server/crypto.js';
 import { hashPassword } from '#lib/server/auth.js';
-import { getAdminScope, getAccessibleWilayah, isKelompokAllowed, canManageDapukan } from '#lib/server/scope.js';
+import {
+	getAdminScope,
+	getAccessibleWilayah,
+	isDapukanAssignableManually,
+	isKelompokAllowed,
+	canManageDapukan
+} from '#lib/server/scope.js';
 import { normalizeDateToISO } from '#lib/utils.js';
 import { hitungUmur, hitungStatusGenerus, isStatusHubunganMenikah, resolveStatusPernikahan, isStatusGenerusBelumMenikah } from '#lib/generus.js';
 
@@ -383,9 +389,15 @@ export const actions: Actions = {
 		const kelompokId = parseInt(kelompokIdStr, 10);
 
 		// Validasi Kelengkapan Akun & Wilayah
-		if (!namaLengkap || !email || isNaN(kelompokId)) {
+		// Email bersifat OPSIONAL; login utama memakai Nomor HP. Bila diisi, formatnya divalidasi.
+		if (!namaLengkap || isNaN(kelompokId)) {
 			return fail(400, {
-				error: 'Nama lengkap, email, dan kelompok basis wajib diisi.'
+				error: 'Nama lengkap dan kelompok basis wajib diisi.'
+			});
+		}
+		if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+			return fail(400, {
+				error: 'Format alamat email tidak valid.'
 			});
 		}
 
@@ -409,12 +421,26 @@ export const actions: Actions = {
 			});
 		}
 
-		// Validasi Keunikan Email
-		const existingUser = (await first(db.select({ id: users.id }).from(users).where(eq(users.email, email))));
-		if (existingUser) {
+		// Validasi keunikan No HP (identifier login utama) — selalu dijalankan
+		const existingPhone = (await first(
+			db.select({ id: users.id }).from(users).where(eq(users.noTelepon, cleanNoTelepon))
+		));
+		if (existingPhone) {
 			return fail(400, {
-				error: `Email ${email} sudah terdaftar pada akun lain.`
+				error: `Nomor HP ${cleanNoTelepon} sudah terdaftar pada akun lain.`
 			});
+		}
+
+		// Validasi keunikan Email — hanya bila email diisi
+		if (email) {
+			const existingUser = (await first(
+				db.select({ id: users.id }).from(users).where(eq(users.email, email))
+			));
+			if (existingUser) {
+				return fail(400, {
+					error: `Email ${email} sudah terdaftar pada akun lain.`
+				});
+			}
 		}
 
 		const tipeSensus = formData.get('tipeSensus')?.toString()?.trim() || 'keluarga';
@@ -507,7 +533,9 @@ export const actions: Actions = {
 					.insert(users)
 					.values({
 						namaLengkap,
-						email,
+						// Email opsional: simpan NULL (bukan string kosong) agar constraint
+						// UNIQUE pada kolom email tidak menolak banyak akun tanpa email.
+						email: email || null,
 						noTelepon: cleanNoTelepon,
 						passwordHash: defaultHash,
 						kelompokId
@@ -1405,11 +1433,29 @@ export const actions: Actions = {
 			// Untuk tingkat Pusat, seluruh pengurus bertindak sebagai Admin Pusat / non-4S.
 			if (tipeDapukan === 'tetap' && dapukanId) {
 				const selectedDapukan = (await first(db.select().from(dapukan).where(eq(dapukan.id, dapukanId))));
-				if (selectedDapukan?.is4S && selectedDapukan.namaDapukan !== 'Superadmin') {
+				if (!selectedDapukan) {
+					return fail(400, { error: 'Dapukan tetap tidak ditemukan.' });
+				}
+				// Superadmin hanya boleh dibuat oleh seeder, tidak lewat UI
+				if (!isDapukanAssignableManually(selectedDapukan.namaDapukan)) {
+					return fail(400, { error: 'Dapukan Superadmin tidak dapat ditugaskan secara manual.' });
+				}
+				if (selectedDapukan.is4S) {
 					return fail(400, {
 						error: 'Struktur dapukan 4S hanya berlaku hingga tingkat Daerah. Untuk tingkat Pusat, silakan gunakan dapukan Admin Pusat atau kepanitiaan tentatif.'
 					});
 				}
+			}
+		}
+
+		// Validasi global: Superadmin tidak boleh ditugaskan lewat UI pada scope manapun
+		if (tipeDapukan === 'tetap' && dapukanId) {
+			const dapukanTerpilih = await first(db.select().from(dapukan).where(eq(dapukan.id, dapukanId)));
+			if (!dapukanTerpilih) {
+				return fail(400, { error: 'Dapukan tetap tidak ditemukan.' });
+			}
+			if (!isDapukanAssignableManually(dapukanTerpilih.namaDapukan)) {
+				return fail(400, { error: 'Dapukan Superadmin tidak dapat ditugaskan secara manual.' });
 			}
 		}
 

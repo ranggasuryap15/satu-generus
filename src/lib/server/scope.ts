@@ -1,14 +1,15 @@
 /**
  * @file src/lib/server/scope.ts
- * @purpose Evaluasi wewenang administratif berjenjang (Pusat, Daerah, Desa, Kelompok), filter wilayah RBAC, validasi hak mutasi dapukan, proteksi CRUD rekening/QRIS KU & Superadmin, otorisasi modul Keuangan/KU, serta otorisasi modifikasi shodaqoh khusus KU dan Kyai
+ * @purpose Evaluasi wewenang administratif berjenjang (Pusat, Daerah, Desa, Kelompok), filter wilayah RBAC, penyusun kondisi scope dapukan, validasi hak mutasi dapukan, proteksi CRUD rekening/QRIS KU & Superadmin, otorisasi modul Keuangan/KU, serta otorisasi modifikasi shodaqoh khusus KU dan Kyai
  * @usedBy src/routes/(admin)/admin/sensus/+page.server.ts, src/routes/(admin)/admin/wilayah/*, src/routes/(admin)/admin/dapukan/+page.server.ts, src/routes/(admin)/admin/profil-wilayah/+page.server.ts, src/routes/(admin)/admin/keuangan/*
  * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm
- * @publicFunctions getAdminScope, getAccessibleWilayah, isKelompokAllowed, canManageDapukan, canManageRekening, canAccessKeuangan, canManageFr, canManageShodaqoh
+ * @publicFunctions getAdminScope, getAccessibleWilayah, isKelompokAllowed, getDapukanScopeCondition, isDapukanAssignableManually, canManageDapukan, canManageRekening, canAccessKeuangan, canManageFr, canManageShodaqoh
  * @sideEffects Membaca data relasi master daerah, desa, dan kelompok dari PostgreSQL
  */
 
 import { db } from '#lib/db/index.js';
-import { daerah, desa, kelompok } from '#lib/db/schema.js';
+import { daerah, desa, kelompok, userDapukan } from '#lib/db/schema.js';
+import { inArray, or, sql, type SQL } from 'drizzle-orm';
 
 /**
  * Memuat snapshot master wilayah (daerah, desa, kelompok) dalam 3 query paralel.
@@ -292,6 +293,59 @@ export function isKelompokAllowed(
 ): boolean {
 	if (isPusat) return true;
 	return allowedKelompokIdSet.has(kelompokId);
+}
+
+/**
+ * Menyusun kondisi SQL (Drizzle) untuk membatasi baris `user_dapukan` sesuai scope admin.
+ * Aturan: admin hanya melihat dapukannya sendiri dan ke BAWAH, tidak pernah ke atas
+ * maupun ke wilayah sejajar lainnya.
+ *   - Pusat    : seluruh baris (tanpa kondisi)
+ *   - Daerah   : dapukan di daerahnya sendiri + seluruh desa & kelompok di bawahnya
+ *   - Desa     : dapukan di desanya sendiri + seluruh kelompok di bawahnya
+ *   - Kelompok : hanya dapukan pada kelompoknya sendiri
+ * Mengembalikan `undefined` bila tidak ada batasan (Pusat) atau tidak ada wilayah
+ * yang bisa diakses (dipanggil harus memperlakukan sebagai "tidak ada data").
+ */
+export function getDapukanScopeCondition(
+	adminScope: AdminScope,
+	accessible: AccessibleWilayah
+): SQL | undefined {
+	if (adminScope.isPusat) return undefined;
+
+	const kelompokIds = Array.from(accessible.allowedKelompokIdSet);
+	const desaIds = accessible.desaList.map((d) => d.id);
+	const daerahIds = accessible.daerahList.map((d) => d.id);
+
+	if (adminScope.level === 'Kelompok') {
+		return kelompokIds.length > 0 ? inArray(userDapukan.kelompokId, kelompokIds) : sql`false`;
+	}
+
+	if (adminScope.level === 'Desa') {
+		const parts: any[] = [];
+		if (daerahIds.length === 0) {
+			// desa scope tidak punya daerah induk terpetakan: cukup kelompok di bawahnya
+		}
+		parts.push(inArray(userDapukan.desaId, adminScope.desaIds));
+		if (kelompokIds.length > 0) parts.push(inArray(userDapukan.kelompokId, kelompokIds));
+		return parts.length > 0 ? or(...parts)! : sql`false`;
+	}
+
+	// Daerah
+	const parts: any[] = [];
+	if (adminScope.daerahIds.length > 0) parts.push(inArray(userDapukan.daerahId, adminScope.daerahIds));
+	if (desaIds.length > 0) parts.push(inArray(userDapukan.desaId, desaIds));
+	if (kelompokIds.length > 0) parts.push(inArray(userDapukan.kelompokId, kelompokIds));
+	return parts.length > 0 ? or(...parts)! : sql`false`;
+}
+
+/**
+ * Menentukan apakah sebuah dapukan boleh ditugaskan secara manual lewat UI.
+ * Dapukan `Superadmin` hanya boleh dibuat oleh seeder untuk bootstrap awal.
+ */
+export function isDapukanAssignableManually(namaDapukan?: string | null): boolean {
+	const clean = (namaDapukan || '').trim().toLowerCase();
+	if (!clean) return false;
+	return !clean.includes('superadmin');
 }
 
 /**

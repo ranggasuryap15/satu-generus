@@ -515,9 +515,11 @@
 
 	const masterDapukanOptions = $derived(
 		(data.masterDapukan || [])
+			// Superadmin tidak pernah boleh ditugaskan manual dari UI
+			.filter((m: any) => !(m.namaDapukan || '').toLowerCase().includes('superadmin'))
 			.filter((m: any) => {
 				if (assignScope === 'Pusat') {
-					return !m.is4S || m.namaDapukan === 'Superadmin';
+					return !m.is4S;
 				}
 				return m.namaDapukan !== 'Admin Pusat';
 			})
@@ -1592,13 +1594,12 @@
 
 						<div>
 							<label for="email" class="block text-[11px] font-semibold text-foreground mb-1">
-								Alamat Email *
+								Alamat Email <span class="text-foreground/50 font-normal">(opsional)</span>
 							</label>
 							<input
 								id="email"
 								name="email"
 								type="email"
-								required
 								bind:value={newEmail}
 								placeholder="ahmad@example.com"
 								class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
