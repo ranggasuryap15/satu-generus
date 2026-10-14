@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(app)/fr/+page.svelte
-  @purpose Halaman antarmuka client jamaah untuk pengisian dan pelaporan Isrun/FR bulanan: filter jamaah & periode stacked atas-bawah responsif (bebas mepet), tabel spreadsheet 4 kolom terstruktur per kategori induk (A-D) mirip template KU, format pemisah ribuan titik tanpa konflik pattern HTML5, pemisahan kartu bank & QRIS, penguncian antarmuka otomatis (read-only/pasif) jika setoran telah disetujui KU, serta jalur komplain langsung ke KU
+  @purpose Halaman antarmuka client jamaah untuk pengisian dan pelaporan Isrun/FR bulanan: input angka riil reaktif dengan persistensi breakdown akurat, auto-disable saat pending/approved, mode edit dan pembatalan setoran mandiri dengan retensi angka sesi, tabel spreadsheet 4 kolom terstruktur per kategori induk (A-D) mirip template KU, format pemisah ribuan titik tanpa konflik pattern HTML5, pemisahan kartu bank & QRIS, serta jalur komplain langsung ke KU
   @usedBy Route client '/fr' (diakses via Quick Access Beranda 'Isrun/FR')
   @dependencies @lucide/svelte, $app/forms (enhance), Svelte 5 Runes
   @publicFunctions handleInputRiil, handleNumberKeyDown, handleCopySaranKeRiil, handleResetRiil, formatRp, copyToClipboard
-  @sideEffects Mengirim form data setoran FR mandiri ke server action simpanSetoran di SQLite (ditolak jika sudah berstatus Diterima/Lunas)
+  @sideEffects Mengirim form data setoran FR mandiri (simpanSetoran) dan pembatalan setoran (batalkanSetoran) ke SQLite
 -->
 <script lang="ts">
 	import {
@@ -24,9 +24,11 @@
 		Layers,
 		Lock,
 		MessageCircleWarning,
+		Pencil,
 		Phone,
 		QrCode,
 		RefreshCw,
+		RotateCcw,
 		Send,
 		ShieldCheck,
 		UploadCloud,
@@ -45,8 +47,20 @@
 		data.transaksiExisting?.statusBayar === 'Diterima' || data.transaksiExisting?.statusBayar === 'Lunas'
 	);
 
+	// Status apakah setoran sedang menunggu konfirmasi KU
+	const isPending = $derived(
+		data.transaksiExisting?.statusBayar === 'Menunggu Konfirmasi'
+	);
+
+	// Mode edit saat setoran berstatus Menunggu Konfirmasi (atau setelah pembatalan sementara)
+	let isEditing = $state(false);
+
+	// Form terkunci / disabled jika sudah disetujui, atau jika pending dan TIDAK dalam mode edit
+	const isLocked = $derived(isApproved || (isPending && !isEditing));
+
 	// State interaktif
 	let isSubmitting = $state(false);
+	let isCancelling = $state(false);
 	let selectedBulan = $state(data.bulan);
 	let selectedTahun = $state(data.tahun);
 	let selectedAnggotaId = $state(data.activeAnggota?.id || '');
@@ -172,6 +186,7 @@
 				break;
 			}
 		}
+		categories = [...categories];
 	}
 
 	// Helper format Rupiah tampilan
@@ -187,6 +202,7 @@
 				row.riilInputString = row.nominalJumlah > 0 ? row.nominalJumlah.toLocaleString('id-ID') : '';
 			}
 		}
+		categories = [...categories];
 	}
 
 	// Action tombol cepat: Kosongkan isian
@@ -197,6 +213,7 @@
 				row.riilInputString = '';
 			}
 		}
+		categories = [...categories];
 	}
 
 	// Derived Total Jumlah Saran & Total Riil Bayar
@@ -463,6 +480,108 @@
 				<span>Komplain</span>
 			</button>
 		</div>
+	{:else if isPending}
+		<!-- Banner Status Menunggu Konfirmasi dengan Aksi Edit & Batalkan -->
+		<div class="p-3.5 sm:p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+			<div class="flex items-center gap-2.5">
+				<div class="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+					<Clock class="w-4 h-4" />
+				</div>
+				<div>
+					<div class="flex items-center gap-2 flex-wrap">
+						<p class="text-xs font-bold text-foreground">
+							Setoran Sedang Menunggu Konfirmasi KU
+						</p>
+						<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300">
+							{isEditing ? 'Mode Edit Aktif' : 'Terkunci'}
+						</span>
+					</div>
+					<p class="text-[11px] text-foreground/60 mt-0.5">
+						{isEditing ? 'Silakan perbaiki angka setoran, lalu tekan Simpan Perubahan di bagian bawah.' : 'Kolom rincian dikunci. Anda dapat mengedit atau membatalkan setoran ini sebelum disetujui KU.'}
+					</p>
+				</div>
+			</div>
+
+			<div class="flex items-center gap-2 w-full sm:w-auto shrink-0">
+				{#if !isEditing}
+					<button
+						type="button"
+						onclick={() => (isEditing = true)}
+						class="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-200 border border-amber-500/30 text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-2xs whitespace-nowrap"
+					>
+						<Pencil class="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+						<span>Edit Setoran</span>
+					</button>
+
+					<form
+						method="POST"
+						action="?/batalkanSetoran"
+						use:enhance={() => {
+							isCancelling = true;
+							return async ({ result, update }) => {
+								isCancelling = false;
+								if (result.type === 'success') {
+									// Pertahankan angka di categories saat ini agar jamaah bisa langsung mengedit & simpan lagi
+									const snapshot = categories.map((c) => ({
+										...c,
+										subPos: c.subPos.map((s) => ({ ...s }))
+									}));
+									await update({ reset: false });
+									categories = snapshot;
+									isEditing = true;
+									showSuccessToast = true;
+								} else {
+									await update();
+								}
+							};
+						}}
+						class="flex-1 sm:flex-initial"
+					>
+						<input type="hidden" name="anggotaId" value={data.activeAnggota?.id || ''} />
+						<input type="hidden" name="tahun" value={selectedTahun} />
+						<input type="hidden" name="bulan" value={selectedBulan} />
+						<button
+							type="submit"
+							disabled={isCancelling}
+							class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/30 text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-2xs whitespace-nowrap disabled:opacity-50"
+						>
+							<RotateCcw class="w-3.5 h-3.5 text-rose-600" />
+							<span>{isCancelling ? 'Membatalkan...' : 'Batalkan'}</span>
+						</button>
+					</form>
+				{:else}
+					<button
+						type="button"
+						onclick={() => {
+							isEditing = false;
+							// Kembalikan ke angka semula dari server
+							if (data.categoriesWithPos) {
+								categories = data.categoriesWithPos.map((cat: any) => ({
+									id: cat.id,
+									nama: cat.nama,
+									labelKategori: cat.labelKategori,
+									subPos: (cat.subPos || []).map((p: any) => {
+										const riilNum = Number(p.nominalRiilBayar) || 0;
+										return {
+											posId: p.posId,
+											kode: p.kode,
+											nama: p.nama,
+											isWajib: p.isWajib,
+											nominalJumlah: Number(p.nominalJumlah) || 0,
+											nominalRiil: riilNum,
+											riilInputString: riilNum > 0 ? riilNum.toLocaleString('id-ID') : ''
+										};
+									})
+								}));
+							}
+						}}
+						class="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground/70 border border-border text-xs font-semibold transition-all active:scale-95 cursor-pointer shadow-2xs whitespace-nowrap"
+					>
+						<span>Batal Edit</span>
+					</button>
+				{/if}
+			</div>
+		</div>
 	{/if}
 
 	<!-- Feedback Alert Berhasil / Gagal -->
@@ -483,18 +602,35 @@
 		method="POST"
 		action="?/simpanSetoran"
 		enctype="multipart/form-data"
-		use:enhance={({ cancel }) => {
+		use:enhance={({ cancel, formData }) => {
 			if (totalRiilBayar <= 0) {
 				errorMessageToast = 'Silakan isi nominal pada kolom Riil Bayar (minimal Rp 1) terlebih dahulu sebelum menyimpan.';
 				cancel();
 				return;
 			}
+
+			// Pastikan rincian yang dikirim selalu sinkron dengan state categories terbaru
+			const list: Array<{ posId: string; nama: string; kode: string; saran: number; riil: number }> = [];
+			for (const cat of categories) {
+				for (const r of cat.subPos) {
+					list.push({
+						posId: r.posId,
+						nama: r.nama,
+						kode: r.kode,
+						saran: r.nominalJumlah,
+						riil: r.nominalRiil
+					});
+				}
+			}
+			formData.set('rincian', JSON.stringify(list));
+
 			isSubmitting = true;
 			errorMessageToast = null;
 			return async ({ update, result }) => {
 				await update();
 				isSubmitting = false;
 				if (result.type === 'success') {
+					isEditing = false;
 					showSuccessToast = true;
 					previewBukti = null;
 					window.scrollTo({ top: 0, behavior: 'smooth' });
