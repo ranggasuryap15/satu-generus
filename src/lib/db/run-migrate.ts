@@ -7,23 +7,29 @@
  * @sideEffects Menjalankan file SQL di folder drizzle/ ke PostgreSQL lalu menutup pool
  */
 
-import { migrate } from 'drizzle-orm/postgres-js/migrator';
-import { db, client } from './index';
-import path from 'node:path';
+import "dotenv/config";
+import { migrate } from "drizzle-orm/postgres-js/migrator";
+import path from "node:path";
+import { client, db } from "./index";
 
 export async function runMigrations() {
-	console.log('🔄 Menjalankan migrasi Drizzle ke PostgreSQL...');
-	await migrate(db, { migrationsFolder: path.resolve(process.cwd(), 'drizzle') });
-	console.log('✅ Migrasi database berhasil diterapkan.');
+  console.log("🔄 Menjalankan migrasi Drizzle ke PostgreSQL...");
+  await migrate(db, {
+    migrationsFolder: path.resolve(process.cwd(), "drizzle"),
+  });
+  console.log("✅ Migrasi database berhasil diterapkan.");
 }
 
 // Eksekusi langsung jika dipanggil via tsx/node
-if (process.argv[1]?.endsWith('run-migrate.ts') || process.argv[1]?.endsWith('run-migrate.js')) {
-	runMigrations()
-		.then(() => client.end())
-		.catch(async (error) => {
-			console.error('❌ Gagal menjalankan migrasi:', error);
-			await client.end();
-			process.exit(1);
-		});
+if (
+  process.argv[1]?.endsWith("run-migrate.ts") ||
+  process.argv[1]?.endsWith("run-migrate.js")
+) {
+  runMigrations()
+    .then(() => client.end())
+    .catch(async (error) => {
+      console.error("❌ Gagal menjalankan migrasi:", error);
+      await client.end();
+      process.exit(1);
+    });
 }
