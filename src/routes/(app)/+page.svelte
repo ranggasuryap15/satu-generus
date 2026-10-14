@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(app)/+page.svelte
-  @purpose Halaman beranda client/jamaah (Mobile-First) dengan standar Zero Over-Information: launcher Quick Access 4 kolom (Presensi, Isrun/FR, Keluarga, SI-PPG), jadwal pengajian, dan modal ekosistem aplikasi
+  @purpose Halaman beranda client/jamaah (Mobile-First) dengan standar Zero Over-Information: launcher Quick Access 5 kolom (Presensi, Isrun/FR, Keluarga, SI-PPG, Lainnya), jadwal pengajian, dan modal ekosistem aplikasi
   @usedBy Route utama client '/'
   @dependencies @lucide/svelte, $lib/utils (formatDateDDMMYYYY), $lib/jadwal (formatDateIndoFull), Svelte 5 Runes
   @publicFunctions openAppDetail, closeModals
@@ -82,8 +82,8 @@
 			</button>
 		</div>
 
-		<!-- Grid Ikon Aplikasi: 4 Kolom Proporsional di Mobile & Tablet -->
-		<div class="grid grid-cols-4 gap-2 sm:gap-4 text-center">
+		<!-- Grid Ikon Aplikasi: 5 Kolom Proporsional di Mobile & Tablet -->
+		<div class="grid grid-cols-5 gap-2 sm:gap-3 text-center">
 			<!-- 1. Presensi -->
 			<a
 				href="/presensi"
@@ -134,6 +134,20 @@
 				</div>
 				<span class="text-[11px] sm:text-xs font-semibold text-foreground mt-1.5 leading-tight group-hover:text-primary transition-colors">
 					SI-PPG
+				</span>
+			</button>
+
+			<!-- 5. Lainnya (Etc) -->
+			<button
+				type="button"
+				onclick={() => (showAppsModal = true)}
+				class="flex flex-col items-center group transition-all"
+			>
+				<div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-secondary border border-border text-foreground/70 flex items-center justify-center shadow-xs group-hover:scale-105 group-hover:text-primary group-active:scale-95 transition-all">
+					<LayoutGrid class="w-6 h-6 stroke-[2.2]" />
+				</div>
+				<span class="text-xs sm:text-sm font-semibold text-foreground mt-1.5 leading-tight group-hover:text-primary transition-colors">
+					Lainnya
 				</span>
 			</button>
 		</div>
