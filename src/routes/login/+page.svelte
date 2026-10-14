@@ -1,8 +1,8 @@
 <!--
   @file src/routes/login/+page.svelte
-  @purpose Halaman autentikasi login pengguna Satu Generus (Jamaah & Admin) dengan footer identitas pembuat
+  @purpose Halaman autentikasi login pengguna Satu Generus (Jamaah & Admin) dengan toggle lihat/sembunyikan kata sandi dan footer identitas pembuat
   @usedBy Route '/login'
-  @dependencies lucide-svelte, src/lib/components/ThemeToggle.svelte, src/lib/components/AppFooter.svelte, $app/forms (enhance)
+  @dependencies lucide-svelte (termasuk Eye/EyeOff), #lib/components/ThemeToggle.svelte, #lib/components/AppFooter.svelte, $app/forms (enhance)
   @publicFunctions N/A (Svelte Component)
   @sideEffects Mengirim formulir login kredensial pengguna dan menampilkan pesan validasi
 -->
@@ -10,7 +10,7 @@
 	import { enhance } from '$app/forms';
 	import ThemeToggle from '#lib/components/ThemeToggle.svelte';
 	import AppFooter from '#lib/components/AppFooter.svelte';
-	import { AlertCircle, ArrowRight, Lock, Mail, ShieldCheck } from '@lucide/svelte';
+	import { AlertCircle, ArrowRight, Eye, EyeOff, Lock, Mail, ShieldCheck } from '@lucide/svelte';
 	import type { ActionData } from './$types';
 
 	let { form } = $props<{ form: ActionData }>();
@@ -18,6 +18,7 @@
 	let identifier = $state('');
 	let password = $state('');
 	let rememberMe = $state(false);
+	let showPassword = $state(false);
 
 	$effect(() => {
 		if (form?.identifier) {
@@ -87,12 +88,26 @@
 						<input
 							id="password"
 							name="password"
-							type="password"
+							type={showPassword ? 'text' : 'password'}
 							required
 							bind:value={password}
 							placeholder="••••••••"
-							class="w-full bg-secondary/50 border border-border rounded-lg pl-9 pr-3.5 py-2.5 text-sm text-foreground placeholder:text-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
+							class="w-full bg-secondary/50 border border-border rounded-lg pl-9 pr-11 py-2.5 text-sm text-foreground placeholder:text-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
 						/>
+						<button
+							type="button"
+							onclick={() => (showPassword = !showPassword)}
+							aria-label={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+							aria-pressed={showPassword}
+							title={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+							class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-foreground/40 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary transition-colors cursor-pointer"
+						>
+							{#if showPassword}
+								<EyeOff class="w-4 h-4" />
+							{:else}
+								<Eye class="w-4 h-4" />
+							{/if}
+						</button>
 					</div>
 				</div>
 
