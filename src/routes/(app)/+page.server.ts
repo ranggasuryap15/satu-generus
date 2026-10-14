@@ -9,7 +9,7 @@
 
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { db } from '$lib/db';
+import { db, first } from '$lib/db';
 import { desa, kelompok, presensiJadwal } from '$lib/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
 import { getKeluargaForUser } from '$lib/server/sensus';
@@ -24,7 +24,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	let desaNama = 'Desa Jamaah';
 
 	if (locals.user.kelompokId) {
-		const kel = db
+		const kel = (await first(db
 			.select({
 				id: kelompok.id,
 				nama: kelompok.nama,
@@ -34,7 +34,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.from(kelompok)
 			.leftJoin(desa, eq(kelompok.desaId, desa.id))
 			.where(eq(kelompok.id, locals.user.kelompokId))
-			.get();
+			));
 
 		if (kel) {
 			kelompokNama = kel.nama;
@@ -44,8 +44,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 
 	// Jadwal pengajian kelompok jamaah terbaru
-	const upcomingJadwalKelompok = locals.user.kelompokId
-		? db
+	const upcomingJadwalKelompok = (await (locals.user.kelompokId ? db
 				.select()
 				.from(presensiJadwal)
 				.where(
@@ -55,13 +54,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 					)
 				)
 				.orderBy(desc(presensiJadwal.tanggal))
-				.limit(4)
-				.all()
-		: [];
+				.limit(4) : []));
 
 	// Jadwal pengajian tingkat desa jamaah terbaru
-	const upcomingJadwalDesa = desaId
-		? db
+	const upcomingJadwalDesa = (await (desaId ? db
 				.select()
 				.from(presensiJadwal)
 				.where(
@@ -71,13 +67,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 					)
 				)
 				.orderBy(desc(presensiJadwal.tanggal))
-				.limit(4)
-				.all()
-		: [];
+				.limit(4) : []));
 
 	return {
 		user: locals.user,
-		hasKeluarga: getKeluargaForUser(locals.user.id) !== null,
+		hasKeluarga: await getKeluargaForUser(locals.user.id) !== null,
 		kelompokNama,
 		desaNama,
 		upcomingJadwalKelompok,

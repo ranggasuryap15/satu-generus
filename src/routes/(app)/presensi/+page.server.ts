@@ -9,7 +9,7 @@
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { db } from '$lib/db';
+import { db, first } from '$lib/db';
 import { presensiJadwal, presensiKehadiran, kelompok } from '$lib/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
 import { saveUploadedFile } from '$lib/server/upload';
@@ -32,27 +32,23 @@ export const load: PageServerLoad = async ({ locals }) => {
 	let kelompokData: (typeof kelompok.$inferSelect) | undefined = undefined;
 
 	if (userKelompokId) {
-		kelompokData = db.select().from(kelompok).where(eq(kelompok.id, userKelompokId)).get();
+		kelompokData = (await first(db.select().from(kelompok).where(eq(kelompok.id, userKelompokId))));
 		if (kelompokData) kelompokNama = kelompokData.nama;
 	}
 
 	// Ambil jadwal kegiatan untuk kelompok jamaah
-	const jadwalList = userKelompokId
-		? db
+	const jadwalList = (await (userKelompokId ? db
 				.select()
 				.from(presensiJadwal)
 				.where(eq(presensiJadwal.kelompokId, userKelompokId))
-				.orderBy(desc(presensiJadwal.tanggal))
-				.all()
-		: [];
+				.orderBy(desc(presensiJadwal.tanggal)) : []));
 
 	// Ambil riwayat kehadiran jamaah ini
-	const kehadiranRecords = db
+	const kehadiranRecords = (await db
 		.select()
 		.from(presensiKehadiran)
 		.where(eq(presensiKehadiran.userId, locals.user.id))
-		.all();
-
+);
 	const recordMap = new Map<number, (typeof kehadiranRecords)[number]>();
 	kehadiranRecords.forEach((k) => {
 		recordMap.set(k.jadwalId, k);
@@ -139,7 +135,7 @@ export const actions: Actions = {
 		}
 
 		// Validasi Jadwal Kegiatan
-		const jadwal = db.select().from(presensiJadwal).where(eq(presensiJadwal.id, jadwalId)).get();
+		const jadwal = (await first(db.select().from(presensiJadwal).where(eq(presensiJadwal.id, jadwalId))));
 		if (!jadwal) {
 			return fail(404, { error: 'Jadwal kegiatan pengajian tidak ditemukan.' });
 		}
@@ -169,7 +165,7 @@ export const actions: Actions = {
 			// Ambil detail kelompok untuk validasi jarak radius
 			const targetKelompokId = jadwal.kelompokId || locals.user.kelompokId;
 			const targetKelompok = targetKelompokId
-				? db.select().from(kelompok).where(eq(kelompok.id, targetKelompokId)).get()
+				? await first(db.select().from(kelompok).where(eq(kelompok.id, targetKelompokId)))
 				: null;
 
 			const targetLatStr = jadwal.latitude || targetKelompok?.latitude || null;
@@ -246,7 +242,7 @@ export const actions: Actions = {
 
 		// Simpan atau Perbarui Kehadiran
 		try {
-			const existing = db
+			const existing = (await first(db
 				.select()
 				.from(presensiKehadiran)
 				.where(
@@ -255,12 +251,12 @@ export const actions: Actions = {
 						eq(presensiKehadiran.userId, locals.user.id)
 					)
 				)
-				.get();
+				));
 
 			const nowUnix = Math.floor(Date.now() / 1000);
 
 			if (existing) {
-				db.update(presensiKehadiran)
+(await db.update(presensiKehadiran)
 					.set({
 						status: 'Hadir',
 						metodeKehadiran: metode,
@@ -273,9 +269,9 @@ export const actions: Actions = {
 						waktuScan: nowUnix
 					})
 					.where(eq(presensiKehadiran.id, existing.id))
-					.run();
+);
 			} else {
-				db.insert(presensiKehadiran)
+(await db.insert(presensiKehadiran)
 					.values({
 						jadwalId,
 						userId: locals.user.id,
@@ -289,7 +285,7 @@ export const actions: Actions = {
 						statusApproval: 'Disetujui',
 						waktuScan: nowUnix
 					})
-					.run();
+);
 			}
 		} catch (dbErr) {
 			console.error('Error saat menyimpan presensi mandiri:', dbErr);
@@ -339,7 +335,7 @@ export const actions: Actions = {
 		}
 
 		try {
-			const existing = db
+			const existing = (await first(db
 				.select()
 				.from(presensiKehadiran)
 				.where(
@@ -348,12 +344,12 @@ export const actions: Actions = {
 						eq(presensiKehadiran.userId, locals.user.id)
 					)
 				)
-				.get();
+				));
 
 			const nowUnix = Math.floor(Date.now() / 1000);
 
 			if (existing) {
-				db.update(presensiKehadiran)
+(await db.update(presensiKehadiran)
 					.set({
 						status,
 						metodeKehadiran: 'izin',
@@ -366,9 +362,9 @@ export const actions: Actions = {
 						waktuScan: nowUnix
 					})
 					.where(eq(presensiKehadiran.id, existing.id))
-					.run();
+);
 			} else {
-				db.insert(presensiKehadiran)
+(await db.insert(presensiKehadiran)
 					.values({
 						jadwalId,
 						userId: locals.user.id,
@@ -382,7 +378,7 @@ export const actions: Actions = {
 						statusApproval: 'Menunggu Persetujuan',
 						waktuScan: nowUnix
 					})
-					.run();
+);
 			}
 		} catch (dbErr) {
 			console.error('Error saat menyimpan permohonan izin:', dbErr);

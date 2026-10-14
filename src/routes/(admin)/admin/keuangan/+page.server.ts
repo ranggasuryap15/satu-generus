@@ -25,7 +25,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	}
 
 	const adminScope = getAdminScope(roles);
-	const accessibleWilayah = getAccessibleWilayah(adminScope);
+	const accessibleWilayah = await getAccessibleWilayah(adminScope);
 
 	const currentYear = new Date().getFullYear();
 	const currentMonth = new Date().getMonth() + 1;
@@ -67,7 +67,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	if (targetKelompokIds.length > 0) {
 		// Total bulan ini
-		const [blnRes] = db
+		const [blnRes] = (await db
 			.select({
 				total: sql<number>`coalesce(sum(${transaksiFr.nominal}), 0)`,
 				count: sql<number>`count(case when ${transaksiFr.nominal} > 0 then 1 end)`
@@ -80,13 +80,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 					eq(transaksiFr.bulan, bulanParam)
 				)
 			)
-			.all();
-
+);
 		totalBulanIni = blnRes?.total ?? 0;
 		totalSudahSetorBulanIni = blnRes?.count ?? 0;
 
 		// Total tahun ini
-		const [thnRes] = db
+		const [thnRes] = (await db
 			.select({
 				total: sql<number>`coalesce(sum(${transaksiFr.nominal}), 0)`
 			})
@@ -97,12 +96,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 					eq(transaksiFr.tahun, tahunParam)
 				)
 			)
-			.all();
-
+);
 		totalTahunIni = thnRes?.total ?? 0;
 
 		// Total jamaah wajib isrun
-		const [wajibRes] = db
+		const [wajibRes] = (await db
 			.select({
 				count: sql<number>`count(distinct ${anggotaKeluarga.id})`
 			})
@@ -116,8 +114,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 					eq(anggotaKeluarga.statusJamaah, 'Aktif')
 				)
 			)
-			.all();
-
+);
 		totalWajibIsrun = wajibRes?.count ?? 0;
 	}
 
@@ -126,7 +123,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const namaBulanPendek = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
 	if (targetKelompokIds.length > 0) {
-		const rawTren = db
+		const rawTren = (await db
 			.select({
 				bulan: transaksiFr.bulan,
 				total: sql<number>`coalesce(sum(${transaksiFr.nominal}), 0)`
@@ -139,8 +136,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				)
 			)
 			.groupBy(transaksiFr.bulan)
-			.all();
-
+);
 		const trenMap = new Map(rawTren.map((t) => [t.bulan, t.total]));
 		trenBulanan = Array.from({ length: 12 }, (_, i) => {
 			const b = i + 1;
@@ -161,7 +157,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	}> = [];
 
 	if (targetKelompokIds.length > 1) {
-		const rawKomp = db
+		const rawKomp = (await db
 			.select({
 				kelompokId: transaksiFr.kelompokId,
 				total: sql<number>`coalesce(sum(${transaksiFr.nominal}), 0)`
@@ -175,8 +171,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				)
 			)
 			.groupBy(transaksiFr.kelompokId)
-			.all();
-
+);
 		const kompMap = new Map(rawKomp.map((k) => [k.kelompokId, k.total]));
 		komparasiKelompok = accessibleWilayah.kelompokList
 			.filter((k) => targetKelompokIds.includes(k.id))

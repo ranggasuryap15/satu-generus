@@ -9,7 +9,7 @@
 
 import { fail, redirect, type Cookies } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { db } from '$lib/db';
+import { db, first } from '$lib/db';
 import { jadwalPengajianTemplate, presensiJadwal, presensiKehadiran, kelompok, desa } from '$lib/db/schema';
 import { getAdminScope, getAccessibleWilayah, isKelompokAllowed } from '$lib/server/scope';
 import { hitungTanggalSesiBulanan } from '$lib/jadwal';
@@ -39,7 +39,7 @@ export const load: PageServerLoad = async ({ locals, url, cookies }) => {
 	}
 
 	const adminScope = getAdminScope(locals.roles);
-	const accessibleWilayah = getAccessibleWilayah(adminScope);
+	const accessibleWilayah = await getAccessibleWilayah(adminScope);
 
 	const isKelompokOnly = adminScope.level === 'Kelompok';
 	const canManageDesa =
@@ -123,7 +123,7 @@ export const load: PageServerLoad = async ({ locals, url, cookies }) => {
 	let desaSesiList: Array<typeof presensiJadwal.$inferSelect> = [];
 
 	if (canManageDesa && selectedDesaId) {
-		desaTemplates = db
+		desaTemplates = (await db
 			.select()
 			.from(jadwalPengajianTemplate)
 			.where(
@@ -133,9 +133,8 @@ export const load: PageServerLoad = async ({ locals, url, cookies }) => {
 				)
 			)
 			.orderBy(asc(jadwalPengajianTemplate.mingguKe), asc(jadwalPengajianTemplate.hari))
-			.all();
-
-		desaSesiList = db
+);
+		desaSesiList = (await db
 			.select()
 			.from(presensiJadwal)
 			.where(
@@ -146,7 +145,7 @@ export const load: PageServerLoad = async ({ locals, url, cookies }) => {
 			)
 			.orderBy(desc(presensiJadwal.tanggal))
 			.limit(50)
-			.all();
+);
 	}
 
 	// 2. Query Data Jadwal Kelompok (Template Rutin & Sesi Konkret)
@@ -154,7 +153,7 @@ export const load: PageServerLoad = async ({ locals, url, cookies }) => {
 	let kelompokSesiList: Array<typeof presensiJadwal.$inferSelect> = [];
 
 	if (selectedKelompokId) {
-		kelompokTemplates = db
+		kelompokTemplates = (await db
 			.select()
 			.from(jadwalPengajianTemplate)
 			.where(
@@ -164,9 +163,8 @@ export const load: PageServerLoad = async ({ locals, url, cookies }) => {
 				)
 			)
 			.orderBy(asc(jadwalPengajianTemplate.hari))
-			.all();
-
-		kelompokSesiList = db
+);
+		kelompokSesiList = (await db
 			.select()
 			.from(presensiJadwal)
 			.where(
@@ -177,7 +175,7 @@ export const load: PageServerLoad = async ({ locals, url, cookies }) => {
 			)
 			.orderBy(desc(presensiJadwal.tanggal))
 			.limit(50)
-			.all();
+);
 	}
 
 	return {
@@ -235,7 +233,7 @@ export const actions: Actions = {
 
 		// Validasi hak akses scope
 		const adminScope = getAdminScope(locals.roles);
-		const accessibleWilayah = getAccessibleWilayah(adminScope);
+		const accessibleWilayah = await getAccessibleWilayah(adminScope);
 
 		if (tingkatScope === 'Kelompok') {
 			if (!kelompokId || !isKelompokAllowed(kelompokId, accessibleWilayah.allowedKelompokIdSet, adminScope.isPusat)) {
@@ -256,7 +254,7 @@ export const actions: Actions = {
 		let targetRadius = 100;
 
 		if (tingkatScope === 'Desa' && desaId) {
-			const desaRow = db.select().from(desa).where(eq(desa.id, desaId)).get();
+			const desaRow = (await first(db.select().from(desa).where(eq(desa.id, desaId))));
 			if (desaRow) {
 				if (!finalLokasiNama) finalLokasiNama = desaRow.lokasiNama || desaRow.nama;
 				if (!finalGmapsUrl) {
@@ -271,7 +269,7 @@ export const actions: Actions = {
 				targetRadius = desaRow.radiusMeter || 100;
 			}
 		} else if (tingkatScope === 'Kelompok' && kelompokId) {
-			const kelompokRow = db.select().from(kelompok).where(eq(kelompok.id, kelompokId)).get();
+			const kelompokRow = (await first(db.select().from(kelompok).where(eq(kelompok.id, kelompokId))));
 			if (kelompokRow) {
 				if (!finalLokasiNama) finalLokasiNama = kelompokRow.lokasiNama || kelompokRow.nama;
 				if (!finalGmapsUrl) {
@@ -289,7 +287,7 @@ export const actions: Actions = {
 
 		try {
 			if (templateId) {
-				db.update(jadwalPengajianTemplate)
+(await db.update(jadwalPengajianTemplate)
 					.set({
 						tingkatScope,
 						desaId: tingkatScope === 'Desa' ? desaId : null,
@@ -309,9 +307,9 @@ export const actions: Actions = {
 						gmapsUrl: finalGmapsUrl
 					})
 					.where(eq(jadwalPengajianTemplate.id, templateId))
-					.run();
+);
 			} else {
-				db.insert(jadwalPengajianTemplate)
+(await db.insert(jadwalPengajianTemplate)
 					.values({
 						tingkatScope,
 						desaId: tingkatScope === 'Desa' ? desaId : null,
@@ -331,7 +329,7 @@ export const actions: Actions = {
 						gmapsUrl: finalGmapsUrl,
 						isActive: true
 					})
-					.run();
+);
 			}
 
 			return { success: true, message: 'Template Jadwal Tersimpan' };
@@ -352,11 +350,11 @@ export const actions: Actions = {
 		if (!id) return fail(400, { error: 'ID template tidak valid.' });
 
 		try {
-			const existing = db.select().from(jadwalPengajianTemplate).where(eq(jadwalPengajianTemplate.id, id)).get();
+			const existing = (await first(db.select().from(jadwalPengajianTemplate).where(eq(jadwalPengajianTemplate.id, id))));
 			if (existing) {
 				syncJadwalCookies(cookies, existing.tingkatScope, existing.desaId, existing.kelompokId);
 			}
-			db.delete(jadwalPengajianTemplate).where(eq(jadwalPengajianTemplate.id, id)).run();
+			await db.delete(jadwalPengajianTemplate).where(eq(jadwalPengajianTemplate.id, id));
 			return { success: true, message: 'Template Jadwal Dihapus' };
 		} catch (err) {
 			console.error('Error menghapus template jadwal:', err);
@@ -379,7 +377,7 @@ export const actions: Actions = {
 
 		// Validasi scope wewenang
 		const adminScope = getAdminScope(locals.roles);
-		const accessibleWilayah = getAccessibleWilayah(adminScope);
+		const accessibleWilayah = await getAccessibleWilayah(adminScope);
 
 		if (tingkatScope === 'Kelompok') {
 			if (!kelompokId || !isKelompokAllowed(kelompokId, accessibleWilayah.allowedKelompokIdSet, adminScope.isPusat)) {
@@ -394,7 +392,7 @@ export const actions: Actions = {
 		syncJadwalCookies(cookies, tingkatScope, desaId, kelompokId);
 
 		// Ambil seluruh template aktif untuk scope ini
-		const templates = db
+		const templates = (await db
 			.select()
 			.from(jadwalPengajianTemplate)
 			.where(
@@ -406,8 +404,7 @@ export const actions: Actions = {
 					eq(jadwalPengajianTemplate.isActive, true)
 				)
 			)
-			.all();
-
+);
 		if (templates.length === 0) {
 			return fail(400, {
 				error: 'Belum ada template jadwal rutin yang dibuat. Silakan tambahkan template terlebih dahulu.'
@@ -424,7 +421,7 @@ export const actions: Actions = {
 		let defaultRadius = 100;
 
 		if (tingkatScope === 'Desa' && desaId) {
-			const dRow = db.select().from(desa).where(eq(desa.id, desaId)).get();
+			const dRow = (await first(db.select().from(desa).where(eq(desa.id, desaId))));
 			if (dRow) {
 				defaultLokasiNama = dRow.lokasiNama || dRow.nama;
 				defaultGmapsUrl =
@@ -437,7 +434,7 @@ export const actions: Actions = {
 				defaultRadius = dRow.radiusMeter || 100;
 			}
 		} else if (tingkatScope === 'Kelompok' && kelompokId) {
-			const kRow = db.select().from(kelompok).where(eq(kelompok.id, kelompokId)).get();
+			const kRow = (await first(db.select().from(kelompok).where(eq(kelompok.id, kelompokId))));
 			if (kRow) {
 				defaultLokasiNama = kRow.lokasiNama || kRow.nama;
 				defaultGmapsUrl =
@@ -452,7 +449,7 @@ export const actions: Actions = {
 		}
 
 		try {
-			db.transaction((tx) => {
+			await db.transaction(async (tx) => {
 				for (const tmpl of templates) {
 					const dates = hitungTanggalSesiBulanan({
 						year,
@@ -464,7 +461,7 @@ export const actions: Actions = {
 
 					for (const tanggal of dates) {
 						// Periksa apakah sesi pada tanggal ini sudah ada agar tidak menimpa override
-						const existing = tx
+						const existing = (await first(tx
 							.select({ id: presensiJadwal.id })
 							.from(presensiJadwal)
 							.where(
@@ -476,14 +473,14 @@ export const actions: Actions = {
 									eq(presensiJadwal.tanggal, tanggal)
 								)
 							)
-							.get();
+							));
 
 						if (existing) {
 							skippedCount++;
 							continue;
 						}
 
-						tx.insert(presensiJadwal)
+(await tx.insert(presensiJadwal)
 							.values({
 								tingkatScope,
 								desaId: tingkatScope === 'Desa' ? desaId : null,
@@ -502,8 +499,7 @@ export const actions: Actions = {
 								radiusMeter: tmpl.radiusMeter || defaultRadius,
 								gmapsUrl: tmpl.gmapsUrl || defaultGmapsUrl
 							})
-							.run();
-
+);
 						createdCount++;
 					}
 				}
@@ -553,7 +549,7 @@ export const actions: Actions = {
 		let targetRadius = 100;
 
 		if (tingkatScope === 'Desa' && desaId) {
-			const desaRow = db.select().from(desa).where(eq(desa.id, desaId)).get();
+			const desaRow = (await first(db.select().from(desa).where(eq(desa.id, desaId))));
 			if (desaRow) {
 				if (!finalLokasiNama) finalLokasiNama = desaRow.lokasiNama || desaRow.nama;
 				if (!finalGmapsUrl) {
@@ -568,7 +564,7 @@ export const actions: Actions = {
 				targetRadius = desaRow.radiusMeter || 100;
 			}
 		} else if (tingkatScope === 'Kelompok' && kelompokId) {
-			const kelompokRow = db.select().from(kelompok).where(eq(kelompok.id, kelompokId)).get();
+			const kelompokRow = (await first(db.select().from(kelompok).where(eq(kelompok.id, kelompokId))));
 			if (kelompokRow) {
 				if (!finalLokasiNama) finalLokasiNama = kelompokRow.lokasiNama || kelompokRow.nama;
 				if (!finalGmapsUrl) {
@@ -585,7 +581,7 @@ export const actions: Actions = {
 		}
 
 		try {
-			db.insert(presensiJadwal)
+(await db.insert(presensiJadwal)
 				.values({
 					tingkatScope,
 					desaId: tingkatScope === 'Desa' ? desaId : null,
@@ -603,8 +599,7 @@ export const actions: Actions = {
 					longitude: targetLng,
 					radiusMeter: targetRadius
 				})
-				.run();
-
+);
 			return { success: true, message: 'Jadwal Pengajian Dibuat' };
 		} catch (err) {
 			console.error('Error create sesi manual:', err);
@@ -635,11 +630,12 @@ export const actions: Actions = {
 		if (!jamMulai) return fail(400, { error: 'Jam mulai wajib diisi.' });
 
 		try {
-			const existing = db.select().from(presensiJadwal).where(eq(presensiJadwal.id, id)).get();
+			const existing = (await first(db.select().from(presensiJadwal).where(eq(presensiJadwal.id, id))));
 			if (existing) {
 				syncJadwalCookies(cookies, existing.tingkatScope, existing.desaId, existing.kelompokId);
 			}
-			db.update(presensiJadwal)
+			await db
+				.update(presensiJadwal)
 				.set({
 					jamMulai,
 					jamSelesai,
@@ -650,8 +646,7 @@ export const actions: Actions = {
 					lokasiNama,
 					gmapsUrl
 				})
-				.where(eq(presensiJadwal.id, id))
-				.run();
+				.where(eq(presensiJadwal.id, id));
 
 			return { success: true, message: 'Jadwal Berhasil Diperbarui' };
 		} catch (err) {
@@ -671,13 +666,13 @@ export const actions: Actions = {
 		if (!id) return fail(400, { error: 'ID sesi tidak valid.' });
 
 		try {
-			const existing = db.select().from(presensiJadwal).where(eq(presensiJadwal.id, id)).get();
+			const existing = (await first(db.select().from(presensiJadwal).where(eq(presensiJadwal.id, id))));
 			if (existing) {
 				syncJadwalCookies(cookies, existing.tingkatScope, existing.desaId, existing.kelompokId);
 			}
 			// Hapus kehadiran terkait lebih dulu untuk integritas data terjamin
-			db.delete(presensiKehadiran).where(eq(presensiKehadiran.jadwalId, id)).run();
-			db.delete(presensiJadwal).where(eq(presensiJadwal.id, id)).run();
+			await db.delete(presensiKehadiran).where(eq(presensiKehadiran.jadwalId, id));
+(await db.delete(presensiJadwal).where(eq(presensiJadwal.id, id)));
 			return { success: true, message: 'Jadwal Dihapus' };
 		} catch (err) {
 			console.error('Error delete sesi:', err);

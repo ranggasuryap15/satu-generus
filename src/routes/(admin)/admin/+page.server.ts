@@ -20,7 +20,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 
 	const adminScope = getAdminScope(locals.roles || []);
-	const accessibleWilayah = getAccessibleWilayah(adminScope);
+	const accessibleWilayah = await getAccessibleWilayah(adminScope);
 
 	let totalJamaah = 0;
 	let totalKeluarga = 0;
@@ -35,22 +35,21 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	if (adminScope.isPusat) {
 		// 1. Superadmin / Pusat: Agregasi global cepat
-		const [jamaahCountRes] = db.select({ val: count() }).from(users).all();
-		const [keluargaCountRes] = db.select({ val: count() }).from(keluarga).all();
-		const [jadwalCountRes] = db.select({ val: count() }).from(presensiJadwal).all();
-		const [pengurusCountRes] = db
+		const [jamaahCountRes] = (await db.select({ val: count() }).from(users));
+		const [keluargaCountRes] = (await db.select({ val: count() }).from(keluarga));
+		const [jadwalCountRes] = (await db.select({ val: count() }).from(presensiJadwal));
+		const [pengurusCountRes] = (await db
 			.select({ val: count() })
 			.from(userDapukan)
 			.innerJoin(dapukan, eq(userDapukan.dapukanId, dapukan.id))
 			.where(eq(dapukan.is4S, true))
-			.all();
-
+);
 		totalJamaah = jamaahCountRes?.val ?? 0;
 		totalKeluarga = keluargaCountRes?.val ?? 0;
 		totalJadwal = jadwalCountRes?.val ?? 0;
 		totalPengurus = pengurusCountRes?.val ?? 0;
 
-		recentJadwal = db
+		recentJadwal = (await db
 			.select({
 				id: presensiJadwal.id,
 				tanggal: presensiJadwal.tanggal,
@@ -61,27 +60,27 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.leftJoin(kelompok, eq(presensiJadwal.kelompokId, kelompok.id))
 			.orderBy(desc(presensiJadwal.tanggal))
 			.limit(50)
-			.all();
+);
 	} else {
 		// 2. Terbatas Scope Wilayah (Kelompok, Desa, atau Daerah)
 		const allowedKelompokIds = Array.from(accessibleWilayah.allowedKelompokIdSet);
 
 		if (allowedKelompokIds.length > 0) {
 			// A. Total Jamaah pada kelompok dalam scope admin
-			const [jamaahRes] = db
+			const [jamaahRes] = (await db
 				.select({ val: count() })
 				.from(users)
 				.where(inArray(users.kelompokId, allowedKelompokIds))
-				.all();
+);
 			totalJamaah = jamaahRes?.val ?? 0;
 
 			// B. Total Kartu Keluarga pada kelompok dalam scope (via kepala keluarga)
-			const [keluargaRes] = db
+			const [keluargaRes] = (await db
 				.select({ val: count() })
 				.from(keluarga)
 				.innerJoin(users, eq(keluarga.kepalaKeluargaId, users.id))
 				.where(inArray(users.kelompokId, allowedKelompokIds))
-				.all();
+);
 			totalKeluarga = keluargaRes?.val ?? 0;
 
 			// C. Filter Jadwal Kegiatan
@@ -111,15 +110,15 @@ export const load: PageServerLoad = async ({ locals }) => {
 			}
 
 			// Total Jadwal
-			const [jadwalRes] = db
+			const [jadwalRes] = (await db
 				.select({ val: count() })
 				.from(presensiJadwal)
 				.where(jadwalCondition)
-				.all();
+);
 			totalJadwal = jadwalRes?.val ?? 0;
 
 			// 5 Jadwal Terbaru Sesuai Scope
-			recentJadwal = db
+			recentJadwal = (await db
 				.select({
 					id: presensiJadwal.id,
 					tanggal: presensiJadwal.tanggal,
@@ -131,8 +130,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 				.where(jadwalCondition)
 				.orderBy(desc(presensiJadwal.tanggal))
 				.limit(50)
-				.all();
-
+);
 			// D. Pengurus 4S Aktif Sesuai Scope
 			let pengurusScopeCondition;
 			if (adminScope.level === 'Kelompok') {
@@ -154,7 +152,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 				);
 			}
 
-			const [pengurusRes] = db
+			const [pengurusRes] = (await db
 				.select({ val: count() })
 				.from(userDapukan)
 				.innerJoin(dapukan, eq(userDapukan.dapukanId, dapukan.id))
@@ -163,7 +161,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 						? and(eq(dapukan.is4S, true), pengurusScopeCondition)
 						: eq(dapukan.is4S, true)
 				)
-				.all();
+);
 			totalPengurus = pengurusRes?.val ?? 0;
 		}
 	}

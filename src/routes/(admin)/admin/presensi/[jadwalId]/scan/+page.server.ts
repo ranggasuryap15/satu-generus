@@ -9,7 +9,7 @@
 
 import { error, redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { db } from '$lib/db';
+import { db, first } from '$lib/db';
 import { presensiJadwal, kelompok } from '$lib/db/schema';
 import { eq } from 'drizzle-orm';
 
@@ -23,13 +23,13 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		throw error(400, 'ID jadwal tidak valid');
 	}
 
-	const jadwal = db.select().from(presensiJadwal).where(eq(presensiJadwal.id, jadwalId)).get();
+	const jadwal = (await first(db.select().from(presensiJadwal).where(eq(presensiJadwal.id, jadwalId))));
 	if (!jadwal) {
 		throw error(404, 'Jadwal pengajian tidak ditemukan');
 	}
 
 	const kelompokData = jadwal.kelompokId
-		? db.select().from(kelompok).where(eq(kelompok.id, jadwal.kelompokId)).get()
+		? await first(db.select().from(kelompok).where(eq(kelompok.id, jadwal.kelompokId)))
 		: null;
 
 	return {

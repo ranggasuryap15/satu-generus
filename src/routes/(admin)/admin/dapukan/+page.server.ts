@@ -9,7 +9,7 @@
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { db } from '$lib/db';
+import { db, first } from '$lib/db';
 import { dapukan, userDapukan, users, daerah, desa, kelompok } from '$lib/db/schema';
 import { eq, desc, and, ne } from 'drizzle-orm';
 import { getAdminScope, getAccessibleWilayah, isKelompokAllowed, canManageDapukan } from '$lib/server/scope';
@@ -20,13 +20,13 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 
 	const adminScope = getAdminScope(locals.roles || []);
-	const accessible = getAccessibleWilayah(adminScope);
+	const accessible = await getAccessibleWilayah(adminScope);
 
 	// 1. Master Dapukan Tetap
-	const masterDapukan = db.select().from(dapukan).all();
+	const masterDapukan = (await db.select().from(dapukan));
 
 	// 2. Daftar Penugasan Pengurus Aktif join Users, Dapukan, dan Wilayah
-	const daftarPengurus = db
+	const daftarPengurus = (await db
 		.select({
 			id: userDapukan.id,
 			userId: userDapukan.userId,
@@ -51,10 +51,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 		.leftJoin(desa, eq(userDapukan.desaId, desa.id))
 		.leftJoin(kelompok, eq(userDapukan.kelompokId, kelompok.id))
 		.orderBy(desc(userDapukan.id))
-		.all();
-
+);
 	// 3. Opsi Users Jamaah join Wilayah Basis untuk pilihan penugasan yang tersaring
-	const rawUserList = db
+	const rawUserList = (await db
 		.select({
 			id: users.id,
 			namaLengkap: users.namaLengkap,
@@ -70,8 +69,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		.leftJoin(kelompok, eq(users.kelompokId, kelompok.id))
 		.leftJoin(desa, eq(kelompok.desaId, desa.id))
 		.leftJoin(daerah, eq(desa.daerahId, daerah.id))
-		.all();
-
+);
 	const userList = rawUserList.filter((u) => {
 		if (adminScope.isPusat) return true;
 		if (!u.kelompokId) return false;
@@ -109,7 +107,7 @@ export const actions: Actions = {
 		}
 
 		const adminScope = getAdminScope(locals.roles || []);
-		const accessible = getAccessibleWilayah(adminScope);
+		const accessible = await getAccessibleWilayah(adminScope);
 
 		const formData = await request.formData();
 		const userId = formData.get('userId')?.toString()?.trim() || '';
@@ -140,7 +138,7 @@ export const actions: Actions = {
 		}
 
 		// Ambil data basis wilayah jamaah yang ditugaskan
-		const targetUser = db
+		const targetUser = (await first(db
 			.select({
 				id: users.id,
 				namaLengkap: users.namaLengkap,
@@ -156,7 +154,7 @@ export const actions: Actions = {
 			.leftJoin(desa, eq(kelompok.desaId, desa.id))
 			.leftJoin(daerah, eq(desa.daerahId, daerah.id))
 			.where(eq(users.id, userId))
-			.get();
+			));
 
 		if (!targetUser) {
 			return fail(400, { error: 'Data jamaah tidak ditemukan.' });
@@ -172,7 +170,7 @@ export const actions: Actions = {
 
 		let selectedDapukan: typeof dapukan.$inferSelect | undefined;
 		if (tipeDapukan === 'tetap' && dapukanId) {
-			selectedDapukan = db.select().from(dapukan).where(eq(dapukan.id, dapukanId)).get();
+			selectedDapukan = (await first(db.select().from(dapukan).where(eq(dapukan.id, dapukanId))));
 			if (!selectedDapukan) {
 				return fail(400, { error: 'Dapukan tetap tidak ditemukan.' });
 			}
@@ -275,8 +273,7 @@ export const actions: Actions = {
 										: undefined
 						)
 					);
-
-				const existingKyai = queryScope.get();
+				const existingKyai = await first(queryScope);
 				if (existingKyai) {
 					const scopeLabel =
 						tingkatScope === 'Kelompok'
@@ -292,7 +289,7 @@ export const actions: Actions = {
 		}
 
 		try {
-			db.insert(userDapukan)
+(await db.insert(userDapukan)
 				.values({
 					userId,
 					dapukanId,
@@ -302,7 +299,7 @@ export const actions: Actions = {
 					desaId: finalDesaId,
 					kelompokId: finalKelompokId
 				})
-				.run();
+);
 		} catch (error) {
 			console.error('Gagal menugaskan dapukan:', error);
 			return fail(500, { error: 'Terjadi kesalahan sistem saat menyimpan penugasan pengurus.' });
@@ -323,7 +320,7 @@ export const actions: Actions = {
 		}
 
 		const adminScope = getAdminScope(locals.roles || []);
-		const accessible = getAccessibleWilayah(adminScope);
+		const accessible = await getAccessibleWilayah(adminScope);
 
 		const formData = await request.formData();
 		const id = formData.get('id')?.toString()?.trim() || '';
@@ -339,7 +336,7 @@ export const actions: Actions = {
 			return fail(400, { error: 'ID penugasan tidak valid.' });
 		}
 
-		const existingAssignment = db.select().from(userDapukan).where(eq(userDapukan.id, id)).get();
+		const existingAssignment = (await first(db.select().from(userDapukan).where(eq(userDapukan.id, id))));
 		if (!existingAssignment) {
 			return fail(404, { error: 'Data penugasan tidak ditemukan.' });
 		}
@@ -381,7 +378,7 @@ export const actions: Actions = {
 		}
 
 		// Ambil data basis wilayah jamaah yang bersangkutan
-		const targetUser = db
+		const targetUser = (await first(db
 			.select({
 				id: users.id,
 				namaLengkap: users.namaLengkap,
@@ -397,7 +394,7 @@ export const actions: Actions = {
 			.leftJoin(desa, eq(kelompok.desaId, desa.id))
 			.leftJoin(daerah, eq(desa.daerahId, daerah.id))
 			.where(eq(users.id, existingAssignment.userId))
-			.get();
+			));
 
 		if (!targetUser) {
 			return fail(400, { error: 'Data jamaah tidak ditemukan.' });
@@ -413,7 +410,7 @@ export const actions: Actions = {
 
 		let selectedDapukan: typeof dapukan.$inferSelect | undefined;
 		if (tipeDapukan === 'tetap' && dapukanId) {
-			selectedDapukan = db.select().from(dapukan).where(eq(dapukan.id, dapukanId)).get();
+			selectedDapukan = (await first(db.select().from(dapukan).where(eq(dapukan.id, dapukanId))));
 			if (!selectedDapukan) {
 				return fail(400, { error: 'Dapukan tetap tidak ditemukan.' });
 			}
@@ -514,8 +511,7 @@ export const actions: Actions = {
 										: undefined
 						)
 					);
-
-				const existingKyai = queryScope.get();
+				const existingKyai = await first(queryScope);
 				if (existingKyai) {
 					const scopeLabel =
 						tingkatScope === 'Kelompok'
@@ -531,7 +527,7 @@ export const actions: Actions = {
 		}
 
 		try {
-			db.update(userDapukan)
+(await db.update(userDapukan)
 				.set({
 					dapukanId,
 					namaDapukanCustom: tipeDapukan === 'custom' ? namaDapukanCustom : null,
@@ -541,7 +537,7 @@ export const actions: Actions = {
 					kelompokId: finalKelompokId
 				})
 				.where(eq(userDapukan.id, id))
-				.run();
+);
 		} catch (error) {
 			console.error('Gagal memperbarui dapukan:', error);
 			return fail(500, { error: 'Terjadi kesalahan sistem saat memperbarui penugasan pengurus.' });
@@ -562,7 +558,7 @@ export const actions: Actions = {
 		}
 
 		const adminScope = getAdminScope(locals.roles || []);
-		const accessible = getAccessibleWilayah(adminScope);
+		const accessible = await getAccessibleWilayah(adminScope);
 
 		const formData = await request.formData();
 		const id = formData.get('id')?.toString()?.trim() || '';
@@ -571,7 +567,7 @@ export const actions: Actions = {
 			return fail(400, { error: 'ID penugasan tidak valid.' });
 		}
 
-		const targetAssignment = db.select().from(userDapukan).where(eq(userDapukan.id, id)).get();
+		const targetAssignment = (await first(db.select().from(userDapukan).where(eq(userDapukan.id, id))));
 		if (!targetAssignment) {
 			return fail(404, { error: 'Data penugasan tidak ditemukan.' });
 		}
@@ -601,7 +597,7 @@ export const actions: Actions = {
 		}
 
 		try {
-			db.delete(userDapukan).where(eq(userDapukan.id, id)).run();
+(await db.delete(userDapukan).where(eq(userDapukan.id, id)));
 		} catch (error) {
 			console.error('Gagal mencabut penugasan:', error);
 			return fail(500, { error: 'Gagal mencabut penugasan pengurus.' });

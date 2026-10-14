@@ -23,7 +23,7 @@ export const load: PageServerLoad = async ({ locals }) => {
   }
 
   // Jika user sudah memiliki KK sendiri, arahkan langsung ke halaman sensus KK miliknya dengan modal tambah anggota aktif
-  const userKeluarga = getKeluargaForUser(locals.user.id);
+  const userKeluarga = await getKeluargaForUser(locals.user.id);
   if (userKeluarga) {
     throw redirect(303, "/sensus?tambah=1");
   }
@@ -137,16 +137,16 @@ export const actions: Actions = {
     const noKkEncrypted = noKk ? encryptSensitive(noKk) : null;
 
     // Cek apakah user sudah memiliki KK (agar masuk ke KK dia sendiri, bukan buat KK baru ganda)
-    const existingKeluarga = getKeluargaForUser(locals.user.id);
+    const existingKeluarga = await getKeluargaForUser(locals.user.id);
 
     // Transaksi database: Minimum Lock & Atomicity
     try {
-      db.transaction((tx) => {
+      await db.transaction(async (tx) => {
         let targetKeluargaId: string;
 
         if (!existingKeluarga) {
           // Jika user belum punya KK, buat kartu keluarga baru
-          const [newKeluarga] = tx
+          const [newKeluarga] = (await tx
             .insert(keluarga)
             .values({
               noKkEncrypted,
@@ -154,7 +154,7 @@ export const actions: Actions = {
               alamatLengkap,
             })
             .returning()
-            .all();
+);
           targetKeluargaId = newKeluarga.id;
         } else {
           targetKeluargaId = existingKeluarga.id;
@@ -174,10 +174,10 @@ export const actions: Actions = {
             updates.alamatLengkap = alamatLengkap;
           }
           if (Object.keys(updates).length > 0) {
-            tx.update(keluarga)
+(await tx.update(keluarga)
               .set(updates)
               .where(eq(keluarga.id, targetKeluargaId))
-              .run();
+);
           }
         }
 
@@ -192,13 +192,13 @@ export const actions: Actions = {
           const statusGenerus = isoTgl ? hitungStatusGenerus(umur, statusPernikahan) : null;
 
           if (isKepala && cleanHp && locals.user?.id) {
-            tx.update(users)
+(await tx.update(users)
               .set({ noTelepon: cleanHp })
               .where(eq(users.id, locals.user.id))
-              .run();
+);
           }
 
-          tx.insert(anggotaKeluarga)
+(await tx.insert(anggotaKeluarga)
             .values({
               keluargaId: targetKeluargaId,
               userId: isKepala ? locals.user?.id : null,
@@ -214,7 +214,7 @@ export const actions: Actions = {
               statusJamaah: "Aktif",
               isrun: isKepala ? "Ya" : "Tidak"
             })
-            .run();
+);
         }
       });
     } catch (error) {

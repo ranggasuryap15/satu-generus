@@ -4,12 +4,73 @@
  * @usedBy src/routes/(admin)/admin/sensus/+page.server.ts, src/routes/(admin)/admin/wilayah/*, src/routes/(admin)/admin/dapukan/+page.server.ts, src/routes/(admin)/admin/profil-wilayah/+page.server.ts, src/routes/(admin)/admin/keuangan/*
  * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm
  * @publicFunctions getAdminScope, getAccessibleWilayah, isKelompokAllowed, canManageDapukan, canManageRekening, canAccessKeuangan, canManageFr, canManageShodaqoh
- * @sideEffects Membaca data relasi master daerah, desa, dan kelompok dari SQLite
+ * @sideEffects Membaca data relasi master daerah, desa, dan kelompok dari PostgreSQL
  */
 
 import { db } from '$lib/db';
 import { daerah, desa, kelompok } from '$lib/db/schema';
-import { inArray, eq } from 'drizzle-orm';
+
+/**
+ * Memuat snapshot master wilayah (daerah, desa, kelompok) dalam 3 query paralel.
+ * Dipakai untuk memangkas query berulang di dalam loop evaluasi wewenang (mencegah N+1).
+ */
+async function loadWilayahSnapshot() {
+	const [daerahRows, desaRows, kelompokRows] = await Promise.all([
+		db.select({ id: daerah.id }).from(daerah),
+		db.select({ id: desa.id, daerahId: desa.daerahId }).from(desa),
+		db.select({ id: kelompok.id, desaId: kelompok.desaId }).from(kelompok)
+	]);
+	return {
+		daerahIds: new Set(daerahRows.map((r) => r.id)),
+		desaById: new Map(desaRows.map((r) => [r.id, r])),
+		kelompokById: new Map(kelompokRows.map((r) => [r.id, r]))
+	};
+}
+
+type WilayahSnapshot = Awaited<ReturnType<typeof loadWilayahSnapshot>>;
+
+/**
+ * Evaluasi wewenang CRUD rekening/QRIS terhadap target wilayah tertentu.
+ * Semua data relasi dibaca dari snapshot in-memory agar tidak ada query di dalam loop.
+ */
+function isTargetWilayahAllowed(
+	snapshot: WilayahSnapshot,
+	role: App.UserRole,
+	scopeLevel: 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok',
+	targetId: number
+): boolean {
+	// Jika target adalah Kelompok
+	if (scopeLevel === 'Kelompok') {
+		if (role.tingkatScope === 'Kelompok' && role.kelompokId === targetId) return true;
+		if (role.tingkatScope === 'Desa' && role.desaId) {
+			const k = snapshot.kelompokById.get(targetId);
+			if (k && k.desaId === role.desaId) return true;
+		}
+		if (role.tingkatScope === 'Daerah' && role.daerahId) {
+			const k = snapshot.kelompokById.get(targetId);
+			if (k && k.desaId) {
+				const d = snapshot.desaById.get(k.desaId);
+				if (d && d.daerahId === role.daerahId) return true;
+			}
+		}
+	}
+
+	// Jika target adalah Desa
+	if (scopeLevel === 'Desa') {
+		if (role.tingkatScope === 'Desa' && role.desaId === targetId) return true;
+		if (role.tingkatScope === 'Daerah' && role.daerahId) {
+			const d = snapshot.desaById.get(targetId);
+			if (d && d.daerahId === role.daerahId) return true;
+		}
+	}
+
+	// Jika target adalah Daerah
+	if (scopeLevel === 'Daerah') {
+		if (role.tingkatScope === 'Daerah' && role.daerahId === targetId) return true;
+	}
+
+	return false;
+}
 
 export interface AdminScope {
 	level: 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok';
@@ -87,7 +148,7 @@ export function getAdminScope(roles: App.UserRole[] = []): AdminScope {
 /**
  * Menghasilkan daftar wilayah (daerah, desa, kelompok) yang boleh diakses/dilihat sesuai scope admin
  */
-export function getAccessibleWilayah(scope?: AdminScope): AccessibleWilayah {
+export async function getAccessibleWilayah(scope?: AdminScope): Promise<AccessibleWilayah> {
 	const safeScope: AdminScope = scope ?? {
 		level: 'Kelompok',
 		isPusat: false,
@@ -97,9 +158,9 @@ export function getAccessibleWilayah(scope?: AdminScope): AccessibleWilayah {
 	};
 
 	// Ambil semua master data wilayah sekali untuk efisiensi
-	const allDaerah = db.select().from(daerah).all();
-	const allDesa = db.select().from(desa).all();
-	const allKelompok = db.select().from(kelompok).all();
+	const allDaerah = await db.select().from(daerah);
+	const allDesa = await db.select().from(desa);
+	const allKelompok = await db.select().from(kelompok);
 
 	const daerahMap = new Map(allDaerah.map((d) => [d.id, d]));
 	const desaMap = new Map(allDesa.map((d) => [d.id, d]));
@@ -270,13 +331,17 @@ export function canManageDapukan(roles: App.UserRole[]): boolean {
  * - KU / Bendahara: Berwenang CRUD jika berada pada scope wilayah terkait (atau tingkat di atasnya).
  * - Peran 4S lainnya (Kyai, Sekretaris, dll) & admin lain: Hanya dapat melihat (Read-Only).
  */
-export function canManageRekening(
+export async function canManageRekening(
 	roles: App.UserRole[],
 	scopeLevel?: 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok',
 	targetId?: number
-): boolean {
+): Promise<boolean> {
 	const adminScope = getAdminScope(roles);
 	if (adminScope.isPusat) return true;
+
+	// Tanpa target spesifik tidak perlu menyentuh database sama sekali
+	const hasTarget = Boolean(scopeLevel && targetId);
+	const snapshot = hasTarget ? await loadWilayahSnapshot() : null;
 
 	return roles.some((r) => {
 		const dapukanNama = (r.namaDapukan || r.namaDapukanCustom || '').toLowerCase();
@@ -287,55 +352,9 @@ export function canManageRekening(
 		if (!isAuthorized) return false;
 
 		// Jika tidak ada target spesifik, cukup pastikan user memiliki peran KU
-		if (!scopeLevel || !targetId) return true;
+		if (!snapshot || !scopeLevel || !targetId) return true;
 
-		// Jika target adalah Kelompok
-		if (scopeLevel === 'Kelompok') {
-			if (r.tingkatScope === 'Kelompok' && r.kelompokId === targetId) return true;
-			if (r.tingkatScope === 'Desa' && r.desaId) {
-				const k = db
-					.select({ desaId: kelompok.desaId })
-					.from(kelompok)
-					.where(eq(kelompok.id, targetId))
-					.get();
-				if (k && k.desaId === r.desaId) return true;
-			}
-			if (r.tingkatScope === 'Daerah' && r.daerahId) {
-				const k = db
-					.select({ desaId: kelompok.desaId })
-					.from(kelompok)
-					.where(eq(kelompok.id, targetId))
-					.get();
-				if (k && k.desaId) {
-					const d = db
-						.select({ daerahId: desa.daerahId })
-						.from(desa)
-						.where(eq(desa.id, k.desaId))
-						.get();
-					if (d && d.daerahId === r.daerahId) return true;
-				}
-			}
-		}
-
-		// Jika target adalah Desa
-		if (scopeLevel === 'Desa') {
-			if (r.tingkatScope === 'Desa' && r.desaId === targetId) return true;
-			if (r.tingkatScope === 'Daerah' && r.daerahId) {
-				const d = db
-					.select({ daerahId: desa.daerahId })
-					.from(desa)
-					.where(eq(desa.id, targetId))
-					.get();
-				if (d && d.daerahId === r.daerahId) return true;
-			}
-		}
-
-		// Jika target adalah Daerah
-		if (scopeLevel === 'Daerah') {
-			if (r.tingkatScope === 'Daerah' && r.daerahId === targetId) return true;
-		}
-
-		return false;
+		return isTargetWilayahAllowed(snapshot, r, scopeLevel, targetId);
 	});
 }
 
@@ -369,12 +388,12 @@ export function canAccessKeuangan(roles: App.UserRole[]): boolean {
  * - KU / Bendahara: Berwenang jika berada pada scope wilayah terkait (atau tingkat di atasnya)
  * - Kyai & Aghnia: Read-Only (Hanya melihat)
  */
-export function canManageFr(
+export async function canManageFr(
 	roles: App.UserRole[],
 	scopeLevel?: 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok',
 	targetId?: number
-): boolean {
-	return canManageRekening(roles, scopeLevel, targetId);
+): Promise<boolean> {
+	return await canManageRekening(roles, scopeLevel, targetId);
 }
 
 /**
@@ -382,13 +401,17 @@ export function canManageFr(
  * - Khusus KU dan Kyai (serta Superadmin / Tingkat Pusat)
  * - Admin selain itu tidak bisa (Read-Only)
  */
-export function canManageShodaqoh(
+export async function canManageShodaqoh(
 	roles: App.UserRole[],
 	scopeLevel?: 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok',
 	targetId?: number
-): boolean {
+): Promise<boolean> {
 	const adminScope = getAdminScope(roles);
 	if (adminScope.isPusat) return true;
+
+	// Tanpa target spesifik tidak perlu menyentuh database sama sekali
+	const hasTarget = Boolean(scopeLevel && targetId);
+	const snapshot = hasTarget ? await loadWilayahSnapshot() : null;
 
 	return roles.some((r) => {
 		const dapukanNama = (r.namaDapukan || r.namaDapukanCustom || '').toLowerCase();
@@ -401,55 +424,9 @@ export function canManageShodaqoh(
 		if (!isAuthorizedRole) return false;
 
 		// Jika tidak ada target spesifik, cukup pastikan peran KU atau Kyai
-		if (!scopeLevel || !targetId) return true;
+		if (!snapshot || !scopeLevel || !targetId) return true;
 
-		// Jika target adalah Kelompok
-		if (scopeLevel === 'Kelompok') {
-			if (r.tingkatScope === 'Kelompok' && r.kelompokId === targetId) return true;
-			if (r.tingkatScope === 'Desa' && r.desaId) {
-				const k = db
-					.select({ desaId: kelompok.desaId })
-					.from(kelompok)
-					.where(eq(kelompok.id, targetId))
-					.get();
-				if (k && k.desaId === r.desaId) return true;
-			}
-			if (r.tingkatScope === 'Daerah' && r.daerahId) {
-				const k = db
-					.select({ desaId: kelompok.desaId })
-					.from(kelompok)
-					.where(eq(kelompok.id, targetId))
-					.get();
-				if (k && k.desaId) {
-					const d = db
-						.select({ daerahId: desa.daerahId })
-						.from(desa)
-						.where(eq(desa.id, k.desaId))
-						.get();
-					if (d && d.daerahId === r.daerahId) return true;
-				}
-			}
-		}
-
-		// Jika target adalah Desa
-		if (scopeLevel === 'Desa') {
-			if (r.tingkatScope === 'Desa' && r.desaId === targetId) return true;
-			if (r.tingkatScope === 'Daerah' && r.daerahId) {
-				const d = db
-					.select({ daerahId: desa.daerahId })
-					.from(desa)
-					.where(eq(desa.id, targetId))
-					.get();
-				if (d && d.daerahId === r.daerahId) return true;
-			}
-		}
-
-		// Jika target adalah Daerah
-		if (scopeLevel === 'Daerah') {
-			if (r.tingkatScope === 'Daerah' && r.daerahId === targetId) return true;
-		}
-
-		return false;
+		return isTargetWilayahAllowed(snapshot, r, scopeLevel, targetId);
 	});
 }
 

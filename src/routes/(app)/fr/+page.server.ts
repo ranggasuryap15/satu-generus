@@ -1,15 +1,15 @@
 /**
  * @file src/routes/(app)/fr/+page.server.ts
- * @purpose Backend controller halaman Isrun/FR client jamaah (Mobile-First): memuat lembar pos kewajiban FR terstruktur per kategori induk (A-D), reset breakdown angka menjadi 0 saat status Belum/dikembalikan ke Belum, riwayat setoran per bulan, info rekening/QRIS kelompok, kontak KU kelompok untuk komplain, serta proteksi penguncian data setoran yang sudah disetujui KU
+ * @purpose Backend controller halaman Isrun/FR client jamaah (Mobile-First): memuat lembar pos kewajiban FR terstruktur per kategori induk (A-D), penanganan simpan & batalkan setoran mandiri, reset breakdown angka menjadi 0 saat status Belum/dikembalikan ke Belum, riwayat setoran per bulan, info rekening/QRIS kelompok, kontak KU kelompok untuk komplain, serta proteksi penguncian data setoran yang sudah disetujui KU
  * @usedBy src/routes/(app)/fr/+page.svelte
  * @dependencies @sveltejs/kit, src/lib/db, src/lib/db/schema, src/lib/server/sensus, src/lib/server/upload, drizzle-orm, @paralleldrive/cuid2
- * @publicFunctions load, actions.simpanSetoran
- * @sideEffects DB read pada anggota_keluarga, keluarga, template_infaq_rutin, template_infaq_group, template_infaq_group_pos, pos_anggaran_infaq, rekening_wilayah, transaksi_fr, users, user_dapukan; DB upsert ke transaksi_fr; penyimpanan file upload bukti transfer ke uploads/bukti-transfer
+ * @publicFunctions load, actions.simpanSetoran, actions.batalkanSetoran
+ * @sideEffects DB read pada anggota_keluarga, keluarga, template_infaq_rutin, template_infaq_group, template_infaq_group_pos, pos_anggaran_infaq, rekening_wilayah, transaksi_fr, users, user_dapukan; DB upsert/update ke transaksi_fr; penyimpanan file upload bukti transfer ke uploads/bukti-transfer
  */
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import { db, sqlite } from '$lib/db';
+import { db, first } from '$lib/db';
 import {
 	anggotaKeluarga,
 	keluarga,
@@ -22,7 +22,7 @@ import {
 	templateInfaqJamaah,
 	posAnggaranInfaq
 } from '$lib/db/schema';
-import { eq, and, or, isNull, desc, asc, inArray } from 'drizzle-orm';
+import { eq, and, or, isNull, desc, asc, inArray, sql } from 'drizzle-orm';
 import { getKeluargaForUser } from '$lib/server/sensus';
 import { saveUploadedFile } from '$lib/server/upload';
 import { createId } from '@paralleldrive/cuid2';
@@ -40,7 +40,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const bulanParam = Number(url.searchParams.get('bulan')) || currentMonth;
 
 	// 1. Dapatkan Kartu Keluarga (KK) dan daftar Anggota Keluarga yang wajib Isrun
-	const keluargaRecord = getKeluargaForUser(userId);
+	const keluargaRecord = await getKeluargaForUser(userId);
 	let anggotaWajibList: Array<{
 		id: string;
 		namaLengkap: string;
@@ -51,7 +51,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	let activeAnggotaId = url.searchParams.get('anggotaId') || '';
 
 	if (keluargaRecord) {
-		const rawAnggota = db
+		const rawAnggota = (await db
 			.select({
 				id: anggotaKeluarga.id,
 				namaLengkap: anggotaKeluarga.namaLengkap,
@@ -61,8 +61,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			})
 			.from(anggotaKeluarga)
 			.where(eq(anggotaKeluarga.keluargaId, keluargaRecord.id))
-			.all();
-
+);
 		// Filter yang status isrun = 'Ya' (atau jika belum diisi, sertakan kepala/user itu sendiri)
 		const filtered = rawAnggota.filter((a) => a.isrun === 'Ya' || a.userId === userId);
 		anggotaWajibList = (filtered.length > 0 ? filtered : rawAnggota).map((a) => ({
@@ -78,7 +77,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		}
 	} else {
 		// Fallback jika belum memiliki KK sensus, cek apakah ada anggota_keluarga dengan user_id ini
-		const singleAnggota = db
+		const singleAnggota = (await first(db
 			.select({
 				id: anggotaKeluarga.id,
 				namaLengkap: anggotaKeluarga.namaLengkap,
@@ -86,7 +85,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			})
 			.from(anggotaKeluarga)
 			.where(eq(anggotaKeluarga.userId, userId))
-			.get();
+			));
 
 		if (singleAnggota) {
 			anggotaWajibList = [
@@ -107,15 +106,15 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	let rekeningList: any[] = [];
 
 	if (userKelompokId) {
-		const kel = db
+		const kel = (await first(db
 			.select({ id: kelompok.id, nama: kelompok.nama })
 			.from(kelompok)
 			.where(eq(kelompok.id, userKelompokId))
-			.get();
+			));
 		if (kel) kelompokNama = kel.nama;
 
 		// Ambil rekening & QRIS aktif tingkat kelompok
-		rekeningList = db
+		rekeningList = (await db
 			.select()
 			.from(rekeningWilayah)
 			.where(
@@ -126,7 +125,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				)
 			)
 			.orderBy(desc(rekeningWilayah.createdAt))
-			.all();
+);
 	}
 
 	// Jika belum ada anggota keluarga terdaftar sama sekali
@@ -151,13 +150,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const activeAnggota = anggotaWajibList.find((a) => a.id === activeAnggotaId) || anggotaWajibList[0];
 
 	// 3. Ambil Transaksi Existing di Bulan & Tahun ini untuk Anggota Aktif
-	const existingTransaksi = sqlite
-		.prepare(
-			`SELECT id, tahun, bulan, nominal, status_bayar, catatan, updated_at
+	const existingTransaksi = await first(db.execute(sql`SELECT id, tahun, bulan, nominal, status_bayar, catatan, updated_at
 			 FROM transaksi_fr
-			 WHERE anggota_keluarga_id = ? AND tahun = ? AND bulan = ?`
-		)
-		.get(activeAnggota.id, tahunParam, bulanParam) as
+			 WHERE anggota_keluarga_id = ${activeAnggota.id} AND tahun = ${tahunParam} AND bulan = ${bulanParam}`)) as
 		| {
 				id: string;
 				tahun: number;
@@ -193,26 +188,18 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	// 4. Ambil Template Infaq Aktif untuk Kelompok ini pada Tahun Terpilih
 	let template = userKelompokId
-		? (sqlite
-				.prepare(
-					`SELECT id, tahun, status, tingkat_scope 
+		? (await first(db.execute(sql`SELECT id, tahun, status, tingkat_scope 
 					 FROM template_infaq_rutin 
-					 WHERE tingkat_scope = 'Kelompok' AND kelompok_id = ? AND tahun = ? AND status = 'aktif'
-					 ORDER BY updated_at DESC LIMIT 1`
-				)
-				.get(userKelompokId, tahunParam) as { id: string; tahun: number; status: string; tingkat_scope: string } | undefined)
+					 WHERE tingkat_scope = 'Kelompok' AND kelompok_id = ${userKelompokId} AND tahun = ${tahunParam} AND status = 'aktif'
+					 ORDER BY updated_at DESC LIMIT 1`)) as { id: string; tahun: number; status: string; tingkat_scope: string } | undefined)
 		: null;
 
 	// Fallback ke template tahun berjalan jika tidak ketemu
 	if (!template && userKelompokId) {
-		template = sqlite
-			.prepare(
-				`SELECT id, tahun, status, tingkat_scope 
+		template = await first(db.execute(sql`SELECT id, tahun, status, tingkat_scope 
 				 FROM template_infaq_rutin 
-				 WHERE tingkat_scope = 'Kelompok' AND kelompok_id = ? AND status = 'aktif'
-				 ORDER BY tahun DESC, updated_at DESC LIMIT 1`
-			)
-			.get(userKelompokId) as any;
+				 WHERE tingkat_scope = 'Kelompok' AND kelompok_id = ${userKelompokId} AND status = 'aktif'
+				 ORDER BY tahun DESC, updated_at DESC LIMIT 1`)) as any;
 	}
 
 	// 5. Cari Group Jamaah di template tersebut
@@ -220,11 +207,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	let groupNama = 'Standar';
 
 	if (template) {
-		const jamaahGroupRow = sqlite
-			.prepare(
-				`SELECT group_id FROM template_infaq_jamaah WHERE template_id = ? AND anggota_keluarga_id = ?`
-			)
-			.get(template.id, activeAnggota.id) as { group_id: string | null } | undefined;
+		const jamaahGroupRow = await first(db.execute(sql`SELECT group_id FROM template_infaq_jamaah WHERE template_id = ${template.id} AND anggota_keluarga_id = ${activeAnggota.id}`)) as { group_id: string | null } | undefined;
 
 		if (jamaahGroupRow?.group_id) {
 			groupId = jamaahGroupRow.group_id;
@@ -232,26 +215,20 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 		// Jika belum ditentukan groupnya oleh KU, gunakan group pertama pada template ini
 		if (!groupId) {
-			const firstGroup = sqlite
-				.prepare(
-					`SELECT id, nama FROM template_infaq_group WHERE template_id = ? ORDER BY urutan ASC, created_at ASC LIMIT 1`
-				)
-				.get(template.id) as { id: string; nama: string } | undefined;
+			const firstGroup = await first(db.execute(sql`SELECT id, nama FROM template_infaq_group WHERE template_id = ${template.id} ORDER BY urutan ASC, created_at ASC LIMIT 1`)) as { id: string; nama: string } | undefined;
 
 			if (firstGroup) {
 				groupId = firstGroup.id;
 				groupNama = firstGroup.nama;
 			}
 		} else {
-			const gInfo = sqlite
-				.prepare(`SELECT nama FROM template_infaq_group WHERE id = ?`)
-				.get(groupId) as { nama: string } | undefined;
+			const gInfo = await first(db.execute(sql`SELECT nama FROM template_infaq_group WHERE id = ${groupId}`)) as { nama: string } | undefined;
 			if (gInfo) groupNama = gInfo.nama;
 		}
 	}
 
 	// 6. Muat Struktur Pos Anggaran Lengkap (Hierarki Kategori Induk A-D & Sub-Pos) persis seperti Template KU
-	const rawAllPos = db
+	const rawAllPos = (await db
 		.select()
 		.from(posAnggaranInfaq)
 		.where(
@@ -265,8 +242,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			)
 		)
 		.orderBy(asc(posAnggaranInfaq.urutan), asc(posAnggaranInfaq.nama))
-		.all();
-
+);
 	// Pisahkan kategori induk (parentId IS NULL) dan sub-pos anak (parentId IS NOT NULL)
 	const parentCategories = rawAllPos
 		.filter((p) => !p.parentId)
@@ -277,12 +253,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// Ambil nominal saran KU dari template_infaq_group_pos jika group ditemukan
 	const groupPosValues: Record<string, { nominalJumlah: number; keteranganTeks: string | null }> = {};
 	if (groupId) {
-		const rawGroupPos = db
+		const rawGroupPos = (await db
 			.select()
 			.from(templateInfaqGroupPos)
 			.where(eq(templateInfaqGroupPos.groupId, groupId))
-			.all();
-
+);
 		for (const gp of rawGroupPos) {
 			groupPosValues[gp.posId] = {
 				nominalJumlah: gp.nominalJumlah || 0,
@@ -329,27 +304,19 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// 7. Ambil kontak KU / Bendahara kelompok untuk jalur komplain langsung
 	let kuKontak: { nama: string; noTelepon: string | null } | null = null;
 	if (userKelompokId) {
-		kuKontak = (sqlite
-			.prepare(
-				`SELECT u.nama_lengkap as nama, u.no_telepon as noTelepon
+		kuKontak = (await first(db.execute(sql`SELECT u.nama_lengkap as nama, u.no_telepon as noTelepon
 				 FROM users u
 				 JOIN user_dapukan ud ON u.id = ud.user_id
 				 JOIN dapukan d ON ud.dapukan_id = d.id
-				 WHERE ud.kelompok_id = ? AND (d.nama_dapukan LIKE '%KU%' OR d.nama_dapukan LIKE '%Bendahara%' OR d.nama_dapukan LIKE '%Keuangan%')
-				 ORDER BY u.id ASC LIMIT 1`
-			)
-			.get(userKelompokId) as { nama: string; noTelepon: string | null } | undefined) ?? null;
+				 WHERE ud.kelompok_id = ${userKelompokId} AND (d.nama_dapukan LIKE '%KU%' OR d.nama_dapukan LIKE '%Bendahara%' OR d.nama_dapukan LIKE '%Keuangan%')
+				 ORDER BY u.id ASC LIMIT 1`)) as { nama: string; noTelepon: string | null } | undefined) ?? null;
 
 		if (!kuKontak) {
-			kuKontak = (sqlite
-				.prepare(
-					`SELECT u.nama_lengkap as nama, u.no_telepon as noTelepon
+			kuKontak = (await first(db.execute(sql`SELECT u.nama_lengkap as nama, u.no_telepon as noTelepon
 					 FROM users u
 					 JOIN user_dapukan ud ON u.id = ud.user_id
-					 WHERE ud.kelompok_id = ?
-					 ORDER BY u.id ASC LIMIT 1`
-				)
-				.get(userKelompokId) as { nama: string; noTelepon: string | null } | undefined) ?? null;
+					 WHERE ud.kelompok_id = ${userKelompokId}
+					 ORDER BY u.id ASC LIMIT 1`)) as { nama: string; noTelepon: string | null } | undefined) ?? null;
 		}
 	}
 
@@ -401,18 +368,14 @@ export const actions: Actions = {
 		}
 
 		// Validasi otorisasi anggota keluarga terhadap user yang sedang login
-		const userKK = getKeluargaForUser(locals.user.id);
+		const userKK = await getKeluargaForUser(locals.user.id);
 		let isAuthorized = false;
 
 		if (userKK) {
-			const check = sqlite
-				.prepare('SELECT id FROM anggota_keluarga WHERE id = ? AND keluarga_id = ?')
-				.get(anggotaId, userKK.id);
+			const check = await first(db.execute(sql`SELECT id FROM anggota_keluarga WHERE id = ${anggotaId} AND keluarga_id = ${userKK.id}`));
 			if (check) isAuthorized = true;
 		} else {
-			const checkSelf = sqlite
-				.prepare('SELECT id FROM anggota_keluarga WHERE id = ? AND user_id = ?')
-				.get(anggotaId, locals.user.id);
+			const checkSelf = await first(db.execute(sql`SELECT id FROM anggota_keluarga WHERE id = ${anggotaId} AND user_id = ${locals.user.id}`));
 			if (checkSelf) isAuthorized = true;
 		}
 
@@ -449,16 +412,12 @@ export const actions: Actions = {
 		}
 
 		// Dapatkan wilayah anggota keluarga
-		const anggotaInfo = sqlite
-			.prepare(
-				`SELECT a.id, u.kelompok_id, k.desa_id, d.daerah_id
+		const anggotaInfo = await first(db.execute(sql`SELECT a.id, u.kelompok_id, k.desa_id, d.daerah_id
 				 FROM anggota_keluarga a
 				 LEFT JOIN users u ON a.user_id = u.id
-				 LEFT JOIN kelompok k ON COALESCE(u.kelompok_id, ?) = k.id
+				 LEFT JOIN kelompok k ON COALESCE(u.kelompok_id, ${locals.user.kelompokId || 0}) = k.id
 				 LEFT JOIN desa d ON k.desa_id = d.id
-				 WHERE a.id = ?`
-			)
-			.get(locals.user.kelompokId || 0, anggotaId) as any;
+				 WHERE a.id = ${anggotaId}`)) as any;
 
 		const kelompokId = locals.user.kelompokId || anggotaInfo?.kelompok_id;
 		const desaId = anggotaInfo?.desa_id || null;
@@ -469,9 +428,7 @@ export const actions: Actions = {
 		}
 
 		// Ambil transaksi existing di periode ini
-		const existing = sqlite
-			.prepare('SELECT id, status_bayar, catatan FROM transaksi_fr WHERE anggota_keluarga_id = ? AND tahun = ? AND bulan = ?')
-			.get(anggotaId, tahun, bulan) as { id: string; status_bayar: string; catatan: string | null } | undefined;
+		const existing = await first(db.execute(sql`SELECT id, status_bayar, catatan FROM transaksi_fr WHERE anggota_keluarga_id = ${anggotaId} AND tahun = ${tahun} AND bulan = ${bulan}`)) as { id: string; status_bayar: string; catatan: string | null } | undefined;
 
 		// Proteksi: Jika setoran sudah divalidasi dan disetujui oleh KU ('Diterima' atau 'Lunas'), tolak manipulasi/pengubahan data
 		if (existing && (existing.status_bayar === 'Diterima' || existing.status_bayar === 'Lunas')) {
@@ -505,57 +462,84 @@ export const actions: Actions = {
 		const statusBayar = totalNominal > 0 ? 'Menunggu Konfirmasi' : 'Belum Bayar';
 
 		if (existing) {
-			sqlite
-				.prepare(
-					`UPDATE transaksi_fr
-					 SET nominal = ?,
-					     status_bayar = ?,
-					     catatan = ?,
-					     template_id = COALESCE(?, template_id),
-					     updated_by_user_id = ?,
-					     updated_at = ?
-					 WHERE id = ?`
-				)
-				.run(
-					totalNominal,
-					statusBayar,
-					catatanPayload,
-					templateId,
-					locals.user.id,
-					now,
-					existing.id
-				);
+			await db.execute(sql`UPDATE transaksi_fr
+					 SET nominal = ${totalNominal},
+					     status_bayar = ${statusBayar},
+					     catatan = ${catatanPayload},
+					     template_id = COALESCE(${templateId}, template_id),
+					     updated_by_user_id = ${locals.user.id},
+					     updated_at = ${now}
+					 WHERE id = ${existing.id}`);
 		} else {
 			const newId = createId();
-			sqlite
-				.prepare(
-					`INSERT INTO transaksi_fr (
+			await db.execute(sql`INSERT INTO transaksi_fr (
 						id, anggota_keluarga_id, kelompok_id, desa_id, daerah_id,
 						tahun, bulan, nominal, status_bayar, catatan,
 						template_id, updated_by_user_id, created_at, updated_at
-					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-				)
-				.run(
-					newId,
-					anggotaId,
-					kelompokId,
-					desaId,
-					daerahId,
-					tahun,
-					bulan,
-					totalNominal,
-					statusBayar,
-					catatanPayload,
-					templateId,
-					locals.user.id,
-					now,
-					now
-				);
+					) VALUES (${newId}, ${anggotaId}, ${kelompokId}, ${desaId}, ${daerahId}, ${tahun}, ${bulan}, ${totalNominal}, ${statusBayar}, ${catatanPayload}, ${templateId}, ${locals.user.id}, ${now}, ${now})`);
 		}
 
 		return {
 			success: true,
 			message: 'Laporan FR Tersimpan'
+		};
+	},
+
+	/**
+	 * Membatalkan setoran FR mandiri oleh jamaah jika belum divalidasi/disetujui oleh KU
+	 */
+	batalkanSetoran: async ({ request, locals }) => {
+		if (!locals.user) {
+			return fail(401, { message: 'Sesi kedaluwarsa. Silakan login kembali.' });
+		}
+
+		const formData = await request.formData();
+		const anggotaId = formData.get('anggotaId')?.toString();
+		const tahun = Number(formData.get('tahun'));
+		const bulan = Number(formData.get('bulan'));
+
+		if (!anggotaId || !tahun || !bulan) {
+			return fail(400, { message: 'Data periode atau anggota tidak lengkap.' });
+		}
+
+		// Validasi otorisasi
+		const userKK = await getKeluargaForUser(locals.user.id);
+		let isAuthorized = false;
+		if (userKK) {
+			const check = await first(db.execute(sql`SELECT id FROM anggota_keluarga WHERE id = ${anggotaId} AND keluarga_id = ${userKK.id}`));
+			if (check) isAuthorized = true;
+		} else {
+			const checkSelf = await first(db.execute(sql`SELECT id FROM anggota_keluarga WHERE id = ${anggotaId} AND user_id = ${locals.user.id}`));
+			if (checkSelf) isAuthorized = true;
+		}
+
+		if (!isAuthorized) {
+			return fail(403, { message: 'Anda tidak memiliki hak akses untuk membatalkan setoran ini.' });
+		}
+
+		const existing = await first(db.execute(sql`SELECT id, status_bayar FROM transaksi_fr WHERE anggota_keluarga_id = ${anggotaId} AND tahun = ${tahun} AND bulan = ${bulan}`)) as { id: string; status_bayar: string } | undefined;
+
+		if (!existing || existing.status_bayar === 'Belum' || existing.status_bayar === 'Belum Bayar') {
+			return { success: true, message: 'Setoran sudah berstatus Belum.' };
+		}
+
+		if (existing.status_bayar === 'Diterima' || existing.status_bayar === 'Lunas') {
+			return fail(400, { message: 'Setoran telah divalidasi KU dan tidak dapat dibatalkan.' });
+		}
+
+		const now = Math.floor(Date.now() / 1000);
+		await db.execute(sql`UPDATE transaksi_fr
+				 SET status_bayar = 'Belum',
+				     nominal = 0,
+				     catatan = NULL,
+				     updated_by_user_id = ${locals.user.id},
+				     updated_at = ${now}
+				 WHERE id = ${existing.id}`);
+
+		return {
+			success: true,
+			cancelled: true,
+			message: 'Setoran berhasil dibatalkan. Status dikembalikan ke Belum.'
 		};
 	}
 };

@@ -9,7 +9,7 @@
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import { db } from '$lib/db';
+import { db, first } from '$lib/db';
 import { users, userDapukan, dapukan } from '$lib/db/schema';
 import { eq, or } from 'drizzle-orm';
 import { createSession, verifyPassword } from '$lib/server/auth';
@@ -39,7 +39,7 @@ export const actions: Actions = {
 		}
 
 		// Cari akun pengguna berdasarkan email atau nomor telepon (HP)
-		const user = db
+		const user = (await first(db
 			.select()
 			.from(users)
 			.where(
@@ -48,7 +48,7 @@ export const actions: Actions = {
 					eq(users.noTelepon, identifier)
 				)
 			)
-			.get();
+			));
 
 		if (!user) {
 			return fail(400, {
@@ -69,7 +69,7 @@ export const actions: Actions = {
 		createSession(cookies, user.id);
 
 		// Periksa hak akses untuk mengarahkan pengguna ke dashboard yang tepat
-		const roles = db
+		const roles = (await db
 			.select({
 				tingkatScope: userDapukan.tingkatScope,
 				is4S: dapukan.is4S
@@ -77,8 +77,7 @@ export const actions: Actions = {
 			.from(userDapukan)
 			.leftJoin(dapukan, eq(userDapukan.dapukanId, dapukan.id))
 			.where(eq(userDapukan.userId, user.id))
-			.all();
-
+);
 		const isAdmin = roles.some((r) => r.is4S === true || r.tingkatScope === 'Pusat');
 		const redirectTo = url.searchParams.get('redirectTo');
 

@@ -9,7 +9,7 @@
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { db } from '$lib/db';
+import { db, first } from '$lib/db';
 import { keluarga, anggotaKeluarga, users, kelompok, desa, daerah, userDapukan, dapukan, presensiKehadiran } from '$lib/db/schema';
 import { eq, desc, inArray, and, isNotNull, ne } from 'drizzle-orm';
 import { decryptSensitive, encryptSensitive, maskSensitive } from '$lib/server/crypto';
@@ -26,10 +26,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 	try {
 		// 1. Evaluasi Hierarki Scope Admin (Pusat, Daerah, Desa, Kelompok)
 		const adminScope = getAdminScope(locals.roles);
-		const accessibleWilayah = getAccessibleWilayah(adminScope);
+		const accessibleWilayah = await getAccessibleWilayah(adminScope);
 
 		// 2. Query Data Keluarga join Users, Kelompok, Desa, Daerah (Single JOIN, 0 N+1)
-		const rawKeluargaList = db
+		const rawKeluargaList = (await db
 			.select({
 				id: keluarga.id,
 				isKk: keluarga.isKk,
@@ -52,8 +52,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.leftJoin(desa, eq(kelompok.desaId, desa.id))
 			.leftJoin(daerah, eq(desa.daerahId, daerah.id))
 			.orderBy(desc(keluarga.id))
-			.all();
-
+);
 		// Saring keluarga sesuai kelompok yang diizinkan dalam scope admin
 		const scopedKeluargaList = rawKeluargaList.filter((k) => {
 			if (adminScope.isPusat) return true;
@@ -62,11 +61,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 		});
 
 		// 3. Struktur Dapukan 4S & Hak Kelola Dapukan
-		const masterDapukan = db.select().from(dapukan).all();
+		const masterDapukan = (await db.select().from(dapukan));
 		const canManageDapukanVal = canManageDapukan(locals.roles || []);
 
 		// 4. Batch Query Anggota Keluarga join Users untuk akun email (1 scan, O(1) Map lookup)
-		const rawAnggotaList = db
+		const rawAnggotaList = (await db
 			.select({
 				id: anggotaKeluarga.id,
 				keluargaId: anggotaKeluarga.keluargaId,
@@ -90,8 +89,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			})
 			.from(anggotaKeluarga)
 			.leftJoin(users, eq(anggotaKeluarga.userId, users.id))
-			.all();
-
+);
 		const anggotaByKeluargaMap = new Map<string, typeof rawAnggotaList>();
 		for (const a of rawAnggotaList) {
 			const list = anggotaByKeluargaMap.get(a.keluargaId) || [];
@@ -100,7 +98,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		}
 
 		// 5. Batch Query Peran Pengurus / 4S untuk Semua Akun Jamaah
-		const rawRoles = db
+		const rawRoles = (await db
 			.select({
 				userId: userDapukan.userId,
 				dapukanNama: dapukan.namaDapukan,
@@ -110,8 +108,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			})
 			.from(userDapukan)
 			.leftJoin(dapukan, eq(userDapukan.dapukanId, dapukan.id))
-			.all();
-
+);
 		const roleByUserIdMap = new Map<string, typeof rawRoles>();
 		for (const r of rawRoles) {
 			const list = roleByUserIdMap.get(r.userId) || [];
@@ -372,7 +369,7 @@ export const actions: Actions = {
 		}
 
 		const adminScope = getAdminScope(locals.roles);
-		const accessibleWilayah = getAccessibleWilayah(adminScope);
+		const accessibleWilayah = await getAccessibleWilayah(adminScope);
 
 		const formData = await request.formData();
 		const namaLengkap = formData.get('namaLengkap')?.toString()?.trim() || '';
@@ -413,7 +410,7 @@ export const actions: Actions = {
 		}
 
 		// Validasi Keunikan Email
-		const existingUser = db.select({ id: users.id }).from(users).where(eq(users.email, email)).get();
+		const existingUser = (await first(db.select({ id: users.id }).from(users).where(eq(users.email, email))));
 		if (existingUser) {
 			return fail(400, {
 				error: `Email ${email} sudah terdaftar pada akun lain.`
@@ -504,9 +501,9 @@ export const actions: Actions = {
 
 		// Eksekusi Transaksi DB Atomik (Minimum Lock)
 		try {
-			db.transaction((tx) => {
+			await db.transaction(async (tx) => {
 				// 1. Buat Akun Jamaah Baru
-				const [newUser] = tx
+				const [newUser] = (await tx
 					.insert(users)
 					.values({
 						namaLengkap,
@@ -516,10 +513,9 @@ export const actions: Actions = {
 						kelompokId
 					})
 					.returning()
-					.all();
-
+);
 				// 2. Buat Record Sensus (isKk: false untuk Mandiri/Perantau agar tidak dihitung KK)
-				const [newKeluarga] = tx
+				const [newKeluarga] = (await tx
 					.insert(keluarga)
 					.values({
 						isKk: !isMandiri,
@@ -528,8 +524,7 @@ export const actions: Actions = {
 						alamatLengkap
 					})
 					.returning()
-					.all();
-
+);
 				// 3. Masukkan Anggota Keluarga / Data Diri Jiwa
 				for (let i = 0; i < anggotaList.length; i++) {
 					const a = anggotaList[i];
@@ -545,7 +540,7 @@ export const actions: Actions = {
 						? cleanNoTelepon
 						: (a.noTelepon && a.noTelepon.trim() ? a.noTelepon.trim().replace(/\D/g, '') : null);
 
-					tx.insert(anggotaKeluarga)
+(await tx.insert(anggotaKeluarga)
 						.values({
 							keluargaId: newKeluarga.id,
 							userId: isKepala ? newUser.id : null,
@@ -561,7 +556,7 @@ export const actions: Actions = {
 							statusJamaah: 'Aktif',
 							isrun: (!isMandiri && a.statusHubungan === 'Kepala Keluarga') ? 'Ya' : ((a as any).isrun || 'Tidak')
 						})
-						.run();
+);
 				}
 			});
 		} catch (err) {
@@ -589,7 +584,7 @@ export const actions: Actions = {
 		}
 
 		const adminScope = getAdminScope(locals.roles);
-		const accessibleWilayah = getAccessibleWilayah(adminScope);
+		const accessibleWilayah = await getAccessibleWilayah(adminScope);
 
 		const formData = await request.formData();
 		const keluargaId = formData.get('keluargaId')?.toString()?.trim() || '';
@@ -605,7 +600,7 @@ export const actions: Actions = {
 		}
 
 		// Cari keluarga dan verifikasi scope
-		const targetKeluarga = db
+		const targetKeluarga = (await first(db
 			.select({
 				id: keluarga.id,
 				isKk: keluarga.isKk,
@@ -615,7 +610,7 @@ export const actions: Actions = {
 			.from(keluarga)
 			.leftJoin(users, eq(keluarga.kepalaKeluargaId, users.id))
 			.where(eq(keluarga.id, keluargaId))
-			.get();
+			));
 
 		if (!targetKeluarga) {
 			return fail(404, { error: 'Data Kartu Keluarga tidak ditemukan.' });
@@ -661,7 +656,7 @@ export const actions: Actions = {
 			const umur = isoTgl ? hitungUmur(isoTgl) : 0;
 			const resolvedGenerus = statusGenerusInput || (isoTgl ? hitungStatusGenerus(umur, resolvedPernikahan) : null);
 
-			db.insert(anggotaKeluarga)
+(await db.insert(anggotaKeluarga)
 				.values({
 					keluargaId,
 					userId: statusHubungan === 'Kepala Keluarga' ? targetKeluarga.kepalaKeluargaId : null,
@@ -677,7 +672,7 @@ export const actions: Actions = {
 					statusJamaah: 'Aktif',
 					isrun: (statusHubungan === 'Kepala Keluarga' && (targetKeluarga.isKk ?? true)) ? 'Ya' : 'Tidak'
 				})
-				.run();
+);
 		} catch (err) {
 			console.error('Gagal menambahkan anggota keluarga:', err);
 			return fail(500, { error: 'Terjadi kesalahan sistem saat menambahkan anggota.' });
@@ -713,11 +708,11 @@ export const actions: Actions = {
 			return fail(400, { errorAccount: 'Nomor HP harus berupa angka valid (8-16 digit).' });
 		}
 
-		const targetAnggota = db
+		const targetAnggota = (await first(db
 			.select()
 			.from(anggotaKeluarga)
 			.where(eq(anggotaKeluarga.id, anggotaId))
-			.get();
+			));
 
 		if (!targetAnggota) {
 			return fail(404, { errorAccount: 'Data anggota keluarga tidak ditemukan.' });
@@ -727,23 +722,23 @@ export const actions: Actions = {
 		}
 
 		// Cari kelompok keluarga untuk user baru
-		const parentKeluarga = db
+		const parentKeluarga = (await first(db
 			.select({
 				kelompokId: users.kelompokId
 			})
 			.from(keluarga)
 			.leftJoin(users, eq(keluarga.kepalaKeluargaId, users.id))
 			.where(eq(keluarga.id, targetAnggota.keluargaId))
-			.get();
+			));
 
 		const kelompokId = parentKeluarga?.kelompokId || null;
 
 		if (email) {
-			const existingEmail = db
+			const existingEmail = (await first(db
 				.select()
 				.from(users)
 				.where(eq(users.email, email.toLowerCase()))
-				.get();
+				));
 			if (existingEmail) {
 				return fail(400, { errorAccount: 'Email tersebut sudah terdaftar pada akun lain.' });
 			}
@@ -752,8 +747,8 @@ export const actions: Actions = {
 		const passwordHash = await hashPassword(password);
 
 		try {
-			db.transaction((tx) => {
-				const [newUser] = tx
+			await db.transaction(async (tx) => {
+				const [newUser] = (await tx
 					.insert(users)
 					.values({
 						kelompokId,
@@ -763,15 +758,14 @@ export const actions: Actions = {
 						passwordHash
 					})
 					.returning()
-					.all();
-
-				tx.update(anggotaKeluarga)
+);
+(await tx.update(anggotaKeluarga)
 					.set({
 						userId: newUser.id,
 						noTelepon: cleanNoTelepon
 					})
 					.where(eq(anggotaKeluarga.id, anggotaId))
-					.run();
+);
 			});
 
 			return {
@@ -794,7 +788,7 @@ export const actions: Actions = {
 		}
 
 		const adminScope = getAdminScope(locals.roles);
-		const accessibleWilayah = getAccessibleWilayah(adminScope);
+		const accessibleWilayah = await getAccessibleWilayah(adminScope);
 
 		const formData = await request.formData();
 		const anggotaId = formData.get('anggotaId')?.toString() || '';
@@ -816,17 +810,17 @@ export const actions: Actions = {
 			return fail(400, { error: 'ID anggota keluarga tidak valid.' });
 		}
 
-		const existingAnggota = db
+		const existingAnggota = (await first(db
 			.select()
 			.from(anggotaKeluarga)
 			.where(eq(anggotaKeluarga.id, anggotaId))
-			.get();
+			));
 
 		if (!existingAnggota) {
 			return fail(404, { error: 'Data anggota keluarga tidak ditemukan.' });
 		}
 
-		const parentKeluarga = db
+		const parentKeluarga = (await first(db
 			.select({
 				id: keluarga.id,
 				kelompokId: users.kelompokId,
@@ -835,7 +829,7 @@ export const actions: Actions = {
 			.from(keluarga)
 			.leftJoin(users, eq(keluarga.kepalaKeluargaId, users.id))
 			.where(eq(keluarga.id, existingAnggota.keluargaId))
-			.get();
+			));
 
 		if (
 			parentKeluarga?.kelompokId &&
@@ -902,31 +896,30 @@ export const actions: Actions = {
 				updatePayload.nikEncrypted = encryptSensitive(cleanNik);
 			}
 
-			db.update(anggotaKeluarga)
+(await db.update(anggotaKeluarga)
 				.set(updatePayload)
 				.where(eq(anggotaKeluarga.id, anggotaId))
-				.run();
-
+);
 			if (existingAnggota.userId) {
-				db.update(users)
+(await db.update(users)
 					.set({
 						namaLengkap,
 						noTelepon: cleanNoTelepon || null
 					})
 					.where(eq(users.id, existingAnggota.userId))
-					.run();
+);
 			} else if (parentKeluarga?.kepalaKeluargaId && existingAnggota.statusHubungan === 'Kepala Keluarga') {
-				db.update(anggotaKeluarga)
+(await db.update(anggotaKeluarga)
 					.set({ userId: parentKeluarga.kepalaKeluargaId })
 					.where(eq(anggotaKeluarga.id, anggotaId))
-					.run();
-				db.update(users)
+);
+(await db.update(users)
 					.set({
 						namaLengkap,
 						noTelepon: cleanNoTelepon || null
 					})
 					.where(eq(users.id, parentKeluarga.kepalaKeluargaId))
-					.run();
+);
 			}
 
 			return {
@@ -947,7 +940,7 @@ export const actions: Actions = {
 		}
 
 		const adminScope = getAdminScope(locals.roles);
-		const accessibleWilayah = getAccessibleWilayah(adminScope);
+		const accessibleWilayah = await getAccessibleWilayah(adminScope);
 
 		const formData = await request.formData();
 		const keluargaId = formData.get('keluargaId')?.toString() || '';
@@ -959,7 +952,7 @@ export const actions: Actions = {
 			return fail(400, { error: 'ID Kartu Keluarga tidak valid.' });
 		}
 
-		const targetKeluarga = db
+		const targetKeluarga = (await first(db
 			.select({
 				id: keluarga.id,
 				isKk: keluarga.isKk,
@@ -969,7 +962,7 @@ export const actions: Actions = {
 			.from(keluarga)
 			.leftJoin(users, eq(keluarga.kepalaKeluargaId, users.id))
 			.where(eq(keluarga.id, keluargaId))
-			.get();
+			));
 
 		if (!targetKeluarga) {
 			return fail(404, { error: 'Data keluarga tidak ditemukan.' });
@@ -1003,18 +996,16 @@ export const actions: Actions = {
 				keluargaUpdatePayload.noKkEncrypted = encryptSensitive(cleanNoKk);
 			}
 
-			db.update(keluarga)
+(await db.update(keluarga)
 				.set(keluargaUpdatePayload)
 				.where(eq(keluarga.id, keluargaId))
-				.run();
-
+);
 			if (newKelompokId !== null) {
-				const rawAnggotaWithUser = db
+				const rawAnggotaWithUser = (await db
 					.select({ userId: anggotaKeluarga.userId })
 					.from(anggotaKeluarga)
 					.where(and(eq(anggotaKeluarga.keluargaId, keluargaId), isNotNull(anggotaKeluarga.userId)))
-					.all();
-
+);
 				const userIdsToUpdate: string[] = [];
 				if (targetKeluarga.kepalaKeluargaId) {
 					userIdsToUpdate.push(targetKeluarga.kepalaKeluargaId);
@@ -1026,10 +1017,10 @@ export const actions: Actions = {
 				}
 
 				if (userIdsToUpdate.length > 0) {
-					db.update(users)
+(await db.update(users)
 						.set({ kelompokId: newKelompokId })
 						.where(inArray(users.id, userIdsToUpdate))
-						.run();
+);
 				}
 			}
 
@@ -1052,7 +1043,7 @@ export const actions: Actions = {
 		}
 
 		const adminScope = getAdminScope(locals.roles);
-		const accessibleWilayah = getAccessibleWilayah(adminScope);
+		const accessibleWilayah = await getAccessibleWilayah(adminScope);
 
 		const formData = await request.formData();
 		const keluargaId = formData.get('keluargaId')?.toString() || '';
@@ -1061,7 +1052,7 @@ export const actions: Actions = {
 			return fail(400, { error: 'ID Sensus tidak valid.' });
 		}
 
-		const targetKeluarga = db
+		const targetKeluarga = (await first(db
 			.select({
 				id: keluarga.id,
 				isKk: keluarga.isKk,
@@ -1072,7 +1063,7 @@ export const actions: Actions = {
 			.from(keluarga)
 			.leftJoin(users, eq(keluarga.kepalaKeluargaId, users.id))
 			.where(eq(keluarga.id, keluargaId))
-			.get();
+			));
 
 		if (!targetKeluarga) {
 			return fail(404, { error: 'Data sensus tidak ditemukan.' });
@@ -1091,12 +1082,11 @@ export const actions: Actions = {
 
 		try {
 			// Kumpulkan semua userId yang terkait dengan KK ini
-			const rawAnggotaWithUser = db
+			const rawAnggotaWithUser = (await db
 				.select({ userId: anggotaKeluarga.userId })
 				.from(anggotaKeluarga)
 				.where(and(eq(anggotaKeluarga.keluargaId, keluargaId), isNotNull(anggotaKeluarga.userId)))
-				.all();
-
+);
 			const userIdsToDelete: string[] = [];
 			if (targetKeluarga.kepalaKeluargaId && targetKeluarga.kepalaKeluargaId !== locals.user.id) {
 				userIdsToDelete.push(targetKeluarga.kepalaKeluargaId);
@@ -1107,22 +1097,22 @@ export const actions: Actions = {
 				}
 			}
 
-			db.transaction((tx) => {
+			await db.transaction(async (tx) => {
 				// Bersihkan presensi & peran jika ada
 				if (userIdsToDelete.length > 0) {
-					tx.delete(userDapukan).where(inArray(userDapukan.userId, userIdsToDelete)).run();
-					tx.delete(presensiKehadiran).where(inArray(presensiKehadiran.userId, userIdsToDelete)).run();
+(await tx.delete(userDapukan).where(inArray(userDapukan.userId, userIdsToDelete)));
+(await tx.delete(presensiKehadiran).where(inArray(presensiKehadiran.userId, userIdsToDelete)));
 				}
 
 				// Hapus seluruh anggota keluarga
-				tx.delete(anggotaKeluarga).where(eq(anggotaKeluarga.keluargaId, keluargaId)).run();
+				(await tx.delete(anggotaKeluarga).where(eq(anggotaKeluarga.keluargaId, keluargaId)));
 
 				// Hapus record keluarga
-				tx.delete(keluarga).where(eq(keluarga.id, keluargaId)).run();
+				(await tx.delete(keluarga).where(eq(keluarga.id, keluargaId)));
 
 				// Hapus akun user
 				if (userIdsToDelete.length > 0) {
-					tx.delete(users).where(inArray(users.id, userIdsToDelete)).run();
+(await tx.delete(users).where(inArray(users.id, userIdsToDelete)));
 				}
 			});
 
@@ -1144,7 +1134,7 @@ export const actions: Actions = {
 		}
 
 		const adminScope = getAdminScope(locals.roles);
-		const accessibleWilayah = getAccessibleWilayah(adminScope);
+		const accessibleWilayah = await getAccessibleWilayah(adminScope);
 
 		const formData = await request.formData();
 		const keluargaId = formData.get('keluargaId')?.toString() || '';
@@ -1160,7 +1150,7 @@ export const actions: Actions = {
 			return fail(403, { error: 'Kelompok tujuan berada di luar cakupan wewenang Anda.' });
 		}
 
-		const targetKeluarga = db
+		const targetKeluarga = (await first(db
 			.select({
 				id: keluarga.id,
 				kepalaKeluargaId: keluarga.kepalaKeluargaId,
@@ -1169,7 +1159,7 @@ export const actions: Actions = {
 			.from(keluarga)
 			.leftJoin(users, eq(keluarga.kepalaKeluargaId, users.id))
 			.where(eq(keluarga.id, keluargaId))
-			.get();
+			));
 
 		if (!targetKeluarga) {
 			return fail(404, { error: 'Data sensus tidak ditemukan.' });
@@ -1183,11 +1173,11 @@ export const actions: Actions = {
 			return fail(403, { error: 'Akses ditolak: Data sensus saat ini berada di luar wewenang Anda.' });
 		}
 
-		const targetKelompokRow = db
+		const targetKelompokRow = (await first(db
 			.select({ id: kelompok.id, nama: kelompok.nama })
 			.from(kelompok)
 			.where(eq(kelompok.id, targetKelompokId))
-			.get();
+			));
 
 		if (!targetKelompokRow) {
 			return fail(404, { error: 'Kelompok tujuan tidak ditemukan di database.' });
@@ -1195,12 +1185,11 @@ export const actions: Actions = {
 
 		try {
 			// Ambil semua anggota keluarga yang punya akun user
-			const rawAnggotaWithUser = db
+			const rawAnggotaWithUser = (await db
 				.select({ userId: anggotaKeluarga.userId })
 				.from(anggotaKeluarga)
 				.where(and(eq(anggotaKeluarga.keluargaId, keluargaId), isNotNull(anggotaKeluarga.userId)))
-				.all();
-
+);
 			const userIdsToUpdate: string[] = [];
 			if (targetKeluarga.kepalaKeluargaId) {
 				userIdsToUpdate.push(targetKeluarga.kepalaKeluargaId);
@@ -1211,12 +1200,12 @@ export const actions: Actions = {
 				}
 			}
 
-			db.transaction((tx) => {
+			await db.transaction(async (tx) => {
 				if (userIdsToUpdate.length > 0) {
-					tx.update(users)
+(await tx.update(users)
 						.set({ kelompokId: targetKelompokId })
 						.where(inArray(users.id, userIdsToUpdate))
-						.run();
+);
 				}
 			});
 
@@ -1238,7 +1227,7 @@ export const actions: Actions = {
 		}
 
 		const adminScope = getAdminScope(locals.roles);
-		const accessibleWilayah = getAccessibleWilayah(adminScope);
+		const accessibleWilayah = await getAccessibleWilayah(adminScope);
 
 		const formData = await request.formData();
 		const anggotaId = formData.get('anggotaId')?.toString() || '';
@@ -1248,7 +1237,7 @@ export const actions: Actions = {
 			return fail(400, { error: 'ID anggota atau status keaktifan tidak valid (harus Aktif atau Tidak Aktif).' });
 		}
 
-		const targetAnggota = db
+		const targetAnggota = (await first(db
 			.select({
 				id: anggotaKeluarga.id,
 				namaLengkap: anggotaKeluarga.namaLengkap,
@@ -1259,7 +1248,7 @@ export const actions: Actions = {
 			.innerJoin(keluarga, eq(anggotaKeluarga.keluargaId, keluarga.id))
 			.leftJoin(users, eq(keluarga.kepalaKeluargaId, users.id))
 			.where(eq(anggotaKeluarga.id, anggotaId))
-			.get();
+			));
 
 		if (!targetAnggota) {
 			return fail(404, { error: 'Data anggota keluarga tidak ditemukan.' });
@@ -1273,11 +1262,10 @@ export const actions: Actions = {
 		}
 
 		try {
-			db.update(anggotaKeluarga)
+(await db.update(anggotaKeluarga)
 				.set({ statusJamaah })
 				.where(eq(anggotaKeluarga.id, anggotaId))
-				.run();
-
+);
 			return {
 				success: `Status ${targetAnggota.namaLengkap || 'anggota'} berhasil diubah menjadi ${statusJamaah}.`
 			};
@@ -1302,7 +1290,7 @@ export const actions: Actions = {
 		}
 
 		const adminScope = getAdminScope(locals.roles);
-		const accessible = getAccessibleWilayah(adminScope);
+		const accessible = await getAccessibleWilayah(adminScope);
 
 		const formData = await request.formData();
 		const userId = formData.get('userId')?.toString()?.trim() || '';
@@ -1318,7 +1306,7 @@ export const actions: Actions = {
 			return fail(400, { error: 'Pilih akun jamaah yang akan diberikan dapukan.' });
 		}
 
-		const targetUser = db
+		const targetUser = (await first(db
 			.select({
 				id: users.id,
 				namaLengkap: users.namaLengkap,
@@ -1334,7 +1322,7 @@ export const actions: Actions = {
 			.leftJoin(desa, eq(kelompok.desaId, desa.id))
 			.leftJoin(daerah, eq(desa.daerahId, daerah.id))
 			.where(eq(users.id, userId))
-			.get();
+			));
 
 		if (!targetUser) {
 			return fail(404, { error: 'Data akun jamaah tidak ditemukan.' });
@@ -1416,7 +1404,7 @@ export const actions: Actions = {
 			// Integritas 4S: 4S hanya berlaku sampai tingkat Daerah (Kelompok, Desa, Daerah).
 			// Untuk tingkat Pusat, seluruh pengurus bertindak sebagai Admin Pusat / non-4S.
 			if (tipeDapukan === 'tetap' && dapukanId) {
-				const selectedDapukan = db.select().from(dapukan).where(eq(dapukan.id, dapukanId)).get();
+				const selectedDapukan = (await first(db.select().from(dapukan).where(eq(dapukan.id, dapukanId))));
 				if (selectedDapukan?.is4S && selectedDapukan.namaDapukan !== 'Superadmin') {
 					return fail(400, {
 						error: 'Struktur dapukan 4S hanya berlaku hingga tingkat Daerah. Untuk tingkat Pusat, silakan gunakan dapukan Admin Pusat atau kepanitiaan tentatif.'
@@ -1428,11 +1416,11 @@ export const actions: Actions = {
 		// Validasi Integritas Dapukan: Kyai hanya boleh ada 1 di setiap lingkup (Kelompok, Desa, Daerah)
 		// Sedangkan Wakil Kyai dan dapukan lainnya diperbolehkan lebih dari satu.
 		if (tipeDapukan === 'tetap' && dapukanId && tingkatScope !== 'Pusat') {
-			const selectedDapukan = db.select().from(dapukan).where(eq(dapukan.id, dapukanId)).get();
+			const selectedDapukan = (await first(db.select().from(dapukan).where(eq(dapukan.id, dapukanId))));
 			const isKyai = selectedDapukan?.namaDapukan.trim().toLowerCase() === 'kyai';
 
 			if (isKyai) {
-				const existingAssignment = db.select().from(userDapukan).where(eq(userDapukan.userId, userId)).get();
+				const existingAssignment = (await first(db.select().from(userDapukan).where(eq(userDapukan.userId, userId))));
 				const queryScope = db
 					.select({
 						id: userDapukan.id,
@@ -1454,8 +1442,7 @@ export const actions: Actions = {
 										: undefined
 						)
 					);
-
-				const existingKyai = queryScope.get();
+				const existingKyai = await first(queryScope);
 				if (existingKyai) {
 					const scopeLabel =
 						tingkatScope === 'Kelompok'
@@ -1471,9 +1458,9 @@ export const actions: Actions = {
 		}
 
 		try {
-			const existingAssignment = db.select().from(userDapukan).where(eq(userDapukan.userId, userId)).get();
+			const existingAssignment = (await first(db.select().from(userDapukan).where(eq(userDapukan.userId, userId))));
 			if (existingAssignment) {
-				db.update(userDapukan)
+(await db.update(userDapukan)
 					.set({
 						dapukanId,
 						namaDapukanCustom: tipeDapukan === 'custom' ? namaDapukanCustom : null,
@@ -1483,9 +1470,9 @@ export const actions: Actions = {
 						kelompokId: finalKelompokId
 					})
 					.where(eq(userDapukan.id, existingAssignment.id))
-					.run();
+);
 			} else {
-				db.insert(userDapukan)
+(await db.insert(userDapukan)
 					.values({
 						userId,
 						dapukanId,
@@ -1495,7 +1482,7 @@ export const actions: Actions = {
 						desaId: finalDesaId,
 						kelompokId: finalKelompokId
 					})
-					.run();
+);
 			}
 
 			return {

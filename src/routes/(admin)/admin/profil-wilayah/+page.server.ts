@@ -9,7 +9,7 @@
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import { db } from '$lib/db';
+import { db, first } from '$lib/db';
 import { daerah, desa, kelompok, subKelompok, rekeningWilayah } from '$lib/db/schema';
 import { and, desc, eq } from 'drizzle-orm';
 import { getAdminScope, getAccessibleWilayah, canManageRekening } from '$lib/server/scope';
@@ -32,7 +32,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	}
 
 	const adminScope = getAdminScope(roles);
-	const accessibleWilayah = getAccessibleWilayah(adminScope);
+	const accessibleWilayah = await getAccessibleWilayah(adminScope);
 
 	const paramScope = url.searchParams.get('scope') as 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok' | null;
 	const paramId = url.searchParams.get('id') ? Number(url.searchParams.get('id')) : null;
@@ -92,10 +92,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	let canManageFinance = false;
 
 	if (activeScope && activeId) {
-		canManageFinance = canManageRekening(roles, activeScope, activeId);
+		canManageFinance = await canManageRekening(roles, activeScope, activeId);
 
 		if (activeScope === 'Kelompok') {
-			const k = db
+			const k = (await first(db
 				.select({
 					id: kelompok.id,
 					nama: kelompok.nama,
@@ -114,25 +114,24 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				.innerJoin(desa, eq(kelompok.desaId, desa.id))
 				.innerJoin(daerah, eq(desa.daerahId, daerah.id))
 				.where(eq(kelompok.id, activeId))
-				.get();
+				));
 
 			if (k) {
 				profilData = k;
-				subWilayahList = db
+				subWilayahList = (await db
 					.select()
 					.from(subKelompok)
 					.where(eq(subKelompok.kelompokId, activeId))
-					.all();
-
-				daftarRekening = db
+);
+				daftarRekening = (await db
 					.select()
 					.from(rekeningWilayah)
 					.where(and(eq(rekeningWilayah.tingkatScope, 'Kelompok'), eq(rekeningWilayah.kelompokId, activeId)))
 					.orderBy(desc(rekeningWilayah.createdAt))
-					.all();
+);
 			}
 		} else if (activeScope === 'Desa') {
-			const d = db
+			const d = (await first(db
 				.select({
 					id: desa.id,
 					nama: desa.nama,
@@ -149,53 +148,50 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				.from(desa)
 				.innerJoin(daerah, eq(desa.daerahId, daerah.id))
 				.where(eq(desa.id, activeId))
-				.get();
+				));
 
 			if (d) {
 				profilData = d;
-				subWilayahList = db
+				subWilayahList = (await db
 					.select()
 					.from(kelompok)
 					.where(eq(kelompok.desaId, activeId))
-					.all();
-
-				daftarRekening = db
+);
+				daftarRekening = (await db
 					.select()
 					.from(rekeningWilayah)
 					.where(and(eq(rekeningWilayah.tingkatScope, 'Desa'), eq(rekeningWilayah.desaId, activeId)))
 					.orderBy(desc(rekeningWilayah.createdAt))
-					.all();
+);
 			}
 		} else if (activeScope === 'Daerah') {
-			const dr = db
+			const dr = (await first(db
 				.select()
 				.from(daerah)
 				.where(eq(daerah.id, activeId))
-				.get();
+				));
 
 			if (dr) {
 				profilData = dr;
-				const desas = db
+				const desas = (await db
 					.select()
 					.from(desa)
 					.where(eq(desa.daerahId, activeId))
-					.all();
-
+);
 				const kelompokInDaerah = accessibleWilayah.kelompokList.filter(
 					(k) => k.daerahId === activeId
 				);
-
 				subWilayahList = desas.map((des) => ({
 					...des,
 					kelompokCount: kelompokInDaerah.filter((k) => k.desaId === des.id).length
 				}));
 
-				daftarRekening = db
+				daftarRekening = (await db
 					.select()
 					.from(rekeningWilayah)
 					.where(and(eq(rekeningWilayah.tingkatScope, 'Daerah'), eq(rekeningWilayah.daerahId, activeId)))
 					.orderBy(desc(rekeningWilayah.createdAt))
-					.all();
+);
 			}
 		}
 	}
@@ -209,7 +205,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				.filter((t): t is string => Boolean(t && !standardAlokasi.includes(t)))
 		)
 	);
-
 	return {
 		adminScope,
 		accessibleWilayah,
@@ -246,7 +241,7 @@ export const actions: Actions = {
 		}
 
 		if (scope === 'Kelompok') {
-			db.update(kelompok)
+(await db.update(kelompok)
 				.set({
 					lokasiNama: lokasiNama || null,
 					latitude,
@@ -255,9 +250,9 @@ export const actions: Actions = {
 					gmapsUrl
 				})
 				.where(eq(kelompok.id, id))
-				.run();
+);
 		} else if (scope === 'Desa') {
-			db.update(desa)
+(await db.update(desa)
 				.set({
 					lokasiNama: lokasiNama || null,
 					latitude,
@@ -266,9 +261,9 @@ export const actions: Actions = {
 					gmapsUrl
 				})
 				.where(eq(desa.id, id))
-				.run();
+);
 		} else if (scope === 'Daerah') {
-			db.update(daerah)
+(await db.update(daerah)
 				.set({
 					lokasiNama: lokasiNama || null,
 					latitude,
@@ -277,7 +272,7 @@ export const actions: Actions = {
 					gmapsUrl
 				})
 				.where(eq(daerah.id, id))
-				.run();
+);
 		}
 
 		return { success: true, message: 'Informasi lokasi wilayah berhasil diperbarui.', scope, id };
@@ -295,7 +290,7 @@ export const actions: Actions = {
 		const scope = formData.get('scope') as 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok';
 		const id = Number(formData.get('id') || 0);
 
-		const canManage = canManageRekening(locals.roles || [], scope, id);
+		const canManage = await canManageRekening(locals.roles || [], scope, id);
 		if (!canManage) {
 			return fail(403, {
 				error: 'Akses ditolak: Hanya pengurus KU/Bendahara atau Superadmin yang berwenang menambah rekening/QRIS shodaqoh.'
@@ -324,7 +319,6 @@ export const actions: Actions = {
 			qrisImageUrl = await saveUploadedQris(
 				qrisFile instanceof File && qrisFile.size > 0 ? qrisFile : qrisUrlText
 			);
-
 			if (!qrisImageUrl) {
 				return fail(400, { error: 'Gambar QRIS wajib diunggah atau diisi tautan gambarnya.' });
 			}
@@ -338,7 +332,7 @@ export const actions: Actions = {
 			}
 		}
 
-		db.insert(rekeningWilayah)
+(await db.insert(rekeningWilayah)
 			.values({
 				tingkatScope: scope,
 				daerahId: scope === 'Daerah' ? id : null,
@@ -353,8 +347,7 @@ export const actions: Actions = {
 				isActive: true,
 				createdAt: Math.floor(Date.now() / 1000)
 			})
-			.run();
-
+);
 		return { success: true, message: 'Rekening/QRIS shodaqoh berhasil ditambahkan.', scope, id };
 	},
 
@@ -371,14 +364,14 @@ export const actions: Actions = {
 		const scope = formData.get('scope') as 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok';
 		const id = Number(formData.get('id') || 0);
 
-		const canManage = canManageRekening(locals.roles || [], scope, id);
+		const canManage = await canManageRekening(locals.roles || [], scope, id);
 		if (!canManage) {
 			return fail(403, {
 				error: 'Akses ditolak: Hanya pengurus KU/Bendahara atau Superadmin yang berwenang memperbarui rekening/QRIS shodaqoh.'
 			});
 		}
 
-		const existing = db.select().from(rekeningWilayah).where(eq(rekeningWilayah.id, rekeningId)).get();
+		const existing = (await first(db.select().from(rekeningWilayah).where(eq(rekeningWilayah.id, rekeningId))));
 		if (!existing) {
 			return fail(404, { error: 'Data rekening tidak ditemukan.' });
 		}
@@ -423,7 +416,7 @@ export const actions: Actions = {
 			}
 		}
 
-		db.update(rekeningWilayah)
+(await db.update(rekeningWilayah)
 			.set({
 				namaBank,
 				nomorRekening,
@@ -434,8 +427,7 @@ export const actions: Actions = {
 				isActive
 			})
 			.where(eq(rekeningWilayah.id, rekeningId))
-			.run();
-
+);
 		return { success: true, message: 'Rekening/QRIS shodaqoh berhasil diperbarui.', scope, id };
 	},
 
@@ -452,14 +444,14 @@ export const actions: Actions = {
 		const scope = formData.get('scope') as 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok';
 		const id = Number(formData.get('id') || 0);
 
-		const canManage = canManageRekening(locals.roles || [], scope, id);
+		const canManage = await canManageRekening(locals.roles || [], scope, id);
 		if (!canManage) {
 			return fail(403, {
 				error: 'Akses ditolak: Hanya pengurus KU/Bendahara atau Superadmin yang berwenang menghapus rekening shodaqoh.'
 			});
 		}
 
-		db.delete(rekeningWilayah).where(eq(rekeningWilayah.id, rekeningId)).run();
+(await db.delete(rekeningWilayah).where(eq(rekeningWilayah.id, rekeningId)));
 
 		return { success: true, message: 'Rekening shodaqoh berhasil dihapus.', scope, id };
 	}

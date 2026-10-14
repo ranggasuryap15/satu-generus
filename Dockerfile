@@ -1,34 +1,43 @@
 # @file Dockerfile
-# @purpose Environment Docker development container untuk SvelteKit aplikasi Satu Generus
-# @usedBy docker compose up, docker build
-# @dependencies Node.js 22-slim, build tools native addons (python3, make, g++)
-# @publicFunctions N/A (Docker container image)
-# @sideEffects Menjalankan dev server Vite pada port 5173 dengan host 0.0.0.0
-FROM node:22-slim
-
+# @purpose Multi-stage build SvelteKit adapter-node pasca-migrasi PostgreSQL: stage `dev` untuk docker compose lokal, `builder` menghasilkan artifact produksi, `prod` sebagai referensi runtime di dalam container
+# @usedBy docker compose (target dev), CI/build lokal (target builder), build artifact untuk deploy server tanpa Docker (target prod)
+# @dependencies node:22-slim
+# @publicFunctions N/A
+# @sideEffects Menghasilkan folder /app/build berisi server adapter-node siap dijalankan `node build`
+FROM node:22-slim AS base
 WORKDIR /app
+ENV NODE_ENV=development
 
-# Install dependensi sistem untuk kompilasi better-sqlite3 native addon
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 \
-    make \
-    g++ \
-    && rm -rf /var/lib/apt/lists/*
-
+# ---------- Stage 1: dependencies ----------
+FROM base AS deps
 COPY package*.json ./
-
 RUN npm install --legacy-peer-deps
 
+# ---------- Stage 2: development (dipakai docker compose lokal) ----------
+FROM base AS dev
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-
-# Buat folder /data dengan permission yang tepat untuk file SQLite
-RUN mkdir -p /data
-
+RUN mkdir -p /app/uploads
 EXPOSE 5173
-
-ENV HOST=0.0.0.0
-ENV PORT=5173
-ENV DATABASE_URL=/data/sqlite.db
-
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
 
+# ---------- Stage 3: builder (menghasilkan artifact produksi) ----------
+FROM base AS builder
+ENV NODE_ENV=production
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN npm run build
+
+# ---------- Stage 4: production (referensi runtime di dalam container) ----------
+FROM node:22-slim AS prod
+WORKDIR /app
+ENV NODE_ENV=production
+ENV HOST=0.0.0.0
+ENV PORT=3000
+COPY --from=builder /app/build ./build
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/drizzle ./drizzle
+RUN mkdir -p /app/uploads
+EXPOSE 3000
+CMD ["node", "build"]

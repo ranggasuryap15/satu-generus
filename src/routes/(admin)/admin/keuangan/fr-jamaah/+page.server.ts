@@ -9,9 +9,9 @@
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import { db, sqlite } from '$lib/db';
+import { db, first } from '$lib/db';
 import { anggotaKeluarga, keluarga, users, kelompok, desa, transaksiFr, userDapukan, dapukan, posAnggaranInfaq } from '$lib/db/schema';
-import { eq, and, asc, inArray, or, isNull } from 'drizzle-orm';
+import { eq, and, asc, inArray, or, isNull, sql } from 'drizzle-orm';
 import { getAdminScope, getAccessibleWilayah, canAccessKeuangan, canManageFr } from '$lib/server/scope';
 import { createId } from '@paralleldrive/cuid2';
 
@@ -27,7 +27,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	}
 
 	const adminScope = getAdminScope(roles);
-	const accessibleWilayah = getAccessibleWilayah(adminScope);
+	const accessibleWilayah = await getAccessibleWilayah(adminScope);
 
 	// Parameter Periode & Kelompok
 	const currentYear = new Date().getFullYear();
@@ -51,7 +51,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	// Otoritas edit: Hanya KU pada scope kelompok terkait atau Superadmin
 	const canEdit = selectedKelompokId
-		? canManageFr(roles, 'Kelompok', selectedKelompokId)
+		? await canManageFr(roles, 'Kelompok', selectedKelompokId)
 		: false;
 
 	type BreakdownItem = {
@@ -103,7 +103,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	let daerahId: number | null = null;
 
 	if (selectedKelompokId) {
-		const kRow = db
+		const kRow = (await first(db
 			.select({
 				id: kelompok.id,
 				nama: kelompok.nama,
@@ -113,7 +113,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			.from(kelompok)
 			.leftJoin(desa, eq(kelompok.desaId, desa.id))
 			.where(eq(kelompok.id, selectedKelompokId))
-			.get();
+			));
 
 		if (kRow) {
 			selectedKelompokNama = kRow.nama;
@@ -121,7 +121,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			daerahId = kRow.daerahId;
 
 			// 1. Query anggota keluarga wajib isrun di kelompok ini
-			const rawJamaah = db
+			const rawJamaah = (await db
 				.select({
 					id: anggotaKeluarga.id,
 					namaLengkap: anggotaKeluarga.namaLengkap,
@@ -146,10 +146,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 					)
 				)
 				.orderBy(asc(anggotaKeluarga.namaLengkap))
-				.all();
-
+);
 			// 2. Query transaksi FR yang sudah tercatat pada periode ini
-			const rawFr = db
+			const rawFr = (await db
 				.select()
 				.from(transaksiFr)
 				.where(
@@ -159,8 +158,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 						eq(transaksiFr.bulan, bulanParam)
 					)
 				)
-				.all();
-
+);
 			const frMap = new Map<string, typeof rawFr[number]>();
 			for (const f of rawFr) {
 				frMap.set(f.anggotaKeluargaId, f);
@@ -174,10 +172,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 						.filter((uid: string | null | undefined): uid is string => Boolean(uid))
 				)
 			);
-
 			const userDapukanMap = new Map<string, string>();
 			if (targetUserIds.length > 0) {
-				const rawDapukan = db
+				const rawDapukan = (await db
 					.select({
 						userId: userDapukan.userId,
 						namaDapukan: dapukan.namaDapukan,
@@ -186,8 +183,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 					.from(userDapukan)
 					.leftJoin(dapukan, eq(userDapukan.dapukanId, dapukan.id))
 					.where(inArray(userDapukan.userId, targetUserIds))
-					.all();
-
+);
 				for (const d of rawDapukan) {
 					if (!userDapukanMap.has(d.userId)) {
 						userDapukanMap.set(d.userId, d.namaDapukan || d.namaDapukanCustom || 'Pengurus');
@@ -196,7 +192,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			}
 
 			// 4. Query kamus pos anggaran infaq untuk resolusi nama pos pada breakdown & form input KU
-			const posRows = db
+			const posRows = (await db
 				.select({
 					id: posAnggaranInfaq.id,
 					parentId: posAnggaranInfaq.parentId,
@@ -217,8 +213,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 					)
 				)
 				.orderBy(asc(posAnggaranInfaq.urutan), asc(posAnggaranInfaq.nama))
-				.all();
-
+);
 			const posMap = new Map<string, { nama: string; kode: string }>();
 			for (const p of posRows) {
 				posMap.set(p.id, { nama: p.nama, kode: p.kode });
@@ -378,7 +373,7 @@ export const actions: Actions = {
 			return fail(400, { error: 'Parameter kelompok, tahun, dan bulan wajib disertakan.' });
 		}
 
-		const canEdit = canManageFr(locals.roles || [], 'Kelompok', kelompokId);
+		const canEdit = await canManageFr(locals.roles || [], 'Kelompok', kelompokId);
 		if (!canEdit) {
 			return fail(403, {
 				error: 'Akses ditolak: Hanya pengurus KU/Bendahara atau Superadmin yang berwenang mengisi atau mengubah FR Jamaah.'
@@ -403,7 +398,7 @@ export const actions: Actions = {
 		}
 
 		// Validasi dan ambil relasi desa & daerah langsung dari database kelompok demi integritas foreign key
-		const kRow = db
+		const kRow = (await first(db
 			.select({
 				id: kelompok.id,
 				desaId: kelompok.desaId,
@@ -412,7 +407,7 @@ export const actions: Actions = {
 			.from(kelompok)
 			.leftJoin(desa, eq(kelompok.desaId, desa.id))
 			.where(eq(kelompok.id, kelompokId))
-			.get();
+			));
 
 		const safeDesaId = kRow?.desaId || null;
 		const safeDaerahId = kRow?.daerahId || null;
@@ -420,59 +415,37 @@ export const actions: Actions = {
 		const now = Math.floor(Date.now() / 1000);
 		const userId = locals.user.id;
 
-		// Prepared statement batch upsert (minimum I/O, atomic transaction)
-		const upsertStmt = sqlite.prepare(`
+		// Batch upsert dalam satu transaksi PostgreSQL (minimum I/O, atomic)
+		const runBatch = async (rows: typeof items) => {
+			await db.transaction(async (tx) => {
+				for (const r of rows) {
+					const safeNominal = Math.max(0, Math.floor(Number(r.nominal) || 0));
+					const status = r.statusBayar || (safeNominal > 0 ? 'Lunas' : 'Belum');
+					const catatan = r.catatan ? String(r.catatan).trim() : null;
+
+					await tx.execute(sql`
 			INSERT INTO transaksi_fr (
-				id,
-				anggota_keluarga_id,
-				kelompok_id,
-				desa_id,
-				daerah_id,
-				tahun,
-				bulan,
-				nominal,
-				status_bayar,
-				catatan,
-				updated_by_user_id,
-				created_at,
-				updated_at
+							id, anggota_keluarga_id, kelompok_id, desa_id, daerah_id,
+							tahun, bulan, nominal, status_bayar, catatan,
+							updated_by_user_id, created_at, updated_at
 			) VALUES (
-				?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+							${createId()}, ${r.anggotaId}, ${kelompokId}, ${safeDesaId}, ${safeDaerahId},
+							${tahun}, ${bulan}, ${safeNominal}, ${status}, ${catatan},
+							${userId}, ${now}, ${now}
 			)
-			ON CONFLICT(anggota_keluarga_id, tahun, bulan) DO UPDATE SET
+						ON CONFLICT (anggota_keluarga_id, tahun, bulan) DO UPDATE SET
 				nominal = excluded.nominal,
 				status_bayar = excluded.status_bayar,
 				catatan = excluded.catatan,
 				updated_by_user_id = excluded.updated_by_user_id,
 				updated_at = excluded.updated_at
 		`);
-
-		const runBatch = sqlite.transaction((rows) => {
-			for (const r of rows) {
-				const safeNominal = Math.max(0, Math.floor(Number(r.nominal) || 0));
-				const status = r.statusBayar || (safeNominal > 0 ? 'Lunas' : 'Belum');
-				const catatan = r.catatan ? String(r.catatan).trim() : null;
-
-				upsertStmt.run(
-					createId(),
-					r.anggotaId,
-					kelompokId,
-					safeDesaId,
-					safeDaerahId,
-					tahun,
-					bulan,
-					safeNominal,
-					status,
-					catatan,
-					userId,
-					now,
-					now
-				);
 			}
 		});
+		};
 
 		try {
-			runBatch(items);
+			await runBatch(items);
 		} catch (err: any) {
 			console.error('[FR Save Error]:', err);
 			return fail(500, { error: `Gagal menyimpan data FR: ${err?.message || 'Database error'}` });
@@ -508,7 +481,7 @@ export const actions: Actions = {
 			return fail(400, { error: 'Parameter setoran tidak lengkap.' });
 		}
 
-		const canEdit = canManageFr(locals.roles || [], 'Kelompok', kelompokId);
+		const canEdit = await canManageFr(locals.roles || [], 'Kelompok', kelompokId);
 		if (!canEdit) {
 			return fail(403, {
 				error: 'Akses ditolak: Hanya pengurus KU/Bendahara atau Superadmin yang berwenang menyimpan setoran FR.'
@@ -523,7 +496,7 @@ export const actions: Actions = {
 		}
 
 		// Dapatkan wilayah desa & daerah
-		const kRow = db
+		const kRow = (await first(db
 			.select({
 				id: kelompok.id,
 				desaId: kelompok.desaId,
@@ -532,15 +505,13 @@ export const actions: Actions = {
 			.from(kelompok)
 			.leftJoin(desa, eq(kelompok.desaId, desa.id))
 			.where(eq(kelompok.id, kelompokId))
-			.get();
+			));
 
 		const safeDesaId = kRow?.desaId || null;
 		const safeDaerahId = kRow?.daerahId || null;
 
 		// Cek transaksi existing untuk mempertahankan file buktiUrl jika ada
-		const existing = sqlite
-			.prepare('SELECT id, catatan FROM transaksi_fr WHERE anggota_keluarga_id = ? AND tahun = ? AND bulan = ?')
-			.get(anggotaId, tahun, bulan) as { id: string; catatan: string | null } | undefined;
+		const existing = await first(db.execute(sql`SELECT id, catatan FROM transaksi_fr WHERE anggota_keluarga_id = ${anggotaId} AND tahun = ${tahun} AND bulan = ${bulan}`)) as { id: string; catatan: string | null } | undefined;
 
 		let existingBuktiUrl: string | undefined = undefined;
 		if (existing?.catatan) {
@@ -563,9 +534,7 @@ export const actions: Actions = {
 		});
 
 		try {
-			sqlite
-				.prepare(
-					`INSERT INTO transaksi_fr (
+			await db.execute(sql`INSERT INTO transaksi_fr (
 						id,
 						anggota_keluarga_id,
 						kelompok_id,
@@ -580,30 +549,14 @@ export const actions: Actions = {
 						created_at,
 						updated_at
 					) VALUES (
-						?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+						${createId()}, ${anggotaId}, ${kelompokId}, ${safeDesaId}, ${safeDaerahId}, ${tahun}, ${bulan}, ${nominal}, ${statusBayar}, ${catatanPayload}, ${userId}, ${now}, ${now}
 					)
 					ON CONFLICT(anggota_keluarga_id, tahun, bulan) DO UPDATE SET
 						nominal = excluded.nominal,
 						status_bayar = excluded.status_bayar,
 						catatan = excluded.catatan,
 						updated_by_user_id = excluded.updated_by_user_id,
-						updated_at = excluded.updated_at`
-				)
-				.run(
-					createId(),
-					anggotaId,
-					kelompokId,
-					safeDesaId,
-					safeDaerahId,
-					tahun,
-					bulan,
-					nominal,
-					statusBayar,
-					catatanPayload,
-					userId,
-					now,
-					now
-				);
+						updated_at = excluded.updated_at`);
 		} catch (err: any) {
 			console.error('[FR Save Manual Error]:', err);
 			return fail(500, { error: `Gagal menyimpan setoran: ${err?.message || 'Database error'}` });
@@ -634,7 +587,7 @@ export const actions: Actions = {
 			return fail(400, { error: 'Parameter persetujuan setoran tidak lengkap.' });
 		}
 
-		const canEdit = canManageFr(locals.roles || [], 'Kelompok', kelompokId);
+		const canEdit = await canManageFr(locals.roles || [], 'Kelompok', kelompokId);
 		if (!canEdit) {
 			return fail(403, {
 				error: 'Akses ditolak: Hanya pengurus KU/Bendahara atau Superadmin yang berwenang menyetujui setoran FR.'
@@ -646,25 +599,17 @@ export const actions: Actions = {
 
 		try {
 			if (transaksiId) {
-				sqlite
-					.prepare(
-						`UPDATE transaksi_fr
+				await db.execute(sql`UPDATE transaksi_fr
 						 SET status_bayar = 'Diterima',
-						     updated_by_user_id = ?,
-						     updated_at = ?
-						 WHERE id = ?`
-					)
-					.run(userId, now, transaksiId);
+						     updated_by_user_id = ${userId},
+						     updated_at = ${now}
+						 WHERE id = ${transaksiId}`);
 			} else if (anggotaId && tahun && bulan) {
-				sqlite
-					.prepare(
-						`UPDATE transaksi_fr
+				await db.execute(sql`UPDATE transaksi_fr
 						 SET status_bayar = 'Diterima',
-						     updated_by_user_id = ?,
-						     updated_at = ?
-						 WHERE anggota_keluarga_id = ? AND tahun = ? AND bulan = ?`
-					)
-					.run(userId, now, anggotaId, tahun, bulan);
+						     updated_by_user_id = ${userId},
+						     updated_at = ${now}
+						 WHERE anggota_keluarga_id = ${anggotaId} AND tahun = ${tahun} AND bulan = ${bulan}`);
 			}
 		} catch (err: any) {
 			console.error('[FR Approve Error]:', err);
@@ -694,22 +639,16 @@ export const actions: Actions = {
 
 		// Resolve kelompokId jika belum ada dari formData/url
 		if (!kelompokId && transaksiId) {
-			const trx = sqlite
-				.prepare('SELECT kelompok_id FROM transaksi_fr WHERE id = ?')
-				.get(transaksiId) as { kelompok_id: number } | undefined;
+			const trx = await first(db.execute(sql`SELECT kelompok_id FROM transaksi_fr WHERE id = ${transaksiId}`)) as { kelompok_id: number } | undefined;
 			if (trx?.kelompok_id) kelompokId = trx.kelompok_id;
 		}
 
 		if (!kelompokId && anggotaId) {
-			const aRow = sqlite
-				.prepare(
-					`SELECT u.kelompok_id 
+			const aRow = await first(db.execute(sql`SELECT u.kelompok_id 
 					 FROM anggota_keluarga ak 
 					 JOIN keluarga k ON ak.keluarga_id = k.id 
 					 JOIN users u ON k.kepala_keluarga_id = u.id 
-					 WHERE ak.id = ?`
-				)
-				.get(anggotaId) as { kelompok_id: number } | undefined;
+					 WHERE ak.id = ${anggotaId}`)) as { kelompok_id: number } | undefined;
 			if (aRow?.kelompok_id) kelompokId = aRow.kelompok_id;
 		}
 
@@ -717,7 +656,7 @@ export const actions: Actions = {
 			return fail(400, { error: 'Parameter pembatalan setoran tidak lengkap.' });
 		}
 
-		const canEdit = canManageFr(locals.roles || [], 'Kelompok', kelompokId);
+		const canEdit = await canManageFr(locals.roles || [], 'Kelompok', kelompokId);
 		if (!canEdit) {
 			return fail(403, {
 				error: 'Akses ditolak: Hanya pengurus KU/Bendahara atau Superadmin yang berwenang mengubah status setoran FR.'
@@ -729,29 +668,21 @@ export const actions: Actions = {
 
 		try {
 			if (transaksiId) {
-				sqlite
-					.prepare(
-						`UPDATE transaksi_fr
+				await db.execute(sql`UPDATE transaksi_fr
 						 SET status_bayar = 'Belum',
 						     nominal = 0,
 						     catatan = NULL,
-						     updated_by_user_id = ?,
-						     updated_at = ?
-						 WHERE id = ?`
-					)
-					.run(userId, now, transaksiId);
+						     updated_by_user_id = ${userId},
+						     updated_at = ${now}
+						 WHERE id = ${transaksiId}`);
 			} else if (anggotaId && tahun && bulan) {
-				sqlite
-					.prepare(
-						`UPDATE transaksi_fr
+				await db.execute(sql`UPDATE transaksi_fr
 						 SET status_bayar = 'Belum',
 						     nominal = 0,
 						     catatan = NULL,
-						     updated_by_user_id = ?,
-						     updated_at = ?
-						 WHERE anggota_keluarga_id = ? AND tahun = ? AND bulan = ?`
-					)
-					.run(userId, now, anggotaId, tahun, bulan);
+						     updated_by_user_id = ${userId},
+						     updated_at = ${now}
+						 WHERE anggota_keluarga_id = ${anggotaId} AND tahun = ${tahun} AND bulan = ${bulan}`);
 			}
 		} catch (err: any) {
 			console.error('[FR Reject Error]:', err);

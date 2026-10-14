@@ -9,7 +9,7 @@
 
 import { fail, redirect, type Actions } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { db } from '$lib/db';
+import { db, first } from '$lib/db';
 import { keluarga, anggotaKeluarga, users } from '$lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { decryptSensitive, encryptSensitive, maskSensitive } from '$lib/server/crypto';
@@ -23,7 +23,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 
 	// Cari kartu keluarga milik user sendiri (baik sebagai kepala keluarga atau anggota)
-	const keluargaRecord = getKeluargaForUser(locals.user.id);
+	const keluargaRecord = await getKeluargaForUser(locals.user.id);
 
 	if (!keluargaRecord) {
 		return {
@@ -51,12 +51,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 
 	// Ambil daftar anggota keluarga
-	const rawAnggota = db
+	const rawAnggota = (await db
 		.select()
 		.from(anggotaKeluarga)
 		.where(eq(anggotaKeluarga.keluargaId, keluargaRecord.id))
-		.all();
-
+);
 	const anggotaList = rawAnggota.map((a) => {
 		let nikMasked = 'Belum Ada NIK';
 		const hasNik = !!a.nikEncrypted;
@@ -112,7 +111,7 @@ export const actions: Actions = {
 		}
 
 		// Validasi kepemilikan / keanggotaan KK oleh user saat ini
-		if (!isUserInKeluarga(locals.user.id, keluargaId)) {
+		if (!await isUserInKeluarga(locals.user.id, keluargaId)) {
 			return fail(403, { errorKeluarga: 'Anda tidak memiliki hak akses untuk mengubah data ini.' });
 		}
 
@@ -137,10 +136,10 @@ export const actions: Actions = {
 		}
 
 		try {
-			db.update(keluarga)
+(await db.update(keluarga)
 				.set(updatePayload)
 				.where(eq(keluarga.id, keluargaId))
-				.run();
+);
 		} catch (error) {
 			console.error('Gagal memperbarui Kartu Keluarga:', error);
 			return fail(500, { errorKeluarga: 'Terjadi kesalahan sistem saat memperbarui data KK.' });
@@ -168,13 +167,13 @@ export const actions: Actions = {
 		}
 
 		// Pastikan anggota keluarga ini berada di dalam KK milik user
-		const verifiedAnggota = db
+		const verifiedAnggota = (await first(db
 			.select({ id: anggotaKeluarga.id, keluargaId: anggotaKeluarga.keluargaId, userId: anggotaKeluarga.userId })
 			.from(anggotaKeluarga)
 			.where(eq(anggotaKeluarga.id, anggotaId))
-			.get();
+			));
 
-		if (!verifiedAnggota || !isUserInKeluarga(locals.user.id, verifiedAnggota.keluargaId)) {
+		if (!verifiedAnggota || !await isUserInKeluarga(locals.user.id, verifiedAnggota.keluargaId)) {
 			return fail(403, { errorAnggota: 'Anda tidak memiliki hak akses mengubah anggota ini.' });
 		}
 
@@ -227,19 +226,18 @@ export const actions: Actions = {
 		}
 
 		try {
-			db.update(anggotaKeluarga)
+(await db.update(anggotaKeluarga)
 				.set(updatePayload)
 				.where(eq(anggotaKeluarga.id, anggotaId))
-				.run();
-
+);
 			if (verifiedAnggota.userId) {
-				db.update(users)
+(await db.update(users)
 					.set({
 						namaLengkap: namaLengkap || undefined,
 						noTelepon: cleanNoTelepon || null
 					})
 					.where(eq(users.id, verifiedAnggota.userId))
-					.run();
+);
 			}
 		} catch (error) {
 			console.error('Gagal memperbarui data anggota keluarga:', error);
@@ -268,7 +266,7 @@ export const actions: Actions = {
 		}
 
 		// Validasi kepemilikan / keanggotaan KK
-		if (!isUserInKeluarga(locals.user.id, keluargaId)) {
+		if (!await isUserInKeluarga(locals.user.id, keluargaId)) {
 			return fail(403, { errorTambahAnggota: 'Akses ditolak.' });
 		}
 
@@ -300,7 +298,7 @@ export const actions: Actions = {
 			const umur = isoTgl ? hitungUmur(isoTgl) : 0;
 			const statusGenerus = isoTgl ? hitungStatusGenerus(umur, statusPernikahan) : null;
 
-			db.insert(anggotaKeluarga)
+(await db.insert(anggotaKeluarga)
 				.values({
 					keluargaId,
 					namaLengkap,
@@ -314,7 +312,7 @@ export const actions: Actions = {
 					statusJamaah: 'Aktif',
 					isrun: statusHubungan === 'Kepala Keluarga' ? 'Ya' : 'Tidak'
 				})
-				.run();
+);
 		} catch (error) {
 			console.error('Gagal menambahkan anggota keluarga:', error);
 			return fail(500, { errorTambahAnggota: 'Terjadi kesalahan sistem saat menambah anggota.' });
@@ -336,29 +334,28 @@ export const actions: Actions = {
 		}
 
 		// Cek kepemilikan / keanggotaan KK
-		const target = db
+		const target = (await first(db
 			.select({ id: anggotaKeluarga.id, keluargaId: anggotaKeluarga.keluargaId })
 			.from(anggotaKeluarga)
 			.where(eq(anggotaKeluarga.id, anggotaId))
-			.get();
+			));
 
-		if (!target || !isUserInKeluarga(locals.user.id, target.keluargaId)) {
+		if (!target || !await isUserInKeluarga(locals.user.id, target.keluargaId)) {
 			return fail(403, { errorHapusAnggota: 'Akses ditolak.' });
 		}
 
 		// Pastikan tidak menghapus jika tersisa 1 anggota
-		const totalAnggota = db
+		const totalAnggota = (await db
 			.select({ id: anggotaKeluarga.id })
 			.from(anggotaKeluarga)
 			.where(eq(anggotaKeluarga.keluargaId, target.keluargaId))
-			.all();
-
+);
 		if (totalAnggota.length <= 1) {
 			return fail(400, { errorHapusAnggota: 'Tidak dapat menghapus anggota terakhir di Kartu Keluarga.' });
 		}
 
 		try {
-			db.delete(anggotaKeluarga).where(eq(anggotaKeluarga.id, anggotaId)).run();
+(await db.delete(anggotaKeluarga).where(eq(anggotaKeluarga.id, anggotaId)));
 		} catch (error) {
 			console.error('Gagal menghapus anggota keluarga:', error);
 			return fail(500, { errorHapusAnggota: 'Terjadi kesalahan sistem saat menghapus anggota.' });

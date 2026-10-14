@@ -9,7 +9,7 @@
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { db } from '$lib/db';
+import { db, first } from '$lib/db';
 import { users, kelompok } from '$lib/db/schema';
 import { eq, and, ne } from 'drizzle-orm';
 import { hashPassword, verifyPassword } from '$lib/server/auth';
@@ -21,7 +21,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	let kelompokNama = 'Belum terhubung';
 	if (locals.user.kelompokId) {
-		const kel = db.select().from(kelompok).where(eq(kelompok.id, locals.user.kelompokId)).get();
+		const kel = (await first(db.select().from(kelompok).where(eq(kelompok.id, locals.user.kelompokId))));
 		if (kel) {
 			kelompokNama = kel.nama;
 		}
@@ -57,11 +57,11 @@ export const actions: Actions = {
 		}
 
 		// Cek apakah email sudah digunakan oleh user lain
-		const existingUser = db
+		const existingUser = (await first(db
 			.select({ id: users.id })
 			.from(users)
 			.where(and(eq(users.email, email), ne(users.id, locals.user.id)))
-			.get();
+			));
 
 		if (existingUser) {
 			return fail(400, {
@@ -71,13 +71,13 @@ export const actions: Actions = {
 
 		// Update data user
 		try {
-			db.update(users)
+(await db.update(users)
 				.set({
 					namaLengkap,
 					email
 				})
 				.where(eq(users.id, locals.user.id))
-				.run();
+);
 		} catch (error) {
 			console.error('Gagal memperbarui profil pengguna:', error);
 			return fail(500, {
@@ -119,11 +119,11 @@ export const actions: Actions = {
 		}
 
 		// Ambil user record untuk verifikasi hash password saat ini
-		const userRecord = db
+		const userRecord = (await first(db
 			.select({ id: users.id, passwordHash: users.passwordHash })
 			.from(users)
 			.where(eq(users.id, locals.user.id))
-			.get();
+			));
 
 		if (!userRecord) {
 			return fail(404, {
@@ -141,10 +141,10 @@ export const actions: Actions = {
 		// Hash password baru dan simpan
 		try {
 			const newHash = await hashPassword(newPassword);
-			db.update(users)
+(await db.update(users)
 				.set({ passwordHash: newHash })
 				.where(eq(users.id, locals.user.id))
-				.run();
+);
 		} catch (error) {
 			console.error('Gagal memperbarui kata sandi:', error);
 			return fail(500, {

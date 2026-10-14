@@ -8,7 +8,7 @@
  */
 
 import { json, type RequestHandler } from '@sveltejs/kit';
-import { db } from '$lib/db';
+import { db, first } from '$lib/db';
 import { presensiJadwal, presensiKehadiran, users } from '$lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 
@@ -37,13 +37,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 
 	// Validasi user di database
-	const jamaah = db.select().from(users).where(eq(users.id, userId)).get();
+	const jamaah = (await first(db.select().from(users).where(eq(users.id, userId))));
 	if (!jamaah) {
 		return json({ error: 'Data jamaah tidak terdaftar dalam sistem.' }, { status: 404 });
 	}
 
 	// Validasi jadwal
-	const jadwal = db.select().from(presensiJadwal).where(eq(presensiJadwal.id, Number(jadwalId))).get();
+	const jadwal = (await first(db.select().from(presensiJadwal).where(eq(presensiJadwal.id, Number(jadwalId)))));
 	if (!jadwal) {
 		return json({ error: 'Jadwal kegiatan tidak ditemukan.' }, { status: 404 });
 	}
@@ -51,7 +51,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const nowSeconds = Math.floor(Date.now() / 1000);
 
 	// Upsert kehadiran: jika sudah ada, update status Hadir dan waktuScan
-	const existing = db
+	const existing = (await first(db
 		.select()
 		.from(presensiKehadiran)
 		.where(
@@ -60,25 +60,25 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				eq(presensiKehadiran.userId, userId)
 			)
 		)
-		.get();
+		));
 
 	if (existing) {
-		db.update(presensiKehadiran)
+(await db.update(presensiKehadiran)
 			.set({
 				status: 'Hadir',
 				waktuScan: nowSeconds
 			})
 			.where(eq(presensiKehadiran.id, existing.id))
-			.run();
+);
 	} else {
-		db.insert(presensiKehadiran)
+(await db.insert(presensiKehadiran)
 			.values({
 				jadwalId: Number(jadwalId),
 				userId,
 				status: 'Hadir',
 				waktuScan: nowSeconds
 			})
-			.run();
+);
 	}
 
 	return json({

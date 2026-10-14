@@ -1,21 +1,21 @@
 /**
  * @file src/lib/db/schema.ts
- * @purpose Definisi schema tabel Drizzle ORM untuk SQLite sesuai SCHEMA.md (termasuk wilayah, rekening/QRIS wilayah, anggota keluarga, sensus, presensi pengajian, transaksi setoran FR, pos anggaran infaq fleksibel, template infaq rutin & bundling tarif, jenis shodaqoh wilayah, dan transaksi shodaqoh jamaah)
+ * @purpose Definisi schema tabel Drizzle ORM untuk PostgreSQL sesuai SCHEMA.md (termasuk wilayah, rekening/QRIS wilayah, anggota keluarga, sensus, presensi pengajian, transaksi setoran FR, pos anggaran infaq fleksibel, template infaq rutin & bundling tarif, jenis shodaqoh wilayah, dan transaksi shodaqoh jamaah)
  * @usedBy src/lib/db/index.ts, queries/actions di routes dan services
- * @dependencies drizzle-orm/sqlite-core, @paralleldrive/cuid2
+ * @dependencies drizzle-orm/pg-core, @paralleldrive/cuid2
  * @publicFunctions daerah, desa, kelompok, subKelompok, users, dapukan, userDapukan, keluarga, anggotaKeluarga, jadwalPengajianTemplate, presensiJadwal, presensiKehadiran, rekeningWilayah, transaksiFr, posAnggaranInfaq, templateInfaqRutin, templateInfaqGroup, templateInfaqGroupPos, templateInfaqBundle, templateInfaqPos, templateInfaqJamaah, jenisShodaqoh, transaksiShodaqoh
- * @sideEffects Mendefinisikan struktur tabel, relasi foreign key, dan indeks database SQLite
+ * @sideEffects Mendefinisikan struktur tabel, relasi foreign key, dan indeks database PostgreSQL
  */
 
-import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { pgTable, text, integer, bigint, boolean, serial, index, uniqueIndex } from 'drizzle-orm/pg-core';
 import { createId } from '@paralleldrive/cuid2';
 
 // ==========================================
 // 1. STRUKTUR WILAYAH (Hierarki Berjenjang)
 // ==========================================
 
-export const daerah = sqliteTable('daerah', {
-	id: integer('id').primaryKey({ autoIncrement: true }),
+export const daerah = pgTable('daerah', {
+	id: serial('id').primaryKey(),
 	nama: text('nama').notNull(),
 	provinsi: text('provinsi').notNull(),
 	kotaKabupaten: text('kota_kabupaten').notNull(),
@@ -26,10 +26,10 @@ export const daerah = sqliteTable('daerah', {
 	gmapsUrl: text('gmaps_url')
 });
 
-export const desa = sqliteTable(
+export const desa = pgTable(
 	'desa',
 	{
-		id: integer('id').primaryKey({ autoIncrement: true }),
+		id: serial('id').primaryKey(),
 		daerahId: integer('daerah_id')
 			.notNull()
 			.references(() => daerah.id, { onDelete: 'cascade' }),
@@ -48,10 +48,10 @@ export const desa = sqliteTable(
 	]
 );
 
-export const kelompok = sqliteTable(
+export const kelompok = pgTable(
 	'kelompok',
 	{
-		id: integer('id').primaryKey({ autoIncrement: true }),
+		id: serial('id').primaryKey(),
 		desaId: integer('desa_id')
 			.notNull()
 			.references(() => desa.id, { onDelete: 'cascade' }),
@@ -66,10 +66,10 @@ export const kelompok = sqliteTable(
 	(table) => [index('kelompok_desa_id_idx').on(table.desaId)]
 );
 
-export const subKelompok = sqliteTable(
+export const subKelompok = pgTable(
 	'sub_kelompok',
 	{
-		id: integer('id').primaryKey({ autoIncrement: true }),
+		id: serial('id').primaryKey(),
 		kelompokId: integer('kelompok_id')
 			.notNull()
 			.references(() => kelompok.id, { onDelete: 'cascade' }),
@@ -83,7 +83,7 @@ export const subKelompok = sqliteTable(
 // 2. AUTENTIKASI & RBAC (Role-Based Access Control)
 // ==========================================
 
-export const users = sqliteTable(
+export const users = pgTable(
 	'users',
 	{
 		id: text('id')
@@ -101,13 +101,13 @@ export const users = sqliteTable(
 	]
 );
 
-export const dapukan = sqliteTable('dapukan', {
-	id: integer('id').primaryKey({ autoIncrement: true }),
+export const dapukan = pgTable('dapukan', {
+	id: serial('id').primaryKey(),
 	namaDapukan: text('nama_dapukan').notNull(),
-	is4S: integer('is_4s', { mode: 'boolean' }).notNull().default(false)
+	is4S: boolean('is_4s').notNull().default(false)
 });
 
-export const userDapukan = sqliteTable(
+export const userDapukan = pgTable(
 	'user_dapukan',
 	{
 		id: text('id')
@@ -140,13 +140,13 @@ export const userDapukan = sqliteTable(
 // 3. DATA SENSUS KELUARGA (Enkripsi Aktif)
 // ==========================================
 
-export const keluarga = sqliteTable(
+export const keluarga = pgTable(
 	'keluarga',
 	{
 		id: text('id')
 			.primaryKey()
 			.$defaultFn(() => createId()),
-		isKk: integer('is_kk', { mode: 'boolean' }).notNull().default(true),
+		isKk: boolean('is_kk').notNull().default(true),
 		noKkEncrypted: text('no_kk_encrypted'),
 		kepalaKeluargaId: text('kepala_keluarga_id').references(() => users.id, {
 			onDelete: 'set null'
@@ -159,7 +159,7 @@ export const keluarga = sqliteTable(
 	]
 );
 
-export const anggotaKeluarga = sqliteTable(
+export const anggotaKeluarga = pgTable(
 	'anggota_keluarga',
 	{
 		id: text('id')
@@ -195,10 +195,10 @@ export const anggotaKeluarga = sqliteTable(
 // 4. MODUL JADWAL & PRESENSI PENGAJIAN
 // ==========================================
 
-export const jadwalPengajianTemplate = sqliteTable(
+export const jadwalPengajianTemplate = pgTable(
 	'jadwal_pengajian_template',
 	{
-		id: integer('id').primaryKey({ autoIncrement: true }),
+		id: serial('id').primaryKey(),
 		tingkatScope: text('tingkat_scope').notNull(), // 'Desa' | 'Kelompok'
 		desaId: integer('desa_id').references(() => desa.id, { onDelete: 'cascade' }),
 		kelompokId: integer('kelompok_id').references(() => kelompok.id, { onDelete: 'cascade' }),
@@ -209,13 +209,13 @@ export const jadwalPengajianTemplate = sqliteTable(
 		jamSelesai: text('jam_selesai'), // HH:mm
 		namaKegiatan: text('nama_kegiatan').notNull(),
 		detailMateri: text('detail_materi'),
-		isLibur: integer('is_libur', { mode: 'boolean' }).notNull().default(false),
+		isLibur: boolean('is_libur').notNull().default(false),
 		lokasiNama: text('lokasi_nama'),
 		latitude: text('latitude'),
 		longitude: text('longitude'),
 		radiusMeter: integer('radius_meter').default(100),
 		gmapsUrl: text('gmaps_url'),
-		isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true)
+		isActive: boolean('is_active').notNull().default(true)
 	},
 	(table) => [
 		index('jadwal_template_scope_idx').on(table.tingkatScope),
@@ -224,10 +224,10 @@ export const jadwalPengajianTemplate = sqliteTable(
 	]
 );
 
-export const presensiJadwal = sqliteTable(
+export const presensiJadwal = pgTable(
 	'presensi_jadwal',
 	{
-		id: integer('id').primaryKey({ autoIncrement: true }),
+		id: serial('id').primaryKey(),
 		tingkatScope: text('tingkat_scope').notNull().default('Kelompok'), // 'Desa' | 'Kelompok'
 		desaId: integer('desa_id').references(() => desa.id, { onDelete: 'cascade' }),
 		kelompokId: integer('kelompok_id').references(() => kelompok.id, { onDelete: 'cascade' }),
@@ -237,7 +237,7 @@ export const presensiJadwal = sqliteTable(
 		jamSelesai: text('jam_selesai'), // HH:mm
 		namaKegiatan: text('nama_kegiatan').notNull(),
 		detailMateri: text('detail_materi'),
-		isOverride: integer('is_override', { mode: 'boolean' }).notNull().default(false),
+		isOverride: boolean('is_override').notNull().default(false),
 		status: text('status').notNull().default('aktif'), // 'aktif' | 'libur' | 'dibatalkan'
 		lokasiNama: text('lokasi_nama'),
 		latitude: text('latitude'),
@@ -253,7 +253,7 @@ export const presensiJadwal = sqliteTable(
 	]
 );
 
-export const presensiKehadiran = sqliteTable(
+export const presensiKehadiran = pgTable(
 	'presensi_kehadiran',
 	{
 		id: text('id')
@@ -274,7 +274,7 @@ export const presensiKehadiran = sqliteTable(
 		keteranganIzin: text('keterangan_izin'),
 		statusApproval: text('status_approval').default('Disetujui'), // 'Disetujui' | 'Menunggu Persetujuan' | 'Ditolak'
 		catatanAdmin: text('catatan_admin'),
-		waktuScan: integer('waktu_scan') // Timestamp unix
+		waktuScan: bigint('waktu_scan', { mode: 'number' }) // Timestamp unix
 	},
 	(table) => [
 		index('presensi_kehadiran_jadwal_id_idx').on(table.jadwalId),
@@ -288,7 +288,7 @@ export const presensiKehadiran = sqliteTable(
 // 6. KEUANGAN & SHODAQOH WILAYAH (Rekening & QRIS)
 // ==========================================
 
-export const rekeningWilayah = sqliteTable(
+export const rekeningWilayah = pgTable(
 	'rekening_wilayah',
 	{
 		id: text('id')
@@ -304,8 +304,8 @@ export const rekeningWilayah = sqliteTable(
 		tipeTujuan: text('tipe_tujuan').notNull().default('Infaq & Shodaqoh'), // e.g. 'Infaq Operasional', 'Pembangunan', 'Kas Sosial'
 		qrisImageUrl: text('qris_image_url'),
 		keterangan: text('keterangan'),
-		isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
-		createdAt: integer('created_at').notNull()
+		isActive: boolean('is_active').notNull().default(true),
+		createdAt: bigint('created_at', { mode: 'number' }).notNull()
 	},
 	(table) => [
 		index('rekening_wilayah_scope_idx').on(table.tingkatScope),
@@ -319,7 +319,7 @@ export const rekeningWilayah = sqliteTable(
 // 7. TRANSAKSI & SETORAN FR JAMAAH
 // ==========================================
 
-export const transaksiFr = sqliteTable(
+export const transaksiFr = pgTable(
 	'transaksi_fr',
 	{
 		id: text('id')
@@ -344,8 +344,8 @@ export const transaksiFr = sqliteTable(
 		templateId: text('template_id').references((): any => templateInfaqRutin.id, {
 			onDelete: 'set null'
 		}),
-		createdAt: integer('created_at').notNull(),
-		updatedAt: integer('updated_at').notNull()
+		createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+		updatedAt: bigint('updated_at', { mode: 'number' }).notNull()
 	},
 	(table) => [
 		index('transaksi_fr_anggota_idx').on(table.anggotaKeluargaId),
@@ -365,7 +365,7 @@ export const transaksiFr = sqliteTable(
 // 8. TEMPLATE INFAQ / SHODAQOH RUTIN (ISRUN / FR) & POS FLEKSIBEL
 // ==========================================
 
-export const posAnggaranInfaq = sqliteTable(
+export const posAnggaranInfaq = pgTable(
 	'pos_anggaran_infaq',
 	{
 		id: text('id')
@@ -378,12 +378,12 @@ export const posAnggaranInfaq = sqliteTable(
 		tingkatScope: text('tingkat_scope').notNull().default('Kelompok'), // 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok'
 		desaId: integer('desa_id').references(() => desa.id, { onDelete: 'cascade' }),
 		kelompokId: integer('kelompok_id').references(() => kelompok.id, { onDelete: 'cascade' }),
-		isWajib: integer('is_wajib', { mode: 'boolean' }).notNull().default(false), // true untuk 4 Hak Wajib
+		isWajib: boolean('is_wajib').notNull().default(false), // true untuk 4 Hak Wajib
 		tipeAlokasi: text('tipe_alokasi').notNull().default('nominal'), // 'nominal' | 'persentase'
 		urutan: integer('urutan').notNull().default(0),
-		isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
-		createdAt: integer('created_at').notNull(),
-		updatedAt: integer('updated_at').notNull()
+		isActive: boolean('is_active').notNull().default(true),
+		createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+		updatedAt: bigint('updated_at', { mode: 'number' }).notNull()
 	},
 	(table) => [
 		index('pos_anggaran_parent_idx').on(table.parentId),
@@ -392,7 +392,7 @@ export const posAnggaranInfaq = sqliteTable(
 	]
 );
 
-export const templateInfaqRutin = sqliteTable(
+export const templateInfaqRutin = pgTable(
 	'template_infaq_rutin',
 	{
 		id: text('id')
@@ -409,8 +409,8 @@ export const templateInfaqRutin = sqliteTable(
 		status: text('status').notNull().default('aktif'), // 'draf' | 'aktif' | 'arsip'
 		catatan: text('catatan'),
 		createdByUserId: text('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
-		createdAt: integer('created_at').notNull(),
-		updatedAt: integer('updated_at').notNull()
+		createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+		updatedAt: bigint('updated_at', { mode: 'number' }).notNull()
 	},
 	(table) => [
 		index('template_infaq_periode_idx').on(table.tahun, table.bulanMulai, table.bulanSelesai),
@@ -418,7 +418,7 @@ export const templateInfaqRutin = sqliteTable(
 	]
 );
 
-export const templateInfaqGroup = sqliteTable(
+export const templateInfaqGroup = pgTable(
 	'template_infaq_group',
 	{
 		id: text('id')
@@ -430,15 +430,15 @@ export const templateInfaqGroup = sqliteTable(
 		nama: text('nama').notNull(), // Contoh: 'Group A', 'Group B', 'Group Khusus'
 		keterangan: text('keterangan'),
 		urutan: integer('urutan').notNull().default(0),
-		createdAt: integer('created_at').notNull(),
-		updatedAt: integer('updated_at').notNull()
+		createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+		updatedAt: bigint('updated_at', { mode: 'number' }).notNull()
 	},
 	(table) => [
 		index('template_group_template_idx').on(table.templateId)
 	]
 );
 
-export const templateInfaqGroupPos = sqliteTable(
+export const templateInfaqGroupPos = pgTable(
 	'template_infaq_group_pos',
 	{
 		id: text('id')
@@ -454,8 +454,8 @@ export const templateInfaqGroupPos = sqliteTable(
 		nominalKeterangan: integer('nominal_keterangan').notNull().default(0), // Kolom "Keterangan" (Angka riil dibayar)
 		keteranganTeks: text('keterangan_teks'),
 		urutan: integer('urutan').notNull().default(0),
-		createdAt: integer('created_at').notNull(),
-		updatedAt: integer('updated_at').notNull()
+		createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+		updatedAt: bigint('updated_at', { mode: 'number' }).notNull()
 	},
 	(table) => [
 		index('group_pos_group_idx').on(table.groupId),
@@ -463,7 +463,7 @@ export const templateInfaqGroupPos = sqliteTable(
 	]
 );
 
-export const templateInfaqBundle = sqliteTable(
+export const templateInfaqBundle = pgTable(
 	'template_infaq_bundle',
 	{
 		id: text('id')
@@ -482,7 +482,7 @@ export const templateInfaqBundle = sqliteTable(
 	]
 );
 
-export const templateInfaqPos = sqliteTable(
+export const templateInfaqPos = pgTable(
 	'template_infaq_pos',
 	{
 		id: text('id')
@@ -504,7 +504,7 @@ export const templateInfaqPos = sqliteTable(
 	]
 );
 
-export const templateInfaqJamaah = sqliteTable(
+export const templateInfaqJamaah = pgTable(
 	'template_infaq_jamaah',
 	{
 		id: text('id')
@@ -519,9 +519,9 @@ export const templateInfaqJamaah = sqliteTable(
 		groupId: text('group_id').references(() => templateInfaqGroup.id, { onDelete: 'set null' }),
 		bundleId: text('bundle_id').references(() => templateInfaqBundle.id, { onDelete: 'set null' }),
 		nominalTarget: integer('nominal_target').notNull().default(0),
-		isCustom: integer('is_custom', { mode: 'boolean' }).notNull().default(false),
+		isCustom: boolean('is_custom').notNull().default(false),
 		catatan: text('catatan'),
-		updatedAt: integer('updated_at').notNull()
+		updatedAt: bigint('updated_at', { mode: 'number' }).notNull()
 	},
 	(table) => [
 		index('template_jamaah_template_idx').on(table.templateId),
@@ -535,7 +535,7 @@ export const templateInfaqJamaah = sqliteTable(
 // 8. SHODAQOH WILAYAH (Jenis & Transaksi Jamaah)
 // ==========================================
 
-export const jenisShodaqoh = sqliteTable(
+export const jenisShodaqoh = pgTable(
 	'jenis_shodaqoh',
 	{
 		id: text('id')
@@ -547,10 +547,10 @@ export const jenisShodaqoh = sqliteTable(
 		kelompokId: integer('kelompok_id').references(() => kelompok.id, { onDelete: 'cascade' }),
 		nama: text('nama').notNull(), // e.g. 'Shodaqoh Kelompok', 'Shodaqoh Lainnya', 'Pembangunan', 'Forsgi', 'Asad'
 		deskripsi: text('deskripsi'),
-		isDefault: integer('is_default', { mode: 'boolean' }).notNull().default(false),
-		isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
-		createdAt: integer('created_at').notNull(),
-		updatedAt: integer('updated_at').notNull()
+		isDefault: boolean('is_default').notNull().default(false),
+		isActive: boolean('is_active').notNull().default(true),
+		createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+		updatedAt: bigint('updated_at', { mode: 'number' }).notNull()
 	},
 	(table) => [
 		index('jenis_shodaqoh_scope_idx').on(table.tingkatScope),
@@ -560,7 +560,7 @@ export const jenisShodaqoh = sqliteTable(
 	]
 );
 
-export const transaksiShodaqoh = sqliteTable(
+export const transaksiShodaqoh = pgTable(
 	'transaksi_shodaqoh',
 	{
 		id: text('id')
@@ -591,8 +591,8 @@ export const transaksiShodaqoh = sqliteTable(
 			onDelete: 'set null'
 		}),
 		approvedAt: integer('approved_at'),
-		createdAt: integer('created_at').notNull(),
-		updatedAt: integer('updated_at').notNull()
+		createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+		updatedAt: bigint('updated_at', { mode: 'number' }).notNull()
 	},
 	(table) => [
 		index('transaksi_shodaqoh_kelompok_idx').on(table.kelompokId),

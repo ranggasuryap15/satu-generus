@@ -37,7 +37,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	let targetKelompokId = paramKelompokId || (user?.kelompokId ? Number(user.kelompokId) : null);
 
 	// Ambil daftar kelompok untuk switcher opsional jika user ingin berinfaq ke kelompok lain
-	const allKelompok = db
+	const allKelompok = (await db
 		.select({
 			id: kelompok.id,
 			nama: kelompok.nama,
@@ -48,8 +48,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		.from(kelompok)
 		.innerJoin(desa, eq(kelompok.desaId, desa.id))
 		.innerJoin(daerah, eq(desa.daerahId, daerah.id))
-		.all();
-
+);
 	if (!targetKelompokId && allKelompok.length > 0) {
 		targetKelompokId = allKelompok[0].id;
 	}
@@ -58,8 +57,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const targetDesaId = selectedKelompok?.desaId || null;
 
 	// 1. Ambil rekening & QRIS aktif: Tingkat Kelompok dan Tingkat Desa
-	const rekeningKelompokList = targetKelompokId
-		? db
+	const rekeningKelompokList = (await (targetKelompokId ? db
 				.select()
 				.from(rekeningWilayah)
 				.where(
@@ -69,12 +67,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 						eq(rekeningWilayah.isActive, true)
 					)
 				)
-				.orderBy(desc(rekeningWilayah.createdAt))
-				.all()
-		: [];
+				.orderBy(desc(rekeningWilayah.createdAt)) : []));
 
-	const rekeningDesaList = targetDesaId
-		? db
+	const rekeningDesaList = (await (targetDesaId ? db
 				.select()
 				.from(rekeningWilayah)
 				.where(
@@ -84,16 +79,13 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 						eq(rekeningWilayah.isActive, true)
 					)
 				)
-				.orderBy(desc(rekeningWilayah.createdAt))
-				.all()
-		: [];
+				.orderBy(desc(rekeningWilayah.createdAt)) : []));
 
 	// Rekening gabungan untuk compatibility
 	const rekeningList = [...rekeningKelompokList, ...rekeningDesaList];
 
 	// 2. Ambil jenis shodaqoh aktif untuk Kelompok dan Desa
-	const listJenisKelompok = targetKelompokId
-		? db
+	const listJenisKelompok = (await (targetKelompokId ? db
 				.select()
 				.from(jenisShodaqoh)
 				.where(
@@ -103,12 +95,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 						eq(jenisShodaqoh.isActive, true)
 					)
 				)
-				.orderBy(desc(jenisShodaqoh.isDefault), desc(jenisShodaqoh.createdAt))
-				.all()
-		: [];
+				.orderBy(desc(jenisShodaqoh.isDefault), desc(jenisShodaqoh.createdAt)) : []));
 
-	const listJenisDesa = targetDesaId
-		? db
+	const listJenisDesa = (await (targetDesaId ? db
 				.select()
 				.from(jenisShodaqoh)
 				.where(
@@ -118,9 +107,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 						eq(jenisShodaqoh.isActive, true)
 					)
 				)
-				.orderBy(desc(jenisShodaqoh.isDefault), desc(jenisShodaqoh.createdAt))
-				.all()
-		: [];
+				.orderBy(desc(jenisShodaqoh.isDefault), desc(jenisShodaqoh.createdAt)) : []));
 
 	const rawCombinedJenis = [...listJenisKelompok, ...listJenisDesa];
 
@@ -153,15 +140,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				];
 
 	// 3. Riwayat shodaqoh user yang login (jika ada)
-	const riwayatSaya = user
-		? db
+	const riwayatSaya = (await (user ? db
 				.select()
 				.from(transaksiShodaqoh)
 				.where(eq(transaksiShodaqoh.userId, user.id))
 				.orderBy(desc(transaksiShodaqoh.createdAt))
-				.limit(20)
-				.all()
-		: [];
+				.limit(20) : []));
 
 	return {
 		selectedKelompok,
@@ -213,7 +197,7 @@ export const actions: Actions = {
 
 		const now = Math.floor(Date.now() / 1000);
 
-		db.insert(transaksiShodaqoh)
+(await db.insert(transaksiShodaqoh)
 			.values({
 				userId: locals.user?.id || null,
 				namaPengirim,
@@ -232,8 +216,7 @@ export const actions: Actions = {
 				createdAt: now,
 				updatedAt: now
 			})
-			.run();
-
+);
 		return {
 			success: true,
 			message: 'Laporan Shodaqoh Terkirim'

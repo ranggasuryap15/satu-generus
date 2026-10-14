@@ -8,7 +8,7 @@
  */
 
 import type { LayoutServerLoad } from './$types';
-import { db } from '$lib/db';
+import { db, first } from '$lib/db';
 import { kelompok, presensiJadwal, presensiKehadiran } from '$lib/db/schema';
 import { eq, desc, asc, and, or, gte } from 'drizzle-orm';
 
@@ -39,7 +39,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 
 	// 1. Ambil info kelompok & desa jamaah (1 look-up cepat via Primary Key)
 	if (userKelompokId) {
-		const kel = db
+		const kel = (await first(db
 			.select({
 				id: kelompok.id,
 				nama: kelompok.nama,
@@ -47,7 +47,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 			})
 			.from(kelompok)
 			.where(eq(kelompok.id, userKelompokId))
-			.get();
+			));
 
 		if (kel) {
 			userDesaId = kel.desaId;
@@ -86,7 +86,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 
 	if (scopeConditions.length > 0) {
 		// Jadwal mendatang (tanggal >= todayStr)
-		const upcomingJadwal = db
+		const upcomingJadwal = (await db
 			.select({
 				id: presensiJadwal.id,
 				tingkatScope: presensiJadwal.tingkatScope,
@@ -109,12 +109,11 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 			)
 			.orderBy(asc(presensiJadwal.tanggal), asc(presensiJadwal.jamMulai))
 			.limit(4)
-			.all();
-
+);
 		// Jika tidak ada jadwal mendatang, ambil 2 jadwal terbaru sebelumnya
 		let displayedJadwal = upcomingJadwal;
 		if (displayedJadwal.length === 0) {
-			displayedJadwal = db
+			displayedJadwal = (await db
 				.select({
 					id: presensiJadwal.id,
 					tingkatScope: presensiJadwal.tingkatScope,
@@ -136,7 +135,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 				)
 				.orderBy(desc(presensiJadwal.tanggal), desc(presensiJadwal.jamMulai))
 				.limit(2)
-				.all();
+);
 		}
 
 		// Transformasi jadwal ke format notifikasi item
@@ -181,7 +180,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 	}
 
 	// 4. Ambil Status Kehadiran / Izin Terakhir Jamaah (Maksimal 2 item terbaru)
-	const userPresensiList = db
+	const userPresensiList = (await db
 		.select({
 			id: presensiKehadiran.id,
 			status: presensiKehadiran.status,
@@ -196,8 +195,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		.where(eq(presensiKehadiran.userId, locals.user.id))
 		.orderBy(desc(presensiJadwal.tanggal), desc(presensiKehadiran.id))
 		.limit(2)
-		.all();
-
+);
 	for (const p of userPresensiList) {
 		let badgeVariant: ClientNotifItem['badgeVariant'] = 'primary';
 		let isImportant = false;

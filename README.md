@@ -8,10 +8,10 @@
 
 - **Framework:** SvelteKit (Fullstack mode dengan Svelte 5 Runes: `$state`, `$derived`, `$props`)
 - **Styling:** Tailwind CSS v4 + token warna tema adaptif (*Dark/Light Mode*)
-- **Database Engine:** SQLite (`better-sqlite3` dalam mode Write-Ahead Logging / WAL)
-- **ORM & Migrasi:** Drizzle ORM + Drizzle Kit
+- **Database Engine:** PostgreSQL 16 (driver `postgres-js` dengan connection pool)
+- **ORM & Migrasi:** Drizzle ORM (`drizzle-orm/pg-core`) + Drizzle Kit
 - **Kriptografi:** Node.js Native `crypto` (AES-256-GCM) dengan *Zero Plaintext Policy*
-- **Lingkungan Dev:** Docker & Docker Compose (Volume persisten `./data:/data`)
+- **Lingkungan Dev:** Docker & Docker Compose (service `postgres` + `app`, volume persisten `pgdata` dan `./uploads`)
 - **Tipografi:** Google Fonts Poppins
 
 ---
@@ -25,7 +25,7 @@
 
 ### 2. Sensus & Manajemen Kartu Keluarga (KK) Terenkripsi
 - Form multi-langkah (*wizard*) untuk input Kepala Keluarga dan Anggota Keluarga.
-- **Enkripsi AES-256-GCM:** NIK dan No. KK dienkripsi di sisi server sebelum disimpan ke database SQLite.
+- **Enkripsi AES-256-GCM:** NIK dan No. KK dienkripsi di sisi server sebelum disimpan ke database PostgreSQL.
 - **Masking & Akses Terkontrol:** NIK/KK ditampilkan dalam bentuk masked (`3216**********12`). Plaintext hanya dapat dibuka oleh Admin melalui endpoint terproteksi `POST /api/sensus/unmask`.
 
 ### 3. Presensi Pengajian (QR Code & Checklist Manual)
@@ -66,11 +66,14 @@ Buka peramban di: **[http://localhost:5173](http://localhost:5173)**
 # 1. Install dependencies
 npm install
 
-# 2. Jalankan migrasi dan seeder awal
+# 2. Nyalakan PostgreSQL (Docker)
+docker compose -f docker-compose.dev.yml up -d
+
+# 3. Jalankan migrasi dan seeder awal
 npm run db:migrate
 npm run db:seed
 
-# 3. Mulai server development
+# 4. Mulai server development
 npm run dev
 ```
 
@@ -89,13 +92,17 @@ Database telah diisi data *seed* awal untuk kebutuhan pengujian:
 
 ## 🔌 Koneksi Database GUI (dbx / DBeaver / Drizzle Studio)
 
-File SQLite disimpan pada folder `./data/sqlite.db` (di-mount ke `/data/sqlite.db` di container):
+Database PostgreSQL berjalan sebagai service `postgres` pada Docker Compose (default `localhost:5432`):
 
-1. **Menggunakan dbx / SQLite Client di VS Code / IDE:**
-   - Driver: `SQLite`
-   - File Path: `/absolute/path/to/satu-generus/data/sqlite.db` (atau `./data/sqlite.db`)
-   - Host/User/Port/Pass: *Kosongkan*
-2. **Menggunakan Drizzle Studio:**
+1. **Menggunakan dbx / DBeaver / PostgreSQL Client di VS Code / IDE:**
+   - Driver: `PostgreSQL`
+   - Host: `localhost` | Port: `5432`
+   - Database: `satu_generus` | User: `satu_generus` | Password: `satu_generus`
+2. **Menggunakan `psql` (via container):**
+   ```bash
+   docker compose exec postgres psql -U satu_generus -d satu_generus
+   ```
+3. **Menggunakan Drizzle Studio:**
    ```bash
    npm run db:studio
    ```

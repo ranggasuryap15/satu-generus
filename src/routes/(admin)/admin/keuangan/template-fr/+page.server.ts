@@ -9,7 +9,7 @@
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import { db, sqlite } from '$lib/db';
+import { db, first } from '$lib/db';
 import {
 	templateInfaqRutin,
 	templateInfaqGroup,
@@ -20,7 +20,7 @@ import {
 	keluarga,
 	users
 } from '$lib/db/schema';
-import { eq, and, asc, desc, inArray, isNull, or } from 'drizzle-orm';
+import { eq, and, asc, desc, inArray, isNull, or, sql } from 'drizzle-orm';
 import { getAdminScope, getAccessibleWilayah, canAccessKeuangan, canManageFr } from '$lib/server/scope';
 import { createId } from '@paralleldrive/cuid2';
 
@@ -35,7 +35,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	}
 
 	const adminScope = getAdminScope(roles);
-	const accessibleWilayah = getAccessibleWilayah(adminScope);
+	const accessibleWilayah = await getAccessibleWilayah(adminScope);
 
 	const currentYear = new Date().getFullYear();
 	const tahunParam = Number(url.searchParams.get('tahun')) || currentYear;
@@ -61,7 +61,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	}
 
 	const canEdit = selectedKelompokId
-		? canManageFr(roles, 'Kelompok', selectedKelompokId)
+		? await canManageFr(roles, 'Kelompok', selectedKelompokId)
 		: false;
 
 	// Pastikan kelompokId selalu persisten di URL khusus untuk admin kelompok agar formulir tidak mereset
@@ -91,7 +91,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	}
 
 	// 1. Dapatkan atau Buat Template Rutin untuk Kelompok & Tahun Ini
-	let activeTemplate = db
+	let activeTemplate = (await db
 		.select()
 		.from(templateInfaqRutin)
 		.where(
@@ -102,12 +102,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		)
 		.orderBy(desc(templateInfaqRutin.createdAt))
 		.limit(1)
-		.all()[0];
+		)[0];
 
 	if (!activeTemplate && canEdit) {
 		const now = Date.now();
 		const newTemplateId = createId();
-		db.insert(templateInfaqRutin)
+(await db.insert(templateInfaqRutin)
 			.values({
 				id: newTemplateId,
 				nama: `Template FR ${tahunParam}`,
@@ -122,30 +122,28 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				createdAt: now,
 				updatedAt: now
 			})
-			.run();
-
-		activeTemplate = db
+);
+		activeTemplate = (await db
 			.select()
 			.from(templateInfaqRutin)
 			.where(eq(templateInfaqRutin.id, newTemplateId))
-			.all()[0];
+			)[0];
 	}
 
 	// 2. Ambil Daftar Group Tarif (Group A, Group B, dst)
 	let groups: Array<typeof templateInfaqGroup.$inferSelect> = [];
 	if (activeTemplate) {
-		groups = db
+		groups = (await db
 			.select()
 			.from(templateInfaqGroup)
 			.where(eq(templateInfaqGroup.templateId, activeTemplate.id))
 			.orderBy(asc(templateInfaqGroup.urutan), asc(templateInfaqGroup.createdAt))
-			.all();
-
+);
 		// Jika belum ada group sama sekali, buat Group A sebagai group default
 		if (groups.length === 0 && canEdit) {
 			const now = Date.now();
 			const newGroupId = createId();
-			db.insert(templateInfaqGroup)
+(await db.insert(templateInfaqGroup)
 				.values({
 					id: newGroupId,
 					templateId: activeTemplate.id,
@@ -155,13 +153,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 					createdAt: now,
 					updatedAt: now
 				})
-				.run();
-
-			groups = db
+);
+			groups = (await db
 				.select()
 				.from(templateInfaqGroup)
 				.where(eq(templateInfaqGroup.id, newGroupId))
-				.all();
+);
 		}
 	}
 
@@ -173,7 +170,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		null;
 
 	// 3. Ambil Struktur Pos Anggaran (Hierarki Kategori & Sub-pos)
-	const rawAllPos = db
+	const rawAllPos = (await db
 		.select()
 		.from(posAnggaranInfaq)
 		.where(
@@ -187,8 +184,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			)
 		)
 		.orderBy(asc(posAnggaranInfaq.urutan), asc(posAnggaranInfaq.nama))
-		.all();
-
+);
 	// Pisahkan kategori induk (parentId IS NULL) dan sub-pos anak (parentId IS NOT NULL)
 	const parentCategories = rawAllPos
 		.filter((p) => !p.parentId)
@@ -215,12 +211,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const groupPosValues: Record<string, { nominalJumlah: number; nominalKeterangan: number; keteranganTeks: string | null }> = {};
 
 	if (selectedGroup) {
-		const rawGroupPos = db
+		const rawGroupPos = (await db
 			.select()
 			.from(templateInfaqGroupPos)
 			.where(eq(templateInfaqGroupPos.groupId, selectedGroup.id))
-			.all();
-
+);
 		for (const gp of rawGroupPos) {
 			groupPosValues[gp.posId] = {
 				nominalJumlah: gp.nominalJumlah,
@@ -231,7 +226,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	}
 
 	// 5. Ambil Daftar Seluruh Jamaah Wajib Isrun di Kelompok Ini
-	const rawJamaah = db
+	const rawJamaah = (await db
 		.select({
 			anggotaId: anggotaKeluarga.id,
 			namaLengkap: anggotaKeluarga.namaLengkap,
@@ -250,8 +245,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			)
 		)
 		.orderBy(asc(anggotaKeluarga.namaLengkap))
-		.all();
-
+);
 	// Ambil assignment jamaah ke group di template ini
 	let rawAssignments: Array<{
 		anggotaKeluargaId: string;
@@ -259,14 +253,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	}> = [];
 
 	if (activeTemplate) {
-		rawAssignments = db
+		rawAssignments = (await db
 			.select({
 				anggotaKeluargaId: templateInfaqJamaah.anggotaKeluargaId,
 				groupId: templateInfaqJamaah.groupId
 			})
 			.from(templateInfaqJamaah)
 			.where(eq(templateInfaqJamaah.templateId, activeTemplate.id))
-			.all();
+);
 	}
 
 	const assignmentMap = new Map(rawAssignments.map((a) => [a.anggotaKeluargaId, a.groupId]));
@@ -302,7 +296,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	};
 };
 
-function checkAuth(locals: App.Locals, kelompokId: number | null) {
+async function checkAuth(locals: App.Locals, kelompokId: number | null) {
 	if (!locals.user || !locals.isAdmin) {
 		return fail(401, { error: 'Anda harus login sebagai pengurus.' });
 	}
@@ -310,7 +304,7 @@ function checkAuth(locals: App.Locals, kelompokId: number | null) {
 	if (!canAccessKeuangan(roles)) {
 		return fail(403, { error: 'Akses menu keuangan ditolak.' });
 	}
-	if (!kelompokId || !canManageFr(roles, 'Kelompok', kelompokId)) {
+	if (!kelompokId || !(await canManageFr(roles, 'Kelompok', kelompokId))) {
 		return fail(403, { error: 'Anda tidak memiliki wewenang untuk mengelola keuangan kelompok ini.' });
 	}
 	return null;
@@ -323,7 +317,7 @@ export const actions: Actions = {
 	saveSpreadsheet: async ({ request, locals }) => {
 		const formData = await request.formData();
 		const kelompokId = Number(formData.get('kelompokId'));
-		const authErr = checkAuth(locals, kelompokId);
+		const authErr = await checkAuth(locals, kelompokId);
 		if (authErr) return authErr;
 
 		const groupId = formData.get('groupId')?.toString();
@@ -346,27 +340,8 @@ export const actions: Actions = {
 
 			const now = Date.now();
 
-			// Statement penambahan pos anggaran baru secara realtime
-			const insertPosStmt = sqlite.prepare(`
-				INSERT INTO pos_anggaran_infaq (
-					id, parent_id, kode, nama, deskripsi, tingkat_scope, kelompok_id,
-					is_wajib, tipe_alokasi, urutan, is_active, created_at, updated_at
-				) VALUES (?, ?, ?, ?, '', 'Kelompok', ?, 0, 'nominal', ?, 1, ?, ?)
-			`);
-
-			// Statement upsert nilai sel spreadsheet
-			const upsertStmt = sqlite.prepare(`
-				INSERT INTO template_infaq_group_pos (id, group_id, pos_id, nominal_jumlah, nominal_keterangan, keterangan_teks, urutan, created_at, updated_at)
-				VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
-				ON CONFLICT(group_id, pos_id) DO UPDATE SET
-					nominal_jumlah = excluded.nominal_jumlah,
-					nominal_keterangan = excluded.nominal_keterangan,
-					keterangan_teks = excluded.keterangan_teks,
-					updated_at = excluded.updated_at
-			`);
-
-			const transaction = sqlite.transaction((items) => {
-				for (const item of items) {
+			await db.transaction(async (tx) => {
+				for (const item of cells) {
 					let finalPosId = item.posId;
 
 					// Jika merupakan baris baru yang dibuat realtime dari spreadsheet
@@ -375,38 +350,42 @@ export const actions: Actions = {
 						if (!trimmedName) continue; // Abaikan baris jika namanya belum diisi
 
 						finalPosId = createId();
-						const count = (sqlite.prepare('SELECT COUNT(*) as c FROM pos_anggaran_infaq WHERE parent_id = ?').get(item.parentId) as any)?.c || 0;
+						const countRow = await first(
+							tx.execute(
+								sql`SELECT COUNT(*) as c FROM pos_anggaran_infaq WHERE parent_id = ${item.parentId}`
+							)
+);
+						const count = Number((countRow as any)?.c) || 0;
 						const kode = `POS-${Date.now().toString().slice(-4)}`;
 
-						insertPosStmt.run(
-							finalPosId,
-							item.parentId || null,
-							kode,
-							trimmedName,
-							kelompokId,
-							count + 1,
-							now,
-							now
-						);
+						await tx.execute(sql`
+							INSERT INTO pos_anggaran_infaq (
+								id, parent_id, kode, nama, deskripsi, tingkat_scope, kelompok_id,
+								is_wajib, tipe_alokasi, urutan, is_active, created_at, updated_at
+							) VALUES (
+								${finalPosId}, ${item.parentId || null}, ${kode}, ${trimmedName}, '', 'Kelompok', ${kelompokId},
+								false, 'nominal', ${count + 1}, true, ${now}, ${now}
+							)
+						`);
 					}
 
-					upsertStmt.run(
-						createId(),
-						groupId,
-						finalPosId,
-						Number(item.nominalJumlah) || 0,
-						Number(item.nominalKeterangan) || 0,
-						item.keteranganTeks || null,
-						now,
-						now
-					);
+					await tx.execute(sql`
+						INSERT INTO template_infaq_group_pos (id, group_id, pos_id, nominal_jumlah, nominal_keterangan, keterangan_teks, urutan, created_at, updated_at)
+						VALUES (
+							${createId()}, ${groupId}, ${finalPosId}, ${Number(item.nominalJumlah) || 0},
+							${Number(item.nominalKeterangan) || 0}, ${item.keteranganTeks || null}, 0, ${now}, ${now}
+						)
+						ON CONFLICT (group_id, pos_id) DO UPDATE SET
+							nominal_jumlah = excluded.nominal_jumlah,
+							nominal_keterangan = excluded.nominal_keterangan,
+							keterangan_teks = excluded.keterangan_teks,
+							updated_at = excluded.updated_at
+					`);
 				}
 
 				// Update waktu di template group
-				sqlite.prepare('UPDATE template_infaq_group SET updated_at = ? WHERE id = ?').run(now, groupId);
+				await tx.execute(sql`UPDATE template_infaq_group SET updated_at = ${now} WHERE id = ${groupId}`);
 			});
-
-			transaction(cells);
 
 			return { success: true, message: 'Seluruh angka spreadsheet berhasil disimpan.' };
 		} catch (err: any) {
@@ -421,7 +400,7 @@ export const actions: Actions = {
 	createGroup: async ({ request, locals }) => {
 		const formData = await request.formData();
 		const kelompokId = Number(formData.get('kelompokId'));
-		const authErr = checkAuth(locals, kelompokId);
+		const authErr = await checkAuth(locals, kelompokId);
 		if (authErr) return authErr;
 
 		const templateId = formData.get('templateId')?.toString();
@@ -433,11 +412,11 @@ export const actions: Actions = {
 		}
 
 		try {
-			const count = (sqlite.prepare('SELECT COUNT(*) as c FROM template_infaq_group WHERE template_id = ?').get(templateId) as any)?.c || 0;
+			const count = (await first(db.execute(sql`SELECT COUNT(*) as c FROM template_infaq_group WHERE template_id = ${templateId}`)) as any)?.c || 0;
 			const newId = createId();
 			const now = Date.now();
 
-			db.insert(templateInfaqGroup)
+(await db.insert(templateInfaqGroup)
 				.values({
 					id: newId,
 					templateId,
@@ -447,8 +426,7 @@ export const actions: Actions = {
 					createdAt: now,
 					updatedAt: now
 				})
-				.run();
-
+);
 			return { success: true, message: `Group "${nama}" berhasil dibuat.`, createdGroupId: newId };
 		} catch (err: any) {
 			return fail(500, { error: err.message || 'Gagal membuat group baru.' });
@@ -461,7 +439,7 @@ export const actions: Actions = {
 	duplicateGroup: async ({ request, locals }) => {
 		const formData = await request.formData();
 		const kelompokId = Number(formData.get('kelompokId'));
-		const authErr = checkAuth(locals, kelompokId);
+		const authErr = await checkAuth(locals, kelompokId);
 		if (authErr) return authErr;
 
 		const templateId = formData.get('templateId')?.toString();
@@ -476,33 +454,37 @@ export const actions: Actions = {
 			const now = Date.now();
 			const newGroupId = createId();
 
-			const copyTransaction = sqlite.transaction(() => {
-				const count = (sqlite.prepare('SELECT COUNT(*) as c FROM template_infaq_group WHERE template_id = ?').get(templateId) as any)?.c || 0;
+			await db.transaction(async (tx) => {
+				const countRow = await first(
+					tx.execute(
+						sql`SELECT COUNT(*) as c FROM template_infaq_group WHERE template_id = ${templateId}`
+					)
+);
+				const count = Number((countRow as any)?.c) || 0;
 
 				// 1. Buat record group baru
-				sqlite.prepare(`
+				await tx.execute(sql`
 					INSERT INTO template_infaq_group (id, template_id, nama, keterangan, urutan, created_at, updated_at)
-					VALUES (?, ?, ?, 'Hasil duplikasi dari group sebelumnya', ?, ?, ?)
-				`).run(newGroupId, templateId, namaBaru, count + 1, now, now);
-
-				// 2. Salin seluruh sel angka dari group sumber
-				const sourceRows = sqlite.prepare(`
-					SELECT pos_id, nominal_jumlah, nominal_keterangan, keterangan_teks, urutan
-					FROM template_infaq_group_pos
-					WHERE group_id = ?
-				`).all(sourceGroupId) as Array<{ pos_id: string; nominal_jumlah: number; nominal_keterangan: number; keterangan_teks: string; urutan: number }>;
-
-				const insertPosStmt = sqlite.prepare(`
-					INSERT INTO template_infaq_group_pos (id, group_id, pos_id, nominal_jumlah, nominal_keterangan, keterangan_teks, urutan, created_at, updated_at)
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+					VALUES (${newGroupId}, ${templateId}, ${namaBaru}, 'Hasil duplikasi dari group sebelumnya', ${count + 1}, ${now}, ${now})
 				`);
 
+				// 2. Salin seluruh sel angka dari group sumber
+				const sourceRows = (await tx.execute(sql`
+					SELECT pos_id, nominal_jumlah, nominal_keterangan, keterangan_teks, urutan
+					FROM template_infaq_group_pos
+					WHERE group_id = ${sourceGroupId}
+				`)) as Array<{ pos_id: string; nominal_jumlah: number; nominal_keterangan: number; keterangan_teks: string; urutan: number }>;
+
 				for (const row of sourceRows) {
-					insertPosStmt.run(createId(), newGroupId, row.pos_id, row.nominal_jumlah, row.nominal_keterangan, row.keterangan_teks, row.urutan, now, now);
+					await tx.execute(sql`
+						INSERT INTO template_infaq_group_pos (id, group_id, pos_id, nominal_jumlah, nominal_keterangan, keterangan_teks, urutan, created_at, updated_at)
+						VALUES (
+							${createId()}, ${newGroupId}, ${row.pos_id}, ${row.nominal_jumlah},
+							${row.nominal_keterangan}, ${row.keterangan_teks}, ${row.urutan}, ${now}, ${now}
+						)
+					`);
 				}
 			});
-
-			copyTransaction();
 
 			return { success: true, message: `Group "${namaBaru}" berhasil diduplikasi.`, newGroupId };
 		} catch (err: any) {
@@ -516,14 +498,14 @@ export const actions: Actions = {
 	deleteGroup: async ({ request, locals }) => {
 		const formData = await request.formData();
 		const kelompokId = Number(formData.get('kelompokId'));
-		const authErr = checkAuth(locals, kelompokId);
+		const authErr = await checkAuth(locals, kelompokId);
 		if (authErr) return authErr;
 
 		const groupId = formData.get('groupId')?.toString();
 		if (!groupId) return fail(400, { error: 'ID group tidak valid.' });
 
 		try {
-			db.delete(templateInfaqGroup).where(eq(templateInfaqGroup.id, groupId)).run();
+(await db.delete(templateInfaqGroup).where(eq(templateInfaqGroup.id, groupId)));
 			return { success: true, message: 'Group berhasil dihapus.' };
 		} catch (err: any) {
 			return fail(500, { error: err.message || 'Gagal menghapus group.' });
@@ -536,7 +518,7 @@ export const actions: Actions = {
 	addPos: async ({ request, locals }) => {
 		const formData = await request.formData();
 		const kelompokId = Number(formData.get('kelompokId'));
-		const authErr = checkAuth(locals, kelompokId);
+		const authErr = await checkAuth(locals, kelompokId);
 		if (authErr) return authErr;
 
 		const parentId = formData.get('parentId')?.toString() || null;
@@ -549,9 +531,9 @@ export const actions: Actions = {
 
 		try {
 			const now = Date.now();
-			const count = (sqlite.prepare('SELECT COUNT(*) as c FROM pos_anggaran_infaq WHERE parent_id = ?').get(parentId) as any)?.c || 0;
+			const count = (await first(db.execute(sql`SELECT COUNT(*) as c FROM pos_anggaran_infaq WHERE parent_id = ${parentId}`)) as any)?.c || 0;
 
-			db.insert(posAnggaranInfaq)
+(await db.insert(posAnggaranInfaq)
 				.values({
 					id: createId(),
 					parentId,
@@ -567,8 +549,7 @@ export const actions: Actions = {
 					createdAt: now,
 					updatedAt: now
 				})
-				.run();
-
+);
 			return { success: true, message: `Uraian "${nama}" berhasil ditambahkan.` };
 		} catch (err: any) {
 			return fail(500, { error: err.message || 'Gagal menambah baris uraian.' });
@@ -581,7 +562,7 @@ export const actions: Actions = {
 	updatePos: async ({ request, locals }) => {
 		const formData = await request.formData();
 		const kelompokId = Number(formData.get('kelompokId'));
-		const authErr = checkAuth(locals, kelompokId);
+		const authErr = await checkAuth(locals, kelompokId);
 		if (authErr) return authErr;
 
 		const posId = formData.get('posId')?.toString();
@@ -592,11 +573,10 @@ export const actions: Actions = {
 		}
 
 		try {
-			db.update(posAnggaranInfaq)
+(await db.update(posAnggaranInfaq)
 				.set({ nama, updatedAt: Date.now() })
 				.where(eq(posAnggaranInfaq.id, posId))
-				.run();
-
+);
 			return { success: true, message: 'Nama uraian berhasil diperbarui.' };
 		} catch (err: any) {
 			return fail(500, { error: err.message || 'Gagal memperbarui uraian.' });
@@ -609,20 +589,20 @@ export const actions: Actions = {
 	deletePos: async ({ request, locals }) => {
 		const formData = await request.formData();
 		const kelompokId = Number(formData.get('kelompokId'));
-		const authErr = checkAuth(locals, kelompokId);
+		const authErr = await checkAuth(locals, kelompokId);
 		if (authErr) return authErr;
 
 		const posId = formData.get('posId')?.toString();
 		if (!posId) return fail(400, { error: 'ID pos tidak valid.' });
 
-		const pos = db.select().from(posAnggaranInfaq).where(eq(posAnggaranInfaq.id, posId)).all()[0];
+		const pos = (await db.select().from(posAnggaranInfaq).where(eq(posAnggaranInfaq.id, posId)))[0];
 		if (!pos) return fail(404, { error: 'Pos tidak ditemukan.' });
 		if (pos.isWajib) {
 			return fail(400, { error: 'Hak Wajib tidak boleh dihapus dari sistem.' });
 		}
 
 		try {
-			db.delete(posAnggaranInfaq).where(eq(posAnggaranInfaq.id, posId)).run();
+(await db.delete(posAnggaranInfaq).where(eq(posAnggaranInfaq.id, posId)));
 			return { success: true, message: `Pos "${pos.nama}" berhasil dihapus.` };
 		} catch (err: any) {
 			return fail(500, { error: err.message || 'Gagal menghapus pos anggaran.' });
@@ -635,7 +615,7 @@ export const actions: Actions = {
 	assignJamaahToGroup: async ({ request, locals }) => {
 		const formData = await request.formData();
 		const kelompokId = Number(formData.get('kelompokId'));
-		const authErr = checkAuth(locals, kelompokId);
+		const authErr = await checkAuth(locals, kelompokId);
 		if (authErr) return authErr;
 
 		const templateId = formData.get('templateId')?.toString();
@@ -653,21 +633,17 @@ export const actions: Actions = {
 			}
 
 			const now = Date.now();
-			const upsertStmt = sqlite.prepare(`
+			await db.transaction(async (tx) => {
+				for (const aid of anggotaIds) {
+					await tx.execute(sql`
 				INSERT INTO template_infaq_jamaah (id, template_id, anggota_keluarga_id, group_id, nominal_target, is_custom, updated_at)
-				VALUES (?, ?, ?, ?, 0, 0, ?)
-				ON CONFLICT(template_id, anggota_keluarga_id) DO UPDATE SET
+						VALUES (${createId()}, ${templateId}, ${aid}, ${groupId}, 0, false, ${now})
+						ON CONFLICT (template_id, anggota_keluarga_id) DO UPDATE SET
 					group_id = excluded.group_id,
 					updated_at = excluded.updated_at
 			`);
-
-			const bulkTx = sqlite.transaction((ids) => {
-				for (const aid of ids) {
-					upsertStmt.run(createId(), templateId, aid, groupId, now);
 				}
 			});
-
-			bulkTx(anggotaIds);
 
 			return {
 				success: true,
@@ -685,7 +661,7 @@ export const actions: Actions = {
 	removeJamaahFromGroup: async ({ request, locals }) => {
 		const formData = await request.formData();
 		const kelompokId = Number(formData.get('kelompokId'));
-		const authErr = checkAuth(locals, kelompokId);
+		const authErr = await checkAuth(locals, kelompokId);
 		if (authErr) return authErr;
 
 		const templateId = formData.get('templateId')?.toString();
@@ -696,11 +672,11 @@ export const actions: Actions = {
 		}
 
 		try {
-			sqlite.prepare(`
+			await db.execute(sql`
 				UPDATE template_infaq_jamaah
-				SET group_id = NULL, updated_at = ?
-				WHERE template_id = ? AND anggota_keluarga_id = ?
-			`).run(Date.now(), templateId, anggotaId);
+				SET group_id = NULL, updated_at = ${Date.now()}
+				WHERE template_id = ${templateId} AND anggota_keluarga_id = ${anggotaId}
+			`);
 
 			return { success: true, message: 'Jamaah berhasil dikeluarkan dari group.' };
 		} catch (err: any) {

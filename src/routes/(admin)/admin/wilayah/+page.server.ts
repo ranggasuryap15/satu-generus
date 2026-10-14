@@ -9,7 +9,7 @@
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { db } from '$lib/db';
+import { db, first } from '$lib/db';
 import { daerah, desa, kelompok, subKelompok } from '$lib/db/schema';
 import { eq, inArray, sql, and } from 'drizzle-orm';
 import { getAdminScope, getAccessibleWilayah, isKelompokAllowed } from '$lib/server/scope';
@@ -20,13 +20,13 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 
 	const adminScope = getAdminScope(locals.roles || []);
-	const accessibleWilayah = getAccessibleWilayah(adminScope);
+	const accessibleWilayah = await getAccessibleWilayah(adminScope);
 
 	// 1. Ambil seluruh data daerah yang diizinkan dalam scope admin
 	const daerahList = accessibleWilayah.daerahList;
 
 	// 2. Ambil seluruh kelompok yang diizinkan join desa dan daerah dengan agregasi terindeks
-	const rawKelompokList = db
+	const rawKelompokList = (await db
 		.select({
 			id: kelompok.id,
 			nama: kelompok.nama,
@@ -45,8 +45,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		.from(kelompok)
 		.leftJoin(desa, eq(kelompok.desaId, desa.id))
 		.leftJoin(daerah, eq(desa.daerahId, daerah.id))
-		.all();
-
+);
 	const kelompokList = adminScope.isPusat
 		? rawKelompokList
 		: rawKelompokList.filter((k) => accessibleWilayah.allowedKelompokIdSet.has(k.id));
@@ -58,7 +57,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}));
 
 	// 4. Ambil seluruh sub-kelompok yang diizinkan
-	const rawSubKelompokList = db
+	const rawSubKelompokList = (await db
 		.select({
 			id: subKelompok.id,
 			nama: subKelompok.nama,
@@ -72,8 +71,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		.leftJoin(kelompok, eq(subKelompok.kelompokId, kelompok.id))
 		.leftJoin(desa, eq(kelompok.desaId, desa.id))
 		.leftJoin(daerah, eq(desa.daerahId, daerah.id))
-		.all();
-
+);
 	const subKelompokList = adminScope.isPusat
 		? rawSubKelompokList
 		: rawSubKelompokList.filter((sk) => accessibleWilayah.allowedKelompokIdSet.has(sk.kelompokId));
@@ -129,10 +127,10 @@ export const actions: Actions = {
 			return fail(400, { error: 'Daerah wajib dipilih atau diisi.' });
 		}
 
-		const accessibleWilayah = getAccessibleWilayah(adminScope);
+		const accessibleWilayah = await getAccessibleWilayah(adminScope);
 
 		try {
-			const result = db.transaction((tx) => {
+			const result = await db.transaction(async (tx) => {
 				let currentDaerahId: number;
 				let isDaerahCreated = false;
 				let isDesaCreated = false;
@@ -152,16 +150,16 @@ export const actions: Actions = {
 					if (!adminScope.isPusat) {
 						throw new Error('Akses ditolak: Hanya Pengurus Tingkat Pusat yang memiliki wewenang menambahkan Daerah baru.');
 					}
-					const existingD = tx
+					const existingD = (await first(tx
 						.select()
 						.from(daerah)
 						.where(sql`lower(${daerah.nama}) = lower(${daerahValue})`)
-						.get();
+						));
 
 					if (existingD) {
 						currentDaerahId = existingD.id;
 					} else {
-						const [newD] = tx
+						const [newD] = (await tx
 							.insert(daerah)
 							.values({
 								nama: daerahValue,
@@ -169,7 +167,7 @@ export const actions: Actions = {
 								kotaKabupaten: daerahKotaKabupaten || daerahValue
 							})
 							.returning()
-							.all();
+);
 						currentDaerahId = newD.id;
 						isDaerahCreated = true;
 					}
@@ -182,11 +180,11 @@ export const actions: Actions = {
 					const isExistingDesaId = !isNaN(parsedDesaId) && String(parsedDesaId) === desaValue;
 
 					if (isExistingDesaId) {
-						const existingDesa = tx
+						const existingDesa = (await first(tx
 							.select()
 							.from(desa)
 							.where(eq(desa.id, parsedDesaId))
-							.get();
+							));
 
 						if (!existingDesa || existingDesa.daerahId !== currentDaerahId) {
 							throw new Error('Data desa tidak valid atau tidak berada dalam Daerah yang dipilih.');
@@ -207,7 +205,7 @@ export const actions: Actions = {
 							throw new Error('Akses ditolak: Tidak dapat membuat Desa di luar Daerah binaan Anda.');
 						}
 
-						const existingDesaByName = tx
+						const existingDesaByName = (await first(tx
 							.select()
 							.from(desa)
 							.where(
@@ -216,12 +214,12 @@ export const actions: Actions = {
 									sql`lower(${desa.nama}) = lower(${desaValue})`
 								)
 							)
-							.get();
+							));
 
 						if (existingDesaByName) {
 							currentDesaId = existingDesaByName.id;
 						} else {
-							const [newDesa] = tx
+							const [newDesa] = (await tx
 								.insert(desa)
 								.values({
 									daerahId: currentDaerahId,
@@ -229,7 +227,7 @@ export const actions: Actions = {
 									kecamatan: desaKecamatan || null
 								})
 								.returning()
-								.all();
+);
 							currentDesaId = newDesa.id;
 							isDesaCreated = true;
 						}
@@ -247,11 +245,11 @@ export const actions: Actions = {
 					const isExistingKelompokId = !isNaN(parsedKelompokId) && String(parsedKelompokId) === kelompokValue;
 
 					if (isExistingKelompokId) {
-						const existingKel = tx
+						const existingKel = (await first(tx
 							.select()
 							.from(kelompok)
 							.where(eq(kelompok.id, parsedKelompokId))
-							.get();
+							));
 
 						if (!existingKel || existingKel.desaId !== currentDesaId) {
 							throw new Error('Data kelompok tidak valid atau tidak berada di bawah Desa yang dipilih.');
@@ -271,7 +269,7 @@ export const actions: Actions = {
 							}
 						}
 
-						const existingKelByName = tx
+						const existingKelByName = (await first(tx
 							.select()
 							.from(kelompok)
 							.where(
@@ -280,12 +278,12 @@ export const actions: Actions = {
 									sql`lower(${kelompok.nama}) = lower(${kelompokValue})`
 								)
 							)
-							.get();
+							));
 
 						if (existingKelByName) {
 							currentKelompokId = existingKelByName.id;
 						} else {
-							const [newKel] = tx
+							const [newKel] = (await tx
 								.insert(kelompok)
 								.values({
 									desaId: currentDesaId,
@@ -293,7 +291,7 @@ export const actions: Actions = {
 									kelurahan: kelompokKelurahan || null
 								})
 								.returning()
-								.all();
+);
 							currentKelompokId = newKel.id;
 							isKelompokCreated = true;
 						}
@@ -309,13 +307,13 @@ export const actions: Actions = {
 						throw new Error('Akses ditolak: Tidak dapat membuat Sub-Kelompok di luar Kelompok binaan Anda.');
 					}
 
-					tx.insert(subKelompok)
+(await tx.insert(subKelompok)
 						.values({
 							kelompokId: currentKelompokId,
 							nama: subKelompokNama,
 							keterangan: subKelompokKeterangan || null
 						})
-						.run();
+);
 					isSubKelompokCreated = true;
 				}
 
@@ -370,13 +368,13 @@ export const actions: Actions = {
 		}
 
 		try {
-			db.insert(daerah)
+(await db.insert(daerah)
 				.values({
 					nama,
 					provinsi,
 					kotaKabupaten
 				})
-				.run();
+);
 		} catch (error) {
 			console.error('Gagal membuat daerah:', error);
 			return fail(500, { error: 'Terjadi kesalahan sistem saat menyimpan daerah.' });
@@ -414,13 +412,13 @@ export const actions: Actions = {
 		}
 
 		try {
-			db.insert(desa)
+(await db.insert(desa)
 				.values({
 					daerahId,
 					nama,
 					kecamatan: kecamatan || null
 				})
-				.run();
+);
 		} catch (error) {
 			console.error('Gagal membuat desa:', error);
 			return fail(500, { error: 'Terjadi kesalahan sistem saat menyimpan desa.' });
@@ -452,7 +450,7 @@ export const actions: Actions = {
 		}
 
 		if (!adminScope.isPusat) {
-			const accessibleWilayah = getAccessibleWilayah(adminScope);
+			const accessibleWilayah = await getAccessibleWilayah(adminScope);
 			const allowedDesaIds = new Set(accessibleWilayah.desaList.map((d) => d.id));
 			if (!allowedDesaIds.has(desaId)) {
 				return fail(403, {
@@ -462,13 +460,13 @@ export const actions: Actions = {
 		}
 
 		try {
-			db.insert(kelompok)
+(await db.insert(kelompok)
 				.values({
 					desaId,
 					nama,
 					kelurahan: kelurahan || null
 				})
-				.run();
+);
 		} catch (error) {
 			console.error('Gagal membuat kelompok:', error);
 			return fail(500, { error: 'Terjadi kesalahan sistem saat menyimpan kelompok.' });
@@ -494,7 +492,7 @@ export const actions: Actions = {
 		}
 
 		if (!adminScope.isPusat) {
-			const accessibleWilayah = getAccessibleWilayah(adminScope);
+			const accessibleWilayah = await getAccessibleWilayah(adminScope);
 			if (!accessibleWilayah.allowedKelompokIdSet.has(kelompokId)) {
 				return fail(403, {
 					error: 'Akses ditolak: Anda tidak memiliki wewenang membuat Sub-Kelompok di luar Kelompok binaan Anda.'
@@ -503,13 +501,13 @@ export const actions: Actions = {
 		}
 
 		try {
-			db.insert(subKelompok)
+(await db.insert(subKelompok)
 				.values({
 					kelompokId,
 					nama,
 					keterangan: keterangan || null
 				})
-				.run();
+);
 		} catch (error) {
 			console.error('Gagal membuat sub-kelompok:', error);
 			return fail(500, { error: 'Terjadi kesalahan sistem saat menyimpan sub-kelompok.' });
@@ -524,7 +522,7 @@ export const actions: Actions = {
 		}
 
 		const adminScope = getAdminScope(locals.roles);
-		const accessibleWilayah = getAccessibleWilayah(adminScope);
+		const accessibleWilayah = await getAccessibleWilayah(adminScope);
 		const formData = await request.formData();
 		const kelompokId = parseInt(formData.get('kelompokId')?.toString() || '0', 10);
 		const nama = formData.get('nama')?.toString()?.trim() || '';
@@ -558,15 +556,14 @@ export const actions: Actions = {
 		}
 
 		try {
-			db.update(kelompok)
+(await db.update(kelompok)
 				.set({
 					nama,
 					kelurahan,
 					desaId
 				})
 				.where(eq(kelompok.id, kelompokId))
-				.run();
-
+);
 			return { success: true, message: `Data kelompok "${nama}" berhasil diperbarui.` };
 		} catch (error: any) {
 			console.error('Gagal memperbarui kelompok:', error);
@@ -580,7 +577,7 @@ export const actions: Actions = {
 		}
 
 		const adminScope = getAdminScope(locals.roles);
-		const accessibleWilayah = getAccessibleWilayah(adminScope);
+		const accessibleWilayah = await getAccessibleWilayah(adminScope);
 		const formData = await request.formData();
 		const desaId = parseInt(formData.get('desaId')?.toString() || '0', 10);
 		const nama = formData.get('nama')?.toString()?.trim() || '';
@@ -613,15 +610,14 @@ export const actions: Actions = {
 		}
 
 		try {
-			db.update(desa)
+(await db.update(desa)
 				.set({
 					nama,
 					kecamatan,
 					daerahId
 				})
 				.where(eq(desa.id, desaId))
-				.run();
-
+);
 			return { success: true, message: `Data desa "${nama}" berhasil diperbarui.` };
 		} catch (error: any) {
 			console.error('Gagal memperbarui desa:', error);
@@ -635,7 +631,7 @@ export const actions: Actions = {
 		}
 
 		const adminScope = getAdminScope(locals.roles);
-		const accessibleWilayah = getAccessibleWilayah(adminScope);
+		const accessibleWilayah = await getAccessibleWilayah(adminScope);
 		const formData = await request.formData();
 		const subKelompokId = parseInt(formData.get('subKelompokId')?.toString() || '0', 10);
 		const nama = formData.get('nama')?.toString()?.trim() || '';
@@ -659,15 +655,14 @@ export const actions: Actions = {
 		}
 
 		try {
-			db.update(subKelompok)
+(await db.update(subKelompok)
 				.set({
 					nama,
 					keterangan,
 					kelompokId
 				})
 				.where(eq(subKelompok.id, subKelompokId))
-				.run();
-
+);
 			return { success: true, message: `Data sub-kelompok "${nama}" berhasil diperbarui.` };
 		} catch (error: any) {
 			console.error('Gagal memperbarui sub-kelompok:', error);
@@ -695,7 +690,7 @@ export const actions: Actions = {
 		}
 
 		if (!adminScope.isPusat) {
-			const accessibleWilayah = getAccessibleWilayah(adminScope);
+			const accessibleWilayah = await getAccessibleWilayah(adminScope);
 			if (!accessibleWilayah.allowedKelompokIdSet.has(kelompokId)) {
 				return fail(403, {
 					error: 'Akses ditolak: Anda tidak memiliki wewenang mengelola lokasi kelompok ini.'
@@ -704,7 +699,7 @@ export const actions: Actions = {
 		}
 
 		try {
-			db.update(kelompok)
+(await db.update(kelompok)
 				.set({
 					lokasiNama,
 					latitude,
@@ -713,8 +708,7 @@ export const actions: Actions = {
 					gmapsUrl
 				})
 				.where(eq(kelompok.id, kelompokId))
-				.run();
-
+);
 			return { success: true, message: 'Data lokasi kelompok berhasil disimpan.' };
 		} catch (error: any) {
 			console.error('Gagal memperbarui lokasi kelompok:', error);
@@ -744,7 +738,7 @@ export const actions: Actions = {
 		}
 
 		if (!adminScope.isPusat) {
-			const accessibleWilayah = getAccessibleWilayah(adminScope);
+			const accessibleWilayah = await getAccessibleWilayah(adminScope);
 			const allowedDesaIds = new Set(accessibleWilayah.desaList.map((d) => d.id));
 			if (!allowedDesaIds.has(desaId)) {
 				return fail(403, {
@@ -754,7 +748,7 @@ export const actions: Actions = {
 		}
 
 		try {
-			db.update(desa)
+(await db.update(desa)
 				.set({
 					lokasiNama,
 					latitude,
@@ -764,8 +758,7 @@ export const actions: Actions = {
 					lokasiKelompokId
 				})
 				.where(eq(desa.id, desaId))
-				.run();
-
+);
 			return { success: true, message: 'Data lokasi desa berhasil disimpan.' };
 		} catch (error: any) {
 			console.error('Gagal memperbarui lokasi desa:', error);
@@ -793,7 +786,7 @@ export const actions: Actions = {
 		}
 
 		if (!adminScope.isPusat) {
-			const accessibleWilayah = getAccessibleWilayah(adminScope);
+			const accessibleWilayah = await getAccessibleWilayah(adminScope);
 			if (!accessibleWilayah.allowedKelompokIdSet.has(kelompokId)) {
 				return fail(403, {
 					error: 'Akses ditolak: Kelompok ini berada di luar wewenang cakupan wilayah Anda.'
@@ -802,8 +795,8 @@ export const actions: Actions = {
 		}
 
 		try {
-			db.transaction((tx) => {
-				tx.delete(kelompok).where(eq(kelompok.id, kelompokId)).run();
+			await db.transaction(async (tx) => {
+(await tx.delete(kelompok).where(eq(kelompok.id, kelompokId)));
 			});
 
 			return { success: true, message: 'Kelompok berhasil dihapus dari sistem.' };
@@ -843,7 +836,7 @@ export const actions: Actions = {
 
 		let validIds = parsedIds;
 		if (!adminScope.isPusat) {
-			const accessibleWilayah = getAccessibleWilayah(adminScope);
+			const accessibleWilayah = await getAccessibleWilayah(adminScope);
 			validIds = parsedIds.filter((id) => accessibleWilayah.allowedKelompokIdSet.has(id));
 			if (validIds.length === 0) {
 				return fail(403, {
@@ -853,8 +846,8 @@ export const actions: Actions = {
 		}
 
 		try {
-			db.transaction((tx) => {
-				tx.delete(kelompok).where(inArray(kelompok.id, validIds)).run();
+			await db.transaction(async (tx) => {
+(await tx.delete(kelompok).where(inArray(kelompok.id, validIds)));
 			});
 
 			return { success: true, message: `${validIds.length} kelompok berhasil dihapus dari sistem.` };
@@ -884,7 +877,7 @@ export const actions: Actions = {
 		}
 
 		try {
-			db.delete(subKelompok).where(eq(subKelompok.id, subKelompokId)).run();
+(await db.delete(subKelompok).where(eq(subKelompok.id, subKelompokId)));
 			return { success: true, message: 'Sub-kelompok berhasil dihapus.' };
 		} catch (error: any) {
 			console.error('Gagal menghapus sub-kelompok:', error);
@@ -921,8 +914,8 @@ export const actions: Actions = {
 		}
 
 		try {
-			db.transaction((tx) => {
-				tx.delete(subKelompok).where(inArray(subKelompok.id, parsedIds)).run();
+			await db.transaction(async (tx) => {
+(await tx.delete(subKelompok).where(inArray(subKelompok.id, parsedIds)));
 			});
 
 			return { success: true, message: `${parsedIds.length} sub-kelompok berhasil dihapus.` };

@@ -8,7 +8,7 @@
  */
 
 import { json, type RequestHandler } from '@sveltejs/kit';
-import { db } from '$lib/db';
+import { db, first } from '$lib/db';
 import { keluarga, anggotaKeluarga } from '$lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { decryptSensitive } from '$lib/server/crypto';
@@ -24,13 +24,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const { keluargaId, anggotaId } = body;
 
 	if (keluargaId) {
-		const k = db.select().from(keluarga).where(eq(keluarga.id, keluargaId)).get();
+		const k = (await first(db.select().from(keluarga).where(eq(keluarga.id, keluargaId))));
 		if (!k) {
 			return json({ error: 'Data keluarga tidak ditemukan.' }, { status: 404 });
 		}
 
 		// Verifikasi wewenang: Admin 4S ATAU Kepala/Anggota Keluarga sah
-		const isOwner = isUserInKeluarga(locals.user.id, k.id);
+		const isOwner = await isUserInKeluarga(locals.user.id, k.id);
 		if (!locals.isAdmin && !isOwner) {
 			return json(
 				{ error: 'Akses ditolak: Anda bukan pemilik kartu keluarga ini dan tidak memiliki hak akses admin.' },
@@ -51,14 +51,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 
 	if (anggotaId) {
-		const a = db.select().from(anggotaKeluarga).where(eq(anggotaKeluarga.id, anggotaId)).get();
+		const a = (await first(db.select().from(anggotaKeluarga).where(eq(anggotaKeluarga.id, anggotaId))));
 		if (!a) {
 			return json({ error: 'Data anggota keluarga tidak ditemukan.' }, { status: 404 });
 		}
 
 		// Cari keluarga terkait untuk verifikasi pemilik
-		const k = db.select().from(keluarga).where(eq(keluarga.id, a.keluargaId)).get();
-		const isOwner = k && isUserInKeluarga(locals.user.id, k.id);
+		const k = (await first(db.select().from(keluarga).where(eq(keluarga.id, a.keluargaId))));
+		const isOwner = k && await isUserInKeluarga(locals.user.id, k.id);
 		if (!locals.isAdmin && !isOwner) {
 			return json(
 				{ error: 'Akses ditolak: Anda bukan pemilik kartu keluarga ini dan tidak memiliki hak akses admin.' },

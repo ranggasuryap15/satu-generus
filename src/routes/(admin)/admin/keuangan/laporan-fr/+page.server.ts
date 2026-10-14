@@ -9,7 +9,7 @@
 
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { db } from '$lib/db';
+import { db, first } from '$lib/db';
 import { kelompok, desa, daerah, anggotaKeluarga, keluarga, users, transaksiFr } from '$lib/db/schema';
 import { eq, and, sql, inArray } from 'drizzle-orm';
 import { getAdminScope, getAccessibleWilayah, canAccessKeuangan } from '$lib/server/scope';
@@ -25,7 +25,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	}
 
 	const adminScope = getAdminScope(roles);
-	const accessibleWilayah = getAccessibleWilayah(adminScope);
+	const accessibleWilayah = await getAccessibleWilayah(adminScope);
 
 	const currentYear = new Date().getFullYear();
 	const currentMonth = new Date().getMonth() + 1;
@@ -40,10 +40,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// 1. SCOPE KELOMPOK: Rekapitulasi Riwayat 12 Bulan untuk Kelompoknya
 	if (adminScope.level === 'Kelompok' && adminScope.kelompokIds.length > 0) {
 		const myKelompokId = adminScope.kelompokIds[0];
-		const myKelompok = db.select().from(kelompok).where(eq(kelompok.id, myKelompokId)).get();
+		const myKelompok = (await first(db.select().from(kelompok).where(eq(kelompok.id, myKelompokId))));
 
 		// Hitung jumlah jamaah wajib isrun di kelompok ini
-		const [wajibCountRes] = db
+		const [wajibCountRes] = (await db
 			.select({ count: sql<number>`count(distinct ${anggotaKeluarga.id})` })
 			.from(anggotaKeluarga)
 			.innerJoin(keluarga, eq(anggotaKeluarga.keluargaId, keluarga.id))
@@ -55,12 +55,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 					eq(anggotaKeluarga.statusJamaah, 'Aktif')
 				)
 			)
-			.all();
-
+);
 		const totalWajib = wajibCountRes?.count ?? 0;
 
 		// Ambil transaksi 12 bulan dalam tahun terpilih
-		const monthlyRaw = db
+		const monthlyRaw = (await db
 			.select({
 				bulan: transaksiFr.bulan,
 				totalNominal: sql<number>`sum(${transaksiFr.nominal})`,
@@ -74,8 +73,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				)
 			)
 			.groupBy(transaksiFr.bulan)
-			.all();
-
+);
 		const monthlyMap = new Map(monthlyRaw.map((m) => [m.bulan, m]));
 		const bulananList = Array.from({ length: 12 }, (_, i) => {
 			const b = i + 1;
@@ -128,7 +126,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	if (activeDesaId) {
 		// Tampilkan seluruh kelompok di desa aktif
-		const rawKelompoks = db
+		const rawKelompoks = (await db
 			.select({
 				id: kelompok.id,
 				nama: kelompok.nama,
@@ -138,13 +136,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			.from(kelompok)
 			.innerJoin(desa, eq(kelompok.desaId, desa.id))
 			.where(eq(kelompok.desaId, activeDesaId))
-			.all();
-
+);
 		const kelompokIds = rawKelompoks.map((k) => k.id);
 
 		if (kelompokIds.length > 0) {
 			// Query total wajib isrun per kelompok
-			const wajibPerKelompok = db
+			const wajibPerKelompok = (await db
 				.select({
 					kelompokId: users.kelompokId,
 					wajibCount: sql<number>`count(distinct ${anggotaKeluarga.id})`
@@ -160,12 +157,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 					)
 				)
 				.groupBy(users.kelompokId)
-				.all();
-
+);
 			const wajibMap = new Map(wajibPerKelompok.map((w) => [w.kelompokId, w.wajibCount]));
 
 			// Query transaksi FR per kelompok pada tahun & bulan terpilih
-			const frPerKelompok = db
+			const frPerKelompok = (await db
 				.select({
 					kelompokId: transaksiFr.kelompokId,
 					totalNominal: sql<number>`sum(${transaksiFr.nominal})`,
@@ -180,8 +176,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 					)
 				)
 				.groupBy(transaksiFr.kelompokId)
-				.all();
-
+);
 			const frMap = new Map(frPerKelompok.map((f) => [f.kelompokId, f]));
 
 			targetKelompokList = rawKelompoks.map((k) => ({
@@ -202,7 +197,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 		const desaIds = accessibleDesas.map((d) => d.id);
 		if (desaIds.length > 0) {
-			const frPerDesa = db
+			const frPerDesa = (await db
 				.select({
 					desaId: transaksiFr.desaId,
 					totalNominal: sql<number>`sum(${transaksiFr.nominal})`
@@ -216,8 +211,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 					)
 				)
 				.groupBy(transaksiFr.desaId)
-				.all();
-
+);
 			const frDesaMap = new Map(frPerDesa.map((f) => [f.desaId, f.totalNominal]));
 
 			desaRekapList = accessibleDesas.map((d) => {

@@ -23,12 +23,11 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 	const hasAccessKeuangan = canAccessKeuangan(locals.roles || []);
 
 	// 1. Agregasi jumlah total permohonan izin/sakit yang menunggu approval (cepat & minimum I/O memanfaatkan index status_approval)
-	const [pendingCountRes] = db
+	const [pendingCountRes] = (await db
 		.select({ val: count() })
 		.from(presensiKehadiran)
 		.where(eq(presensiKehadiran.statusApproval, 'Menunggu Persetujuan'))
-		.all();
-
+);
 	const totalPendingApprovals = pendingCountRes?.val ?? 0;
 
 	// 2. Agregasi jumlah transaksi shodaqoh berstatus 'pending' sesuai scope wilayah admin (KU / Kyai)
@@ -46,17 +45,16 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 			}
 		}
 
-		const [pendingShodaqohRes] = db
+		const [pendingShodaqohRes] = (await db
 			.select({ val: count() })
 			.from(transaksiShodaqoh)
 			.where(and(...shodaqohConditions))
-			.all();
-
+);
 		totalPendingShodaqoh = pendingShodaqohRes?.val ?? 0;
 	}
 
 	// 3. Muat 8 item notifikasi permohonan izin/sakit pending terbaru untuk dropdown lonceng admin
-	const pendingApprovalList = db
+	const pendingApprovalList = (await db
 		.select({
 			id: presensiKehadiran.id,
 			jadwalId: presensiKehadiran.jadwalId,
@@ -77,16 +75,15 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		.where(eq(presensiKehadiran.statusApproval, 'Menunggu Persetujuan'))
 		.orderBy(desc(presensiKehadiran.waktuScan), desc(presensiKehadiran.id))
 		.limit(8)
-		.all();
-
+);
 	return {
 		adminScope,
 		totalPendingApprovals,
 		totalPendingShodaqoh,
 		pendingApprovalList,
 		canAccessKeuangan: hasAccessKeuangan,
-		canManageFinance: canManageRekening(locals.roles || []),
-		canManageShodaqoh: canManageShodaqoh(locals.roles || [])
+		canManageFinance: await canManageRekening(locals.roles || []),
+		canManageShodaqoh: await canManageShodaqoh(locals.roles || [])
 	};
 };
 

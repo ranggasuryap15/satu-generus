@@ -47,7 +47,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		throw redirect(303, '/admin/wilayah');
 	}
 
-	const accessibleWilayah = getAccessibleWilayah(adminScope);
+	const accessibleWilayah = await getAccessibleWilayah(adminScope);
 
 	return {
 		adminScope,
@@ -83,7 +83,7 @@ export const actions: Actions = {
 			return fail(400, { error: 'Belum ada data wilayah yang diisi untuk diproses.' });
 		}
 
-		const accessibleWilayah = getAccessibleWilayah(adminScope);
+		const accessibleWilayah = await getAccessibleWilayah(adminScope);
 		const allowedDaerahNames = new Set(accessibleWilayah.daerahList.map((d) => d.nama.toLowerCase().trim()));
 
 		// Validasi dasar
@@ -134,22 +134,22 @@ export const actions: Actions = {
 		let createdSubKelompokCount = 0;
 
 		try {
-			db.transaction((tx) => {
+			await db.transaction(async (tx) => {
 				// Cache daerah & desa di memori untuk mencegah SELECT berulang (minimum I/O)
 				const existingDaerahMap = new Map<string, number>();
-				const allDaerah = tx.select().from(daerah).all();
+				const allDaerah = (await tx.select().from(daerah));
 				for (const d of allDaerah) {
 					existingDaerahMap.set(d.nama.trim().toLowerCase(), d.id);
 				}
 
 				const existingDesaMap = new Map<string, number>(); // key: `${daerahId}:${desaNama.toLowerCase()}`
-				const allDesa = tx.select().from(desa).all();
+				const allDesa = (await tx.select().from(desa));
 				for (const d of allDesa) {
 					existingDesaMap.set(`${d.daerahId}:${d.nama.trim().toLowerCase()}`, d.id);
 				}
 
 				const existingKelompokMap = new Map<string, number>(); // key: `${desaId}:${kelompokNama.toLowerCase()}`
-				const allKelompok = tx.select().from(kelompok).all();
+				const allKelompok = (await tx.select().from(kelompok));
 				for (const k of allKelompok) {
 					existingKelompokMap.set(`${k.desaId}:${k.nama.trim().toLowerCase()}`, k.id);
 				}
@@ -165,7 +165,7 @@ export const actions: Actions = {
 								`Akses ditolak: Admin tingkat Daerah tidak memiliki wewenang membuat Daerah baru ("${cleanDaerahNama}").`
 							);
 						}
-						const [newDaerah] = tx
+						const [newDaerah] = (await tx
 							.insert(daerah)
 							.values({
 								nama: cleanDaerahNama,
@@ -173,7 +173,7 @@ export const actions: Actions = {
 								kotaKabupaten: group.kotaKabupaten?.trim() || cleanDaerahNama
 							})
 							.returning()
-							.all();
+);
 						daerahId = newDaerah.id;
 						existingDaerahMap.set(daerahKey, daerahId);
 						createdDaerahCount++;
@@ -185,7 +185,7 @@ export const actions: Actions = {
 
 					let desaId = existingDesaMap.get(desaKey);
 					if (!desaId) {
-						const [newDesa] = tx
+						const [newDesa] = (await tx
 							.insert(desa)
 							.values({
 								daerahId,
@@ -193,7 +193,7 @@ export const actions: Actions = {
 								kecamatan: group.kecamatan?.trim() || cleanDesaNama
 							})
 							.returning()
-							.all();
+);
 						desaId = newDesa.id;
 						existingDesaMap.set(desaKey, desaId);
 						createdDesaCount++;
@@ -206,7 +206,7 @@ export const actions: Actions = {
 
 						let kelompokId = existingKelompokMap.get(kelompokKey);
 						if (!kelompokId) {
-							const [newKelompok] = tx
+							const [newKelompok] = (await tx
 								.insert(kelompok)
 								.values({
 									desaId,
@@ -214,7 +214,7 @@ export const actions: Actions = {
 									kelurahan: kl.kelurahan?.trim() || null
 								})
 								.returning()
-								.all();
+);
 							kelompokId = newKelompok.id;
 							existingKelompokMap.set(kelompokKey, kelompokId);
 							createdKelompokCount++;
@@ -224,13 +224,13 @@ export const actions: Actions = {
 						if (kl.subKelompoks && kl.subKelompoks.length > 0) {
 							for (const sk of kl.subKelompoks) {
 								if (sk.nama?.trim()) {
-									tx.insert(subKelompok)
+(await tx.insert(subKelompok)
 										.values({
 											kelompokId,
 											nama: sk.nama.trim(),
 											keterangan: sk.keterangan?.trim() || null
 										})
-										.run();
+);
 									createdSubKelompokCount++;
 								}
 							}

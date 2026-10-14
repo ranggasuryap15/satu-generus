@@ -9,13 +9,13 @@
 
 import { error, redirect, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { db } from '$lib/db';
+import { db, first } from '$lib/db';
 import { presensiJadwal, presensiKehadiran, users, kelompok } from '$lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { getAdminScope, getAccessibleWilayah } from '$lib/server/scope';
 
-function assertJadwalAccess(jadwalId: number, roles: App.UserRole[]) {
-	const jadwal = db.select().from(presensiJadwal).where(eq(presensiJadwal.id, jadwalId)).get();
+async function assertJadwalAccess(jadwalId: number, roles: App.UserRole[]) {
+	const jadwal = (await first(db.select().from(presensiJadwal).where(eq(presensiJadwal.id, jadwalId))));
 	if (!jadwal) {
 		throw error(404, 'Jadwal pengajian tidak ditemukan');
 	}
@@ -23,7 +23,7 @@ function assertJadwalAccess(jadwalId: number, roles: App.UserRole[]) {
 	const adminScope = getAdminScope(roles || []);
 	if (adminScope.isPusat) return jadwal;
 
-	const accessibleWilayah = getAccessibleWilayah(adminScope);
+	const accessibleWilayah = await getAccessibleWilayah(adminScope);
 	if (jadwal.kelompokId && !accessibleWilayah.allowedKelompokIdSet.has(jadwal.kelompokId)) {
 		throw error(403, 'Akses ditolak: Anda tidak memiliki wewenang untuk mengakses jadwal kelompok ini.');
 	}
@@ -45,15 +45,14 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	}
 
 	// Validasi wewenang scope terhadap jadwal ini
-	const jadwal = assertJadwalAccess(jadwalId, locals.roles || []);
+	const jadwal = await assertJadwalAccess(jadwalId, locals.roles || []);
 
 	const kelompokData = jadwal.kelompokId
-		? db.select().from(kelompok).where(eq(kelompok.id, jadwal.kelompokId)).get()
+		? await first(db.select().from(kelompok).where(eq(kelompok.id, jadwal.kelompokId)))
 		: null;
 
 	// Ambil semua jamaah di kelompok ini
-	const jamaahList = jadwal.kelompokId
-		? db
+	const jamaahList = (await (jadwal.kelompokId ? db
 				.select({
 					id: users.id,
 					namaLengkap: users.namaLengkap,
@@ -61,17 +60,14 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 					noTelepon: users.noTelepon
 				})
 				.from(users)
-				.where(eq(users.kelompokId, jadwal.kelompokId))
-				.all()
-		: [];
+				.where(eq(users.kelompokId, jadwal.kelompokId)) : []));
 
 	// Ambil status kehadiran yang sudah tercatat
-	const kehadiranList = db
+	const kehadiranList = (await db
 		.select()
 		.from(presensiKehadiran)
 		.where(eq(presensiKehadiran.jadwalId, jadwalId))
-		.all();
-
+);
 	const recordMap = new Map<string, (typeof kehadiranList)[number]>();
 	kehadiranList.forEach((k) => {
 		recordMap.set(k.userId, k);
@@ -107,7 +103,7 @@ export const actions: Actions = {
 		}
 
 		const jadwalId = parseInt(params.jadwalId || '0', 10);
-		assertJadwalAccess(jadwalId, locals.roles || []);
+		await assertJadwalAccess(jadwalId, locals.roles || []);
 
 		const formData = await request.formData();
 		const userId = formData.get('userId')?.toString() || '';
@@ -117,7 +113,7 @@ export const actions: Actions = {
 			return fail(400, { error: 'Data tidak lengkap' });
 		}
 
-		const existing = db
+		const existing = (await first(db
 			.select()
 			.from(presensiKehadiran)
 			.where(
@@ -126,21 +122,21 @@ export const actions: Actions = {
 					eq(presensiKehadiran.userId, userId)
 				)
 			)
-			.get();
+			));
 
 		const nowUnix = Math.floor(Date.now() / 1000);
 
 		if (existing) {
-			db.update(presensiKehadiran)
+(await db.update(presensiKehadiran)
 				.set({
 					status,
 					statusApproval: 'Disetujui',
 					waktuScan: status === 'Hadir' ? nowUnix : existing.waktuScan
 				})
 				.where(eq(presensiKehadiran.id, existing.id))
-				.run();
+);
 		} else {
-			db.insert(presensiKehadiran)
+(await db.insert(presensiKehadiran)
 				.values({
 					jadwalId,
 					userId,
@@ -148,7 +144,7 @@ export const actions: Actions = {
 					statusApproval: 'Disetujui',
 					waktuScan: status === 'Hadir' ? nowUnix : null
 				})
-				.run();
+);
 		}
 
 		return { success: true };
@@ -160,7 +156,7 @@ export const actions: Actions = {
 		}
 
 		const jadwalId = parseInt(params.jadwalId || '0', 10);
-		assertJadwalAccess(jadwalId, locals.roles || []);
+		await assertJadwalAccess(jadwalId, locals.roles || []);
 
 		const formData = await request.formData();
 		const userId = formData.get('userId')?.toString() || '';
@@ -170,7 +166,7 @@ export const actions: Actions = {
 			return fail(400, { error: 'User ID wajib disertakan.' });
 		}
 
-		const existing = db
+		const existing = (await first(db
 			.select()
 			.from(presensiKehadiran)
 			.where(
@@ -179,16 +175,16 @@ export const actions: Actions = {
 					eq(presensiKehadiran.userId, userId)
 				)
 			)
-			.get();
+			));
 
 		if (existing) {
-			db.update(presensiKehadiran)
+(await db.update(presensiKehadiran)
 				.set({
 					statusApproval: 'Disetujui',
 					catatanAdmin: catatan
 				})
 				.where(eq(presensiKehadiran.id, existing.id))
-				.run();
+);
 		}
 
 		return { success: true, message: 'Permohonan izin berhasil disetujui.' };
@@ -200,7 +196,7 @@ export const actions: Actions = {
 		}
 
 		const jadwalId = parseInt(params.jadwalId || '0', 10);
-		assertJadwalAccess(jadwalId, locals.roles || []);
+		await assertJadwalAccess(jadwalId, locals.roles || []);
 
 		const formData = await request.formData();
 		const userId = formData.get('userId')?.toString() || '';
@@ -210,7 +206,7 @@ export const actions: Actions = {
 			return fail(400, { error: 'User ID wajib disertakan.' });
 		}
 
-		const existing = db
+		const existing = (await first(db
 			.select()
 			.from(presensiKehadiran)
 			.where(
@@ -219,17 +215,17 @@ export const actions: Actions = {
 					eq(presensiKehadiran.userId, userId)
 				)
 			)
-			.get();
+			));
 
 		if (existing) {
-			db.update(presensiKehadiran)
+(await db.update(presensiKehadiran)
 				.set({
 					status: 'Alpa',
 					statusApproval: 'Ditolak',
 					catatanAdmin: catatan
 				})
 				.where(eq(presensiKehadiran.id, existing.id))
-				.run();
+);
 		}
 
 		return { success: true, message: 'Permohonan izin telah ditolak (status diubah ke Alpa).' };

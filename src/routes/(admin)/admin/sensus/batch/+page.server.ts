@@ -56,7 +56,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 
 	const adminScope = getAdminScope(locals.roles);
-	const accessibleWilayah = getAccessibleWilayah(adminScope);
+	const accessibleWilayah = await getAccessibleWilayah(adminScope);
 
 	return {
 		wilayahOptions: {
@@ -126,7 +126,7 @@ export const actions: Actions = {
 		}
 
 		const adminScope = getAdminScope(locals.roles);
-		const accessibleWilayah = getAccessibleWilayah(adminScope);
+		const accessibleWilayah = await getAccessibleWilayah(adminScope);
 
 		// Validasi dasar tiap anggota di dalam setiap keluarga
 		let totalJiwa = 0;
@@ -203,20 +203,19 @@ export const actions: Actions = {
 
 		// Persiapan data existing users untuk mencegah crash unik email
 		const existingUserEmails = new Set(
-			db
+(await db
 				.select({ email: users.email })
 				.from(users)
-				.all()
+				)
 				.filter((u) => !!u.email)
 				.map((u) => u.email!.toLowerCase())
 		);
-
 		let totalUsersCreated = 0;
 		let totalKeluargaCreated = 0;
 		let totalAnggotaCreated = 0;
 
 		try {
-			db.transaction((tx) => {
+			await db.transaction(async (tx) => {
 				for (const fam of familyGroups) {
 					if (!fam.members || fam.members.length === 0) continue;
 
@@ -261,7 +260,7 @@ export const actions: Actions = {
 
 							const cleanHp = m.noTelepon ? m.noTelepon.trim().replace(/\D/g, '') : null;
 
-							const [createdUser] = tx
+							const [createdUser] = (await tx
 								.insert(users)
 								.values({
 									kelompokId: kId,
@@ -271,8 +270,7 @@ export const actions: Actions = {
 									passwordHash: defaultPasswordHash
 								})
 								.returning()
-								.all();
-
+);
 							memberUserIds[i] = createdUser.id;
 							totalUsersCreated++;
 
@@ -283,7 +281,7 @@ export const actions: Actions = {
 					}
 
 					// 2. Buat record keluarga (1 KK atau 1 Mandiri/Perantau)
-					const [newKeluarga] = tx
+					const [newKeluarga] = (await tx
 						.insert(keluarga)
 						.values({
 							isKk: isActualKk,
@@ -292,8 +290,7 @@ export const actions: Actions = {
 							alamatLengkap: familyAlamat
 						})
 						.returning()
-						.all();
-
+);
 					totalKeluargaCreated++;
 
 					// 3. Simpan seluruh anggota keluarga ke dalam record keluarga ini
@@ -308,7 +305,7 @@ export const actions: Actions = {
 						const rawNik = m.nik ? m.nik.trim().replace(/\D/g, '').slice(0, 16) : '';
 						const nikEncrypted = rawNik ? encryptSensitive(rawNik) : null;
 
-						tx.insert(anggotaKeluarga)
+(await tx.insert(anggotaKeluarga)
 							.values({
 								keluargaId: newKeluarga.id,
 								userId: memberUserIds[i] || null,
@@ -326,8 +323,7 @@ export const actions: Actions = {
 								isrun: m.isrun || 'Tidak',
 								golonganDarah: m.golonganDarah && m.golonganDarah !== '-' ? m.golonganDarah.trim() : null
 							})
-							.run();
-
+);
 						totalAnggotaCreated++;
 					}
 				}

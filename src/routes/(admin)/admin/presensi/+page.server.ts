@@ -9,7 +9,7 @@
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { db } from '$lib/db';
+import { db, first } from '$lib/db';
 import { presensiJadwal, presensiKehadiran, kelompok } from '$lib/db/schema';
 import { eq, desc, inArray, or, sql } from 'drizzle-orm';
 import { normalizeDateToISO } from '$lib/utils';
@@ -21,12 +21,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 
 	const adminScope = getAdminScope(locals.roles || []);
-	const accessibleWilayah = getAccessibleWilayah(adminScope);
+	const accessibleWilayah = await getAccessibleWilayah(adminScope);
 
 	// 1. Query daftar kelompok yang dapat diakses oleh admin
 	let kelompokList = accessibleWilayah.kelompokList;
 	if (adminScope.isPusat) {
-		kelompokList = db.select().from(kelompok).all();
+		kelompokList = (await db.select().from(kelompok));
 	}
 
 	// 2. Query jadwal kegiatan sesuai scope
@@ -77,23 +77,19 @@ export const load: PageServerLoad = async ({ locals }) => {
 		.from(presensiJadwal)
 		.leftJoin(kelompok, eq(presensiJadwal.kelompokId, kelompok.id))
 		.orderBy(
-			sql`ABS(julianday(${presensiJadwal.tanggal}) - julianday(date('now', 'localtime'))) ASC`,
-			sql`CASE WHEN ${presensiJadwal.tanggal} >= date('now', 'localtime') THEN 0 ELSE 1 END ASC`,
+			sql`ABS(${presensiJadwal.tanggal}::date - CURRENT_DATE) ASC`,
+			sql`CASE WHEN ${presensiJadwal.tanggal}::date >= CURRENT_DATE THEN 0 ELSE 1 END ASC`,
 			desc(presensiJadwal.tanggal)
 		);
-
-	const rawJadwal = jadwalCondition ? query.where(jadwalCondition).all() : query.all();
+	const rawJadwal = jadwalCondition ? await query.where(jadwalCondition) : await query;
 
 	// Rekap kehadiran untuk jadwal yang ditampilkan saja (minimum I/O)
 	const jadwalIds = rawJadwal.map((j) => j.id);
 	const rawKehadiran =
-		jadwalIds.length > 0
-			? db
+(await (jadwalIds.length > 0 ? db
 					.select()
 					.from(presensiKehadiran)
-					.where(inArray(presensiKehadiran.jadwalId, jadwalIds))
-					.all()
-			: [];
+					.where(inArray(presensiKehadiran.jadwalId, jadwalIds)) : []));
 
 	const daftarJadwal = rawJadwal.map((j) => {
 		const kehadiranTerkait = rawKehadiran.filter((k) => k.jadwalId === j.id);
@@ -118,7 +114,7 @@ export const actions: Actions = {
 		}
 
 		const adminScope = getAdminScope(locals.roles || []);
-		const accessibleWilayah = getAccessibleWilayah(adminScope);
+		const accessibleWilayah = await getAccessibleWilayah(adminScope);
 
 		const formData = await request.formData();
 		const namaKegiatan = formData.get('namaKegiatan')?.toString()?.trim() || '';
@@ -152,7 +148,7 @@ export const actions: Actions = {
 
 		// Jika lokasi belum diisi manual, gunakan lokasi default kelompok
 		if (!finalLokasiNama || !finalLatitude || !finalLongitude || !finalGmapsUrl) {
-			const targetKelompok = db.select().from(kelompok).where(eq(kelompok.id, kelompokId)).get();
+			const targetKelompok = (await first(db.select().from(kelompok).where(eq(kelompok.id, kelompokId))));
 			if (targetKelompok) {
 				if (!finalLokasiNama) finalLokasiNama = targetKelompok.lokasiNama || targetKelompok.nama;
 				if (!finalLatitude) finalLatitude = targetKelompok.latitude;
@@ -169,7 +165,7 @@ export const actions: Actions = {
 		}
 
 		try {
-			db.insert(presensiJadwal)
+(await db.insert(presensiJadwal)
 				.values({
 					kelompokId,
 					tanggal: normalizeDateToISO(tanggal),
@@ -180,7 +176,7 @@ export const actions: Actions = {
 					radiusMeter: finalRadiusMeter,
 					gmapsUrl: finalGmapsUrl
 				})
-				.run();
+);
 		} catch (error) {
 			console.error('Gagal membuat jadwal:', error);
 			return fail(500, { error: 'Terjadi kesalahan sistem saat membuat jadwal.' });

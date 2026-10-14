@@ -4,13 +4,13 @@
  * @usedBy npm run db:seed, pengujian lokal, dan setup lingkungan awal
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/auth, drizzle-orm
  * @publicFunctions seed
- * @sideEffects Menulis/memperbarui record ke SQLite tabel daerah, desa, kelompok, dapukan, users, user_dapukan
+ * @sideEffects Menulis/memperbarui record ke PostgreSQL tabel daerah, desa, kelompok, dapukan, users, user_dapukan, pos_anggaran_infaq
  */
 
-import { db, sqlite } from './index';
-import { daerah, desa, kelompok, dapukan, users, userDapukan } from './schema';
+import { db, client, first } from './index';
+import { daerah, desa, kelompok, dapukan, users, userDapukan, posAnggaranInfaq } from './schema';
 import { hashPassword } from '../server/auth';
-import { eq } from 'drizzle-orm';
+import { count, eq } from 'drizzle-orm';
 
 export async function seed() {
 	console.log('🌱 Memulai seeding database Satu Generus...');
@@ -28,26 +28,26 @@ export async function seed() {
 	];
 
 	// Bersihkan dapukan non-4S lama (Seksi Acara) dan migrasikan nama lama bila ada
-	db.delete(dapukan).where(eq(dapukan.namaDapukan, 'Seksi Acara')).run();
-	db.update(dapukan).set({ namaDapukan: 'Kyai' }).where(eq(dapukan.namaDapukan, 'Ketua')).run();
-	db.update(dapukan).set({ namaDapukan: 'Sekretaris / Penerobos' }).where(eq(dapukan.namaDapukan, 'Sekretaris')).run();
-	db.update(dapukan).set({ namaDapukan: 'KU/Bendahara' }).where(eq(dapukan.namaDapukan, 'Bendahara')).run();
-	db.update(dapukan).set({ namaDapukan: 'Mubaligh/Ulama' }).where(eq(dapukan.namaDapukan, 'Penasihat')).run();
+	(await db.delete(dapukan).where(eq(dapukan.namaDapukan, 'Seksi Acara')));
+(await db.update(dapukan).set({ namaDapukan: 'Kyai' }).where(eq(dapukan.namaDapukan, 'Ketua')));
+(await db.update(dapukan).set({ namaDapukan: 'Sekretaris / Penerobos' }).where(eq(dapukan.namaDapukan, 'Sekretaris')));
+(await db.update(dapukan).set({ namaDapukan: 'KU/Bendahara' }).where(eq(dapukan.namaDapukan, 'Bendahara')));
+(await db.update(dapukan).set({ namaDapukan: 'Mubaligh/Ulama' }).where(eq(dapukan.namaDapukan, 'Penasihat')));
 
 	for (const d of masterDapukan) {
-		const existing = db.select().from(dapukan).where(eq(dapukan.namaDapukan, d.namaDapukan)).get();
+		const existing = (await first(db.select().from(dapukan).where(eq(dapukan.namaDapukan, d.namaDapukan))));
 		if (!existing) {
-			db.insert(dapukan).values(d).run();
+(await db.insert(dapukan).values(d));
 		}
 	}
 	console.log('  👔 Master Dapukan baku (Superadmin & 4S) siap.');
 
-	const getDapukan = (name: string) =>
-		db.select().from(dapukan).where(eq(dapukan.namaDapukan, name)).get();
+	const getDapukan = async (name: string) =>
+		await first(db.select().from(dapukan).where(eq(dapukan.namaDapukan, name)));
 
-	const dapukanSuperadmin = getDapukan('Superadmin');
-	const dapukanAdminPusat = getDapukan('Admin Pusat');
-	const dapukanKyai = getDapukan('Kyai');
+	const dapukanSuperadmin = await getDapukan('Superadmin');
+	const dapukanAdminPusat = await getDapukan('Admin Pusat');
+	const dapukanKyai = await getDapukan('Kyai');
 
 	// 2. Master Wilayah: 2 Daerah (Cikarang 1 dan Cikarang 2)
 	const listDaerah = [
@@ -58,9 +58,9 @@ export async function seed() {
 	const daerahRecords: Record<string, typeof daerah.$inferSelect> = {};
 
 	for (const d of listDaerah) {
-		let rec = db.select().from(daerah).where(eq(daerah.nama, d.nama)).get();
+		let rec = (await first(db.select().from(daerah).where(eq(daerah.nama, d.nama))));
 		if (!rec) {
-			[rec] = db.insert(daerah).values(d).returning().all();
+			[rec] = (await db.insert(daerah).values(d).returning());
 			console.log('  📍 Daerah dibuat:', rec.nama);
 		}
 		daerahRecords[d.nama] = rec;
@@ -82,9 +82,9 @@ export async function seed() {
 
 	for (const ds of listDesa) {
 		const parentDaerah = daerahRecords[ds.daerahNama];
-		let rec = db.select().from(desa).where(eq(desa.nama, ds.nama)).get();
+		let rec = (await first(db.select().from(desa).where(eq(desa.nama, ds.nama))));
 		if (!rec) {
-			[rec] = db
+			[rec] = (await db
 				.insert(desa)
 				.values({
 					daerahId: parentDaerah.id,
@@ -92,7 +92,7 @@ export async function seed() {
 					kecamatan: ds.kecamatan
 				})
 				.returning()
-				.all();
+);
 			console.log(`  📍 Desa dibuat: ${rec.nama} (${ds.daerahNama})`);
 		}
 		desaRecords[ds.nama] = rec;
@@ -107,15 +107,15 @@ export async function seed() {
 			const namaKelompok = `Kelompok ${i}`;
 			const uniqueKey = `${ds.nama} - ${namaKelompok}`;
 
-			let rec = db
+			let rec = (await db
 				.select()
 				.from(kelompok)
 				.where(eq(kelompok.desaId, parentDesa.id))
-				.all()
+				)
 				.find((k) => k.nama === namaKelompok);
 
 			if (!rec) {
-				[rec] = db
+				[rec] = (await db
 					.insert(kelompok)
 					.values({
 						desaId: parentDesa.id,
@@ -123,7 +123,7 @@ export async function seed() {
 						kelurahan: ds.nama
 					})
 					.returning()
-					.all();
+);
 			}
 			kelompokRecords[uniqueKey] = rec;
 		}
@@ -204,10 +204,10 @@ export async function seed() {
 	];
 
 	for (const plan of userPlans) {
-		let userRec = db.select().from(users).where(eq(users.email, plan.email)).get();
+		let userRec = (await first(db.select().from(users).where(eq(users.email, plan.email))));
 
 		if (!userRec) {
-			[userRec] = db
+			[userRec] = (await db
 				.insert(users)
 				.values({
 					namaLengkap: plan.namaLengkap,
@@ -216,29 +216,29 @@ export async function seed() {
 					kelompokId: plan.kelompokId
 				})
 				.returning()
-				.all();
+);
 		} else {
 			// Perbarui password dan nama jika sudah ada
-			db.update(users)
+			await db
+				.update(users)
 				.set({
 					namaLengkap: plan.namaLengkap,
 					passwordHash: defaultHash,
 					kelompokId: plan.kelompokId
 				})
-				.where(eq(users.id, userRec.id))
-				.run();
+				.where(eq(users.id, userRec.id));
 		}
 
 		// Set wewenang dapukan jika user memiliki scope admin
 		if (plan.scope && plan.dapukanId) {
-			const existingRole = db
+			const existingRole = (await first(db
 				.select()
 				.from(userDapukan)
 				.where(eq(userDapukan.userId, userRec.id))
-				.get();
+				));
 
 			if (!existingRole) {
-				db.insert(userDapukan)
+(await db.insert(userDapukan)
 					.values({
 						userId: userRec.id,
 						dapukanId: plan.dapukanId,
@@ -247,9 +247,9 @@ export async function seed() {
 						desaId: plan.desaId,
 						kelompokId: plan.assignedKelompokId
 					})
-					.run();
+);
 			} else {
-				db.update(userDapukan)
+(await db.update(userDapukan)
 					.set({
 						dapukanId: plan.dapukanId,
 						tingkatScope: plan.scope,
@@ -258,11 +258,29 @@ export async function seed() {
 						kelompokId: plan.assignedKelompokId
 					})
 					.where(eq(userDapukan.id, existingRole.id))
-					.run();
+);
 			}
 		}
 
 		console.log(`  👤 Akun siap: ${plan.email} (${plan.scope ? `Admin ${plan.scope}` : 'Jamaah'})`);
+	}
+
+	// Seed 4 Hak Wajib default (sebelumnya di auto-heal src/lib/db/index.ts)
+	const wajibCount = await first(
+		db.select({ val: count() }).from(posAnggaranInfaq).where(eq(posAnggaranInfaq.isWajib, true))
+	);
+	if (!wajibCount || Number(wajibCount.val) === 0) {
+		const now = Date.now();
+		await db
+			.insert(posAnggaranInfaq)
+			.values([
+				{ id: 'hw_pusat', kode: 'HW-PUSAT', nama: 'Hak Pusat', deskripsi: 'Alokasi wajib rutin untuk tingkat Pusat', tingkatScope: 'Pusat', isWajib: true, tipeAlokasi: 'nominal', urutan: 1, isActive: true, createdAt: now, updatedAt: now },
+				{ id: 'hw_daerah', kode: 'HW-DAERAH', nama: 'Hak Daerah', deskripsi: 'Alokasi wajib rutin untuk tingkat Daerah', tingkatScope: 'Daerah', isWajib: true, tipeAlokasi: 'nominal', urutan: 2, isActive: true, createdAt: now, updatedAt: now },
+				{ id: 'hw_desa', kode: 'HW-DESA', nama: 'Hak Desa', deskripsi: 'Alokasi wajib rutin untuk tingkat Desa', tingkatScope: 'Desa', isWajib: true, tipeAlokasi: 'nominal', urutan: 3, isActive: true, createdAt: now, updatedAt: now },
+				{ id: 'hw_kelompok', kode: 'HW-KELOMPOK', nama: 'Hak Kelompok', deskripsi: 'Alokasi wajib rutin untuk tingkat Kelompok', tingkatScope: 'Kelompok', isWajib: true, tipeAlokasi: 'nominal', urutan: 4, isActive: true, createdAt: now, updatedAt: now }
+			])
+			.onConflictDoNothing();
+		console.log('  💰 4 Hak Wajib (Pusat, Daerah, Desa, Kelompok) siap.');
 	}
 
 	console.log('✅ Seeding database berhasil rampung!');
@@ -270,13 +288,13 @@ export async function seed() {
 
 if (process.argv[1]?.endsWith('seed.ts') || process.argv[1]?.endsWith('seed.js')) {
 	seed()
-		.then(() => {
-			sqlite.close();
+		.then(async () => {
+			await client.end();
 			process.exit(0);
 		})
-		.catch((err) => {
+		.catch(async (err) => {
 			console.error('❌ Gagal seeding:', err);
-			sqlite.close();
+			await client.end();
 			process.exit(1);
 		});
 }

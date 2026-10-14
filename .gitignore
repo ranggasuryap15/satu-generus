@@ -35,6 +35,11 @@ vite.config.ts.timestamp-*
 *.db-wal
 *.db-shm
 
+# Backup file SQLite-era (lokal, tidak perlu di-commit)
+Dockerfile.sqlite.bak
+docker-compose.sqlite.bak
+local.db
+
 # Uploads
 /uploads/*
 !/uploads/.gitkeep

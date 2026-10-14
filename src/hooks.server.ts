@@ -7,7 +7,7 @@
  * @sideEffects Mengisi event.locals, menyematkan header CORS, menangani OPTIONS preflight, dan redirect/response route guard
  */
 
-import { db } from "$lib/db";
+import { db, first } from "$lib/db";
 import { dapukan, userDapukan, users } from "$lib/db/schema";
 import { getSessionUserId } from "$lib/server/auth";
 import { redirect } from "@sveltejs/kit";
@@ -42,7 +42,7 @@ export const handle: Handle = async ({ event, resolve }) => {
   event.locals.isAdmin = false;
 
   if (userId) {
-    const userRecord = db
+    const userRecord = (await first(db
       .select({
         id: users.id,
         namaLengkap: users.namaLengkap,
@@ -51,12 +51,12 @@ export const handle: Handle = async ({ event, resolve }) => {
       })
       .from(users)
       .where(eq(users.id, userId))
-      .get();
+      ));
 
     if (userRecord) {
       event.locals.user = userRecord;
 
-      const roleRecords = db
+      const roleRecords = (await db
         .select({
           tingkatScope: userDapukan.tingkatScope,
           is4S: dapukan.is4S,
@@ -69,8 +69,7 @@ export const handle: Handle = async ({ event, resolve }) => {
         .from(userDapukan)
         .leftJoin(dapukan, eq(userDapukan.dapukanId, dapukan.id))
         .where(eq(userDapukan.userId, userRecord.id))
-        .all();
-
+);
       event.locals.roles = roleRecords;
       event.locals.isAdmin = roleRecords.some(
         (r) => r.is4S === true || r.tingkatScope === "Pusat",
