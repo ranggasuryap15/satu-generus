@@ -1,21 +1,34 @@
 <!--
   @file src/routes/(admin)/admin/profil-wilayah/+page.svelte
-  @purpose Halaman dedicated profil wilayah (Kelompok/Desa/Daerah) untuk seluruh 4S & Superadmin: manajemen titik lokasi pengajian, rekening Bank & QRIS shodaqoh berotoritas khusus KU & Superadmin, pelestarian state wilayah saat mutasi, hierarki sub-wilayah, dan navigasi wilayah
+  @purpose Halaman dedicated profil wilayah (Kelompok/Desa/Daerah) untuk seluruh 4S & Superadmin: manajemen titik lokasi pengajian, rekening Bank & QRIS shodaqoh berotoritas khusus KU & Superadmin, filter wilayah fleksibel adaptif bergaya shodaqoh (scope switcher & searchable select), pelestarian state wilayah saat mutasi, hierarki sub-wilayah, dan navigasi wilayah
   @usedBy Route admin '/admin/profil-wilayah'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/LocationPicker.svelte, $lib/components/Pagination.svelte, $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit), $lib/confirm.svelte (confirmAction)
-  @publicFunctions openLocationModal, closeLocationModal, openAddRekeningModal, closeAddRekeningModal, openEditRekeningModal, closeEditRekeningModal, copyToClipboard, handleQrisFileChange
+  @dependencies @lucide/svelte, $app/navigation, $app/state, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/LocationPicker.svelte, $lib/components/Pagination.svelte, $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit), $lib/confirm.svelte (confirmAction)
+  @publicFunctions changeWilayah, openLocationModal, closeLocationModal, openAddRekeningModal, closeAddRekeningModal, openEditRekeningModal, closeEditRekeningModal, copyToClipboard, handleQrisFileChange
   @sideEffects Mengirim form updateLokasi, addRekening, updateRekening, deleteRekening via enhance dengan pelestarian query param scope & id wilayah aktif dan menjaga scroll
 -->
 <script lang="ts">
+	import { enhance } from '$app/forms';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
+	import { keepScrollSubmit } from '$lib/keepScroll';
+	import { confirmAction } from '$lib/confirm.svelte';
+	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
+	import LocationPicker from '$lib/components/LocationPicker.svelte';
+	import Pagination from '$lib/components/Pagination.svelte';
 	import {
 		ArrowLeft,
 		Building2,
+		Check,
 		ChevronRight,
+		Copy,
 		CreditCard,
 		ExternalLink,
 		Eye,
+		Filter,
 		Globe,
+		Image as ImageIcon,
 		Landmark,
+		Layers,
 		Lock,
 		MapPin,
 		Pencil,
@@ -23,49 +36,25 @@
 		QrCode,
 		ShieldCheck,
 		Trash2,
-		Users,
-		X,
-		Copy,
-		Check,
-		Layers,
 		Upload,
-		Image as ImageIcon
+		Users,
+		X
 	} from '@lucide/svelte';
 	import type { PageData, ActionData } from './$types';
-	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
-	import LocationPicker from '$lib/components/LocationPicker.svelte';
-	import Pagination from '$lib/components/Pagination.svelte';
-	import { enhance } from '$app/forms';
-	import { keepScrollSubmit } from '$lib/keepScroll';
-	import { confirmAction } from '$lib/confirm.svelte';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
-	// State Selector Cascading (Khusus Pusat / Superadmin atau Admin Berlingkup Luas)
-	let selectedDaerahId = $state<string | number>('');
-	let selectedDesaId = $state<string | number>('');
-	let selectedKelompokId = $state<string | number>('');
-
-	// Sinkronisasi otomatis nilai dropdown filter saat data wilayah / rute aktif berubah
-	$effect(() => {
-		if (data.activeScope === 'Kelompok') {
-			selectedDaerahId = data.profilData?.daerahId ?? '';
-			selectedDesaId = data.profilData?.desaId ?? '';
-			selectedKelompokId = data.activeId ?? '';
-		} else if (data.activeScope === 'Desa') {
-			selectedDaerahId = data.profilData?.daerahId ?? '';
-			selectedDesaId = data.activeId ?? '';
-			selectedKelompokId = '';
-		} else if (data.activeScope === 'Daerah') {
-			selectedDaerahId = data.activeId ?? '';
-			selectedDesaId = '';
-			selectedKelompokId = '';
+	function changeWilayah(scope: string, id: number | null | undefined) {
+		const url = new URL(page.url.href);
+		url.searchParams.set('scope', scope);
+		if (id && Number(id) > 0) {
+			url.searchParams.set('id', String(id));
 		} else {
-			selectedDaerahId = '';
-			selectedDesaId = '';
-			selectedKelompokId = '';
+			url.searchParams.delete('id');
 		}
-	});
+		goto(url.toString());
+	}
+
 
 	// State Modal Edit Lokasi
 	let showLocationModal = $state(false);
@@ -207,40 +196,24 @@
 		}
 	});
 
-	// Opsi filter bertingkat untuk Superadmin / Multi-Wilayah
-	const availableDesaList = $derived(
-		selectedDaerahId
-			? data.accessibleWilayah.desaList.filter((d: any) => String(d.daerahId) === String(selectedDaerahId))
-			: data.accessibleWilayah.desaList
-	);
-
-	const availableKelompokList = $derived(
-		selectedDesaId
-			? data.accessibleWilayah.kelompokList.filter((k: any) => String(k.desaId) === String(selectedDesaId))
-			: []
-	);
-
-	const daerahOptions = $derived(
-		(data.accessibleWilayah.daerahList || []).map((dr: any) => ({
-			value: dr.id,
-			label: dr.nama,
-			sublabel: dr.kotaKabupaten ? `${dr.kotaKabupaten}, ${dr.provinsi}` : dr.provinsi
+	const kelompokOptions = $derived(
+		(data.accessibleWilayah?.kelompokList || []).map((k: any) => ({
+			value: k.id,
+			label: `${k.nama}${k.desaNama ? ` (${k.desaNama})` : ''}`
 		}))
 	);
 
 	const desaOptions = $derived(
-		availableDesaList.map((d: any) => ({
+		(data.accessibleWilayah?.desaList || []).map((d: any) => ({
 			value: d.id,
-			label: d.nama,
-			sublabel: d.kecamatan ? `Kec. ${d.kecamatan}` : undefined
+			label: `${d.nama}${d.daerahNama ? ` (${d.daerahNama})` : ''}`
 		}))
 	);
 
-	const kelompokOptions = $derived(
-		availableKelompokList.map((k: any) => ({
-			value: k.id,
-			label: k.nama,
-			sublabel: k.lokasiNama || undefined
+	const daerahOptions = $derived(
+		(data.accessibleWilayah?.daerahList || []).map((dr: any) => ({
+			value: dr.id,
+			label: dr.nama
 		}))
 	);
 
@@ -251,30 +224,6 @@
 			.filter((a: string) => !standardAlokasi.includes(a))
 			.map((a: string) => ({ value: a, label: a, sublabel: 'Kustom Wilayah Ini' }))
 	]);
-
-	function onSelectDaerah(val: string | number) {
-		selectedDaerahId = val;
-		selectedDesaId = '';
-		selectedKelompokId = '';
-		if (val) {
-			window.location.href = `/admin/profil-wilayah?scope=Daerah&id=${val}`;
-		}
-	}
-
-	function onSelectDesa(val: string | number) {
-		selectedDesaId = val;
-		selectedKelompokId = '';
-		if (val) {
-			window.location.href = `/admin/profil-wilayah?scope=Desa&id=${val}`;
-		}
-	}
-
-	function onSelectKelompok(val: string | number) {
-		selectedKelompokId = val;
-		if (val) {
-			window.location.href = `/admin/profil-wilayah?scope=Kelompok&id=${val}`;
-		}
-	}
 </script>
 
 <svelte:head>
@@ -282,26 +231,127 @@
 </svelte:head>
 
 <div class="space-y-6">
-	<!-- Page Header -->
-	<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-		<div>
-			<h1 class="text-xl font-bold text-foreground tracking-tight flex items-center gap-2">
-				<Landmark class="w-6 h-6 text-primary" />
-				<span>Profil & Pengaturan Wilayah</span>
-			</h1>
-			<p class="text-xs text-foreground/60 mt-0.5">
-				Kelola titik lokasi pengajian, nomor rekening & QRIS shodaqoh resmi, serta hierarki wilayah.
-			</p>
+
+	<!-- Top Header & Scope Selector -->
+	<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card border border-border p-4 md:p-6 rounded-2xl shadow-xs">
+		<div class="space-y-1">
+			<div class="flex items-center gap-2">
+				<div class="w-9 h-9 rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center border border-teal-500/20">
+					<Landmark class="w-5 h-5" />
+				</div>
+				<div>
+					<h1 class="text-lg md:text-xl font-bold text-foreground tracking-tight flex items-center gap-2">
+						<span>Profil & Pengaturan Wilayah</span>
+						{#if data.activeScope}
+							<span class="text-xs px-2 py-0.5 rounded-full font-semibold bg-primary/10 text-primary border border-primary/20">
+								{data.activeScope}
+							</span>
+						{/if}
+					</h1>
+					<p class="text-xs text-foreground/60">
+						{#if data.profilData}
+							{data.profilData.nama}
+							{#if data.activeScope === 'Kelompok' && data.profilData.desaNama}
+								• Desa {data.profilData.desaNama}
+							{:else if data.activeScope === 'Desa' && data.profilData.daerahNama}
+								• Daerah {data.profilData.daerahNama}
+							{/if}
+						{:else}
+							Belum ada {data.activeScope ? data.activeScope.toLowerCase() : 'wilayah'} yang dipilih
+						{/if}
+					</p>
+				</div>
+			</div>
 		</div>
 
-		{#if data.profilData}
-			<div class="flex items-center gap-2">
-				<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
-					<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-					{data.activeScope}: {data.profilData.nama}
-				</span>
+		<!-- Switcher Scope Wilayah Sesuai Wewenang -->
+		<div class="flex flex-wrap items-center gap-2">
+			<!-- Pilih Tingkat Scope -->
+			<div class="flex items-center bg-secondary/80 p-1 rounded-xl border border-border text-xs">
+				{#if data.accessibleWilayah.kelompokList.length > 0}
+					<button
+						type="button"
+						onclick={() => {
+							const defaultId = data.accessibleWilayah.kelompokList.length === 1 ? data.accessibleWilayah.kelompokList[0].id : null;
+							changeWilayah('Kelompok', defaultId);
+						}}
+						class="px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer {data.activeScope === 'Kelompok'
+							? 'bg-card text-foreground font-bold shadow-xs'
+							: 'text-foreground/60 hover:text-foreground'}"
+					>
+						Kelompok
+					</button>
+				{/if}
+				{#if data.accessibleWilayah.desaList.length > 0}
+					<button
+						type="button"
+						onclick={() => {
+							const defaultId = data.accessibleWilayah.desaList.length === 1 ? data.accessibleWilayah.desaList[0].id : null;
+							changeWilayah('Desa', defaultId);
+						}}
+						class="px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer {data.activeScope === 'Desa'
+							? 'bg-card text-foreground font-bold shadow-xs'
+							: 'text-foreground/60 hover:text-foreground'}"
+					>
+						Desa
+					</button>
+				{/if}
+				{#if data.accessibleWilayah.daerahList.length > 0}
+					<button
+						type="button"
+						onclick={() => {
+							const defaultId = data.accessibleWilayah.daerahList.length === 1 ? data.accessibleWilayah.daerahList[0].id : null;
+							changeWilayah('Daerah', defaultId);
+						}}
+						class="px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer {data.activeScope === 'Daerah'
+							? 'bg-card text-foreground font-bold shadow-xs'
+							: 'text-foreground/60 hover:text-foreground'}"
+					>
+						Daerah
+					</button>
+				{/if}
 			</div>
-		{/if}
+
+			<!-- Dropdown Wilayah Spesifik dengan Fitur Pencarian Real-Time -->
+			<div class="w-60 sm:w-72">
+				{#if data.activeScope === 'Kelompok'}
+					<SearchableSelect
+						name="selectKelompok"
+						options={kelompokOptions}
+						value={data.activeId || ''}
+						onchange={(val: string | number) => changeWilayah('Kelompok', val ? Number(val) : null)}
+						placeholder="-- Cari Kelompok --"
+						searchPlaceholder="Ketik nama kelompok..."
+					/>
+				{:else if data.activeScope === 'Desa'}
+					<SearchableSelect
+						name="selectDesa"
+						options={desaOptions}
+						value={data.activeId || ''}
+						onchange={(val: string | number) => changeWilayah('Desa', val ? Number(val) : null)}
+						placeholder="-- Cari Desa --"
+						searchPlaceholder="Ketik nama desa..."
+					/>
+				{:else if data.activeScope === 'Daerah'}
+					<SearchableSelect
+						name="selectDaerah"
+						options={daerahOptions}
+						value={data.activeId || ''}
+						onchange={(val: string | number) => changeWilayah('Daerah', val ? Number(val) : null)}
+						placeholder="-- Cari Daerah --"
+						searchPlaceholder="Ketik nama daerah..."
+					/>
+				{/if}
+			</div>
+
+			<!-- Badge Otoritas Keuangan (KU / Superadmin) -->
+			{#if data.canManageFinance}
+				<span class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[11px] font-bold">
+					<ShieldCheck class="w-3.5 h-3.5" />
+					KU / Superadmin
+				</span>
+			{/if}
+		</div>
 	</div>
 
 	<!-- Bar Navigasi Kembali & Breadcrumbs Hierarki -->
@@ -323,14 +373,6 @@
 					>
 						<ArrowLeft class="w-3.5 h-3.5" />
 						<span>Kembali ke Daerah {data.profilData.daerahNama}</span>
-					</a>
-				{:else if data.activeScope === 'Daerah' && data.adminScope?.isPusat}
-					<a
-						href="/admin/profil-wilayah"
-						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground font-semibold transition-colors cursor-pointer"
-					>
-						<ArrowLeft class="w-3.5 h-3.5 text-primary" />
-						<span>Ganti Pilihan Daerah Lain</span>
 					</a>
 				{/if}
 
@@ -367,74 +409,16 @@
 		</div>
 	{/if}
 
-	<!-- Selector Bertingkat (Tampil untuk Pusat / Superadmin atau jika admin memiliki akses multi-wilayah) -->
-	{#if data.adminScope?.isPusat || data.accessibleWilayah.daerahList.length > 1 || data.accessibleWilayah.desaList.length > 1}
-		<div class="bg-card border border-border rounded-xl p-4 shadow-xs space-y-3">
-			<div class="flex items-center justify-between">
-				<h2 class="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
-					<Layers class="w-4 h-4 text-primary" />
-					<span>Pilih Lingkup Wilayah yang Ingin Dikelola</span>
-				</h2>
-			</div>
-
-			<div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-				<!-- Pilih Daerah -->
-				<div>
-					<label for="select-daerah" class="block text-xs font-medium text-foreground/70 mb-1">Pilih Daerah</label>
-					<SearchableSelect
-						id="select-daerah"
-						name="pilihDaerah"
-						options={daerahOptions}
-						value={selectedDaerahId}
-						placeholder="-- Cari / Pilih Daerah --"
-						searchPlaceholder="Ketik nama daerah atau kota..."
-						onchange={onSelectDaerah}
-					/>
-				</div>
-
-				<!-- Pilih Desa -->
-				<div>
-					<label for="select-desa" class="block text-xs font-medium text-foreground/70 mb-1">Pilih Desa</label>
-					<SearchableSelect
-						id="select-desa"
-						name="pilihDesa"
-						options={desaOptions}
-						value={selectedDesaId}
-						disabled={!selectedDaerahId}
-						placeholder={selectedDaerahId ? '-- Cari / Pilih Desa --' : '-- Pilih Daerah Dahulu --'}
-						searchPlaceholder="Ketik nama desa..."
-						onchange={onSelectDesa}
-					/>
-				</div>
-
-				<!-- Pilih Kelompok -->
-				<div>
-					<label for="select-kelompok" class="block text-xs font-medium text-foreground/70 mb-1">Pilih Kelompok</label>
-					<SearchableSelect
-						id="select-kelompok"
-						name="pilihKelompok"
-						options={kelompokOptions}
-						value={selectedKelompokId}
-						disabled={!selectedDesaId}
-						placeholder={selectedDesaId ? '-- Cari / Pilih Kelompok --' : '-- Pilih Desa Dahulu --'}
-						searchPlaceholder="Ketik nama kelompok..."
-						onchange={onSelectKelompok}
-					/>
-				</div>
-			</div>
-		</div>
-	{/if}
-
-	<!-- Empty State jika belum ada wilayah yang dipilih (Misal Superadmin pertama buka) -->
+	<!-- Empty State jika belum ada wilayah yang dipilih -->
 	{#if !data.profilData}
-		<div class="bg-card border border-border rounded-2xl p-12 text-center space-y-4 shadow-xs">
-			<div class="w-16 h-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto">
-				<Landmark class="w-8 h-8" />
+		<div class="p-12 text-center bg-card border border-border rounded-2xl shadow-xs space-y-3">
+			<div class="w-12 h-12 rounded-2xl bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center mx-auto shadow-2xs">
+				<Filter class="w-6 h-6" />
 			</div>
-			<div class="max-w-md mx-auto space-y-1.5">
-				<h3 class="text-base font-bold text-foreground">Silakan Pilih Lingkup Wilayah</h3>
-				<p class="text-xs text-foreground/60 leading-relaxed">
-					Gunakan pilihan Daerah, Desa, atau Kelompok di atas untuk melihat detail tempat, mengatur titik koordinat GPS, serta mengelola rekening shodaqoh resmi.
+			<div>
+				<h3 class="text-sm sm:text-base font-bold text-foreground">Pilih Wilayah Terlebih Dahulu</h3>
+				<p class="text-xs text-foreground/60 max-w-md mx-auto mt-1 leading-relaxed">
+					Silakan tentukan tingkat wilayah dan pilih {data.activeScope ? data.activeScope.toLowerCase() : 'wilayah'} pada menu di atas untuk membuka profil lokasi, rekening shodaqoh resmi, dan hierarki wilayah.
 				</p>
 			</div>
 		</div>

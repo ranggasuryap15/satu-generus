@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(admin)/admin/profil-wilayah/+page.server.ts
- * @purpose Backend controller halaman dedicated Profil Wilayah: hanya dapat diakses/dilihat oleh seluruh jajaran 4S & Superadmin, dengan hak modifikasi rekening/QRIS shodaqoh khusus KU dan Superadmin, serta pelestarian state scope & id wilayah pada setiap action
+ * @purpose Backend controller halaman dedicated Profil Wilayah: hanya dapat diakses/dilihat oleh seluruh jajaran 4S & Superadmin, dengan seleksi filter scope adaptif bergaya shodaqoh (Kelompok, Desa, Daerah), hak modifikasi rekening/QRIS shodaqoh khusus KU dan Superadmin, serta pelestarian state scope & id wilayah pada setiap action
  * @usedBy src/routes/(admin)/admin/profil-wilayah/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm, @sveltejs/kit, src/lib/server/upload
  * @publicFunctions load, actions (updateLokasi, addRekening, updateRekening, deleteRekening)
@@ -37,7 +37,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const paramScope = url.searchParams.get('scope') as 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok' | null;
 	const paramId = url.searchParams.get('id') ? Number(url.searchParams.get('id')) : null;
 
-	let activeScope: 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok' | null = null;
+	let activeScope: 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok' = paramScope || 'Kelompok';
 	let activeId: number | null = null;
 
 	// Penentuan wilayah aktif berdasarkan scope role dan parameter URL
@@ -63,21 +63,25 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		}
 	}
 
-	// Jika belum ditentukan dari parameter, tentukan default berdasarkan wewenang
-	if (!activeScope || !activeId) {
-		if (adminScope.level === 'Kelompok' && adminScope.kelompokIds.length > 0) {
-			activeScope = 'Kelompok';
-			activeId = adminScope.kelompokIds[0];
-		} else if (adminScope.level === 'Desa' && adminScope.desaIds.length > 0) {
-			activeScope = 'Desa';
-			activeId = adminScope.desaIds[0];
-		} else if (adminScope.level === 'Daerah' && adminScope.daerahIds.length > 0) {
-			activeScope = 'Daerah';
-			activeId = adminScope.daerahIds[0];
-		} else if (adminScope.isPusat) {
-			// Superadmin / Pusat: Default null agar admin memilih daerah terlebih dahulu
-			activeScope = null;
-			activeId = null;
+	// Default fallback sesuai hak akses jika paramId tidak ada di URL:
+	// - Jika admin tingkat kelompok: langsung otomatis pilih kelompoknya sendiri dan sematkan ke URL.
+	// - Jika admin tingkat atas (Desa/Daerah/Pusat) dengan banyak opsi: default NULL (harus dipilih manual via filter fleksibel).
+	const isAdminKelompok =
+		adminScope.level === 'Kelompok' &&
+		(adminScope.kelompokIds.length > 0 || Boolean(locals.user.kelompokId));
+
+	if (!activeId && isAdminKelompok) {
+		activeScope = 'Kelompok';
+		activeId =
+			adminScope.kelompokIds[0] ||
+			locals.user.kelompokId ||
+			(accessibleWilayah.kelompokList[0]?.id ?? null);
+
+		if (activeId && !url.searchParams.get('id')) {
+			const targetUrl = new URL(url);
+			targetUrl.searchParams.set('scope', 'Kelompok');
+			targetUrl.searchParams.set('id', String(activeId));
+			throw redirect(303, targetUrl.pathname + targetUrl.search);
 		}
 	}
 
