@@ -29,7 +29,7 @@
 - **AUTO-COMMIT & PUSH:** Setelah perubahan kode selesai dan dipastikan tidak ada error sintaks/linter, langsung jalankan `git commit` dan `git push` secara otomatis tanpa perlu menunggu instruksi.
 - **SELECTIVE STAGING (DILARANG `git add .`):** Saat melakukan auto-commit, wajib gunakan `git add <path_file_spesifik>` hanya pada file kode yang baru saja diubah/dibuat. Dilarang keras meng-commit file `.env`, database (`*.db`, `*.sqlite`), atau isi folder `uploads/`.
 - **CONVENTIONAL COMMITS:** Buat pesan commit otomatis yang singkat, jelas, dan berformat standar dalam Bahasa Indonesia (contoh: `feat(presensi): ubah path penyimpanan foto ke luar static` atau `fix(shodaqoh): hapus auto-redirect setelah aksi CRUD`).
-- **STOP ON GIT ERROR:** Jika perintah `git push` gagal karena alasan apa pun (seperti konflik), hentikan percobaan di terminal seketika dan laporkan ke pengguna (jangan mencoba melakukan *rebase* atau *force push* otomatis).
+- **STOP ON GIT ERROR:** Jika perintah `git push` gagal karena alasan apa pun (seperti konflik), hentikan percobaan di terminal seketika dan laporkan ke pengguna (jangan mencoba melakukan _rebase_ atau _force push_ otomatis).
 
 ## 6. Hal yang harus diperhatikan
 
@@ -41,13 +41,33 @@
 - **REACTIVE UPDATES:** Gunakan data kembalian (_ActionData_ atau _stores_) untuk memperbarui UI di halaman yang sama secara instan (contoh: menutup modal, me-reset _form_, atau memunculkan notifikasi).
 
 ### Mandatory Modal Confirmations (CRUD & Form Guards)
+
 - **NO NATIVE DIALOGS:** Dilarang menggunakan `window.confirm()` atau `window.alert()` bawaan browser. Wajib menggunakan komponen UI Modal kustom untuk seluruh konfirmasi di aplikasi.
-- **FORM CANCEL / CLOSE GUARD (DIRTY STATE):** Pada setiap form (Create/Update), lacak perubahan input (*dirty state*). Jika pengguna menekan tombol "Batal", "Tutup" (ikon X), atau klik area luar (*backdrop*) saat sedang mengisi atau mengubah *field*, tahan penutupan form dan tampilkan modal konfirmasi (contoh: *"Yakin meninggalkan? Perubahan belum disimpan"*). Jika form masih kosong/belum diubah, langsung tutup tanpa konfirmasi.
-- **CREATE & UPDATE CONFIRMATION:** Setiap aksi klik tombol "Simpan" (Create) atau "Ubah/Update" (Edit) tidak boleh langsung mengeksekusi pengiriman form ke server. Tampilkan terlebih dahulu modal konfirmasi (contoh: *"Yakin untuk menambahkan data ini?"* atau *"Yakin menyimpan perubahan?"*). Eksekusi pengiriman (`use:enhance` / `requestSubmit()`) hanya dijalankan setelah pengguna mengonfirmasi pada modal tersebut.
-- **DELETE CONFIRMATION:** Setiap aksi "Hapus" dari tabel atau daftar wajib memunculkan modal konfirmasi destruktif berwarna merah (contoh: *"Yakin untuk menghapus data ini? Tindakan tidak dapat dibatalkan"*) sebelum memanggil *form action* penghapusan.
-- **REUSABLE COMPONENT:** Gunakan satu komponen `<ConfirmModal />` terpusat atau *global store* agar tidak menduplikasi kode modal di setiap file `+page.svelte` yang memiliki fitur CRUD.
+- **FORM CANCEL / CLOSE GUARD (DIRTY STATE):** Pada setiap form (Create/Update), lacak perubahan input (_dirty state_). Jika pengguna menekan tombol "Batal", "Tutup" (ikon X), atau klik area luar (_backdrop_) saat sedang mengisi atau mengubah _field_, tahan penutupan form dan tampilkan modal konfirmasi (contoh: _"Yakin meninggalkan? Perubahan belum disimpan"_). Jika form masih kosong/belum diubah, langsung tutup tanpa konfirmasi.
+- **CREATE & UPDATE CONFIRMATION:** Setiap aksi klik tombol "Simpan" (Create) atau "Ubah/Update" (Edit) tidak boleh langsung mengeksekusi pengiriman form ke server. Tampilkan terlebih dahulu modal konfirmasi (contoh: _"Yakin untuk menambahkan data ini?"_ atau _"Yakin menyimpan perubahan?"_). Eksekusi pengiriman (`use:enhance` / `requestSubmit()`) hanya dijalankan setelah pengguna mengonfirmasi pada modal tersebut.
+- **DELETE CONFIRMATION:** Setiap aksi "Hapus" dari tabel atau daftar wajib memunculkan modal konfirmasi destruktif berwarna merah (contoh: _"Yakin untuk menghapus data ini? Tindakan tidak dapat dibatalkan"_) sebelum memanggil _form action_ penghapusan.
+- **REUSABLE COMPONENT:** Gunakan satu komponen `<ConfirmModal />` terpusat atau _global store_ agar tidak menduplikasi kode modal di setiap file `+page.svelte` yang memiliki fitur CRUD.
 
 ### Dynamic File Uploads (Production Adapter-Node)
+
 - **NO STATIC UPLOADS:** Dilarang keras menyimpan file hasil unggahan dinamis pengguna (foto presensi, bukti transfer, QRIS, dll.) ke dalam direktori `static/`.
 - **ROOT UPLOADS DIRECTORY:** Semua file unggahan wajib disimpan di luar folder build/static, yaitu pada direktori `path.resolve(process.cwd(), 'uploads/<nama_modul>')`.
 - **URL PATH:** Simpan path relatif `/uploads/<nama_modul>/<nama_file>` di database agar dilayani oleh endpoint catch-all `src/routes/uploads/[...filepath]/+server.ts`.
+
+## 🐳 Aturan Eksekusi Lingkungan (Docker-First)
+
+Proyek ini berjalan sepenuhnya di dalam lingkungan kontainer. **Seluruh eksekusi perintah (CLI) wajib dilakukan di dalam kontainer Docker**, bukan di terminal _host_ lokal maupun VPS. Hal ini untuk mencegah _error_ dependensi (seperti `tsx` atau `drizzle-kit` tidak ditemukan), perbedaan versi Node.js, dan kegagalan resolusi DNS database (`localhost` vs nama layanan Docker).
+
+- **Protokol Utama:** Dilarang menjalankan `npm`, `npx`, atau skrip database langsung di terminal _host_.
+- **Format Eksekusi:** Selalu gunakan awalan `docker compose exec <nama_service>` (atau `docker exec -it <nama_container>`).
+
+**Standar Perintah Harian:**
+
+- **Instalasi Paket:** `docker compose exec app npm install <nama_paket>`
+- **Generate Migrasi Drizzle:** `docker compose exec app npx drizzle-kit generate`
+- **Terapkan Migrasi DB:** `docker compose exec app npm run db:migrate`
+- **Akses Shell Terminal SvelteKit:** `docker compose exec app sh` (atau `bash`)
+- **Melihat Log Aplikasi _Real-time_:** `docker compose logs -f app`
+
+**Aturan Koneksi Database:**
+Semua skrip yang melakukan koneksi ke PostgreSQL wajib dieksekusi dari dalam kontainer `app`. Jika dijalankan dari _host_, aplikasi akan gagal membaca URI `DATABASE_URL` yang menggunakan _internal hostname_ jaringan Docker (misalnya `postgres://user:pass@postgres:5432/...`).
