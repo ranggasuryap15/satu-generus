@@ -8,8 +8,8 @@
  */
 
 import type { LayoutServerLoad } from './$types';
-import { db, first } from '$lib/db';
-import { kelompok, presensiJadwal, presensiKehadiran } from '$lib/db/schema';
+import { db, first } from '#lib/db/index.js';
+import { kelompok, presensiJadwal, presensiKehadiran } from '#lib/db/schema.js';
 import { eq, desc, asc, and, or, gte } from 'drizzle-orm';
 
 export interface ClientNotifItem {

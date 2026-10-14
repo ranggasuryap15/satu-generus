@@ -2,7 +2,7 @@
   @file src/routes/(admin)/admin/wilayah/+page.svelte
   @purpose Halaman manajemen Data Wilayah lengkap dengan dual presentation (compact cards mobile & table desktop) di tab Kelompok, Desa, & Sub-Kelompok, pagination di setiap tab, tautan cepat ke halaman dedicated Profil & Rekening Wilayah, 1 tombol Tambah Wilayah cerdas (hierarki Daerah -> Desa -> Kelompok -> Sub-Kelompok), modal edit unit wilayah (Kelompok, Desa, Sub-Kelompok) dan filter wilayah berbasis SearchableSelect, modal detail desa & kelompok dengan Leaflet LocationPicker, fitur 'Hubungkan ke Lokasi', kontrol RBAC visual dengan null-safe reactivity guard, checklist hapus massal & single delete, serta scroll retention (mencegah loncat ke atas saat edit/hapus)
   @usedBy Route admin '/admin/wilayah'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/LocationPicker.svelte, $lib/components/Pagination.svelte, $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
+  @dependencies @lucide/svelte, Svelte 5 Runes, #lib/components/SearchableSelect.svelte, #lib/components/LocationPicker.svelte, #lib/components/Pagination.svelte, $app/forms (enhance), #lib/keepScroll.ts (keepScrollSubmit)
   @publicFunctions openUnifiedAddModal, closeUnifiedAddModal, openEditKelompok, closeEditKelompok, openEditDesa, closeEditDesa, openEditSubKelompok, closeEditSubKelompok, openKelompokDetail, closeKelompokDetail, openDesaDetail, closeDesaDetail, handleConnectToKelompok, handleDisconnectKelompok, resetFilter, toggleSelectKelompok, toggleSelectAllKelompok, openDeleteSingleKelompok, openDeleteBatchKelompok, closeDeleteModal
   @sideEffects Menampilkan data wilayah sesuai scope RBAC, menyaring data, mengelola lokasi kelompok & desa dengan Leaflet, dan mengirim update/create/delete ke server via enhance dengan retensi scroll
 -->
@@ -37,11 +37,11 @@
 		Pencil
 	} from '@lucide/svelte';
 	import type { ActionData, PageData } from './$types';
-	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
-	import LocationPicker from '$lib/components/LocationPicker.svelte';
-	import Pagination from '$lib/components/Pagination.svelte';
+	import SearchableSelect from '#lib/components/SearchableSelect.svelte';
+	import LocationPicker from '#lib/components/LocationPicker.svelte';
+	import Pagination from '#lib/components/Pagination.svelte';
 	import { enhance } from '$app/forms';
-	import { keepScrollSubmit } from '$lib/keepScroll';
+	import { keepScrollSubmit } from '#lib/keepScroll.js';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 

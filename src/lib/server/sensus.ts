@@ -7,8 +7,8 @@
  * @sideEffects Menjalankan query indexed read ke tabel keluarga dan anggota_keluarga di PostgreSQL
  */
 
-import { db, first } from '$lib/db';
-import { keluarga, anggotaKeluarga } from '$lib/db/schema';
+import { db, first } from '#lib/db/index.js';
+import { keluarga, anggotaKeluarga } from '#lib/db/schema.js';
 import { eq } from 'drizzle-orm';
 
 /**

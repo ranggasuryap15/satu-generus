@@ -2,7 +2,7 @@
   @file src/routes/(admin)/admin/presensi/[jadwalId]/scan/+page.svelte
   @purpose Halaman pemindai QR Code kamera smartphone untuk pencatatan kehadiran pengajian
   @usedBy Route admin '/admin/presensi/[jadwalId]/scan'
-  @dependencies html5-qrcode, @lucide/svelte (ArrowLeft, Camera, CheckCircle2, AlertCircle, RefreshCw), $lib/utils (formatDateDDMMYYYY)
+  @dependencies html5-qrcode, @lucide/svelte (ArrowLeft, Camera, CheckCircle2, AlertCircle, RefreshCw), #lib/utils (formatDateDDMMYYYY)
   @publicFunctions startScanner, stopScanner, handleScanSuccess
   @sideEffects Mengakses media kamera perangkat dan memanggil API POST /api/presensi/scan
 -->
@@ -10,7 +10,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { ArrowLeft, Camera, CheckCircle2, AlertCircle, RefreshCw } from '@lucide/svelte';
 	import type { PageData } from './$types';
-	import { formatDateDDMMYYYY } from '$lib/utils';
+	import { formatDateDDMMYYYY } from '#lib/utils.js';
 
 	let { data } = $props<{ data: PageData }>();
 

@@ -2,7 +2,7 @@
   @file src/routes/(app)/presensi/+page.svelte
   @purpose Halaman presensi mandiri jamaah (Hadir Offline / Online / Izin / QR) dengan standar Zero Over-Information sesuai DESIGN.md: visual-first feedback, eliminasi teks redundant, dan notifikasi to-the-point
   @usedBy Route client '/presensi'
-  @dependencies qrcode, @lucide/svelte, $app/forms, $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
+  @dependencies qrcode, @lucide/svelte, $app/forms, #lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
   @publicFunctions captureLocation, calculateDistanceMeters, handleFotoChange, resetPresensiForm, openPreviewFoto, closePreviewFoto
   @sideEffects Mengakses HTML5 Geolocation API, input kamera/galeri, generate QR code personal, dan mengirim form presensi ke server
 -->
@@ -32,7 +32,7 @@
 		XCircle
 	} from '@lucide/svelte';
 	import type { ActionData, PageData } from './$types';
-	import { formatDateDDMMYYYY } from '$lib/utils';
+	import { formatDateDDMMYYYY } from '#lib/utils.js';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 

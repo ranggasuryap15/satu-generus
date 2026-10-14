@@ -2,7 +2,7 @@
   @file src/lib/components/PwaInstallGuideModal.svelte
   @purpose Modal panduan instalasi web app Satu Generus (PWA) dengan tombol Quick Install langsung serta panduan langkah demi langkah peramban (Chrome, Safari iOS, Desktop)
   @usedBy src/routes/(app)/profil/+page.svelte
-  @dependencies @lucide/svelte, $lib/pwa.svelte, Svelte 5 Runes ($state, $props)
+  @dependencies @lucide/svelte, #lib/pwa.svelte, Svelte 5 Runes ($state, $props)
   @publicFunctions handleDirectInstall, selectTab
   @sideEffects Memicu prompt instalasi PWA native peramban
 -->
@@ -18,7 +18,7 @@
 		Sparkles,
 		X
 	} from '@lucide/svelte';
-	import { pwaState } from '$lib/pwa.svelte';
+	import { pwaState } from '#lib/pwa.svelte.ts';
 
 	let { open = $bindable(false) } = $props<{ open: boolean }>();
 

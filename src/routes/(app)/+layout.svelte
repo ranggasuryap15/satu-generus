@@ -7,9 +7,9 @@
   @sideEffects Menata struktur tampilan mobile-first dengan container terpusat, footer pembuat, dan navigasi bawah
 -->
 <script lang="ts">
-	import ClientTopBar from '$lib/components/navigation/ClientTopBar.svelte';
-	import BottomNavbar from '$lib/components/navigation/BottomNavbar.svelte';
-	import AppFooter from '$lib/components/AppFooter.svelte';
+	import ClientTopBar from '#lib/components/navigation/ClientTopBar.svelte';
+	import BottomNavbar from '#lib/components/navigation/BottomNavbar.svelte';
+	import AppFooter from '#lib/components/AppFooter.svelte';
 
 	let { children } = $props();
 </script>

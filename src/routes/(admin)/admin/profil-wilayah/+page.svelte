@@ -2,7 +2,7 @@
   @file src/routes/(admin)/admin/profil-wilayah/+page.svelte
   @purpose Halaman dedicated profil wilayah (Kelompok/Desa/Daerah) untuk seluruh 4S & Superadmin: manajemen titik lokasi pengajian, rekening Bank & QRIS shodaqoh berotoritas khusus KU & Superadmin, filter wilayah fleksibel adaptif bergaya shodaqoh (scope switcher & searchable select), pelestarian state wilayah saat mutasi, hierarki sub-wilayah, dan navigasi wilayah
   @usedBy Route admin '/admin/profil-wilayah'
-  @dependencies @lucide/svelte, $app/navigation, $app/state, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/LocationPicker.svelte, $lib/components/Pagination.svelte, $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit), $lib/confirm.svelte (confirmAction)
+  @dependencies @lucide/svelte, $app/navigation, $app/state, Svelte 5 Runes, #lib/components/SearchableSelect.svelte, #lib/components/LocationPicker.svelte, #lib/components/Pagination.svelte, $app/forms (enhance), #lib/keepScroll.ts (keepScrollSubmit), #lib/confirm.svelte (confirmAction)
   @publicFunctions changeWilayah, openLocationModal, closeLocationModal, openAddRekeningModal, closeAddRekeningModal, openEditRekeningModal, closeEditRekeningModal, copyToClipboard, handleQrisFileChange
   @sideEffects Mengirim form updateLokasi, addRekening, updateRekening, deleteRekening via enhance dengan pelestarian query param scope & id wilayah aktif dan menjaga scroll
 -->
@@ -10,11 +10,11 @@
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { keepScrollSubmit } from '$lib/keepScroll';
-	import { confirmAction } from '$lib/confirm.svelte';
-	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
-	import LocationPicker from '$lib/components/LocationPicker.svelte';
-	import Pagination from '$lib/components/Pagination.svelte';
+	import { keepScrollSubmit } from '#lib/keepScroll.js';
+	import { confirmAction } from '#lib/confirm.svelte.ts';
+	import SearchableSelect from '#lib/components/SearchableSelect.svelte';
+	import LocationPicker from '#lib/components/LocationPicker.svelte';
+	import Pagination from '#lib/components/Pagination.svelte';
 	import {
 		ArrowLeft,
 		Building2,

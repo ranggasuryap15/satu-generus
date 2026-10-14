@@ -2,7 +2,7 @@
   @file src/routes/(admin)/admin/wilayah/batch/+page.svelte
   @purpose Antarmuka batch insert data wilayah hierarkis (Daerah -> Desa -> Kelompok -> Sub-Kelompok) dengan dropdown search daerah, paste spreadsheet, dynamic group cards, dan transaksi database atomik
   @usedBy Route admin '/admin/wilayah/batch'
-  @dependencies @lucide/svelte, $app/forms, Svelte 5 Runes, $lib/components/SearchableSelect.svelte
+  @dependencies @lucide/svelte, $app/forms, Svelte 5 Runes, #lib/components/SearchableSelect.svelte
   @publicFunctions addGroup, removeGroup, addKelompokToGroup, removeKelompok, addSubKelompok, removeSubKelompok, clearGroups, processPastedSpreadsheet
   @sideEffects Mengirim payload JSON batchData ke server action untuk dieksekusi dalam transaksi SQLite atomik
 -->
@@ -23,8 +23,8 @@
 		Trash2
 	} from '@lucide/svelte';
 	import type { ActionData, PageData } from './$types';
-	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
-	import { confirmAction } from '$lib/confirm.svelte';
+	import SearchableSelect from '#lib/components/SearchableSelect.svelte';
+	import { confirmAction } from '#lib/confirm.svelte.ts';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 

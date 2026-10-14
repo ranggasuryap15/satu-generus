@@ -2,15 +2,15 @@
   @file src/routes/(admin)/admin/sensus/batch/+page.svelte
   @purpose Antarmuka batch insert sensus massal terstruktur: grouping keluarga hierarkis untuk KK dan kartu baris tunggal datar untuk Jamaah Mandiri/Perantau, DateInput dengan manual typing & kalender, auto-kalkulasi generus, validasi noTelepon numerik (wajib jika buat akun), layout form responsif desktop & mobile, paste spreadsheet otomatis, dan opsi pembuatan akun
   @usedBy Route admin '/admin/sensus/batch'
-  @dependencies @lucide/svelte, $app/forms, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/generus (hitungUmur, hitungStatusGenerus, getDaftarStatusKeluargaByGender, daftar konstanta), Svelte 5 Runes
+  @dependencies @lucide/svelte, $app/forms, #lib/components/SearchableSelect.svelte, #lib/components/DateInput.svelte, #lib/generus (hitungUmur, hitungStatusGenerus, getDaftarStatusKeluargaByGender, daftar konstanta), Svelte 5 Runes
   @publicFunctions addFamily, addPerantauFamily, removeFamily, addMemberToFamily, removeMember, clearFamilies, convertToPerantau, convertToFamily, onGlobalKelompokChange, onJenisKelaminChange, onStatusKeluargaChange, onTanggalLahirOrMenikahChange, processPastedSpreadsheet, toggleAllBuatAkun
   @sideEffects Mengirim payload JSON batchData (FamilyBatchGroup[]) ke server action untuk transaksi database atomik
 -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
-	import DateInput from '$lib/components/DateInput.svelte';
-	import { confirmAction } from '$lib/confirm.svelte';
+	import SearchableSelect from '#lib/components/SearchableSelect.svelte';
+	import DateInput from '#lib/components/DateInput.svelte';
+	import { confirmAction } from '#lib/confirm.svelte.ts';
 	import {
 		DAFTAR_GOLONGAN_DARAH,
 		DAFTAR_ISRUN,
@@ -21,7 +21,7 @@
 		hitungStatusGenerus,
 		hitungUmur,
 		isStatusHubunganMenikah
-	} from '$lib/generus';
+	} from '#lib/generus.js';
 	import {
 		AlertCircle,
 		ArrowLeft,

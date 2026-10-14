@@ -35,7 +35,7 @@ Angka di bawah adalah hasil audit repo saat dokumen ini dibuat. Gunakan sebagai 
 | Auto-heal DDL | [src/lib/db/index.ts](src/lib/db/index.ts) (637 baris) | 1 file | **Diganti** migrasi Drizzle |
 
 **Tidak terpengaruh (tidak perlu diubah):**
-- ✅ Seluruh `+page.svelte`, komponen `src/lib/components/*` — **tidak ada** akses `$lib/db` dari sisi client (sudah diverifikasi).
+- ✅ Seluruh `+page.svelte`, komponen `src/lib/components/*` — **tidak ada** akses `#lib/db/index.js` dari sisi client (sudah diverifikasi).
 - ✅ Enkripsi AES-256-GCM di [src/lib/server/crypto.ts](src/lib/server/crypto.ts) — tetap (`text`).
 - ✅ Penyimpanan file upload di `./uploads` — tetap (bukan bagian database).
 - ✅ Format tanggal `DD-MM-YYYY` di UI — tetap; kolom `tanggal` sudah `text` ISO.

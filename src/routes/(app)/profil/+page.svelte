@@ -2,7 +2,7 @@
   @file src/routes/(app)/profil/+page.svelte
   @purpose Halaman profil pengguna dengan standar Zero Over-Information sesuai DESIGN.md: update nama, email, ganti kata sandi, pengaturan tema, tombol Quick Install PWA, dan logout
   @usedBy Route client '/profil'
-  @dependencies @lucide/svelte, ThemeToggle, PwaInstallGuideModal, $lib/pwa.svelte, $app/forms (enhance)
+  @dependencies @lucide/svelte, ThemeToggle, PwaInstallGuideModal, #lib/pwa.svelte, $app/forms (enhance)
   @publicFunctions closeProfileModal, closePasswordModal, resetProfileDraft, resetPasswordDraft, isProfileDirty, isPasswordDirty, handleQuickInstall
   @sideEffects Mengirim form updateProfile dan updatePassword ke server actions, memicu instalasi PWA native
 -->
@@ -26,12 +26,12 @@
 		HelpCircle,
 		X
 	} from '@lucide/svelte';
-	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
-	import PwaInstallGuideModal from '$lib/components/PwaInstallGuideModal.svelte';
-	import { pwaState } from '$lib/pwa.svelte';
+	import ThemeToggle from '#lib/components/ThemeToggle.svelte';
+	import PwaInstallGuideModal from '#lib/components/PwaInstallGuideModal.svelte';
+	import { pwaState } from '#lib/pwa.svelte.ts';
 	import { enhance } from '$app/forms';
 	import type { PageData, ActionData } from './$types';
-	import { confirmAction } from '$lib/confirm.svelte';
+	import { confirmAction } from '#lib/confirm.svelte.ts';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 

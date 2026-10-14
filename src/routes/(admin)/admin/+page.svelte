@@ -2,7 +2,7 @@
   @file src/routes/(admin)/admin/+page.svelte
   @purpose Halaman utama Dashboard Admin untuk rekapitulasi data demografi, quick access modul pengurus, dan presensi dinamis
   @usedBy Route admin '/admin'
-  @dependencies @lucide/svelte, $lib/components/Pagination.svelte, $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
+  @dependencies @lucide/svelte, #lib/components/Pagination.svelte, #lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
   @publicFunctions N/A (Svelte Component)
   @sideEffects Menampilkan metrik data sensus, quick access modul administratif, dan ringkasan operasional jamaah
 -->
@@ -21,8 +21,8 @@
 		ShieldCheck,
 		Users
 	} from '@lucide/svelte';
-	import { formatDateDDMMYYYY } from '$lib/utils';
-	import Pagination from '$lib/components/Pagination.svelte';
+	import { formatDateDDMMYYYY } from '#lib/utils.js';
+	import Pagination from '#lib/components/Pagination.svelte';
 	import type { PageData } from './$types';
 
 	let { data } = $props<{ data: PageData }>();

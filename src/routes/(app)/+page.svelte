@@ -2,7 +2,7 @@
   @file src/routes/(app)/+page.svelte
   @purpose Halaman beranda client/jamaah (Mobile-First) dengan standar Zero Over-Information: launcher Quick Access 5 kolom (Presensi, Isrun/FR, Keluarga, SI-PPG, Lainnya), jadwal pengajian, dan modal ekosistem aplikasi
   @usedBy Route utama client '/'
-  @dependencies @lucide/svelte, $lib/utils (formatDateDDMMYYYY), $lib/jadwal (formatDateIndoFull), Svelte 5 Runes
+  @dependencies @lucide/svelte, #lib/utils (formatDateDDMMYYYY), #lib/jadwal (formatDateIndoFull), Svelte 5 Runes
   @publicFunctions openAppDetail, closeModals
   @sideEffects Menavigasikan jamaah ke layanan utama atau membuka modal rincian aplikasi ekosistem
 -->
@@ -25,8 +25,8 @@
 		X
 	} from '@lucide/svelte';
 	import type { PageData } from './$types';
-	import { formatDateDDMMYYYY } from '$lib/utils';
-	import { formatDateIndoFull } from '$lib/jadwal';
+	import { formatDateDDMMYYYY } from '#lib/utils.js';
+	import { formatDateIndoFull } from '#lib/jadwal.js';
 
 	let { data } = $props<{ data: PageData }>();
 

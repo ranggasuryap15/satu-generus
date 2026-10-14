@@ -9,11 +9,11 @@
 
 import { fail, redirect, type Cookies } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { db, first } from '$lib/db';
-import { jadwalPengajianTemplate, presensiJadwal, presensiKehadiran, kelompok, desa } from '$lib/db/schema';
-import { getAdminScope, getAccessibleWilayah, isKelompokAllowed } from '$lib/server/scope';
-import { hitungTanggalSesiBulanan } from '$lib/jadwal';
-import { normalizeDateToISO } from '$lib/utils';
+import { db, first } from '#lib/db/index.js';
+import { jadwalPengajianTemplate, presensiJadwal, presensiKehadiran, kelompok, desa } from '#lib/db/schema.js';
+import { getAdminScope, getAccessibleWilayah, isKelompokAllowed } from '#lib/server/scope.js';
+import { hitungTanggalSesiBulanan } from '#lib/jadwal.js';
+import { normalizeDateToISO } from '#lib/utils.js';
 import { eq, and, desc, asc } from 'drizzle-orm';
 
 const COOKIE_OPTS = { path: '/', httpOnly: false, sameSite: 'lax' as const, maxAge: 60 * 60 * 24 * 7 };

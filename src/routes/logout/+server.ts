@@ -7,7 +7,7 @@
  * @sideEffects Menghapus cookie session pengguna dan redirect HTTP 303 ke /login
  */
 
-import { clearSession } from "$lib/server/auth";
+import { clearSession } from "#lib/server/auth.js";
 import { redirect, type RequestHandler } from "@sveltejs/kit";
 
 export const GET: RequestHandler = ({ cookies, setHeaders }) => {

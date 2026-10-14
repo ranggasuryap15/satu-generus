@@ -9,10 +9,10 @@
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { db } from '$lib/db';
-import { daerah, desa, kelompok, subKelompok } from '$lib/db/schema';
+import { db } from '#lib/db/index.js';
+import { daerah, desa, kelompok, subKelompok } from '#lib/db/schema.js';
 import { eq } from 'drizzle-orm';
-import { getAdminScope, getAccessibleWilayah } from '$lib/server/scope';
+import { getAdminScope, getAccessibleWilayah } from '#lib/server/scope.js';
 
 export interface BatchSubKelompokInput {
 	id?: string;

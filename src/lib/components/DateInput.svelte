@@ -2,13 +2,13 @@
   @file src/lib/components/DateInput.svelte
   @purpose Komponen input tanggal fleksibel: auto-formatting mask tanda strip instan saat pengetikan angka (DD-MM-YYYY), pemilih pop-up kalender, dan normalisasi DD-MM-YYYY / ISO
   @usedBy Form sensus kartu keluarga, sensus mandiri, presensi, jadwal, dan modal tambah/edit anggota
-  @dependencies @lucide/svelte (Calendar), Svelte 5 Runes ($state, $props, $bindable, $effect, $derived), $lib/utils (formatDateDDMMYYYY, normalizeDateToISO)
+  @dependencies @lucide/svelte (Calendar), Svelte 5 Runes ($state, $props, $bindable, $effect, $derived), #lib/utils (formatDateDDMMYYYY, normalizeDateToISO)
   @publicFunctions handleInput, handleBlur, handlePickerChange, openPicker
   @sideEffects Mengontrol input teks dan hidden input untuk sinkronisasi nilai tanggal DD-MM-YYYY / ISO form POST
 -->
 <script lang="ts">
 	import { Calendar } from '@lucide/svelte';
-	import { formatDateDDMMYYYY, normalizeDateToISO } from '$lib/utils';
+	import { formatDateDDMMYYYY, normalizeDateToISO } from '#lib/utils.js';
 
 	interface Props {
 		id?: string;

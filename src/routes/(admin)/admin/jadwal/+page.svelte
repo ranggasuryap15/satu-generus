@@ -2,7 +2,7 @@
   @file src/routes/(admin)/admin/jadwal/+page.svelte
   @purpose Antarmuka manajemen jadwal pengajian bertingkat (Desa & Kelompok), default selector NULL saat klik tab pengajian, retensi filter terpilih setelah simpan/edit/hapus/override/generate via URL query params & cookies, helper getActionUrl penjaga query params form submit (?/actionName&params), selector kelompok & desa tanpa refresh kasar, generator sesi bulanan, override mendadak, pewarisan lokasi default Desa & Kelompok pada sesi manual, penghapusan sesi & template dengan modal konfirmasi aman serta scroll retention
   @usedBy Route admin '/admin/jadwal'
-  @dependencies @lucide/svelte, $app/forms, $app/navigation, $app/state, $lib/confirm.svelte, $lib/keepScroll.ts, $lib/components/SearchableSelect.svelte, $lib/jadwal (getNamaHari, getMingguKe, formatDateIndoFull, formatWhatsAppReminder, generateWhatsAppLink, NAMA_HARI_INDO, NAMA_BULAN_INDO), Svelte 5 Runes
+  @dependencies @lucide/svelte, $app/forms, $app/navigation, $app/state, #lib/confirm.svelte, #lib/keepScroll.ts, #lib/components/SearchableSelect.svelte, #lib/jadwal (getNamaHari, getMingguKe, formatDateIndoFull, formatWhatsAppReminder, generateWhatsAppLink, NAMA_HARI_INDO, NAMA_BULAN_INDO), Svelte 5 Runes
   @publicFunctions getActionUrl, switchTab, handleSelectKelompok, handleSelectDesa, openCreateTemplateModal, openEditTemplateModal, openOverrideModal, openWaModal, openGenerateModal, copyWaText
   @sideEffects Mengirim server action POST untuk template & sesi jadwal, navigasi query client-side, dan menyalin teks ke clipboard pengguna
 -->
@@ -10,9 +10,9 @@
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { keepScrollSubmit } from '$lib/keepScroll';
-	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
-	import DateInput from '$lib/components/DateInput.svelte';
+	import { keepScrollSubmit } from '#lib/keepScroll.js';
+	import SearchableSelect from '#lib/components/SearchableSelect.svelte';
+	import DateInput from '#lib/components/DateInput.svelte';
 	import {
 		formatDateIndoFull,
 		formatWhatsAppReminder,
@@ -21,7 +21,7 @@
 		NAMA_BULAN_INDO,
 		NAMA_HARI_INDO,
 		type JadwalReminderInput
-	} from '$lib/jadwal';
+	} from '#lib/jadwal.js';
 	import {
 		AlertCircle,
 		Calendar,
@@ -46,7 +46,7 @@
 		X
 	} from '@lucide/svelte';
 	import type { ActionData, PageData } from './$types';
-	import { confirmAction } from '$lib/confirm.svelte';
+	import { confirmAction } from '#lib/confirm.svelte.ts';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 

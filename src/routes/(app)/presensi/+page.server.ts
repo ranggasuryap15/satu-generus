@@ -9,11 +9,11 @@
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { db, first } from '$lib/db';
-import { presensiJadwal, presensiKehadiran, kelompok } from '$lib/db/schema';
+import { db, first } from '#lib/db/index.js';
+import { presensiJadwal, presensiKehadiran, kelompok } from '#lib/db/schema.js';
 import { eq, desc, and } from 'drizzle-orm';
-import { saveUploadedFile } from '$lib/server/upload';
-import { validasiWaktuPresensi } from '$lib/presensi-waktu';
+import { saveUploadedFile } from '#lib/server/upload.js';
+import { validasiWaktuPresensi } from '#lib/presensi-waktu.js';
 
 async function saveUploadedFoto(
 	fileOrBase64: File | string | null | undefined,

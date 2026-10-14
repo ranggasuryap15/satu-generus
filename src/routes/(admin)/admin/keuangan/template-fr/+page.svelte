@@ -2,7 +2,7 @@
   @file src/routes/(admin)/admin/keuangan/template-fr/+page.svelte
   @purpose Halaman Spreadsheet Template FR: lembar kerja 4 kolom fleksibel (No, Uraian, Jumlah, Keterangan), validasi angka & format ribuan titik tanpa konflik pattern HTML5 untuk kedua kolom, penambahan baris uraian baru realtime langsung di tabel spreadsheet, seleksi kelompok adaptif (default null untuk admin multi-kelompok & auto-select untuk admin kelompok), persistensi filter kelompok & tahun saat edit/simpan, pengelolaan Group Tarif, duplikasi group cepat, penetapan jamaah massal, dan modal konfirmasi hapus kustom
   @usedBy Route admin '/admin/keuangan/template-fr'
-  @dependencies @lucide/svelte, svelte (tick), $app/forms, $app/navigation (goto, beforeNavigate), Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/keepScroll.ts
+  @dependencies @lucide/svelte, svelte (tick), $app/forms, $app/navigation (goto, beforeNavigate), Svelte 5 Runes, #lib/components/SearchableSelect.svelte, #lib/keepScroll.ts
   @publicFunctions formatRupiah, updateCell, handleNumberKeyDown, copyJumlahToKeterangan, handleAddRealtimeRow, handleRemoveRealtimeRow, handleCellPaste, handleFilterChange, handleGroupSwitch, openConfirmModal, closeConfirmModal, toggleSelectAllAvailable, toggleSelectJamaah, getActionUrl
   @sideEffects Mengirim batch data nilai spreadsheet via ?/saveSpreadsheet, mutasi group via ?/createGroup & ?/duplicateGroup, mutasi pos anggaran via ?/deletePos, dan memasukkan jamaah secara massal via ?/assignJamaahToGroup
 -->
@@ -11,8 +11,8 @@
 	import { enhance } from '$app/forms';
 	import { goto, beforeNavigate } from '$app/navigation';
 	import { page } from '$app/state';
-	import { keepScrollSubmit } from '$lib/keepScroll';
-	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
+	import { keepScrollSubmit } from '#lib/keepScroll.js';
+	import SearchableSelect from '#lib/components/SearchableSelect.svelte';
 	import {
 		AlertCircle,
 		AlertTriangle,
@@ -568,18 +568,22 @@
 			<!-- TAB BUTTONS -->
 			<div class="flex items-center gap-2 overflow-x-auto pb-1">
 				{#each data.groups as g}
-					<button
-						type="button"
-						onclick={() => handleGroupSwitch(g.id)}
-						class="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap {data.selectedGroupId === g.id
+					<div
+						class="rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap {data.selectedGroupId === g.id
 							? 'bg-primary text-primary-foreground shadow-sm'
 							: 'bg-secondary/40 hover:bg-secondary text-foreground/70 border border-border/60'}"
 					>
-						<span>{g.nama}</span>
+						<button
+							type="button"
+							onclick={() => handleGroupSwitch(g.id)}
+							class="px-4 py-2 rounded-xl cursor-pointer"
+						>
+							<span>{g.nama}</span>
+						</button>
 						{#if data.selectedGroupId === g.id && data.groups.length > 1}
 							<button
 								type="button"
-								class="hover:text-destructive transition-colors ml-1 p-0.5 rounded"
+								class="hover:text-destructive transition-colors p-0.5 rounded cursor-pointer"
 								title="Hapus group ini"
 								onclick={(e) => {
 									e.stopPropagation();
@@ -597,7 +601,7 @@
 								<X class="w-3.5 h-3.5" />
 							</button>
 						{/if}
-					</button>
+					</div>
 				{/each}
 			</div>
 		</div>

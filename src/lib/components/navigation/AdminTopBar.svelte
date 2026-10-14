@@ -20,7 +20,7 @@
 		CheckCheck,
 		AlertCircle
 	} from '@lucide/svelte';
-	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import ThemeToggle from '#lib/components/ThemeToggle.svelte';
 	import { page } from '$app/state';
 
 	let { onToggleSidebar = () => {} } = $props<{ onToggleSidebar?: () => void }>();

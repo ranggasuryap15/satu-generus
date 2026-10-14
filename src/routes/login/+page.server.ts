@@ -9,10 +9,10 @@
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import { db, first } from '$lib/db';
-import { users, userDapukan, dapukan } from '$lib/db/schema';
+import { db, first } from '#lib/db/index.js';
+import { users, userDapukan, dapukan } from '#lib/db/schema.js';
 import { eq, or } from 'drizzle-orm';
-import { createSession, verifyPassword } from '$lib/server/auth';
+import { createSession, verifyPassword } from '#lib/server/auth.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	// Jika sudah login, redirect

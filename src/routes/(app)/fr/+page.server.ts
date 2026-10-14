@@ -9,7 +9,7 @@
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import { db, first } from '$lib/db';
+import { db, first } from '#lib/db/index.js';
 import {
 	anggotaKeluarga,
 	keluarga,
@@ -21,10 +21,10 @@ import {
 	templateInfaqGroupPos,
 	templateInfaqJamaah,
 	posAnggaranInfaq
-} from '$lib/db/schema';
+} from '#lib/db/schema.js';
 import { eq, and, or, isNull, desc, asc, inArray, sql } from 'drizzle-orm';
-import { getKeluargaForUser } from '$lib/server/sensus';
-import { saveUploadedFile } from '$lib/server/upload';
+import { getKeluargaForUser } from '#lib/server/sensus.js';
+import { saveUploadedFile } from '#lib/server/upload.js';
 import { createId } from '@paralleldrive/cuid2';
 
 export const load: PageServerLoad = async ({ locals, url }) => {

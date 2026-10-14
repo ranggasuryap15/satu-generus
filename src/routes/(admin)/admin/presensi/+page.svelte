@@ -2,21 +2,21 @@
   @file src/routes/(admin)/admin/presensi/+page.svelte
   @purpose Halaman rekapitulasi jadwal pengajian dan pembuat jadwal baru bagi admin dengan auto-fill lokasi default saat memilih kelompok (dapat diubah manual), pagination tabel/kartu data, pemilihan lokasi interaktif serta scroll retention
   @usedBy Route admin '/admin/presensi'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/components/LocationPicker.svelte, $lib/components/Pagination.svelte, $lib/utils (formatDateDDMMYYYY), $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
+  @dependencies @lucide/svelte, Svelte 5 Runes, #lib/components/SearchableSelect.svelte, #lib/components/DateInput.svelte, #lib/components/LocationPicker.svelte, #lib/components/Pagination.svelte, #lib/utils (formatDateDDMMYYYY), $app/forms (enhance), #lib/keepScroll.ts (keepScrollSubmit)
   @publicFunctions openAddModal, closeAddModal, resetAddForm, isAddFormDirty, applyKelompokLocation
   @sideEffects Menampilkan data jadwal dan mengirim form pembuatan jadwal ke server via enhance dengan retensi scroll
 -->
 <script lang="ts">
 	import { Calendar, MapPin, Plus, QrCode, SquareCheck, Search, X, Users } from '@lucide/svelte';
 	import type { PageData, ActionData } from './$types';
-	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
-	import DateInput from '$lib/components/DateInput.svelte';
-	import LocationPicker from '$lib/components/LocationPicker.svelte';
-	import Pagination from '$lib/components/Pagination.svelte';
-	import { formatDateDDMMYYYY } from '$lib/utils';
-	import { confirmAction } from '$lib/confirm.svelte';
+	import SearchableSelect from '#lib/components/SearchableSelect.svelte';
+	import DateInput from '#lib/components/DateInput.svelte';
+	import LocationPicker from '#lib/components/LocationPicker.svelte';
+	import Pagination from '#lib/components/Pagination.svelte';
+	import { formatDateDDMMYYYY } from '#lib/utils.js';
+	import { confirmAction } from '#lib/confirm.svelte.ts';
 	import { enhance } from '$app/forms';
-	import { keepScrollSubmit } from '$lib/keepScroll';
+	import { keepScrollSubmit } from '#lib/keepScroll.js';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 

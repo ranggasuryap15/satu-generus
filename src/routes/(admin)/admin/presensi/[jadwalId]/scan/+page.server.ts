@@ -9,8 +9,8 @@
 
 import { error, redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { db, first } from '$lib/db';
-import { presensiJadwal, kelompok } from '$lib/db/schema';
+import { db, first } from '#lib/db/index.js';
+import { presensiJadwal, kelompok } from '#lib/db/schema.js';
 import { eq } from 'drizzle-orm';
 
 export const load: PageServerLoad = async ({ params, locals }) => {

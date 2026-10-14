@@ -9,11 +9,11 @@
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import { db, first } from '$lib/db';
-import { daerah, desa, kelompok, subKelompok, rekeningWilayah } from '$lib/db/schema';
+import { db, first } from '#lib/db/index.js';
+import { daerah, desa, kelompok, subKelompok, rekeningWilayah } from '#lib/db/schema.js';
 import { and, desc, eq } from 'drizzle-orm';
-import { getAdminScope, getAccessibleWilayah, canManageRekening } from '$lib/server/scope';
-import { saveUploadedFile } from '$lib/server/upload';
+import { getAdminScope, getAccessibleWilayah, canManageRekening } from '#lib/server/scope.js';
+import { saveUploadedFile } from '#lib/server/upload.js';
 
 async function saveUploadedQris(fileOrBase64OrUrl: any): Promise<string | null> {
 	return saveUploadedFile(fileOrBase64OrUrl, 'qris', 'qris');

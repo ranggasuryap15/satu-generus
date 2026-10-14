@@ -7,8 +7,8 @@
  * @sideEffects Membaca data relasi master daerah, desa, dan kelompok dari PostgreSQL
  */
 
-import { db } from '$lib/db';
-import { daerah, desa, kelompok } from '$lib/db/schema';
+import { db } from '#lib/db/index.js';
+import { daerah, desa, kelompok } from '#lib/db/schema.js';
 
 /**
  * Memuat snapshot master wilayah (daerah, desa, kelompok) dalam 3 query paralel.

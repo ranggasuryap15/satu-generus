@@ -7,12 +7,12 @@
  * @sideEffects Menulis record terenkripsi ke tabel keluarga, anggota_keluarga, dan sinkronisasi users.no_telepon dalam satu transaksi SQLite atomik
  */
 
-import { db } from "$lib/db";
-import { anggotaKeluarga, keluarga, users } from "$lib/db/schema";
-import { encryptSensitive } from "$lib/server/crypto";
-import { getKeluargaForUser } from "$lib/server/sensus";
-import { normalizeDateToISO } from "$lib/utils";
-import { hitungStatusGenerus, hitungUmur, resolveStatusPernikahan } from "$lib/generus";
+import { db } from "#lib/db/index.js";
+import { anggotaKeluarga, keluarga, users } from "#lib/db/schema.js";
+import { encryptSensitive } from "#lib/server/crypto.js";
+import { getKeluargaForUser } from "#lib/server/sensus.js";
+import { normalizeDateToISO } from "#lib/utils.js";
+import { hitungStatusGenerus, hitungUmur, resolveStatusPernikahan } from "#lib/generus.js";
 import { fail, redirect } from "@sveltejs/kit";
 import { eq } from "drizzle-orm";
 import type { Actions, PageServerLoad } from "./$types";

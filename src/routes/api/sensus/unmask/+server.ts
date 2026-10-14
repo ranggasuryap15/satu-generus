@@ -8,11 +8,11 @@
  */
 
 import { json, type RequestHandler } from '@sveltejs/kit';
-import { db, first } from '$lib/db';
-import { keluarga, anggotaKeluarga } from '$lib/db/schema';
+import { db, first } from '#lib/db/index.js';
+import { keluarga, anggotaKeluarga } from '#lib/db/schema.js';
 import { eq } from 'drizzle-orm';
-import { decryptSensitive } from '$lib/server/crypto';
-import { isUserInKeluarga } from '$lib/server/sensus';
+import { decryptSensitive } from '#lib/server/crypto.js';
+import { isUserInKeluarga } from '#lib/server/sensus.js';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
 	// Wajib login

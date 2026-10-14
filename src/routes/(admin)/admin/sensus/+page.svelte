@@ -2,16 +2,16 @@
   @file src/routes/(admin)/admin/sensus/+page.svelte
   @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri, pagination tabel/kartu data, standarisasi tombol aksi simetris seragam, dashboard statistik, penugasan dapukan pengurus KK, modal detail lengkap (hapus sensus, pindah kelompok, toggle status jamaah), modal edit anggota/KK, input & validasi noTelepon (wajib jika punya akun, opsional jika tidak), dan pembuatan akun dengan retensi scroll (mencegah loncat ke atas)
   @usedBy Route admin '/admin/sensus'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/components/Pagination.svelte, $lib/confirm.svelte, $lib/keepScroll.ts (keepScrollSubmit), $lib/utils (formatDateDDMMYYYY), $lib/generus (isStatusHubunganMenikah, hitungUmur, hitungStatusGenerus, resolveStatusPernikahan, isStatusGenerusBelumMenikah, resolvePernikahanFromGenerus, DAFTAR_STATUS_GENERUS)
+  @dependencies @lucide/svelte, Svelte 5 Runes, #lib/components/SearchableSelect.svelte, #lib/components/DateInput.svelte, #lib/components/Pagination.svelte, #lib/confirm.svelte, #lib/keepScroll.ts (keepScrollSubmit), #lib/utils (formatDateDDMMYYYY), #lib/generus (isStatusHubunganMenikah, hitungUmur, hitungStatusGenerus, resolveStatusPernikahan, isStatusGenerusBelumMenikah, resolvePernikahanFromGenerus, DAFTAR_STATUS_GENERUS)
   @publicFunctions openDetailModal, closeDetailModal, requestUnmask, openCreateModal, closeCreateModal, openAddMemberModal, closeAddMemberModal, openCreateAccountModal, openEditAnggotaModal, closeEditAnggotaModal, openEditKeluargaModal, closeEditKeluargaModal, openPindahKelompokModal, closePindahKelompokModal, openAssignDapukanModal, closeAssignDapukanModal, handleHapusSensus, handleToggleStatusJamaah, resetFilters, toggleMobileFilter
   @sideEffects Menampilkan metrik, unmask data sensitif, submit actions (createSensus, addAnggotaKeluarga, updateAnggota, updateKeluarga, deleteSensus, pindahKelompok, toggleStatusJamaah, createMemberAccount, assignDapukan) dengan retensi posisi scroll
 -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import DateInput from '$lib/components/DateInput.svelte';
-	import Pagination from '$lib/components/Pagination.svelte';
-	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
-	import { confirmAction } from '$lib/confirm.svelte';
+	import DateInput from '#lib/components/DateInput.svelte';
+	import Pagination from '#lib/components/Pagination.svelte';
+	import SearchableSelect from '#lib/components/SearchableSelect.svelte';
+	import { confirmAction } from '#lib/confirm.svelte.ts';
 	import {
 	  DAFTAR_STATUS_GENERUS,
 	  hitungStatusGenerus,
@@ -19,9 +19,9 @@
 	  isStatusGenerusBelumMenikah,
 	  isStatusHubunganMenikah,
 	  resolveStatusPernikahan
-	} from '$lib/generus';
-	import { keepScrollSubmit } from '$lib/keepScroll';
-	import { formatDateDDMMYYYY } from '$lib/utils';
+	} from '#lib/generus.js';
+	import { keepScrollSubmit } from '#lib/keepScroll.js';
+	import { formatDateDDMMYYYY } from '#lib/utils.js';
 	import {
 	  AlertCircle,
 	  ArrowRightLeft,

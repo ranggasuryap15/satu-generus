@@ -9,10 +9,10 @@
 
 import { error, redirect, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { db, first } from '$lib/db';
-import { presensiJadwal, presensiKehadiran, users, kelompok } from '$lib/db/schema';
+import { db, first } from '#lib/db/index.js';
+import { presensiJadwal, presensiKehadiran, users, kelompok } from '#lib/db/schema.js';
 import { eq, and } from 'drizzle-orm';
-import { getAdminScope, getAccessibleWilayah } from '$lib/server/scope';
+import { getAdminScope, getAccessibleWilayah } from '#lib/server/scope.js';
 
 async function assertJadwalAccess(jadwalId: number, roles: App.UserRole[]) {
 	const jadwal = (await first(db.select().from(presensiJadwal).where(eq(presensiJadwal.id, jadwalId))));

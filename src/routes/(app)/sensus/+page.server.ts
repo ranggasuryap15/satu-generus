@@ -9,13 +9,13 @@
 
 import { fail, redirect, type Actions } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { db, first } from '$lib/db';
-import { keluarga, anggotaKeluarga, users } from '$lib/db/schema';
+import { db, first } from '#lib/db/index.js';
+import { keluarga, anggotaKeluarga, users } from '#lib/db/schema.js';
 import { eq, and } from 'drizzle-orm';
-import { decryptSensitive, encryptSensitive, maskSensitive } from '$lib/server/crypto';
-import { getKeluargaForUser, isUserInKeluarga } from '$lib/server/sensus';
-import { normalizeDateToISO } from '$lib/utils';
-import { hitungStatusGenerus, hitungUmur, resolveStatusPernikahan } from '$lib/generus';
+import { decryptSensitive, encryptSensitive, maskSensitive } from '#lib/server/crypto.js';
+import { getKeluargaForUser, isUserInKeluarga } from '#lib/server/sensus.js';
+import { normalizeDateToISO } from '#lib/utils.js';
+import { hitungStatusGenerus, hitungUmur, resolveStatusPernikahan } from '#lib/generus.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) {

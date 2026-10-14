@@ -9,10 +9,10 @@
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { db, first } from '$lib/db';
-import { daerah, desa, kelompok, subKelompok } from '$lib/db/schema';
+import { db, first } from '#lib/db/index.js';
+import { daerah, desa, kelompok, subKelompok } from '#lib/db/schema.js';
 import { eq, inArray, sql, and } from 'drizzle-orm';
-import { getAdminScope, getAccessibleWilayah, isKelompokAllowed } from '$lib/server/scope';
+import { getAdminScope, getAccessibleWilayah, isKelompokAllowed } from '#lib/server/scope.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user || !locals.isAdmin) {

@@ -2,7 +2,7 @@
   @file src/routes/(admin)/admin/keuangan/shodaqoh/+page.svelte
   @purpose Halaman manajemen shodaqoh wilayah untuk admin (KU & Kyai): rekapitulasi metrik, ekspor CSV transaksi, tanda terima/struk digital resmi, visualisasi grafik donasi bulanan, verifikasi & approval bukti transfer, manajemen rekening & QRIS bergaya profil wilayah (kartu modern, salin no rek, preview popup QRIS, tambah/edit modal, hapus dengan modal konfirmasi), serta isolasi alokasi jenis shodaqoh dengan preservasi tab & URL wilayah
   @usedBy Route admin '/admin/keuangan/shodaqoh'
-  @dependencies @lucide/svelte, $app/navigation, $app/forms (enhance), $app/state, Svelte 5 Runes, formatRupiah, $lib/components/SearchableSelect.svelte, $lib/keepScroll.ts (keepScrollSubmit), $lib/confirm.svelte (confirmAction)
+  @dependencies @lucide/svelte, $app/navigation, $app/forms (enhance), $app/state, Svelte 5 Runes, formatRupiah, #lib/components/SearchableSelect.svelte, #lib/keepScroll.ts (keepScrollSubmit), #lib/confirm.svelte (confirmAction)
   @publicFunctions exportToCsv, switchTab, changeWilayah, changeStatusFilter, printReceiptAdmin, copyToClipboard, openAddRekeningModal, openEditRekeningModal, closeRekeningModal, handleQrisFileChange
   @sideEffects Melakukan approval/penolakan transaksi shodaqoh, mutasi jenis shodaqoh, pembuatan & pembaruan & penghapusan rekening/QRIS via form actions dengan menjaga scroll position dan URL tab/scope/id, ekspor CSV, cetak tanda terima/struk resmi, serta penyalinan teks clipboard
 -->
@@ -10,9 +10,9 @@
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { keepScrollSubmit } from '$lib/keepScroll';
-	import { confirmAction } from '$lib/confirm.svelte';
-	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
+	import { keepScrollSubmit } from '#lib/keepScroll.js';
+	import { confirmAction } from '#lib/confirm.svelte.ts';
+	import SearchableSelect from '#lib/components/SearchableSelect.svelte';
 	import {
 		AlertCircle,
 		ArrowRight,

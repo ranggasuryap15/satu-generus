@@ -10,7 +10,7 @@
 
 - Dilarang menyalin-tempel (_copy-paste_) logika yang sama di beberapa file berbeda.
 - Jika sebuah blok logika (_query database_, enkripsi AES, format tanggal, atau validasi _string_) digunakan lebih dari satu kali, ekstrak segera menjadi _helper function_ di dalam `src/lib/utils/` (untuk global) atau `src/lib/server/` (khusus _backend_).
-- Ekspor fungsi tersebut dan impor di setiap _route_ yang membutuhkannya menggunakan alias SvelteKit (`$lib/...`).
+- Ekspor fungsi tersebut dan impor di setiap _route_ yang membutuhkannya menggunakan alias SvelteKit (`#lib/...`).
 
 ## 3. Komponen Antarmuka Reusable
 

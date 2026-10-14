@@ -9,7 +9,7 @@
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import { db, first } from '$lib/db';
+import { db, first } from '#lib/db/index.js';
 import {
 	templateInfaqRutin,
 	templateInfaqGroup,
@@ -19,9 +19,9 @@ import {
 	anggotaKeluarga,
 	keluarga,
 	users
-} from '$lib/db/schema';
+} from '#lib/db/schema.js';
 import { eq, and, asc, desc, inArray, isNull, or, sql } from 'drizzle-orm';
-import { getAdminScope, getAccessibleWilayah, canAccessKeuangan, canManageFr } from '$lib/server/scope';
+import { getAdminScope, getAccessibleWilayah, canAccessKeuangan, canManageFr } from '#lib/server/scope.js';
 import { createId } from '@paralleldrive/cuid2';
 
 export const load: PageServerLoad = async ({ locals, url }) => {

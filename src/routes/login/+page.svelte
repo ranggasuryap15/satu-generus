@@ -8,8 +8,8 @@
 -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
-	import AppFooter from '$lib/components/AppFooter.svelte';
+	import ThemeToggle from '#lib/components/ThemeToggle.svelte';
+	import AppFooter from '#lib/components/AppFooter.svelte';
 	import { AlertCircle, ArrowRight, Lock, Mail, ShieldCheck } from '@lucide/svelte';
 	import type { ActionData } from './$types';
 

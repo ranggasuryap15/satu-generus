@@ -7,9 +7,9 @@
  * @sideEffects Mengisi event.locals, menyematkan header CORS, menangani OPTIONS preflight, dan redirect/response route guard
  */
 
-import { db, first } from "$lib/db";
-import { dapukan, userDapukan, users } from "$lib/db/schema";
-import { getSessionUserId } from "$lib/server/auth";
+import { db, first } from "#lib/db/index.js";
+import { dapukan, userDapukan, users } from "#lib/db/schema.js";
+import { getSessionUserId } from "#lib/server/auth.js";
 import { redirect } from "@sveltejs/kit";
 import type { Handle } from "@sveltejs/kit/hooks";
 import { eq } from "drizzle-orm";

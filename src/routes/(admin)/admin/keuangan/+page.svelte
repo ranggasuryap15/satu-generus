@@ -2,7 +2,7 @@
   @file src/routes/(admin)/admin/keuangan/+page.svelte
   @purpose Halaman Dashboard Keuangan: menyajikan metrik KPI keuangan, grafik fluktuasi bulanan 12 bulan, dan diagram perbandingan setoran shodaqoh antar kelompok binaan sesuai scope wewenang admin (Kyai, KU, Aghnia)
   @usedBy Route admin '/admin/keuangan'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte
+  @dependencies @lucide/svelte, Svelte 5 Runes, #lib/components/SearchableSelect.svelte
   @publicFunctions applyFilter, formatRupiah
   @sideEffects Mengubah query URL saat filter tahun, bulan, atau wilayah diganti
 -->
@@ -23,7 +23,7 @@
 		Percent
 	} from '@lucide/svelte';
 	import type { PageData } from './$types';
-	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
+	import SearchableSelect from '#lib/components/SearchableSelect.svelte';
 
 	let { data } = $props<{ data: PageData }>();
 

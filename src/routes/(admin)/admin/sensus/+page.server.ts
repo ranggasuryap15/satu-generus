@@ -9,14 +9,14 @@
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { db, first } from '$lib/db';
-import { keluarga, anggotaKeluarga, users, kelompok, desa, daerah, userDapukan, dapukan, presensiKehadiran } from '$lib/db/schema';
+import { db, first } from '#lib/db/index.js';
+import { keluarga, anggotaKeluarga, users, kelompok, desa, daerah, userDapukan, dapukan, presensiKehadiran } from '#lib/db/schema.js';
 import { eq, desc, inArray, and, isNotNull, ne } from 'drizzle-orm';
-import { decryptSensitive, encryptSensitive, maskSensitive } from '$lib/server/crypto';
-import { hashPassword } from '$lib/server/auth';
-import { getAdminScope, getAccessibleWilayah, isKelompokAllowed, canManageDapukan } from '$lib/server/scope';
-import { normalizeDateToISO } from '$lib/utils';
-import { hitungUmur, hitungStatusGenerus, isStatusHubunganMenikah, resolveStatusPernikahan, isStatusGenerusBelumMenikah } from '$lib/generus';
+import { decryptSensitive, encryptSensitive, maskSensitive } from '#lib/server/crypto.js';
+import { hashPassword } from '#lib/server/auth.js';
+import { getAdminScope, getAccessibleWilayah, isKelompokAllowed, canManageDapukan } from '#lib/server/scope.js';
+import { normalizeDateToISO } from '#lib/utils.js';
+import { hitungUmur, hitungStatusGenerus, isStatusHubunganMenikah, resolveStatusPernikahan, isStatusGenerusBelumMenikah } from '#lib/generus.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user || !locals.isAdmin) {

@@ -9,7 +9,7 @@
 
 import { fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import { db } from '$lib/db';
+import { db } from '#lib/db/index.js';
 import {
 	daerah,
 	desa,
@@ -18,9 +18,9 @@ import {
 	jenisShodaqoh,
 	transaksiShodaqoh,
 	users
-} from '$lib/db/schema';
+} from '#lib/db/schema.js';
 import { and, desc, eq, or } from 'drizzle-orm';
-import { saveUploadedFile } from '$lib/server/upload';
+import { saveUploadedFile } from '#lib/server/upload.js';
 
 async function saveUploadedBukti(fileOrBase64OrUrl: any): Promise<string | null> {
 	return saveUploadedFile(fileOrBase64OrUrl, 'bukti-transfer', 'bukti');

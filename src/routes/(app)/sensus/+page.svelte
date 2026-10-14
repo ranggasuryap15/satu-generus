@@ -2,7 +2,7 @@
   @file src/routes/(app)/sensus/+page.svelte
   @purpose Tampilan status dan rincian Kartu Keluarga/Jamaah Mandiri dengan standar Zero Over-Information: feedback server padat, visual unmasking, dan retensi scroll
   @usedBy Route client '/sensus'
-  @dependencies @lucide/svelte, $app/forms (enhance), $app/state (page), $lib/components/DateInput.svelte, $lib/utils (formatDateDDMMYYYY), $lib/keepScroll.ts (keepScrollSubmit), Svelte 5 Runes
+  @dependencies @lucide/svelte, $app/forms (enhance), $app/state (page), #lib/components/DateInput.svelte, #lib/utils (formatDateDDMMYYYY), #lib/keepScroll.ts (keepScrollSubmit), Svelte 5 Runes
   @publicFunctions toggleKk, copyKk, toggleNik, copyNik, openEditKk, closeEditKkModal, openEditAnggota, closeEditAnggotaModal, openTambahAnggota, closeTambahAnggotaModal
   @sideEffects Mengirim HTTP POST ke /api/sensus/unmask serta server actions updateKeluarga/updateAnggota/tambahAnggota/hapusAnggota via enhance dengan posisi scroll terjaga
 -->
@@ -28,10 +28,10 @@
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
 	import type { PageData, ActionData } from './$types';
-	import DateInput from '$lib/components/DateInput.svelte';
-	import { formatDateDDMMYYYY } from '$lib/utils';
-	import { confirmAction } from '$lib/confirm.svelte';
-	import { keepScrollSubmit } from '$lib/keepScroll';
+	import DateInput from '#lib/components/DateInput.svelte';
+	import { formatDateDDMMYYYY } from '#lib/utils.js';
+	import { confirmAction } from '#lib/confirm.svelte.ts';
+	import { keepScrollSubmit } from '#lib/keepScroll.js';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 

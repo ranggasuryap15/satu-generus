@@ -8,7 +8,7 @@
 -->
 <script lang="ts">
 	import { page } from '$app/state';
-	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import ThemeToggle from '#lib/components/ThemeToggle.svelte';
 	import {
 	  AlertTriangle,
 	  Bell,

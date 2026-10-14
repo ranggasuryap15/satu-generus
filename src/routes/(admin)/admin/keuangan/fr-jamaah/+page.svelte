@@ -2,14 +2,14 @@
   @file src/routes/(admin)/admin/keuangan/fr-jamaah/+page.svelte
   @purpose Halaman FR Jamaah: daftar kartu mobile & tabel desktop dengan informasi nama, kepala keluarga, peran, status konfirmasi setoran (Menunggu/Diterima/Belum), nominal readonly di list luar, modal detail interaktif dengan dukungan input manual offline/buku fisik per pos anggaran atau total langsung (format angka fleksibel pemisah ribuan tanpa konflik pattern), serta approval setoran mandiri khusus KU dan ekspor CSV
   @usedBy Route admin '/admin/keuangan/fr-jamaah'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
+  @dependencies @lucide/svelte, Svelte 5 Runes, #lib/components/SearchableSelect.svelte, $app/forms (enhance), #lib/keepScroll.ts (keepScrollSubmit)
   @publicFunctions openDetail, closeDetail, handleModalPosInput, handleModalTotalInput, handleNumberKeyDown, exportToCsv, formatRupiah
   @sideEffects Mengirim form input manual via ?/saveSetoranManual; approval/reject via ?/approveSetoran & ?/rejectSetoran; ekspor CSV di client
 -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
-	import { keepScrollSubmit } from '$lib/keepScroll';
+	import SearchableSelect from '#lib/components/SearchableSelect.svelte';
+	import { keepScrollSubmit } from '#lib/keepScroll.js';
 	import {
 	  AlertCircle,
 	  Building2,

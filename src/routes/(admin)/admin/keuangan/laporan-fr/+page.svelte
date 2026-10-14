@@ -2,7 +2,7 @@
   @file src/routes/(admin)/admin/keuangan/laporan-fr/+page.svelte
   @purpose Halaman Laporan FR: menyajikan rekapitulasi real-time angka shodaqoh FR jamaah berjenjang (Desa, Kelompok, Daerah) dengan tombol ekspor CSV dan tautan langsung ke detail input FR Jamaah
   @usedBy Route admin '/admin/keuangan/laporan-fr'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte
+  @dependencies @lucide/svelte, Svelte 5 Runes, #lib/components/SearchableSelect.svelte
   @publicFunctions applyFilter, formatRupiah, exportToCsv
   @sideEffects Navigasi antar periode via URL query parameter dan pengunduhan file CSV di browser client
 -->
@@ -23,7 +23,7 @@
 		Users
 	} from '@lucide/svelte';
 	import type { PageData } from './$types';
-	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
+	import SearchableSelect from '#lib/components/SearchableSelect.svelte';
 
 	let { data } = $props<{ data: PageData }>();
 

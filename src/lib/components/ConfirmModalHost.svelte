@@ -2,13 +2,13 @@
   @file src/lib/components/ConfirmModalHost.svelte
   @purpose Komponen modal konfirmasi global berdesain modern dengan backdrop blur, icon dinamis, dan keyboard shortcuts
   @usedBy src/routes/+layout.svelte
-  @dependencies @lucide/svelte (AlertTriangle, AlertCircle, Info, X), $lib/confirm.svelte
+  @dependencies @lucide/svelte (AlertTriangle, AlertCircle, Info, X), #lib/confirm.svelte
   @publicFunctions N/A (Svelte Component)
   @sideEffects Mengontrol rendering modal konfirmasi di root viewport dan menangkap keyboard Escape
 -->
 <script lang="ts">
 	import { AlertTriangle, AlertCircle, Info, X } from '@lucide/svelte';
-	import { confirmModalState } from '$lib/confirm.svelte';
+	import { confirmModalState } from '#lib/confirm.svelte.ts';
 
 	function handleConfirm() {
 		confirmModalState.resolve(true);

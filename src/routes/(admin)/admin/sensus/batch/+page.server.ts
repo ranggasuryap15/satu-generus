@@ -9,13 +9,13 @@
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { db } from '$lib/db';
-import { keluarga, anggotaKeluarga, users } from '$lib/db/schema';
-import { encryptSensitive } from '$lib/server/crypto';
-import { hashPassword } from '$lib/server/auth';
-import { getAdminScope, getAccessibleWilayah, isKelompokAllowed } from '$lib/server/scope';
-import { normalizeDateToISO } from '$lib/utils';
-import { hitungStatusGenerus, hitungUmur, resolveStatusPernikahan } from '$lib/generus';
+import { db } from '#lib/db/index.js';
+import { keluarga, anggotaKeluarga, users } from '#lib/db/schema.js';
+import { encryptSensitive } from '#lib/server/crypto.js';
+import { hashPassword } from '#lib/server/auth.js';
+import { getAdminScope, getAccessibleWilayah, isKelompokAllowed } from '#lib/server/scope.js';
+import { normalizeDateToISO } from '#lib/utils.js';
+import { hitungStatusGenerus, hitungUmur, resolveStatusPernikahan } from '#lib/generus.js';
 
 export interface BatchRowInput {
 	id?: string;

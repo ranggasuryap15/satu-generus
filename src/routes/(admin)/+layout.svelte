@@ -7,10 +7,10 @@
   @sideEffects Menata struktur tampilan desktop dengan sidebar persisten di kiri, bottom navbar di mobile, dan drawer navigasi
 -->
 <script lang="ts">
-	import AdminSidebar from '$lib/components/navigation/AdminSidebar.svelte';
-	import AdminTopBar from '$lib/components/navigation/AdminTopBar.svelte';
-	import AdminBottomNav from '$lib/components/navigation/AdminBottomNav.svelte';
-	import AppFooter from '$lib/components/AppFooter.svelte';
+	import AdminSidebar from '#lib/components/navigation/AdminSidebar.svelte';
+	import AdminTopBar from '#lib/components/navigation/AdminTopBar.svelte';
+	import AdminBottomNav from '#lib/components/navigation/AdminBottomNav.svelte';
+	import AppFooter from '#lib/components/AppFooter.svelte';
 
 	let { children } = $props();
 	let isMobileSidebarOpen = $state(false);

@@ -9,10 +9,10 @@
 
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { db, first } from '$lib/db';
-import { desa, kelompok, presensiJadwal } from '$lib/db/schema';
+import { db, first } from '#lib/db/index.js';
+import { desa, kelompok, presensiJadwal } from '#lib/db/schema.js';
 import { eq, desc, and } from 'drizzle-orm';
-import { getKeluargaForUser } from '$lib/server/sensus';
+import { getKeluargaForUser } from '#lib/server/sensus.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) {

@@ -2,7 +2,7 @@
   @file src/routes/(admin)/admin/presensi/[jadwalId]/+page.svelte
   @purpose Halaman checklist absensi jamaah per jadwal: pagination peserta, verifikasi presensi mandiri (offline GPS + foto kamera, online SS SDC) dan modal peninjauan approval izin/sakit jamaah dengan retensi scroll (tanpa reload jumping ke atas)
   @usedBy Route admin '/admin/presensi/[jadwalId]'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/Pagination.svelte, $lib/utils (formatDateDDMMYYYY), $app/state (page), $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
+  @dependencies @lucide/svelte, Svelte 5 Runes, #lib/components/Pagination.svelte, #lib/utils (formatDateDDMMYYYY), $app/state (page), $app/forms (enhance), #lib/keepScroll.ts (keepScrollSubmit)
   @publicFunctions N/A (Svelte Component)
   @sideEffects Mengirim form update status, approve izin, dan reject izin ke server actions via enhance dengan mempertahankan posisi scroll
 -->
@@ -25,11 +25,11 @@
 		X,
 		XCircle
 	} from '@lucide/svelte';
-	import { formatDateDDMMYYYY } from '$lib/utils';
+	import { formatDateDDMMYYYY } from '#lib/utils.js';
 	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
-	import { keepScrollSubmit } from '$lib/keepScroll';
-	import Pagination from '$lib/components/Pagination.svelte';
+	import { keepScrollSubmit } from '#lib/keepScroll.js';
+	import Pagination from '#lib/components/Pagination.svelte';
 	import type { PageData } from './$types';
 
 	let { data } = $props<{ data: PageData }>();

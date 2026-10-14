@@ -8,7 +8,7 @@
  */
 
 import type { RequestHandler } from './$types';
-import { getUploadRootDir } from '$lib/server/upload';
+import { getUploadRootDir } from '#lib/server/upload.js';
 import fs from 'node:fs';
 import path from 'node:path';
 

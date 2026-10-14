@@ -9,9 +9,9 @@
 
 import { redirect } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
-import { db } from '$lib/db';
-import { presensiKehadiran, presensiJadwal, users, kelompok, transaksiShodaqoh } from '$lib/db/schema';
-import { getAdminScope, canAccessKeuangan, canManageRekening, canManageShodaqoh } from '$lib/server/scope';
+import { db } from '#lib/db/index.js';
+import { presensiKehadiran, presensiJadwal, users, kelompok, transaksiShodaqoh } from '#lib/db/schema.js';
+import { getAdminScope, canAccessKeuangan, canManageRekening, canManageShodaqoh } from '#lib/server/scope.js';
 import { and, count, desc, eq, inArray } from 'drizzle-orm';
 
 export const load: LayoutServerLoad = async ({ locals }) => {

@@ -2,7 +2,7 @@
   @file src/routes/(app)/sensus/tambah/+page.svelte
   @purpose Form wizard interaktif 3-langkah pendaftaran sensus keluarga jamaah dengan standar Zero Over-Information sesuai DESIGN.md
   @usedBy Route client '/sensus/tambah'
-  @dependencies @lucide/svelte, $lib/components/DateInput.svelte, $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
+  @dependencies @lucide/svelte, #lib/components/DateInput.svelte, #lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
   @publicFunctions nextStep, prevStep, addAnggota, removeAnggota
   @sideEffects Mengirim formulir sensus terenkripsi ke server action
 -->
@@ -17,8 +17,8 @@
 		AlertCircle,
 		CheckCircle2
 	} from '@lucide/svelte';
-	import DateInput from '$lib/components/DateInput.svelte';
-	import { formatDateDDMMYYYY } from '$lib/utils';
+	import DateInput from '#lib/components/DateInput.svelte';
+	import { formatDateDDMMYYYY } from '#lib/utils.js';
 	import type { ActionData, PageData } from './$types';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();

@@ -2,7 +2,7 @@
   @file src/routes/(admin)/admin/dapukan/+page.svelte
   @purpose Halaman manajemen struktur dapukan dan penugasan RBAC pengurus dengan proteksi urutan dapukan 4S, penyembunyian Superadmin/Admin Pusat eksplisit, dialog konfirmasi simpan/batal penugasan, pagination data, dan penguncian scope wilayah
   @usedBy Route admin '/admin/dapukan'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/Pagination.svelte, $app/forms (enhance), $lib/confirm.svelte (confirmAction)
+  @dependencies @lucide/svelte, Svelte 5 Runes, #lib/components/SearchableSelect.svelte, #lib/components/Pagination.svelte, $app/forms (enhance), #lib/confirm.svelte (confirmAction)
   @publicFunctions openAssignModal, closeAssignModal, resetAssignForm, handleAssignSubmit, openEditModal, closeEditModal, confirmRemove, isExplicitExcluded, getDapukanOrderIndex
   @sideEffects Menampilkan data dapukan/pengurus dan mengirim form mutasi pengurus ke server dengan konfirmasi modal interaktif
 -->
@@ -20,11 +20,11 @@
 		AlertTriangle
 	} from '@lucide/svelte';
 	import type { PageData, ActionData } from './$types';
-	import SearchableSelect from '$lib/components/SearchableSelect.svelte';
-	import Pagination from '$lib/components/Pagination.svelte';
-	import { confirmAction } from '$lib/confirm.svelte';
+	import SearchableSelect from '#lib/components/SearchableSelect.svelte';
+	import Pagination from '#lib/components/Pagination.svelte';
+	import { confirmAction } from '#lib/confirm.svelte.ts';
 	import { enhance } from '$app/forms';
-	import { keepScrollSubmit } from '$lib/keepScroll';
+	import { keepScrollSubmit } from '#lib/keepScroll.js';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 

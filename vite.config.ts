@@ -5,6 +5,10 @@
  * @dependencies @tailwindcss/vite, @sveltejs/adapter-node, @sveltejs/kit/vite, vite
  * @publicFunctions defineConfig
  * @sideEffects Mengatur plugin bundling, menonaktifkan origin mismatch CSRF untuk remote server, mengizinkan akses host eksternal
+ *
+ * Catatan: alias `$lib` TIDAK didefinisikan manual di sini karena SvelteKit sudah
+ * menyediakannya secara bawaan. Mendefinisikannya ulang memicu peringatan
+ * `config_option_deprecated_alias`.
  */
 
 import tailwindcss from '@tailwindcss/vite';
@@ -17,9 +21,6 @@ export default defineConfig({
 		tailwindcss(),
 		sveltekit({
 			adapter: adapter(),
-			alias: {
-				$lib: './src/lib'
-			},
 			csrf: {
 				trustedOrigins: ['*']
 			}

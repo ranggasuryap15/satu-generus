@@ -9,11 +9,11 @@
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { db, first } from '$lib/db';
-import { presensiJadwal, presensiKehadiran, kelompok } from '$lib/db/schema';
+import { db, first } from '#lib/db/index.js';
+import { presensiJadwal, presensiKehadiran, kelompok } from '#lib/db/schema.js';
 import { eq, desc, inArray, or, sql } from 'drizzle-orm';
-import { normalizeDateToISO } from '$lib/utils';
-import { getAdminScope, getAccessibleWilayah, isKelompokAllowed } from '$lib/server/scope';
+import { normalizeDateToISO } from '#lib/utils.js';
+import { getAdminScope, getAccessibleWilayah, isKelompokAllowed } from '#lib/server/scope.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user || !locals.isAdmin) {
