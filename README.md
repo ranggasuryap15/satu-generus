@@ -91,6 +91,25 @@ Buka peramban di: **[http://localhost:5173](http://localhost:5173)**
 > ```
 >
 > Data PostgreSQL pada volume `satu-generus_pgdata` **tidak terpengaruh**.
+>
+> 🔴 **JANGAN pakai `docker compose down -v`.** Flag `-v` menghapus *semua*
+> volume termasuk `satu-generus_pgdata` berisi seluruh **data produksi**.
+> Bila itu terjadi, database menjadi kosong dan aplikasi langsung error
+> `500` dengan pesan `PostgresError: relation "users" does not exist`.
+>
+> **Jika database kosong** (tabel hilang / error `relation "..." does not exist`),
+> cukup buat ulang skema dan data awalnya:
+>
+> ```bash
+> docker exec satu-generus-dev npm run db:migrate
+> docker exec satu-generus-dev npm run db:seed
+> ```
+>
+> **Backup data PostgreSQL** (lakukan rutin, terutama sebelum perubahan skema):
+>
+> ```bash
+> docker exec satu-generus-db pg_dump -U satu_generus satu_generus > backup-$(date +%F).sql
+> ```
 
 ### Menjalankan secara Lokal di Host
 
