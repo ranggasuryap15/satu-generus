@@ -1,0 +1,29 @@
+# @file docker-compose.dev.yml
+# @purpose Menjalankan PostgreSQL 16 khusus development lokal saat aplikasi dijalankan via `npm run dev` di host (tanpa containerisasi app)
+# @usedBy Developer lokal: docker compose -f docker-compose.dev.yml up -d
+# @dependencies Docker Engine
+# @publicFunctions service: postgres
+# @sideEffects Mengekspos port 5432 ke host dan menyimpan data di named volume pgdata_dev
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: satu-generus-pg-dev
+    environment:
+      POSTGRES_USER: satu_generus
+      POSTGRES_PASSWORD: satu_generus
+      POSTGRES_DB: satu_generus
+      TZ: Asia/Jakarta
+      PGTZ: Asia/Jakarta
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U satu_generus -d satu_generus"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pgdata_dev:
