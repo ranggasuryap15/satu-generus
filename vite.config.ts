@@ -32,7 +32,14 @@ export default defineConfig({
 		allowedHosts: true,
 		cors: {
 			preflightContinue: true
-		}
+		},
+		// Bind mount Docker di Linux tidak meneruskan event inotify, sehingga
+		// HMR tidak mendeteksi perubahan file. Polling dipakai bila
+		// CHOKIDAR_USEPOLLING=true (di-set pada service app di docker-compose.yml).
+		watch:
+			process.env.CHOKIDAR_USEPOLLING === 'true'
+				? { usePolling: true, interval: Number(process.env.CHOKIDAR_INTERVAL ?? 300) }
+				: undefined
 	},
 	preview: {
 		host: '0.0.0.0',

@@ -41,6 +41,9 @@ services:
       - NODE_ENV=development
       - HOST=0.0.0.0
       - PORT=5173
+      # Aktifkan polling watcher karena bind mount Docker di Linux tidak
+      # meneruskan event inotify (HMR tidak mendeteksi perubahan file).
+      - CHOKIDAR_USEPOLLING=true
       # Nama host = nama service compose, BUKAN localhost
       - DATABASE_URL=postgres://satu_generus:satu_generus@postgres:5432/satu_generus
     volumes:
@@ -48,6 +51,13 @@ services:
       - .:/app
       # Hindari penimpaan node_modules container oleh host
       - /app/node_modules
+      # PENTING: .svelte-kit diisolasi memakai anonymous volume.
+      # `npm run build` atau `npm run dev` di HOST akan menghapus &
+      # menulis ulang .svelte-kit (generated/dev -> generated/build), yang
+      # lewat bind mount `.:/app` membuat dev server container kehilangan
+      # .svelte-kit/generated/dev/server.js lalu error:
+      #   Failed to load url /.svelte-kit/generated/dev/server.js
+      - /app/.svelte-kit
       # File upload disimpan di luar build/static (bukan lagi ./data)
       - ./uploads:/app/uploads
     restart: unless-stopped

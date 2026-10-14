@@ -54,11 +54,43 @@
 Pastikan Docker telah terpasang, lalu jalankan:
 
 ```bash
-docker compose up -d
+# Build image + jalankan app (dev) dan PostgreSQL
+docker compose up -d --build
+
+# Jalankan migrasi & seeder (sekali saja / saat ada migrasi baru)
+docker exec satu-generus-dev npm run db:migrate
+docker exec satu-generus-dev npm run db:seed
 ```
 
 Aplikasi akan otomatis berjalan di port `5173`.
 Buka peramban di: **[http://localhost:5173](http://localhost:5173)**
+
+> ⚠️ **Jangan jalankan `npm run build` di dalam folder project saat dev
+> container sedang hidup.** Perintah `npm run build` menulis ulang folder
+> `.svelte-kit/generated` (dari `dev/` menjadi `build/`). Folder `.svelte-kit`
+> sudah diisolasi sebagai anonymous volume sehingga aman, tetapi bila Anda
+> mengubah volume di `docker-compose.yml`, hapus volume runtime lama agar
+> tidak basi:
+>
+> ```bash
+> docker compose down
+> docker volume ls | grep -E "satu-generus.*(node_modules|svelte)"   # cek
+> docker compose up -d --build
+> ```
+>
+> **Jika `node_modules` container basi** (mis. setelah ganti dependency
+> seperti SQLite ke PostgreSQL), muncul error
+> `Cannot find package '...' imported from ...`. Perbaiki dengan menghapus
+> container + volume node_modules-nya:
+>
+> ```bash
+> docker compose down
+> docker rm -f satu-generus-dev
+> docker volume rm $(docker volume ls -q --filter name=satu-generus | grep -v pgdata)
+> docker compose up -d --build
+> ```
+>
+> Data PostgreSQL pada volume `satu-generus_pgdata` **tidak terpengaruh**.
 
 ### Menjalankan secara Lokal di Host
 
