@@ -889,17 +889,19 @@
 									<input type="hidden" name="targetId" value={data.activeId} />
 									<input type="hidden" name="tab" value={activeTab} />
 									<button
-										type="submit"
+										type="button"
 										class="text-rose-500 hover:text-rose-700 font-semibold transition-colors flex items-center gap-1 cursor-pointer"
 										onclick={async (e) => {
-											e.preventDefault();
+											const formEl = (e.currentTarget as HTMLButtonElement).closest('form');
 											const ok = await confirmAction({
 												title: 'Hapus Jenis Shodaqoh?',
 												message: `Yakin ingin menghapus jenis shodaqoh "${j.nama}"?`,
 												confirmText: 'Ya, Hapus',
 												variant: 'danger'
 											});
-											if (ok) e.currentTarget.form?.requestSubmit();
+											if (ok && formEl) {
+												formEl.requestSubmit();
+											}
 										}}
 									>
 										<Trash2 class="w-3 h-3" /> Hapus
@@ -1035,16 +1037,18 @@
 										<input type="hidden" name="targetId" value={data.activeId} />
 										<input type="hidden" name="tab" value={activeTab} />
 										<button
-											type="submit"
+											type="button"
 											onclick={async (e) => {
-												e.preventDefault();
+												const formEl = (e.currentTarget as HTMLButtonElement).closest('form');
 												const ok = await confirmAction({
 													title: 'Hapus Rekening Shodaqoh?',
 													message: `Yakin ingin menghapus rekening ${rek.namaBank} (${rek.nomorRekening})?`,
 													confirmText: 'Ya, Hapus Rekening',
 													variant: 'danger'
 												});
-												if (ok) e.currentTarget.form?.requestSubmit();
+												if (ok && formEl) {
+													formEl.requestSubmit();
+												}
 											}}
 											class="p-1.5 rounded-lg text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
 											title="Hapus Rekening"

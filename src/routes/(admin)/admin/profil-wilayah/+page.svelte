@@ -2,7 +2,7 @@
   @file src/routes/(admin)/admin/profil-wilayah/+page.svelte
   @purpose Halaman dedicated profil wilayah (Kelompok/Desa/Daerah) untuk seluruh 4S & Superadmin: manajemen titik lokasi pengajian, rekening Bank & QRIS shodaqoh berotoritas khusus KU & Superadmin, pelestarian state wilayah saat mutasi, hierarki sub-wilayah, dan navigasi wilayah
   @usedBy Route admin '/admin/profil-wilayah'
-  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/LocationPicker.svelte, $lib/components/Pagination.svelte, $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit)
+  @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/LocationPicker.svelte, $lib/components/Pagination.svelte, $app/forms (enhance), $lib/keepScroll.ts (keepScrollSubmit), $lib/confirm.svelte (confirmAction)
   @publicFunctions openLocationModal, closeLocationModal, openAddRekeningModal, closeAddRekeningModal, openEditRekeningModal, closeEditRekeningModal, copyToClipboard, handleQrisFileChange
   @sideEffects Mengirim form updateLokasi, addRekening, updateRekening, deleteRekening via enhance dengan pelestarian query param scope & id wilayah aktif dan menjaga scroll
 -->
@@ -648,18 +648,20 @@
 										<input type="hidden" name="scope" value={data.activeScope} />
 										<input type="hidden" name="id" value={data.activeId} />
 										<button
-											type="submit"
+											type="button"
 											onclick={async (e) => {
-												e.preventDefault();
+												const formEl = (e.currentTarget as HTMLButtonElement).closest('form');
 												const ok = await confirmAction({
 													title: 'Hapus Rekening Shodaqoh?',
 													message: `Yakin ingin menghapus rekening ${rek.namaBank} (${rek.nomorRekening})?`,
 													confirmText: 'Ya, Hapus Rekening',
 													variant: 'danger'
 												});
-												if (ok) e.currentTarget.form?.requestSubmit();
+												if (ok && formEl) {
+													formEl.requestSubmit();
+												}
 											}}
-											class="p-1.5 rounded-lg text-destructive hover:bg-destructive/10 transition-colors"
+											class="p-1.5 rounded-lg text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
 											title="Hapus Rekening"
 										>
 											<Trash2 class="w-3.5 h-3.5" />
