@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(admin)/admin/sensus/+page.svelte
-  @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri, pagination tabel/kartu data, dashboard statistik, penugasan dapukan pengurus KK, modal detail lengkap (hapus sensus, pindah kelompok, toggle status jamaah), modal edit anggota/KK, input & validasi noTelepon (wajib jika punya akun, opsional jika tidak), dan pembuatan akun dengan retensi scroll (mencegah loncat ke atas)
+  @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri, pagination tabel/kartu data, standarisasi tombol aksi simetris seragam, dashboard statistik, penugasan dapukan pengurus KK, modal detail lengkap (hapus sensus, pindah kelompok, toggle status jamaah), modal edit anggota/KK, input & validasi noTelepon (wajib jika punya akun, opsional jika tidak), dan pembuatan akun dengan retensi scroll (mencegah loncat ke atas)
   @usedBy Route admin '/admin/sensus'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/DateInput.svelte, $lib/components/Pagination.svelte, $lib/confirm.svelte, $lib/keepScroll.ts (keepScrollSubmit), $lib/utils (formatDateDDMMYYYY), $lib/generus (isStatusHubunganMenikah, hitungUmur, hitungStatusGenerus, resolveStatusPernikahan, isStatusGenerusBelumMenikah, resolvePernikahanFromGenerus, DAFTAR_STATUS_GENERUS)
   @publicFunctions openDetailModal, closeDetailModal, requestUnmask, openCreateModal, closeCreateModal, openAddMemberModal, closeAddMemberModal, openCreateAccountModal, openEditAnggotaModal, closeEditAnggotaModal, openEditKeluargaModal, closeEditKeluargaModal, openPindahKelompokModal, closePindahKelompokModal, openAssignDapukanModal, closeAssignDapukanModal, handleHapusSensus, handleToggleStatusJamaah, resetFilters, toggleMobileFilter
@@ -1346,7 +1346,7 @@
 							<th class="py-3 px-4 font-semibold">Wilayah Basis</th>
 							<th class="py-3 px-4 font-semibold">Alamat Domisili</th>
 							<th class="py-3 px-4 font-semibold">Jiwa</th>
-							<th class="py-3 px-4 font-semibold text-right">Aksi</th>
+							<th class="py-3 px-4 font-semibold text-right whitespace-nowrap">Aksi</th>
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-border">
@@ -1421,25 +1421,25 @@
 									</span>
 								</td>
 
-								<!-- Tombol Aksi -->
-								<td class="py-3.5 px-4 text-right">
+								<!-- Tombol Aksi Simetris -->
+								<td class="py-3.5 px-4 text-right whitespace-nowrap">
 									<div class="inline-flex items-center gap-1.5 justify-end">
 										{#if k.isKk}
 											<button
 												type="button"
 												onclick={() => openAddMemberModal(k)}
-												class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-border hover:bg-secondary text-foreground/80 text-xs font-semibold transition-colors"
+												class="h-8 inline-flex items-center gap-1.5 px-2.5 rounded-lg border border-border bg-card hover:bg-secondary text-foreground/80 text-xs font-semibold transition-all whitespace-nowrap shadow-2xs cursor-pointer"
 												title="Tambah Anggota Keluarga"
 											>
-												<UserPlus class="w-3.5 h-3.5 text-primary" />
-												<span class="hidden sm:inline">+ Anggota</span>
+												<UserPlus class="w-3.5 h-3.5 text-primary shrink-0" />
+												<span>+ Anggota</span>
 											</button>
 										{/if}
 
 										<button
 											type="button"
 											onclick={() => openDetailModal(k)}
-											class="px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground font-semibold text-xs transition-colors cursor-pointer"
+											class="h-8 inline-flex items-center justify-center px-3 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground font-semibold text-xs transition-all border border-border/60 whitespace-nowrap shadow-2xs cursor-pointer"
 										>
 											Detail
 										</button>
@@ -1448,28 +1448,28 @@
 											<button
 												type="button"
 												onclick={() => openAssignDapukanModal(k)}
-												class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-semibold text-xs transition-colors cursor-pointer"
+												class="h-8 inline-flex items-center gap-1.5 px-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-semibold text-xs transition-all whitespace-nowrap shadow-2xs cursor-pointer"
 												title={k.akunList.length > 1 ? `Tugaskan Dapukan (${k.akunList.length} Akun)` : "Tugaskan Pengurus / Beri Dapukan"}
 											>
-												<Award class="w-3.5 h-3.5" />
-												<span class="hidden xl:inline">{k.isPengurus ? 'Dapukan' : '+ Dapukan'}</span>
+												<Award class="w-3.5 h-3.5 shrink-0" />
+												<span>Dapukan</span>
 											</button>
 										{/if}
 
 										<button
 											type="button"
 											onclick={() => openPindahKelompokModal(k)}
-											class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 font-semibold text-xs transition-colors cursor-pointer"
+											class="h-8 inline-flex items-center gap-1.5 px-2.5 rounded-lg border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 font-semibold text-xs transition-all whitespace-nowrap shadow-2xs cursor-pointer"
 											title="Pindahkan Sensus ke Kelompok Lain"
 										>
-											<ArrowRightLeft class="w-3.5 h-3.5" />
-											<span class="hidden lg:inline">Pindah</span>
+											<ArrowRightLeft class="w-3.5 h-3.5 shrink-0" />
+											<span>Pindah</span>
 										</button>
 
 										<button
 											type="button"
 											onclick={() => handleHapusSensus(k)}
-											class="inline-flex items-center p-1.5 rounded-lg border border-destructive/30 bg-destructive/10 hover:bg-destructive/20 text-destructive font-semibold text-xs transition-colors cursor-pointer"
+											class="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-destructive/30 bg-destructive/10 hover:bg-destructive/20 text-destructive font-semibold text-xs transition-all shrink-0 shadow-2xs cursor-pointer"
 											title="Hapus Data Sensus"
 										>
 											<Trash2 class="w-3.5 h-3.5" />
