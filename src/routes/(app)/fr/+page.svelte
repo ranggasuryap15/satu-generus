@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(app)/fr/+page.svelte
-  @purpose Halaman antarmuka client jamaah untuk pengisian dan pelaporan Isrun/FR bulanan: tabel spreadsheet 4 kolom terstruktur per kategori induk (A-D) mirip template KU, validasi format angka aktif, pemisahan kartu bank & QRIS, penguncian antarmuka otomatis (read-only/pasif) jika setoran telah disetujui KU, serta jalur komplain langsung ke KU
+  @purpose Halaman antarmuka client jamaah untuk pengisian dan pelaporan Isrun/FR bulanan: filter jamaah & periode stacked atas-bawah responsif (bebas mepet), tabel spreadsheet 4 kolom terstruktur per kategori induk (A-D) mirip template KU, validasi format angka aktif, pemisahan kartu bank & QRIS, penguncian antarmuka otomatis (read-only/pasif) jika setoran telah disetujui KU, serta jalur komplain langsung ke KU
   @usedBy Route client '/fr' (diakses via Quick Access Beranda 'Isrun/FR')
   @dependencies @lucide/svelte, $app/forms (enhance), Svelte 5 Runes
   @publicFunctions handleInputRiil, handleNumberKeyDown, handleCopySaranKeRiil, handleResetRiil, formatRp, copyToClipboard
@@ -313,15 +313,15 @@
 		</div>
 	</div>
 
-	<!-- Filter Jamaah & Periode Bulan/Tahun -->
+	<!-- Filter Jamaah & Periode Bulan/Tahun (Tata Letak Atas-Bawah Responsif) -->
 	<section class="bg-card border border-border rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
-		<div class="grid grid-cols-1 sm:grid-cols-12 gap-3 sm:gap-4 items-end">
-			<!-- Switcher Anggota Jamaah (jika ada lebih dari 1 anggota wajib dalam KK) -->
+		<div class="space-y-3.5">
+			<!-- Baris 1 (Atas): Identitas Jamaah / Switcher Anggota Keluarga (Lebar Penuh) -->
 			{#if data.anggotaWajibList.length > 1}
-				<div class="sm:col-span-5 space-y-1.5">
+				<div class="space-y-1.5">
 					<label for="pilih-anggota" class="text-xs font-bold text-foreground/80 flex items-center gap-1.5">
 						<Users class="w-3.5 h-3.5 text-primary" />
-						Anggota Keluarga
+						<span>Anggota Keluarga</span>
 					</label>
 					<form method="GET" class="relative">
 						<input type="hidden" name="tahun" value={selectedTahun} />
@@ -331,7 +331,7 @@
 							name="anggotaId"
 							bind:value={selectedAnggotaId}
 							onchange={(e) => (e.currentTarget.form?.submit())}
-							class="w-full h-10 px-3 py-2 rounded-xl bg-background border border-border text-xs sm:text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none pr-8 cursor-pointer"
+							class="w-full h-11 px-3.5 py-2 rounded-xl bg-background border border-border text-xs sm:text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none pr-8 cursor-pointer shadow-2xs"
 						>
 							{#each data.anggotaWajibList as a}
 								<option value={a.id}>
@@ -339,33 +339,33 @@
 								</option>
 							{/each}
 						</select>
-						<ChevronDown class="w-4 h-4 absolute right-2.5 top-3 text-foreground/40 pointer-events-none" />
+						<ChevronDown class="w-4 h-4 absolute right-3 top-3.5 text-foreground/40 pointer-events-none" />
 					</form>
 				</div>
 			{:else}
-				<div class="sm:col-span-5 flex items-center gap-2.5 p-2 rounded-xl bg-secondary/30 border border-border">
-					<div class="w-9 h-9 rounded-lg bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0">
+				<div class="flex items-center gap-3 p-3 rounded-xl bg-secondary/30 border border-border">
+					<div class="w-10 h-10 rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0 border border-teal-500/20">
 						<UserCheck class="w-5 h-5" />
 					</div>
 					<div class="min-w-0 flex-1">
-						<p class="text-[11px] text-foreground/60 font-medium leading-none">Nama Jamaah</p>
-						<p class="text-xs sm:text-sm font-bold text-foreground truncate mt-0.5">
+						<p class="text-[11px] text-foreground/60 font-medium">Nama Jamaah</p>
+						<p class="text-xs sm:text-sm font-bold text-foreground mt-0.5 break-words">
 							{data.activeAnggota?.namaLengkap || 'Jamaah'}
 						</p>
 					</div>
 				</div>
 			{/if}
 
-			<!-- Selector Bulan & Tahun -->
-			<div class="sm:col-span-7">
-				<form method="GET" class="grid grid-cols-2 gap-2">
+			<!-- Baris 2 (Bawah): Selector Bulan & Tahun (Grid 2 Kolom Luas & Bernapas Lega) -->
+			<div>
+				<form method="GET" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
 					{#if data.activeAnggota}
 						<input type="hidden" name="anggotaId" value={data.activeAnggota.id} />
 					{/if}
-					<div>
-						<label for="pilih-bulan" class="text-xs font-bold text-foreground/80 flex items-center gap-1.5 mb-1.5">
+					<div class="space-y-1.5">
+						<label for="pilih-bulan" class="text-xs font-bold text-foreground/80 flex items-center gap-1.5">
 							<Calendar class="w-3.5 h-3.5 text-primary" />
-							Bulan Setoran
+							<span>Bulan Setoran</span>
 						</label>
 						<div class="relative">
 							<select
@@ -373,20 +373,20 @@
 								name="bulan"
 								bind:value={selectedBulan}
 								onchange={(e) => (e.currentTarget.form?.submit())}
-								class="w-full h-10 px-3 py-2 rounded-xl bg-background border border-border text-xs sm:text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none pr-8 cursor-pointer"
+								class="w-full h-11 px-3.5 py-2 rounded-xl bg-background border border-border text-xs sm:text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none pr-8 cursor-pointer shadow-2xs"
 							>
 								{#each bulanOptions as b}
 									<option value={b.val}>{b.label}</option>
 								{/each}
 							</select>
-							<ChevronDown class="w-4 h-4 absolute right-2.5 top-3 text-foreground/40 pointer-events-none" />
+							<ChevronDown class="w-4 h-4 absolute right-3 top-3.5 text-foreground/40 pointer-events-none" />
 						</div>
 					</div>
 
-					<div>
-						<label for="pilih-tahun" class="text-xs font-bold text-foreground/80 flex items-center gap-1.5 mb-1.5">
+					<div class="space-y-1.5">
+						<label for="pilih-tahun" class="text-xs font-bold text-foreground/80 flex items-center gap-1.5">
 							<Clock class="w-3.5 h-3.5 text-primary" />
-							Tahun
+							<span>Tahun</span>
 						</label>
 						<div class="relative">
 							<select
@@ -394,56 +394,58 @@
 								name="tahun"
 								bind:value={selectedTahun}
 								onchange={(e) => (e.currentTarget.form?.submit())}
-								class="w-full h-10 px-3 py-2 rounded-xl bg-background border border-border text-xs sm:text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none pr-8 cursor-pointer"
+								class="w-full h-11 px-3.5 py-2 rounded-xl bg-background border border-border text-xs sm:text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none pr-8 cursor-pointer shadow-2xs"
 							>
 								{#each [selectedTahun - 1, selectedTahun, selectedTahun + 1] as yr}
 									<option value={yr}>{yr}</option>
 								{/each}
 							</select>
-							<ChevronDown class="w-4 h-4 absolute right-2.5 top-3 text-foreground/40 pointer-events-none" />
+							<ChevronDown class="w-4 h-4 absolute right-3 top-3.5 text-foreground/40 pointer-events-none" />
 						</div>
 					</div>
 				</form>
 			</div>
 		</div>
 
-		<!-- Status Transaksi Bulan Ini -->
-		<div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/60">
+		<!-- Status Transaksi Bulan Ini & Group Tarif -->
+		<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-3 border-t border-border/60">
 			<div class="flex items-center gap-2">
 				<span class="text-xs text-foreground/60 font-medium">Status Setoran:</span>
 				{#if data.transaksiExisting}
 					{#if data.transaksiExisting.statusBayar === 'Diterima' || data.transaksiExisting.statusBayar === 'Lunas'}
-						<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+						<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
 							<CheckCircle2 class="w-3.5 h-3.5" /> {data.transaksiExisting.statusBayar}
 						</span>
 					{:else if data.transaksiExisting.statusBayar === 'Menunggu Konfirmasi'}
-						<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+						<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
 							<Clock class="w-3.5 h-3.5" /> Menunggu Konfirmasi KU
 						</span>
 					{:else}
-						<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+						<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
 							<AlertCircle class="w-3.5 h-3.5" /> {data.transaksiExisting.statusBayar}
 						</span>
 					{/if}
 				{:else}
-					<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-secondary text-foreground/60 border border-border">
+					<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-secondary text-foreground/60 border border-border">
 						Belum Disetor
 					</span>
 				{/if}
 			</div>
 
 			<div class="text-xs text-foreground/60">
-				Group Tarif: <strong class="text-foreground">{data.groupNama}</strong>
+				Group Tarif: <strong class="text-foreground font-bold">{data.groupNama}</strong>
 			</div>
 		</div>
 	</section>
 
 	<!-- Banner Kunci Data Pasif Jika Sudah Diapprove KU -->
 	{#if isApproved}
-		<div class="p-3 sm:p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-3 shadow-xs">
+		<div class="p-3.5 sm:p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
 			<div class="flex items-center gap-2.5">
-				<Lock class="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-				<div class="flex items-center gap-2">
+				<div class="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+					<Lock class="w-4 h-4" />
+				</div>
+				<div class="flex items-center gap-2 flex-wrap">
 					<p class="text-xs font-bold text-foreground">
 						Setoran Disetujui KU ({data.transaksiExisting?.statusBayar})
 					</p>
@@ -455,7 +457,7 @@
 			<button
 				type="button"
 				onclick={() => (showModalKomplain = true)}
-				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-200 border border-amber-500/30 text-xs font-bold transition-all active:scale-95 shrink-0 cursor-pointer"
+				class="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-200 border border-amber-500/30 text-xs font-bold transition-all active:scale-95 shrink-0 cursor-pointer self-stretch sm:self-auto"
 			>
 				<MessageCircleWarning class="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
 				<span>Komplain</span>
