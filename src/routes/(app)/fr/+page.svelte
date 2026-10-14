@@ -1,9 +1,9 @@
 <!--
   @file src/routes/(app)/fr/+page.svelte
-  @purpose Halaman antarmuka client jamaah untuk pengisian dan pelaporan Isrun/FR bulanan: tabel spreadsheet 4 kolom terstruktur per kategori induk (A. Hak Pusat, B. Hak Daerah, C. Hak Desa, D. Hak Kelompok) mirip template KU, input format angka ribuan aktif dengan nilai default kosong, kartu rekening bank dan kartu QRIS bergambar interaktif (bisa di-zoom), switcher anggota & periode, serta form upload bukti setor
+  @purpose Halaman antarmuka client jamaah untuk pengisian dan pelaporan Isrun/FR bulanan: tabel spreadsheet 4 kolom terstruktur per kategori induk (A. Hak Pusat, B. Hak Daerah, C. Hak Desa, D. Hak Kelompok) mirip template KU, validasi input angka murni aktif & auto-format ribuan id-ID dengan nilai default kosong, kartu rekening bank dan kartu QRIS bergambar interaktif (bisa di-zoom), switcher anggota & periode, serta form upload bukti setor
   @usedBy Route client '/fr' (diakses via Quick Access Beranda 'Isrun/FR')
   @dependencies @lucide/svelte, $app/forms (enhance), Svelte 5 Runes
-  @publicFunctions handleInputRiil, handleCopySaranKeRiil, handleResetRiil, formatRp, copyToClipboard
+  @publicFunctions handleInputRiil, handleNumberKeyDown, handleCopySaranKeRiil, handleResetRiil, formatRp, copyToClipboard
   @sideEffects Mengirim form data setoran FR mandiri ke server action simpanSetoran di SQLite
 -->
 <script lang="ts">
@@ -117,17 +117,32 @@
 		}
 	});
 
+	// Blokir tombol keyboard non-angka
+	function handleNumberKeyDown(e: KeyboardEvent) {
+		if (
+			['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key) ||
+			e.ctrlKey ||
+			e.metaKey
+		) {
+			return;
+		}
+		if (!/^[0-9]$/.test(e.key)) {
+			e.preventDefault();
+		}
+	}
+
 	// Handler input angka realtime terformat ribuan id-ID (field kosong saat 0)
-	function handleInputRiil(posId: string, rawVal: string) {
-		const digitsOnly = rawVal.replace(/\D/g, '');
+	function handleInputRiil(posId: string, inputEl: HTMLInputElement) {
+		const digitsOnly = inputEl.value.replace(/\D/g, '');
 		const num = parseInt(digitsOnly, 10) || 0;
+		inputEl.value = num > 0 ? num.toLocaleString('id-ID') : '';
 
 		for (const cat of categories) {
 			const target = cat.subPos.find((p) => p.posId === posId);
 			if (target) {
 				target.nominalRiil = num;
 				// Format angka ribuan jika num > 0, jika 0 kembalikan string kosong
-				target.riilInputString = num > 0 ? num.toLocaleString('id-ID') : '';
+				target.riilInputString = inputEl.value;
 				break;
 			}
 		}
@@ -553,8 +568,10 @@
 													<input
 														type="text"
 														inputmode="numeric"
+														pattern="[0-9]*"
 														value={pos.riilInputString}
-														oninput={(e) => handleInputRiil(pos.posId, e.currentTarget.value)}
+														onkeydown={handleNumberKeyDown}
+														oninput={(e) => handleInputRiil(pos.posId, e.currentTarget)}
 														placeholder="0"
 														class="w-full text-right font-mono font-bold py-1.5 pl-8 pr-2.5 bg-background hover:bg-background/90 focus:bg-background border border-border focus:border-teal-500 rounded-lg text-xs text-foreground focus:outline-none transition-all placeholder:text-foreground/30 shadow-2xs"
 													/>

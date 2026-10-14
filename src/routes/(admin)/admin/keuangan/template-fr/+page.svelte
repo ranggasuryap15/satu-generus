@@ -1,9 +1,9 @@
 <!--
   @file src/routes/(admin)/admin/keuangan/template-fr/+page.svelte
-  @purpose Halaman Spreadsheet Template FR: lembar kerja 4 kolom fleksibel (No, Uraian, Jumlah, Keterangan), penambahan baris uraian baru realtime langsung di tabel spreadsheet tanpa modal popup, kategori default A-D untuk diisi manual oleh KU, SearchableSelect filter kelompok, proteksi anti-refresh saat mengisi data, pengelolaan Group Tarif, duplikasi group cepat, paste dari spreadsheet, penetapan jamaah massal, dan modal konfirmasi hapus kustom
+  @purpose Halaman Spreadsheet Template FR: lembar kerja 4 kolom fleksibel (No, Uraian, Jumlah, Keterangan), validasi angka murni & auto-format ribuan untuk kedua kolom (Jumlah & Keterangan), penambahan baris uraian baru realtime langsung di tabel spreadsheet tanpa modal popup, kategori default A-D untuk diisi manual oleh KU, SearchableSelect filter kelompok, proteksi anti-refresh saat mengisi data, pengelolaan Group Tarif, duplikasi group cepat, paste dari spreadsheet, penetapan jamaah massal, dan modal konfirmasi hapus kustom
   @usedBy Route admin '/admin/keuangan/template-fr'
   @dependencies @lucide/svelte, svelte (tick), $app/forms, $app/navigation (goto, beforeNavigate), Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/keepScroll.ts
-  @publicFunctions formatRupiah, updateCell, handleAddRealtimeRow, handleRemoveRealtimeRow, handleCellPaste, handleFilterChange, handleGroupSwitch, openConfirmModal, closeConfirmModal, toggleSelectAllAvailable, toggleSelectJamaah, getActionUrl
+  @publicFunctions formatRupiah, updateCell, handleNumberKeyDown, copyJumlahToKeterangan, handleAddRealtimeRow, handleRemoveRealtimeRow, handleCellPaste, handleFilterChange, handleGroupSwitch, openConfirmModal, closeConfirmModal, toggleSelectAllAvailable, toggleSelectJamaah, getActionUrl
   @sideEffects Mengirim batch data nilai spreadsheet via ?/saveSpreadsheet, mutasi group via ?/createGroup & ?/duplicateGroup, mutasi pos anggaran via ?/deletePos, dan memasukkan jamaah secara massal via ?/assignJamaahToGroup
 -->
 <script lang="ts">
@@ -158,9 +158,29 @@
 		return list;
 	});
 
-	// Handler Input Sel
-	function updateCell(posId: string, field: 'nominalJumlah' | 'nominalKeterangan', rawValue: string) {
-		const numeric = parseInt(rawValue.replace(/\D/g, ''), 10) || 0;
+	// Blokir tombol keyboard non-angka
+	function handleNumberKeyDown(e: KeyboardEvent) {
+		if (
+			['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key) ||
+			e.ctrlKey ||
+			e.metaKey
+		) {
+			return;
+		}
+		if (!/^[0-9]$/.test(e.key)) {
+			e.preventDefault();
+		}
+	}
+
+	// Handler Input Sel dengan validasi angka murni & auto-format ribuan
+	function updateCell(posId: string, field: 'nominalJumlah' | 'nominalKeterangan', inputEl: HTMLInputElement) {
+		const rawValue = inputEl.value;
+		const cleanDigits = rawValue.replace(/\D/g, '');
+		const numeric = cleanDigits ? parseInt(cleanDigits, 10) : 0;
+
+		// Paksa nilai elemen input DOM menjadi angka terformat ribuan (bersihkan karakter tidak valid seperti TEST)
+		inputEl.value = numeric > 0 ? numeric.toLocaleString('id-ID') : '';
+
 		if (!spreadsheetCells[posId]) {
 			spreadsheetCells[posId] = { nominalJumlah: 0, nominalKeterangan: 0, keteranganTeks: '' };
 		}
@@ -168,8 +188,16 @@
 		isDirty = true;
 	}
 
-	// Fitur: Paste dari Clipboard Excel/Google Sheets ke Kolom Jumlah
-	function handleCellPaste(e: ClipboardEvent, startPosIndex: number) {
+	// Fitur: Salin Seluruh Kolom Jumlah ke Kolom Keterangan
+	function copyJumlahToKeterangan() {
+		for (const posId of Object.keys(spreadsheetCells)) {
+			spreadsheetCells[posId].nominalKeterangan = spreadsheetCells[posId].nominalJumlah;
+		}
+		isDirty = true;
+	}
+
+	// Fitur: Paste dari Clipboard Excel/Google Sheets ke Kolom Jumlah & Keterangan
+	function handleCellPaste(e: ClipboardEvent, startPosIndex: number, field: 'nominalJumlah' | 'nominalKeterangan' = 'nominalJumlah') {
 		const clipboardData = e.clipboardData?.getData('text');
 		if (!clipboardData) return;
 
@@ -185,12 +213,23 @@
 				const targetPos = flatSubPosList[targetIndex];
 				const cols = rowText.split('\t');
 
-				// Ambil angka dari kolom pertama
-				const num = parseInt((cols[0] || '').replace(/\D/g, ''), 10) || 0;
-				if (!spreadsheetCells[targetPos.id]) {
-					spreadsheetCells[targetPos.id] = { nominalJumlah: 0, nominalKeterangan: 0, keteranganTeks: '' };
+				if (cols.length >= 2) {
+					// Format paste 2 kolom: Jumlah & Keterangan
+					const num1 = parseInt(cols[0].replace(/\D/g, ''), 10) || 0;
+					const num2 = parseInt(cols[1].replace(/\D/g, ''), 10) || 0;
+					if (!spreadsheetCells[targetPos.id]) {
+						spreadsheetCells[targetPos.id] = { nominalJumlah: 0, nominalKeterangan: 0, keteranganTeks: '' };
+					}
+					spreadsheetCells[targetPos.id].nominalJumlah = num1;
+					spreadsheetCells[targetPos.id].nominalKeterangan = num2;
+				} else {
+					// Format paste 1 kolom ke field yang ditargetkan
+					const num = parseInt((cols[0] || '').replace(/\D/g, ''), 10) || 0;
+					if (!spreadsheetCells[targetPos.id]) {
+						spreadsheetCells[targetPos.id] = { nominalJumlah: 0, nominalKeterangan: 0, keteranganTeks: '' };
+					}
+					spreadsheetCells[targetPos.id][field] = num;
 				}
-				spreadsheetCells[targetPos.id].nominalJumlah = num;
 			});
 
 			isDirty = true;
@@ -571,6 +610,16 @@
 			</div>
 
 			<div class="flex items-center gap-2">
+				<button
+					type="button"
+					onclick={copyJumlahToKeterangan}
+					class="px-2.5 py-1.5 rounded-lg border border-border bg-card hover:bg-secondary text-foreground text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
+					title="Salin seluruh angka kolom Jumlah ke kolom Keterangan"
+				>
+					<CornerDownRight class="w-3.5 h-3.5 text-primary" />
+					<span class="hidden sm:inline">Salin Jumlah ke Keterangan</span>
+				</button>
+
 				<!-- FORM SIMPAN SPREADSHEET -->
 				<form
 					method="POST"
@@ -606,10 +655,7 @@
 							<th class="py-3 px-3 text-center w-14 border-r border-border">No</th>
 							<th class="py-3 px-4 border-r border-border min-w-64">Uraian</th>
 							<th class="py-3 px-4 border-r border-border w-52 text-right">Jumlah (Min. Disarankan)</th>
-							<th class="py-3 px-4 border-r border-border w-52 text-right">
-								<span>Keterangan (Riil Bayar)</span>
-								<span class="block text-[10px] font-normal text-foreground/50">Diisi Jamaah di Client</span>
-							</th>
+							<th class="py-3 px-4 border-r border-border w-52 text-right">Keterangan (Riil Bayar)</th>
 							<th class="py-3 px-3 text-center w-16">Aksi</th>
 						</tr>
 					</thead>
@@ -676,27 +722,40 @@
 											{/if}
 										</td>
 
-										<!-- KOLOM 3: JUMLAH (INPUT NUMBER FORMATED) -->
+										<!-- KOLOM 3: JUMLAH (INPUT NUMBER FORMATED & STRICT VALIDATION) -->
 										<td class="py-1 px-2 border-r border-border bg-card">
 											<div class="relative flex items-center">
 												<span class="absolute left-2.5 text-foreground/40 font-mono text-[11px] select-none">Rp</span>
 												<input
 													type="text"
 													inputmode="numeric"
+													pattern="[0-9]*"
 													class="w-full text-right font-mono font-semibold py-1.5 pl-8 pr-2.5 bg-secondary/30 hover:bg-secondary/50 focus:bg-background border border-transparent focus:border-primary rounded-lg text-xs text-foreground focus:outline-none transition-all"
-													value={Number(cell.nominalJumlah || 0).toLocaleString('id-ID')}
-													oninput={(e) => updateCell(pos.id, 'nominalJumlah', e.currentTarget.value)}
-													onpaste={(e) => handleCellPaste(e, globalIndex)}
+													value={cell.nominalJumlah ? Number(cell.nominalJumlah).toLocaleString('id-ID') : ''}
+													onkeydown={handleNumberKeyDown}
+													oninput={(e) => updateCell(pos.id, 'nominalJumlah', e.currentTarget)}
+													onpaste={(e) => handleCellPaste(e, globalIndex, 'nominalJumlah')}
 													placeholder="0"
 												/>
 											</div>
 										</td>
 
-										<!-- KOLOM 4: KETERANGAN (RIIL BAYAR - READ ONLY DI TEMPLATE) -->
-										<td class="py-2 px-3 border-r border-border bg-secondary/15 text-right font-mono">
-											<span class="inline-flex items-center text-[11px] text-foreground/45 italic bg-secondary/40 px-2 py-0.5 rounded-md border border-border/40 select-none">
-												Diisi Jamaah
-											</span>
+										<!-- KOLOM 4: KETERANGAN (INPUT NUMBER FORMATED & STRICT VALIDATION) -->
+										<td class="py-1 px-2 border-r border-border bg-card">
+											<div class="relative flex items-center">
+												<span class="absolute left-2.5 text-foreground/40 font-mono text-[11px] select-none">Rp</span>
+												<input
+													type="text"
+													inputmode="numeric"
+													pattern="[0-9]*"
+													class="w-full text-right font-mono font-semibold py-1.5 pl-8 pr-2.5 bg-secondary/30 hover:bg-secondary/50 focus:bg-background border border-transparent focus:border-primary rounded-lg text-xs text-foreground focus:outline-none transition-all"
+													value={cell.nominalKeterangan ? Number(cell.nominalKeterangan).toLocaleString('id-ID') : ''}
+													onkeydown={handleNumberKeyDown}
+													oninput={(e) => updateCell(pos.id, 'nominalKeterangan', e.currentTarget)}
+													onpaste={(e) => handleCellPaste(e, globalIndex, 'nominalKeterangan')}
+													placeholder="0"
+												/>
+											</div>
 										</td>
 
 										<!-- KOLOM 5: AKSI (HAPUS URAIAN DENGAN MODAL ATAU REALTIME DRAFT) -->
@@ -736,7 +795,7 @@
 							{/if}
 						{/each}
 
-						<!-- BARIS TOTAL PALING BAWAH (PERSIS SEPERTI GAMBAR) -->
+						<!-- BARIS TOTAL PALING BAWAH -->
 						<tr class="bg-secondary/70 border-t-2 border-border font-bold text-foreground">
 							<td class="py-3 px-3 text-center border-r border-border"></td>
 							<td class="py-3 px-4 border-r border-border tracking-wider uppercase font-extrabold text-sm text-center">
@@ -745,10 +804,10 @@
 							<td class="py-3 px-4 border-r border-border text-right font-mono font-extrabold text-sm text-primary">
 								{formatRupiah(totalJumlah)}
 							</td>
-							<td class="py-3 px-4 border-r border-border text-right font-mono text-xs text-foreground/45 italic select-none">
-								Diisi Jamaah
+							<td class="py-3 px-4 border-r border-border text-right font-mono font-extrabold text-sm text-primary">
+								{formatRupiah(totalKeterangan)}
 							</td>
-							<td class="py-3 px-3"></td>
+							<td class="py-3 px-3 text-center border-l border-border"></td>
 						</tr>
 					</tbody>
 				</table>
