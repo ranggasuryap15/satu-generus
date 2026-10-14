@@ -1,9 +1,9 @@
 <!--
   @file DESIGN.md
-  @purpose Pedoman desain arsitektur UI/UX, design tokens, palet warna Cool Midnight & Vibrant Jade, tata letak, dan standar interaksi Satu Generus
+  @purpose Pedoman desain arsitektur UI/UX, prinsip Zero Over-Information / Visual-First, design tokens, palet warna Cool Midnight & Vibrant Jade, tata letak, dan standar interaksi Satu Generus
   @usedBy Developer tim, UI components, styling Tailwind/CSS
   @dependencies Tailwind CSS, Poppins Font, Svelte UI
-  @publicSections Prinsip Desain Utama, Design Tokens (Tipografi & Palet Warna), Spesifikasi Tata Letak & Navigasi, Standar Interaksi (UX)
+  @publicSections Prinsip Desain Utama, Standar Zero Over-Information, Design Tokens, Spesifikasi Tata Letak & Navigasi, Standar Interaksi (UX)
   @sideEffects Acuan standar styling frontend dan implementasi mode terang/gelap
 -->
 
@@ -11,7 +11,10 @@
 
 ## 1. Prinsip Desain Utama
 
-- **"Show, Don't Tell" (Visual-First):** Hindari paragraf panjang, penjelasan teknis, atau kalimat bertele-tele di antarmuka pengguna. Jika sebuah informasi (seperti validasi lokasi atau status data) bisa diwakili oleh warna, ikon, atau _badge_, gunakan itu.
+- **"Show, Don't Tell" (Visual-First & Zero Over-Information):**
+  - **Hilangkan Teks Sia-sia:** Hindari paragraf panjang, kalimat pembuka yang tidak penting, helper text yang hanya mengulang label, atau instruksi teknis bertele-tele di layar.
+  - **Keberhasilan (Success State):** Saat suatu aksi atau kondisi berhasil, **JANGAN** sertakan rincian panjang kenapa bisa berhasil. Cukup tandai dengan indikator visual (warna hijau Vibrant Jade, ikon centang, badge singkat "Sesuai" / "Tersimpan"). Pengguna hanya perlu tahu bahwa aksinya beres.
+  - **Kegagalan (Failure State):** Saat terjadi kegagalan atau error, cukup beritahu **inti apa yang gagal** secara ringkas, to-the-point, dengan warna peringatan (merah/amber) dan ikon penanda. Berikan tombol aksi penyelesaian instan bila ada (misal: "Pindah Online" saat di luar radius), tanpa instruksi bertumpuk.
 - **Client-Facing (Mobile-First):** UI/UX untuk _client_ difokuskan pada ukuran layar _smartphone_. Aksesibilitas menggunakan zona jempol (_thumb zone_).
 - **Admin-Facing (Desktop-First):** UI/UX untuk admin difokuskan pada visualisasi data luas, tabel, dan analitik di layar besar.
 - **Minimalis & High Legibility:** Penggunaan _whitespace_ yang longgar. Tidak ada elemen dekoratif yang tidak memiliki fungsi. Arahkan mata pengguna ke aksi utama menggunakan warna dan kontras, bukan teks.
@@ -88,13 +91,16 @@ Gantikan teks status yang panjang dengan warna yang merepresentasikan maknanya s
 ## 4. Standar Interaksi (UX) & Validasi Visual
 
 - **Validasi Visual (Ganti Teks dengan UI):**
-  - **DILARANG:** Menulis deskripsi teknis panjang. (Contoh Buruk: _"Lokasi kamu valid karena berada di jarak 45 meter, sedangkan batas toleransinya adalah 100 meter."_)
-  - **DIWAJIBKAN:** Gunakan indikator visual singkat. (Contoh Baik: Ikon _Checkmark_ hijau dengan teks **"Lokasi Sesuai"**).
+  - **DILARANG:** Menulis deskripsi teknis panjang, terutama pada kondisi sukses. (Contoh Buruk: _"Lokasi kamu valid karena berada di jarak 45 meter, sedangkan batas toleransinya adalah 100 meter."_ atau _"Presensi Anda berhasil dicatat karena memenuhi seluruh kriteria kehadiran pengajian."_).
+  - **DIWAJIBKAN:** Gunakan indikator visual singkat. (Contoh Baik: Ikon _Checkmark_ hijau dengan teks **"Lokasi Sesuai"** atau notifikasi **"Presensi Berhasil"**).
+  - **Kondisi Gagal / Error:** Cukup sebutkan apa inti yang gagal (misal: **"Di Luar Jangkauan (~450m)"**, **"Lokasi GPS Belum Aktif"**, atau **"Foto Wajib Diunggah"**). Sertakan tombol jalan keluar langsung (contoh: tombol **[Pindah Online]**) daripada paragraf instruksi.
   - **Tabel/Data Display:** Ganti teks status panjang dengan _Pill/Badge_ berwarna (Kuning untuk "Pending", Hijau untuk "Disetujui"). Sembunyikan detail log waktu/admin di balik interaksi klik/hover.
 - **Feedback Sukses & Error (Toasts vs Alerts):**
-  - Setelah aksi CRUD (tambah/edit/hapus), gunakan _Toast notification_ (notifikasi kecil di sudut layar) yang menghilang dalam 3 detik (contoh: **"Data Tersimpan"**), daripada me-_redirect_ halaman atau memunculkan kotak _alert_ di tengah layar yang harus ditutup manual.
+  - Setelah aksi CRUD (tambah/edit/hapus/presensi), gunakan _Toast notification_ atau banner tipis yang menghilang otomatis (contoh: **"Data Tersimpan"**), tanpa rincian bertele-tele.
   - Validasi error input form harus muncul secara _inline_ di bawah input teks secara _real-time_ (teks merah kecil + border merah), bukan melalui pop-up di akhir pengisian.
-- **Form & Input Guidance:** Jangan letakkan instruksi panjang di bawah form. Gunakan _placeholder_ yang jelas atau ikon _tooltip_ ( ℹ️ ) jika butuh penjelasan ekstra.
+- **Form & Input Guidance (Eliminasi Teks Sia-sia):**
+  - Dilarang meletakkan paragraf instruksi di bawah judul kartu/form jika fungsi form sudah jelas dari label input.
+  - Gunakan _placeholder_ yang jelas atau ikon _tooltip_ ( ℹ️ ) jika butuh penjelasan ekstra.
 - **Upload File:** Setelah gambar/file dipilih, cukup tampilkan _thumbnail_ gambar (_preview_) dengan border hijau tipis dan ikon centang. Tidak perlu teks "Gambar berhasil dipilih dan siap diunggah".
 - **Kondisi Data Kosong (Empty States):** Selalu tampilkan ilustrasi minimalis dengan satu baris teks penjelasan dan tombol _Call to Action_ (misal: "Belum ada data jamaah. [Tambah Data]").
 - **Modal Konfirmasi Destruktif:** Aksi Hapus, Simpan Final, atau _Log Out_ menggunakan modal di tengah layar untuk kedua _device_ (Mobile/Desktop) dengan latar belakang di-blur tipis. Jangan gunakan `window.confirm()`.

@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(app)/presensi/+page.svelte
-  @purpose Halaman presensi mandiri jamaah: Hadir Offline dengan validasi radius lokasi kelompok & kamera, Hadir Online wajib bukti gambar jika lokasi belum sesuai, validasi integritas waktu presensi (wajib di tanggal yang sama dan minimal 1 jam sebelum kegiatan dimulai), dan permohonan Izin/Sakit
+  @purpose Halaman presensi mandiri jamaah (Hadir Offline / Online / Izin / QR) dengan standar Zero Over-Information sesuai DESIGN.md: visual-first feedback, eliminasi teks redundant, dan notifikasi to-the-point
   @usedBy Route client '/presensi'
   @dependencies qrcode, @lucide/svelte, $app/forms, $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
   @publicFunctions captureLocation, calculateDistanceMeters, handleFotoChange, resetPresensiForm, openPreviewFoto, closePreviewFoto
-  @sideEffects Mengakses HTML5 Geolocation API, validasi jarak lokasi kelompok, input kamera/galeri, generate QR code personal, dan mengirim form presensi ke server
+  @sideEffects Mengakses HTML5 Geolocation API, input kamera/galeri, generate QR code personal, dan mengirim form presensi ke server
 -->
 <script lang="ts">
 	import { onMount } from 'svelte';
@@ -319,7 +319,7 @@
 	<!-- Notifikasi Pesan Server -->
 	{#if form?.error}
 		<div
-			class="p-3 bg-destructive/10 border border-destructive/20 text-destructive text-xs rounded-xl flex items-center gap-2"
+			class="p-2.5 bg-destructive/10 border border-destructive/20 text-destructive text-xs font-semibold rounded-xl flex items-center gap-2"
 		>
 			<AlertCircle class="w-4 h-4 shrink-0" />
 			<span>{form.error}</span>
@@ -328,10 +328,10 @@
 
 	{#if form?.success}
 		<div
-			class="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs rounded-xl flex items-center gap-2 font-medium"
+			class="p-2.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold rounded-xl flex items-center gap-2"
 		>
 			<CheckCircle2 class="w-4 h-4 shrink-0" />
-			<span>{form.message || 'Presensi Anda berhasil dicatat!'}</span>
+			<span>{form.message || 'Presensi Berhasil'}</span>
 		</div>
 	{/if}
 
@@ -342,9 +342,6 @@
 		<div class="bg-card border border-border rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
 			<div>
 				<h2 class="text-sm font-bold text-foreground">Form Presensi Hadir</h2>
-				<p class="text-[11px] text-foreground/60 mt-0.5">
-					Pilih kriteria kehadiran sesuai lokasi Anda mengikuti kegiatan.
-				</p>
 			</div>
 
 			<form
@@ -447,8 +444,8 @@
 
 				<!-- Pilihan Kriteria: Hadir Offline vs Hadir Online -->
 				<div>
-					<span class="block font-semibold text-sm text-foreground/80 mb-2">Metode Kehadiran *</span>
-					<div class="grid grid-cols-2 gap-3">
+					<span class="block font-semibold text-xs text-foreground/80 mb-2">Metode Kehadiran *</span>
+					<div class="grid grid-cols-2 gap-2.5">
 						<!-- Kartu Opsi Hadir Offline -->
 						<button
 							type="button"
@@ -456,164 +453,132 @@
 								metodeKehadiran = 'offline';
 								if (!latitude) captureLocation();
 							}}
-							class="p-3.5 rounded-xl border text-left transition-all cursor-pointer {metodeKehadiran ===
+							class="p-3 rounded-xl border text-left transition-all cursor-pointer {metodeKehadiran ===
 							'offline'
 								? 'border-primary bg-primary/10 ring-1 ring-primary'
 								: 'border-border bg-card hover:bg-secondary/40'}"
 						>
 							<div class="flex items-center justify-between gap-1">
-								<div class="flex items-center gap-1.5 font-bold text-sm text-foreground">
-									<MapPin class="w-4 h-4 text-primary" />
-									<span>Hadir Offline</span>
+								<div class="flex items-center gap-1.5 font-bold text-xs text-foreground">
+									<MapPin class="w-4 h-4 text-primary shrink-0" />
+									<span>Offline (Lokasi)</span>
 								</div>
 								{#if isWithinRadius === false}
-									<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-destructive/10 text-destructive">
-										Luar Radius
+									<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-destructive/10 text-destructive">
+										Luar
 									</span>
 								{:else if isWithinRadius === true}
-									<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-600">
+									<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
 										Sesuai
 									</span>
 								{/if}
 							</div>
-							<p class="text-xs text-foreground/60 mt-1.5 leading-relaxed">
-								{#if !selectedJadwal?.latitudeVenue}
-									<span class="text-amber-600 dark:text-amber-400 font-semibold">Lokasi kelompok belum diset. Wajib gunakan gambar online.</span>
-								{:else}
-									Di lokasi pengajian. <strong>Wajib lokasi valid & foto kamera</strong>.
-								{/if}
-							</p>
 						</button>
 
 						<!-- Kartu Opsi Hadir Online -->
 						<button
 							type="button"
 							onclick={() => (metodeKehadiran = 'online')}
-							class="p-3.5 rounded-xl border text-left transition-all cursor-pointer {metodeKehadiran ===
+							class="p-3 rounded-xl border text-left transition-all cursor-pointer {metodeKehadiran ===
 							'online'
 								? 'border-blue-500 bg-blue-500/10 ring-1 ring-blue-500'
 								: 'border-border bg-card hover:bg-secondary/40'}"
 						>
 							<div class="flex items-center justify-between gap-1">
-								<div class="flex items-center gap-1.5 font-bold text-sm text-foreground">
-									<Globe class="w-4 h-4 text-blue-500" />
-									<span>Hadir Online</span>
+								<div class="flex items-center gap-1.5 font-bold text-xs text-foreground">
+									<Globe class="w-4 h-4 text-blue-500 shrink-0" />
+									<span>Online (Daring)</span>
 								</div>
-								<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-500/10 text-blue-600">
-									Wajib Foto
+								<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400">
+									Bukti SS
 								</span>
 							</div>
-							<p class="text-xs text-foreground/60 mt-1.5 leading-relaxed">
-								Daring / di luar lokasi. <strong>Wajib foto bukti gambar</strong>.
-							</p>
 						</button>
 					</div>
 				</div>
 
 				<!-- Bagian Deteksi Lokasi GPS (Khusus Hadir Offline) -->
 				{#if metodeKehadiran === 'offline'}
-					<div class="p-3.5 rounded-xl bg-secondary/30 border border-border space-y-2.5">
+					<div class="p-3 rounded-xl bg-secondary/30 border border-border space-y-2">
 						<div class="flex items-center justify-between">
-							<span class="font-semibold text-foreground flex items-center gap-1.5 text-xs sm:text-sm">
-								<MapPin class="w-4 h-4 text-primary" />
-								<span>Titik Koordinat Lokasi Anda (Wajib)</span>
+							<span class="font-semibold text-foreground flex items-center gap-1.5 text-xs">
+								<MapPin class="w-3.5 h-3.5 text-primary" />
+								<span>Lokasi Anda</span>
 							</span>
 							<button
 								type="button"
 								onclick={captureLocation}
 								disabled={isLocating}
-								class="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline cursor-pointer"
+								class="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline cursor-pointer"
 							>
 								{#if isLocating}
-									<Loader2 class="w-3.5 h-3.5 animate-spin" />
+									<Loader2 class="w-3 h-3 animate-spin" />
 									<span>Mencari...</span>
 								{:else}
-									<RefreshCw class="w-3.5 h-3.5" />
+									<RefreshCw class="w-3 h-3" />
 									<span>Deteksi Ulang</span>
 								{/if}
 							</button>
 						</div>
 
 						{#if !selectedJadwal?.latitudeVenue}
-							<div class="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-200 text-xs sm:text-sm space-y-2">
-								<div class="flex items-center gap-1.5 font-bold">
-									<AlertCircle class="w-4 h-4 text-amber-600 shrink-0" />
-									<span>Titik Lokasi Kelompok Belum Didaftarkan</span>
-								</div>
-								<p class="text-xs text-foreground/75 leading-relaxed">
-									Pengurus belum menentukan titik koordinat kelompok ini. Anda tidak dapat presensi menggunakan lokasi, dan <strong>wajib menggunakan presensi Hadir Online dengan gambar</strong>.
-								</p>
+							<div class="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs flex items-center justify-between gap-2">
+								<span class="flex items-center gap-1.5 font-medium">
+									<AlertCircle class="w-4 h-4 shrink-0" />
+									Titik lokasi kelompok belum diset
+								</span>
 								<button
 									type="button"
 									onclick={() => (metodeKehadiran = 'online')}
-									class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs inline-flex items-center gap-1.5 cursor-pointer"
+									class="px-2 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold text-[11px] shrink-0 cursor-pointer"
 								>
-									<Globe class="w-3.5 h-3.5" />
-									<span>Beralih ke Hadir Online (Wajib Gambar) &rarr;</span>
+									Pindah Online
 								</button>
 							</div>
 						{:else if latitude && longitude}
-							<div class="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs sm:text-sm space-y-2.5">
-								<div class="flex items-center justify-between">
-									<div class="font-mono text-xs">
-										<span>Lat: {latitude}, Lng: {longitude}</span>
-										{#if accuracy}
-											<span class="block text-xs text-foreground/60">
-												Akurasi GPS: &plusmn;{accuracy} meter
-											</span>
-										{/if}
+							{#if distanceToVenue !== null}
+								{#if isWithinRadius}
+									<div class="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 flex items-center justify-between text-xs font-semibold">
+										<span class="flex items-center gap-1.5">
+											<CheckCircle2 class="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+											Lokasi Sesuai
+										</span>
+										<span class="font-mono text-[11px] text-foreground/60">~{distanceToVenue}m</span>
 									</div>
-									<CheckCircle2 class="w-4 h-4 text-emerald-600 shrink-0" />
-								</div>
-
-								{#if distanceToVenue !== null}
-									<div class="pt-2 border-t border-emerald-500/20 text-xs">
-										{#if isWithinRadius}
-											<div class="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300 font-medium">
-												<CheckCircle2 class="w-4 h-4 text-emerald-600 shrink-0" />
-												<span>
-													Lokasi Sesuai! Anda berada dalam radius kelompok (~{distanceToVenue} m dari lokasi, batas &plusmn;{selectedJadwal?.radiusMeterVenue || 100} m).
-												</span>
-											</div>
-										{:else}
-											<div class="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive space-y-2">
-												<div class="flex items-center gap-1.5 font-bold">
-													<AlertCircle class="w-4 h-4 shrink-0" />
-													<span>Lokasi Tidak Sesuai (~{distanceToVenue} m dari lokasi kelompok)</span>
-												</div>
-												<p class="text-xs text-foreground/75 leading-relaxed">
-													Anda berada di luar batas toleransi (&plusmn;{selectedJadwal?.radiusMeterVenue || 100} m). Anda <strong>tidak dapat presensi menggunakan lokasi</strong>, melainkan <strong>wajib menggunakan presensi Hadir Online dengan bukti gambar</strong>.
-												</p>
-												<button
-													type="button"
-													onclick={() => (metodeKehadiran = 'online')}
-													class="mt-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs inline-flex items-center gap-1.5 cursor-pointer"
-												>
-													<Globe class="w-3.5 h-3.5" />
-													<span>Beralih ke Hadir Online (Wajib Gambar) &rarr;</span>
-												</button>
-											</div>
-										{/if}
+								{:else}
+									<div class="p-2.5 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive flex items-center justify-between gap-2 text-xs font-semibold">
+										<span class="flex items-center gap-1.5 min-w-0">
+											<AlertCircle class="w-4 h-4 shrink-0" />
+											<span class="truncate">Di Luar Jangkauan (~{distanceToVenue}m)</span>
+										</span>
+										<button
+											type="button"
+											onclick={() => (metodeKehadiran = 'online')}
+											class="px-2.5 py-1 rounded bg-destructive text-destructive-foreground hover:bg-destructive/90 text-[11px] font-bold shrink-0 cursor-pointer"
+										>
+											Pindah Online
+										</button>
 									</div>
 								{/if}
-							</div>
+							{:else}
+								<div class="p-2 rounded-lg bg-secondary text-foreground/70 text-xs flex items-center gap-1.5 font-mono">
+									<span>Lat: {latitude}, Lng: {longitude}</span>
+								</div>
+							{/if}
 						{:else}
-							<div class="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-200 text-xs sm:text-sm">
+							<div class="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs flex items-center gap-1.5 font-medium">
 								{#if isLocating}
-									<p class="flex items-center gap-1.5">
-										<Loader2 class="w-4 h-4 animate-spin" />
-										<span>Sedang mengambil titik koordinat GPS ponsel...</span>
-									</p>
+									<Loader2 class="w-4 h-4 animate-spin shrink-0" />
+									<span>Mendeteksi GPS ponsel...</span>
 								{:else}
-									<p class="leading-relaxed text-xs">
-										Lokasi belum terdeteksi. Pastikan GPS aktif dan tekan tombol <strong>Deteksi Ulang</strong>.
-									</p>
+									<AlertCircle class="w-4 h-4 shrink-0" />
+									<span>Lokasi GPS belum terdeteksi</span>
 								{/if}
 							</div>
 						{/if}
 
 						{#if locationError}
-							<p class="text-[10.5px] text-destructive leading-tight">
+							<p class="text-[11px] text-destructive leading-tight font-medium">
 								{locationError}
 							</p>
 						{/if}
@@ -652,7 +617,7 @@
 					{:else}
 						<!-- Input Ambil Foto -->
 						<label
-							class="border-2 border-dashed border-border rounded-xl p-4 text-center cursor-pointer hover:border-primary/60 transition-colors flex flex-col items-center justify-center gap-2 bg-card"
+							class="border-2 border-dashed border-border rounded-xl p-3.5 text-center cursor-pointer hover:border-primary/60 transition-colors flex flex-col items-center justify-center gap-1.5 bg-card"
 						>
 							{#if metodeKehadiran === 'offline'}
 								<input
@@ -662,15 +627,10 @@
 									onchange={(e) => handleFotoChange(e, 'hadir')}
 									class="hidden"
 								/>
-								<div class="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
-									<Camera class="w-5 h-5" />
+								<div class="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+									<Camera class="w-4 h-4" />
 								</div>
-								<div>
-									<span class="text-xs font-bold text-primary">Buka Kamera & Ambil Foto</span>
-									<p class="text-[10px] text-foreground/50 mt-0.5">
-										Wajib foto langsung diri Anda di lokasi pengajian
-									</p>
-								</div>
+								<span class="text-xs font-bold text-primary">Ambil Foto Kamera</span>
 							{:else}
 								<input
 									type="file"
@@ -678,17 +638,12 @@
 									onchange={(e) => handleFotoChange(e, 'hadir')}
 									class="hidden"
 								/>
-								<div class="w-10 h-10 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center">
-									<Upload class="w-5 h-5" />
+								<div class="w-9 h-9 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center">
+									<Upload class="w-4 h-4" />
 								</div>
-								<div>
-									<span class="text-xs font-bold text-blue-600 dark:text-blue-400">
-										Unggah Screenshot / Foto SDC
-									</span>
-									<p class="text-[10px] text-foreground/50 mt-0.5">
-										Pilih dari galeri foto tangkapan layar Zoom/SDC Anda
-									</p>
-								</div>
+								<span class="text-xs font-bold text-blue-600 dark:text-blue-400">
+									Unggah Bukti / Screenshot
+								</span>
 							{/if}
 						</label>
 					{/if}
@@ -697,32 +652,32 @@
 				<!-- Tombol Submit Presensi -->
 				{#if selectedJadwal && selectedJadwal.bisaPresensi === false}
 					<div
-						class="w-full py-3 px-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs font-semibold text-center flex items-center justify-center gap-2"
+						class="w-full py-2.5 px-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs font-semibold text-center flex items-center justify-center gap-2"
 					>
 						<Clock class="w-4 h-4 shrink-0" />
-						<span>{selectedJadwal.pesanStatusWaktu || 'Presensi belum dibuka untuk kegiatan ini'}</span>
+						<span>{selectedJadwal.pesanStatusWaktu || 'Presensi belum dibuka'}</span>
 					</div>
 				{:else if metodeKehadiran === 'offline' && isWithinRadius === false}
 					<button
 						type="button"
 						onclick={() => (metodeKehadiran = 'online')}
-						class="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+						class="w-full py-2.5 rounded-xl bg-destructive hover:bg-destructive/90 text-destructive-foreground text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
 					>
 						<Globe class="w-4 h-4" />
-						<span>Lokasi Di Luar Radius — Beralih ke Hadir Online (Wajib Gambar)</span>
+						<span>Di Luar Jangkauan — Beralih ke Online</span>
 					</button>
 				{:else}
 					<button
 						type="submit"
 						disabled={isSubmitting || (metodeKehadiran === 'offline' && (!isWithinRadius || !latitude || !selectedJadwal?.latitudeVenue))}
-						class="w-full py-3 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold transition-all shadow-md active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+						class="w-full py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold transition-all shadow-xs active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
 					>
 						{#if isSubmitting}
 							<Loader2 class="w-4 h-4 animate-spin" />
-							<span>Mengirim Presensi...</span>
+							<span>Mengirim...</span>
 						{:else}
 							<CheckCircle2 class="w-4 h-4" />
-							<span>Kirim Presensi Hadir Sekarang</span>
+							<span>Kirim Presensi</span>
 						{/if}
 					</button>
 				{/if}
@@ -736,9 +691,6 @@
 		<div class="bg-card border border-border rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
 			<div>
 				<h2 class="text-sm font-bold text-foreground">Form Permohonan Izin / Sakit</h2>
-				<p class="text-[11px] text-foreground/60 mt-0.5">
-					Permohonan izin akan diverifikasi dan membutuhkan <strong>persetujuan (approval)</strong> dari admin.
-				</p>
 			</div>
 
 			<form
@@ -862,26 +814,18 @@
 					{/if}
 				</div>
 
-				<!-- Info Approval Admin -->
-				<div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-900 dark:text-amber-200 text-[11px] flex items-center gap-2">
-					<ShieldAlert class="w-4 h-4 shrink-0 text-amber-600" />
-					<span>
-						Status akan berstatus <strong>Menunggu Persetujuan</strong> sampai disetujui oleh admin pengajian.
-					</span>
-				</div>
-
 				<!-- Submit Button -->
 				<button
 					type="submit"
 					disabled={isSubmitting}
-					class="w-full py-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-all shadow-md active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+					class="w-full py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-all shadow-xs active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
 				>
 					{#if isSubmitting}
 						<Loader2 class="w-4 h-4 animate-spin" />
-						<span>Mengajukan Permohonan...</span>
+						<span>Mengirim...</span>
 					{:else}
 						<FileText class="w-4 h-4" />
-						<span>Ajukan Permohonan Izin</span>
+						<span>Kirim Permohonan</span>
 					{/if}
 				</button>
 			</form>
@@ -1004,8 +948,8 @@
 				{/if}
 			</div>
 
-			<p class="text-xs sm:text-sm text-foreground/60 max-w-xs mx-auto leading-relaxed">
-				Tunjukkan kartu QR ini saat berada di tempat pengajian apabila pengurus kelompok menggunakan pemindai QR langsung.
+			<p class="text-xs text-foreground/50 max-w-xs mx-auto">
+				Tunjukkan ke pengurus untuk dipindai.
 			</p>
 		</div>
 	{/if}

@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(app)/presensi/+page.server.ts
- * @purpose Memuat jadwal pengajian dengan fallback lokasi kelompok, QR token, dan validasi radius lokasi GPS offline / wajib bukti gambar jika di luar radius, serta validasi integritas waktu presensi (wajib di tanggal yang sama dan minimal 1 jam sebelum kegiatan dimulai)
+ * @purpose Memuat jadwal pengajian dengan fallback lokasi kelompok, QR token, validasi radius GPS, serta mutasi presensi mandiri & permohonan izin dengan respon feedback ringkas bebas over-information sesuai DESIGN.md
  * @usedBy src/routes/(app)/presensi/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm, src/lib/server/upload, src/lib/presensi-waktu
  * @publicFunctions load, actions.presensiMandiri, actions.ajukanIzin
@@ -208,13 +208,13 @@ export const actions: Actions = {
 
 			if (distanceMeters > targetRadius) {
 				return fail(400, {
-					error: `Lokasi Anda berada di luar area kelompok (~${distanceMeters}m dari lokasi, batas toleransi ±${targetRadius}m). Anda tidak dapat presensi menggunakan lokasi! Silakan gunakan metode Hadir Online dengan WAJIB melampirkan foto bukti gambar.`
+					error: `Di luar radius lokasi kelompok (~${distanceMeters}m). Silakan beralih ke Hadir Online.`
 				});
 			}
 
 			if ((!fotoFile || (fotoFile instanceof File && fotoFile.size === 0)) && !fotoBase64) {
 				return fail(400, {
-					error: 'Presensi Hadir Offline wajib menyertakan foto langsung dari kamera.'
+					error: 'Wajib mengambil foto kamera di lokasi.'
 				});
 			}
 		}
@@ -223,7 +223,7 @@ export const actions: Actions = {
 		if (metode === 'online') {
 			if ((!fotoFile || (fotoFile instanceof File && fotoFile.size === 0)) && !fotoBase64) {
 				return fail(400, {
-					error: 'Presensi Hadir Online wajib menyertakan foto bukti (kamera atau screenshot Zoom/SDC).'
+					error: 'Wajib mengunggah foto bukti / screenshot.'
 				});
 			}
 		}
@@ -298,7 +298,7 @@ export const actions: Actions = {
 
 		return {
 			success: true,
-			message: `Presensi Hadir ${metode === 'offline' ? 'Offline' : 'Online'} berhasil dicatat!`
+			message: 'Presensi Berhasil'
 		};
 	},
 
@@ -391,7 +391,7 @@ export const actions: Actions = {
 
 		return {
 			success: true,
-			message: 'Permohonan izin berhasil diajukan dan sedang menunggu persetujuan admin!'
+			message: 'Permohonan Terkirim'
 		};
 	}
 };
