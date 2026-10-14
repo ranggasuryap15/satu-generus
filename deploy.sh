@@ -23,9 +23,6 @@ npm ci
 echo "=== Menjalankan Migrasi PostgreSQL ==="
 npm run db:migrate
 
-echo "=== Seeding Data Awal (idempoten, aman diulang) ==="
-npm run db:seed
-
 echo "=== Membangun Aplikasi ==="
 npm run build
 
