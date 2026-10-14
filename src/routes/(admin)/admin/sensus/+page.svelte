@@ -944,9 +944,6 @@
 					</span>
 				{/if}
 			</div>
-			<p class="text-xs text-foreground/60 mt-0.5">
-				Kelola data kependudukan jamaah terenkripsi AES-256-GCM sesuai cakupan wewenang administratif Anda.
-			</p>
 		</div>
 
 		<div class="flex items-center gap-2">
@@ -979,15 +976,15 @@
 
 	<!-- Notifikasi Feedback Server Action -->
 	{#if form?.error}
-		<div class="p-3.5 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-center gap-2">
-			<AlertCircle class="w-4 h-4 shrink-0" />
-			<span>{form.error}</span>
+		<div class="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
+			<AlertCircle class="w-4 h-4 shrink-0 text-rose-500" />
+			<span class="font-semibold">{form.error}</span>
 		</div>
 	{/if}
 	{#if form?.success}
-		<div class="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-2">
-			<CheckCircle2 class="w-4 h-4 shrink-0" />
-			<span>{form.success}</span>
+		<div class="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-2">
+			<CheckCircle2 class="w-4 h-4 shrink-0 text-emerald-500" />
+			<span class="font-bold">{form.success}</span>
 		</div>
 	{/if}
 

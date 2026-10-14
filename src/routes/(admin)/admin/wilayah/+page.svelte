@@ -725,9 +725,6 @@
 				<MapPin class="w-5 h-5 text-primary" />
 				<span>Data Wilayah Jamaah</span>
 			</h1>
-			<p class="text-xs text-foreground/60 mt-0.5">
-				Kelola struktur data wilayah berjenjang: Daerah &rarr; Desa &rarr; Kelompok &rarr; Sub-Kelompok.
-			</p>
 		</div>
 
 		<div class="flex items-center gap-2 flex-wrap">
@@ -774,16 +771,17 @@
 	<!-- Notifikasi Feedback Form -->
 	{#if form?.error}
 		<div
-			class="p-3 bg-destructive/10 border border-destructive/20 text-destructive text-xs rounded-xl flex items-center gap-2"
+			class="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs rounded-xl flex items-center gap-2"
 		>
-			<span>{form.error}</span>
+			<span class="font-semibold">{form.error}</span>
 		</div>
 	{/if}
 	{#if form?.success}
 		<div
-			class="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs rounded-xl flex items-center gap-2 font-medium"
+			class="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs rounded-xl flex items-center gap-2 font-bold"
 		>
-			<span>{form.message || 'Data wilayah berhasil disimpan ke sistem.'}</span>
+			<CheckCircle2 class="w-4 h-4 shrink-0 text-emerald-500" />
+			<span>{form.message || 'Data Wilayah Tersimpan'}</span>
 		</div>
 	{/if}
 

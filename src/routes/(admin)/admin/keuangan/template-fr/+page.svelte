@@ -461,9 +461,6 @@
 					<h1 class="text-xl font-bold tracking-tight text-foreground">
 						Spreadsheet Template FR
 					</h1>
-					<p class="text-xs text-foreground/60 mt-0.5">
-						Lembar kerja 4 kolom fleksibel untuk pengaturan tarif minimum dan riil bayar per kelompok
-					</p>
 				</div>
 			</div>
 		</div>
@@ -504,15 +501,15 @@
 
 	<!-- ALERT FEEDBACK -->
 	{#if form?.error}
-		<div class="bg-destructive/10 border border-destructive/20 text-destructive text-xs p-3.5 rounded-xl flex items-center gap-2.5">
-			<AlertCircle class="w-4 h-4 shrink-0" />
-			<span>{form.error}</span>
+		<div class="bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs p-3 rounded-xl flex items-center gap-2.5">
+			<AlertCircle class="w-4 h-4 shrink-0 text-rose-500" />
+			<span class="font-semibold">{form.error}</span>
 		</div>
 	{/if}
 	{#if form?.message}
-		<div class="bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs p-3.5 rounded-xl flex items-center gap-2.5">
-			<Check class="w-4 h-4 shrink-0" />
-			<span>{form.message}</span>
+		<div class="bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs p-3 rounded-xl flex items-center gap-2.5">
+			<Check class="w-4 h-4 shrink-0 text-emerald-500" />
+			<span class="font-bold">{form.message}</span>
 		</div>
 	{/if}
 
@@ -537,9 +534,6 @@
 						<Layers class="w-4 h-4 text-primary" />
 						Daftar Group Lembar Kerja
 					</span>
-					<p class="text-[11px] text-foreground/60 mt-0.5">
-						KU bisa membuat beberapa lembar tarif berbeda (misal Group A, Group B) dan menduplikatnya dengan cepat.
-					</p>
 				</div>
 
 				<div class="flex items-center gap-2">

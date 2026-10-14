@@ -344,9 +344,6 @@
 					Jadwal Pengajian
 				</h1>
 			</div>
-			<p class="text-xs text-foreground/60 leading-relaxed">
-				Kelola jadwal rutin pengajian, rincian materi, jam pelaksanaan wajib, override mendadak, serta broadcast pengingat WhatsApp.
-			</p>
 		</div>
 
 		<!-- Scope Role Badge -->
@@ -365,15 +362,15 @@
 
 	<!-- Flash Feedback / Alert Message -->
 	{#if form?.error}
-		<div class="flex items-start gap-2.5 p-3.5 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs">
-			<AlertCircle class="w-4 h-4 shrink-0 mt-0.5" />
-			<span>{form.error}</span>
+		<div class="flex items-center gap-2 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs">
+			<AlertCircle class="w-4 h-4 shrink-0 text-rose-500" />
+			<span class="font-semibold">{form.error}</span>
 		</div>
 	{/if}
 	{#if form?.message}
-		<div class="flex items-start gap-2.5 p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-medium">
-			<CheckCircle2 class="w-4 h-4 shrink-0 mt-0.5 text-emerald-600" />
-			<span>{form.message}</span>
+		<div class="flex items-center gap-2 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs">
+			<CheckCircle2 class="w-4 h-4 shrink-0 text-emerald-500" />
+			<span class="font-bold">{form.message}</span>
 		</div>
 	{/if}
 
@@ -412,13 +409,10 @@
 			<!-- Bar Pemilihan Desa jika memiliki multi desa (Dropdown Search untuk Superadmin & Admin Daerah) -->
 			{#if data.desaList.length > 1}
 				<div class="bg-card border border-border p-3.5 sm:p-4 rounded-xl shadow-xs space-y-2">
-					<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+					<div class="flex items-center justify-between gap-2">
 						<label for="desaSelect" class="text-xs font-bold text-foreground">
-							Pilih Desa yang Dikelola:
+							Pilih Desa:
 						</label>
-						<span class="text-[11px] text-foreground/60">
-							Sebagai admin {data.adminScope?.level ?? ''}, Anda dapat melihat dan mengatur jadwal pengajian desa di scope Anda.
-						</span>
 					</div>
 
 					<div class="max-w-md">

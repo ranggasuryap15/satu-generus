@@ -615,9 +615,6 @@
 					<Users class="w-5 h-5 text-primary" />
 					<span>Batch Insert Sensus Jamaah</span>
 				</h1>
-				<p class="text-xs text-foreground/60">
-					Grouping terikat per Kartu Keluarga (KK), dan satu baris mandiri praktis untuk jamaah tanpa KK / perantau.
-				</p>
 			</div>
 		</div>
 
@@ -734,11 +731,9 @@
 			class="flex items-center justify-between p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs rounded-xl"
 		>
 			<div class="flex items-center gap-2">
-				<CheckCircle2 class="w-4 h-4 shrink-0" />
-				<span>
-					Berhasil menyimpan <strong>{form.summary?.totalJiwa}</strong> jiwa ke dalam
-					<strong>{form.summary?.totalKeluarga}</strong> keluarga (dan
-					<strong>{form.summary?.totalAkun}</strong> akun login)!
+				<CheckCircle2 class="w-4 h-4 shrink-0 text-emerald-500" />
+				<span class="font-bold">
+					{form.summary?.totalJiwa} Jiwa Tersimpan
 				</span>
 			</div>
 			<a

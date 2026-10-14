@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(app)/profil/+page.server.ts
- * @purpose Memuat informasi profil pengguna dan server action untuk update profil (nama, email) serta ganti password
+ * @purpose Memuat informasi profil pengguna dan server action untuk update profil serta ganti password dengan respon ringkas bebas over-information sesuai DESIGN.md
  * @usedBy src/routes/(app)/profil/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm, src/lib/server/auth
  * @publicFunctions load, actions.updateProfile, actions.updatePassword
@@ -86,7 +86,7 @@ export const actions: Actions = {
 		}
 
 		return {
-			profileSuccess: 'Profil berhasil diperbarui.'
+			profileSuccess: 'Profil Tersimpan'
 		};
 	},
 
@@ -153,7 +153,7 @@ export const actions: Actions = {
 		}
 
 		return {
-			passwordSuccess: 'Kata sandi berhasil diperbarui.'
+			passwordSuccess: 'Kata Sandi Diperbarui'
 		};
 	}
 };

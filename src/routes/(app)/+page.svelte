@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(app)/+page.svelte
-  @purpose Halaman beranda client/jamaah (Mobile-First) dengan launcher Quick Access 5 item (Presensi, Isrun/FR, Keluarga, SI-PPG, dan Lainnya), pintasan Infaq & Shodaqoh, jadwal pengajian, dan modal ekosistem aplikasi
+  @purpose Halaman beranda client/jamaah (Mobile-First) dengan standar Zero Over-Information: launcher Quick Access, jadwal pengajian, dan modal ekosistem aplikasi
   @usedBy Route utama client '/'
   @dependencies @lucide/svelte, $lib/utils (formatDateDDMMYYYY), $lib/jadwal (formatDateIndoFull), Svelte 5 Runes
   @publicFunctions openAppDetail, closeModals
@@ -64,9 +64,6 @@
 				{data.kelompokNama}
 			</span>
 		</div>
-		<p class="text-sm text-foreground/70 mt-2 leading-relaxed">
-			Akses layanan sensus keluarga, presensi kegiatan pengajian, dan ekosistem aplikasi generus dalam satu genggaman.
-		</p>
 	</section>
 
 	<!-- Akses Cepat Aplikasi & Layanan (Quick Access Launcher) -->
@@ -171,9 +168,6 @@
 						<span>Infaq & Shodaqoh Wilayah</span>
 						<span class="px-1.5 py-0.2 rounded-md bg-teal-500/20 text-teal-700 dark:text-teal-300 text-[9px] font-bold">QRIS & Bank</span>
 					</h3>
-					<p class="text-[11px] text-foreground/60 mt-0.5 line-clamp-1">
-						Salurkan shodaqoh kelompok & kirim bukti transfer secara mudah
-					</p>
 				</div>
 			</div>
 			<div class="w-7 h-7 rounded-lg bg-card border border-border flex items-center justify-center text-foreground/50 group-hover:text-teal-600 group-hover:translate-x-0.5 transition-all shrink-0">

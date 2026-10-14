@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(app)/sensus/+page.svelte
-  @purpose Tampilan status dan rincian Kartu Keluarga serta Jamaah Mandiri/Perantau dengan fitur unmasking, ubah data domisili, input & validasi nomor HP numerik (wajib jika punya akun, opsional jika tidak), penambahan/edit/hapus anggota ke KK sendiri dengan retensi scroll (mencegah jumping ke atas)
+  @purpose Tampilan status dan rincian Kartu Keluarga/Jamaah Mandiri dengan standar Zero Over-Information: feedback server padat, visual unmasking, dan retensi scroll
   @usedBy Route client '/sensus'
   @dependencies @lucide/svelte, $app/forms (enhance), $app/state (page), $lib/components/DateInput.svelte, $lib/utils (formatDateDDMMYYYY), $lib/keepScroll.ts (keepScrollSubmit), Svelte 5 Runes
   @publicFunctions toggleKk, copyKk, toggleNik, copyNik, openEditKk, closeEditKkModal, openEditAnggota, closeEditAnggotaModal, openTambahAnggota, closeTambahAnggotaModal
@@ -282,11 +282,10 @@
 	<title>Sensus Keluarga - Satu Generus</title>
 </svelte:head>
 
-<div class="space-y-5 pb-8">
+<div class="space-y-4 pb-8">
 	<div class="flex items-center justify-between">
 		<div>
-			<h2 class="text-lg font-bold text-foreground tracking-tight">Sensus Keluarga</h2>
-			<p class="text-xs text-foreground/60">Data kependudukan & keanggotaan jamaah</p>
+			<h2 class="text-base sm:text-lg font-bold text-foreground tracking-tight">Sensus Keluarga</h2>
 		</div>
 
 		{#if data.hasKeluarga}
@@ -296,7 +295,7 @@
 				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all shadow-sm"
 			>
 				<Plus class="w-3.5 h-3.5" />
-				<span>Tambah Sensus</span>
+				<span>Tambah Anggota</span>
 			</button>
 		{:else}
 			<a
@@ -309,53 +308,17 @@
 		{/if}
 	</div>
 
-	<!-- Notifikasi Feedback Server Actions -->
-	{#if form?.successKeluarga}
-		<div class="p-3.5 bg-primary/10 border border-primary/20 text-primary text-xs rounded-xl flex items-center gap-2">
+	<!-- Notifikasi Feedback Server Actions Ringkas -->
+	{#if form?.successKeluarga || form?.successAnggota || form?.successTambahAnggota || form?.successHapusAnggota}
+		<div class="p-2.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold rounded-xl flex items-center gap-2">
 			<CheckCircle class="w-4 h-4 shrink-0" />
-			<span>{form.successKeluarga}</span>
+			<span>{form.successKeluarga || form.successAnggota || form.successTambahAnggota || form.successHapusAnggota}</span>
 		</div>
 	{/if}
-	{#if form?.errorKeluarga}
-		<div class="p-3.5 bg-destructive/10 border border-destructive/20 text-destructive text-xs rounded-xl flex items-center gap-2">
+	{#if form?.errorKeluarga || form?.errorAnggota || form?.errorTambahAnggota || form?.errorHapusAnggota}
+		<div class="p-2.5 bg-destructive/10 border border-destructive/20 text-destructive text-xs font-semibold rounded-xl flex items-center gap-2">
 			<AlertCircle class="w-4 h-4 shrink-0" />
-			<span>{form.errorKeluarga}</span>
-		</div>
-	{/if}
-	{#if form?.successAnggota}
-		<div class="p-3.5 bg-primary/10 border border-primary/20 text-primary text-xs rounded-xl flex items-center gap-2">
-			<CheckCircle class="w-4 h-4 shrink-0" />
-			<span>{form.successAnggota}</span>
-		</div>
-	{/if}
-	{#if form?.errorAnggota}
-		<div class="p-3.5 bg-destructive/10 border border-destructive/20 text-destructive text-xs rounded-xl flex items-center gap-2">
-			<AlertCircle class="w-4 h-4 shrink-0" />
-			<span>{form.errorAnggota}</span>
-		</div>
-	{/if}
-	{#if form?.successTambahAnggota}
-		<div class="p-3.5 bg-primary/10 border border-primary/20 text-primary text-xs rounded-xl flex items-center gap-2">
-			<CheckCircle class="w-4 h-4 shrink-0" />
-			<span>{form.successTambahAnggota}</span>
-		</div>
-	{/if}
-	{#if form?.errorTambahAnggota}
-		<div class="p-3.5 bg-destructive/10 border border-destructive/20 text-destructive text-xs rounded-xl flex items-center gap-2">
-			<AlertCircle class="w-4 h-4 shrink-0" />
-			<span>{form.errorTambahAnggota}</span>
-		</div>
-	{/if}
-	{#if form?.successHapusAnggota}
-		<div class="p-3.5 bg-primary/10 border border-primary/20 text-primary text-xs rounded-xl flex items-center gap-2">
-			<CheckCircle class="w-4 h-4 shrink-0" />
-			<span>{form.successHapusAnggota}</span>
-		</div>
-	{/if}
-	{#if form?.errorHapusAnggota}
-		<div class="p-3.5 bg-destructive/10 border border-destructive/20 text-destructive text-xs rounded-xl flex items-center gap-2">
-			<AlertCircle class="w-4 h-4 shrink-0" />
-			<span>{form.errorHapusAnggota}</span>
+			<span>{form.errorKeluarga || form.errorAnggota || form.errorTambahAnggota || form.errorHapusAnggota}</span>
 		</div>
 	{/if}
 

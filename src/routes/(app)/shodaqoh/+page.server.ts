@@ -236,7 +236,7 @@ export const actions: Actions = {
 
 		return {
 			success: true,
-			message: 'Laporan shodaqoh berhasil dikirim dan sedang menunggu verifikasi pengurus.'
+			message: 'Laporan Shodaqoh Terkirim'
 		};
 	}
 };

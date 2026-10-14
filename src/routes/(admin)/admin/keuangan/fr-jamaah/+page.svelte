@@ -295,9 +295,6 @@
 				<HandCoins class="w-6 h-6 text-primary" />
 				<h1 class="text-xl md:text-2xl font-bold text-foreground">FR Jamaah (Wajib Isrun)</h1>
 			</div>
-			<p class="text-xs md:text-sm text-foreground/60 mt-1">
-				Input dan kelola setoran shodaqoh FR bulanan jamaah wajib isrun sesuai data sensus wilayah.
-			</p>
 		</div>
 
 		<!-- Status Wewenang & Shortcut Template FR -->
@@ -330,14 +327,14 @@
 
 	<!-- FEEDBACK NOTIFIKASI -->
 	{#if form?.success}
-		<div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-2 shadow-xs">
-			<Check class="w-4 h-4 shrink-0" />
-			<span>{form.message || 'Perubahan data FR berhasil disimpan ke database.'}</span>
+		<div class="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-2 shadow-xs">
+			<Check class="w-4 h-4 shrink-0 text-emerald-500" />
+			<span class="font-bold">{form.message || 'Data FR Tersimpan'}</span>
 		</div>
 	{:else if form?.error}
-		<div class="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-center gap-2 shadow-xs">
-			<AlertCircle class="w-4 h-4 shrink-0" />
-			<span>{form.error}</span>
+		<div class="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2 shadow-xs">
+			<AlertCircle class="w-4 h-4 shrink-0 text-rose-500" />
+			<span class="font-semibold">{form.error}</span>
 		</div>
 	{/if}
 

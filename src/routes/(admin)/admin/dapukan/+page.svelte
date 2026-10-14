@@ -475,9 +475,6 @@
 	<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
 		<div>
 			<h1 class="text-xl font-bold text-foreground tracking-tight">Manajemen Dapukan & RBAC</h1>
-			<p class="text-xs text-foreground/60 mt-0.5">
-				Kelola struktur dapukan 4S dan dapukan tentatif serta lingkup wewenang administratif pengurus.
-			</p>
 		</div>
 
 		{#if data.canManageDapukan}
@@ -502,13 +499,14 @@
 
 	<!-- Notifikasi Feedback Form -->
 	{#if form?.error}
-		<div class="p-3 bg-destructive/10 border border-destructive/20 text-destructive text-xs rounded-xl flex items-center gap-2">
-			<span>{form.error}</span>
+		<div class="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs rounded-xl flex items-center gap-2">
+			<span class="font-semibold">{form.error}</span>
 		</div>
 	{/if}
 	{#if form?.success}
-		<div class="p-3 bg-primary/10 border border-primary/20 text-primary text-xs rounded-xl flex items-center gap-2 font-medium">
-			<span>Data penugasan pengurus berhasil diperbarui.</span>
+		<div class="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs rounded-xl flex items-center gap-2 font-bold">
+			<ShieldCheck class="w-4 h-4 text-emerald-500 shrink-0" />
+			<span>Dapukan Pengurus Tersimpan</span>
 		</div>
 	{/if}
 

@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(app)/profil/+page.svelte
-  @purpose Halaman profil pengguna dengan fitur update nama, email, ganti kata sandi, pengaturan tema, tombol Quick Install PWA Satu Generus, panduan manual instalasi, dan logout dengan proteksi draf modal
+  @purpose Halaman profil pengguna dengan standar Zero Over-Information sesuai DESIGN.md: update nama, email, ganti kata sandi, pengaturan tema, tombol Quick Install PWA, dan logout
   @usedBy Route client '/profil'
   @dependencies @lucide/svelte, ThemeToggle, PwaInstallGuideModal, $lib/pwa.svelte, $app/forms (enhance)
   @publicFunctions closeProfileModal, closePasswordModal, resetProfileDraft, resetPasswordDraft, isProfileDirty, isPasswordDirty, handleQuickInstall
@@ -158,17 +158,10 @@
 
 <div class="space-y-5 pb-8">
 	<!-- Pesan Feedback Global -->
-	{#if form?.profileSuccess}
-		<div class="p-3.5 rounded-xl bg-primary/10 border border-primary/20 flex items-center gap-2.5 text-xs text-primary font-medium">
+	{#if form?.profileSuccess || form?.passwordSuccess}
+		<div class="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
 			<CheckCircle class="w-4 h-4 shrink-0" />
-			<span>{form.profileSuccess}</span>
-		</div>
-	{/if}
-
-	{#if form?.passwordSuccess}
-		<div class="p-3.5 rounded-xl bg-primary/10 border border-primary/20 flex items-center gap-2.5 text-xs text-primary font-medium">
-			<CheckCircle class="w-4 h-4 shrink-0" />
-			<span>{form.passwordSuccess}</span>
+			<span>{form.profileSuccess || form.passwordSuccess}</span>
 		</div>
 	{/if}
 

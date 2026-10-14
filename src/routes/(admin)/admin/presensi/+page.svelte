@@ -154,9 +154,6 @@
 	<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
 		<div>
 			<h1 class="text-xl font-bold text-foreground tracking-tight">Presensi Kegiatan Pengajian</h1>
-			<p class="text-xs text-foreground/60 mt-0.5">
-				Kelola jadwal kegiatan rutin dan verifikasi kehadiran jamaah via QR scanner atau checklist manual.
-			</p>
 		</div>
 
 		<button

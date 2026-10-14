@@ -195,10 +195,7 @@
 				</div>
 				<div class="min-w-0">
 					<p class="text-xs font-bold text-foreground">
-						Ada {pendingIzinList.length} Permohonan Izin / Sakit Menunggu Persetujuan
-					</p>
-					<p class="text-[11px] text-foreground/60 truncate">
-						Jamaah mengajukan izin/sakit mandiri yang memerlukan verifikasi pengurus.
+						{pendingIzinList.length} Permohonan Izin / Sakit Menunggu Persetujuan
 					</p>
 				</div>
 			</div>

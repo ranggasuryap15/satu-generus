@@ -304,9 +304,6 @@
 						{data.kelompokNama}
 					</span>
 				</div>
-				<p class="text-xs text-foreground/60">
-					Rincian pos kewajiban shodaqoh bulanan jamaah
-				</p>
 			</div>
 		</div>
 
@@ -443,52 +440,39 @@
 
 	<!-- Banner Kunci Data Pasif Jika Sudah Diapprove KU -->
 	{#if isApproved}
-		<div class="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
-			<div class="flex items-start gap-3">
-				<div class="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
-					<Lock class="w-5 h-5" />
-				</div>
-				<div>
-					<div class="flex items-center gap-2">
-						<p class="text-xs sm:text-sm font-bold text-foreground">
-							Setoran Sudah Disetujui KU ({data.transaksiExisting?.statusBayar})
-						</p>
-						<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
-							Data Terkunci
-						</span>
-					</div>
-					<p class="text-xs text-foreground/70 mt-0.5">
-						Setoran bulan ini telah divalidasi oleh KU dan masuk ke kas. Formulir menjadi pasif (read-only) demi keamanan pembukuan.
+		<div class="p-3 sm:p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-3 shadow-xs">
+			<div class="flex items-center gap-2.5">
+				<Lock class="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+				<div class="flex items-center gap-2">
+					<p class="text-xs font-bold text-foreground">
+						Setoran Disetujui KU ({data.transaksiExisting?.statusBayar})
 					</p>
+					<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+						Terkunci
+					</span>
 				</div>
 			</div>
 			<button
 				type="button"
 				onclick={() => (showModalKomplain = true)}
-				class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-200 border border-amber-500/30 text-xs font-bold transition-all active:scale-95 shrink-0 cursor-pointer shadow-2xs"
+				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-200 border border-amber-500/30 text-xs font-bold transition-all active:scale-95 shrink-0 cursor-pointer"
 			>
-				<MessageCircleWarning class="w-4 h-4 text-amber-600 dark:text-amber-400" />
-				<span>Komplain ke KU</span>
+				<MessageCircleWarning class="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+				<span>Komplain</span>
 			</button>
 		</div>
 	{/if}
 
 	<!-- Feedback Alert Berhasil / Gagal -->
 	{#if form?.success}
-		<div class="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 flex items-start gap-3">
-			<CheckCircle2 class="w-5 h-5 shrink-0 mt-0.5" />
-			<div class="text-xs sm:text-sm">
-				<p class="font-bold">Setoran Berhasil Disimpan</p>
-				<p class="mt-0.5 opacity-90">{form.message}</p>
-			</div>
+		<div class="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 flex items-center gap-2.5 text-xs">
+			<CheckCircle2 class="w-4 h-4 shrink-0 text-emerald-500" />
+			<span class="font-bold">{form.message || 'Setoran Berhasil Disimpan'}</span>
 		</div>
 	{:else if form?.message}
-		<div class="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-300 flex items-start gap-3">
-			<AlertCircle class="w-5 h-5 shrink-0 mt-0.5" />
-			<div class="text-xs sm:text-sm">
-				<p class="font-bold">Gagal Menyimpan</p>
-				<p class="mt-0.5 opacity-90">{form.message}</p>
-			</div>
+		<div class="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-300 flex items-center gap-2.5 text-xs">
+			<AlertCircle class="w-4 h-4 shrink-0 text-rose-500" />
+			<span class="font-semibold">{form.message}</span>
 		</div>
 	{/if}
 

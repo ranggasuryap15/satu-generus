@@ -145,9 +145,6 @@
 				<FileSpreadsheet class="w-6 h-6 text-primary" />
 				<h1 class="text-xl md:text-2xl font-bold text-foreground">Laporan FR (Rekapitulasi Shodaqoh)</h1>
 			</div>
-			<p class="text-xs md:text-sm text-foreground/60 mt-1">
-				Rekapitulasi setoran FR secara berjenjang dan real-time dari seluruh kelompok binaan.
-			</p>
 		</div>
 
 		<!-- Tombol Aksi Header -->

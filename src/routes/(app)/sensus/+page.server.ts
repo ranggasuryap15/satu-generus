@@ -1,8 +1,8 @@
 /**
  * @file src/routes/(app)/sensus/+page.server.ts
- * @purpose Menampilkan status sensus keluarga/mandiri milik user sendiri dan memproses server actions untuk edit kependudukan serta anggota, validasi nomor HP numerik (wajib jika punya akun, opsional jika tidak)
+ * @purpose Menampilkan status sensus keluarga/mandiri milik user sendiri dan memproses server actions dengan feedback ringkas bebas over-information sesuai DESIGN.md
  * @usedBy src/routes/(app)/sensus/+page.svelte
- * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/sensus (getKeluargaForUser, isUserInKeluarga), src/lib/utils (normalizeDateToISO), src/lib/generus, drizzle-orm
+ * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/sensus, src/lib/utils, src/lib/generus, drizzle-orm
  * @publicFunctions load, actions.updateKeluarga, actions.updateAnggota, actions.tambahAnggota, actions.hapusAnggota
  * @sideEffects Mengambil & memperbarui record keluarga, anggotaKeluarga, dan users di SQLite dengan enkripsi AES-256-GCM
  */
@@ -146,7 +146,7 @@ export const actions: Actions = {
 			return fail(500, { errorKeluarga: 'Terjadi kesalahan sistem saat memperbarui data KK.' });
 		}
 
-		return { successKeluarga: 'Data Kartu Keluarga berhasil diperbarui.' };
+		return { successKeluarga: 'Data KK Tersimpan' };
 	},
 
 	updateAnggota: async ({ request, locals }) => {
@@ -246,7 +246,7 @@ export const actions: Actions = {
 			return fail(500, { errorAnggota: 'Terjadi kesalahan sistem saat memperbarui anggota.' });
 		}
 
-		return { successAnggota: 'Data anggota keluarga berhasil diperbarui.' };
+		return { successAnggota: 'Data Tersimpan' };
 	},
 
 	tambahAnggota: async ({ request, locals }) => {
@@ -320,7 +320,7 @@ export const actions: Actions = {
 			return fail(500, { errorTambahAnggota: 'Terjadi kesalahan sistem saat menambah anggota.' });
 		}
 
-		return { successTambahAnggota: 'Anggota keluarga baru berhasil ditambahkan.' };
+		return { successTambahAnggota: 'Anggota Ditambahkan' };
 	},
 
 	hapusAnggota: async ({ request, locals }) => {
@@ -364,7 +364,7 @@ export const actions: Actions = {
 			return fail(500, { errorHapusAnggota: 'Terjadi kesalahan sistem saat menghapus anggota.' });
 		}
 
-		return { successHapusAnggota: 'Anggota keluarga berhasil dihapus.' };
+		return { successHapusAnggota: 'Anggota Dihapus' };
 	}
 };
 

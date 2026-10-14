@@ -473,7 +473,7 @@ export const actions: Actions = {
 		// Proteksi: Jika setoran sudah divalidasi dan disetujui oleh KU ('Diterima' atau 'Lunas'), tolak manipulasi/pengubahan data
 		if (existing && (existing.status_bayar === 'Diterima' || existing.status_bayar === 'Lunas')) {
 			return fail(400, {
-				message: 'Setoran Isrun/FR bulan ini telah divalidasi dan disetujui oleh KU. Anda tidak dapat mengubah data ini lagi. Silakan ajukan komplain jika ada ketidaksesuaian.'
+				message: 'Setoran telah divalidasi KU dan tidak dapat diubah.'
 			});
 		}
 
@@ -552,7 +552,7 @@ export const actions: Actions = {
 
 		return {
 			success: true,
-			message: `Laporan setoran Isrun/FR bulan ${bulan}/${tahun} sebesar Rp ${totalNominal.toLocaleString('id-ID')} berhasil disimpan.`
+			message: 'Laporan FR Tersimpan'
 		};
 	}
 };

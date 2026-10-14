@@ -144,9 +144,6 @@
 	<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
 		<div>
 			<h1 class="text-xl font-bold text-foreground tracking-tight">Dashboard Ringkasan</h1>
-			<p class="text-xs text-foreground/60 mt-0.5">
-				Pantau data demografi sensus dan aktivitas presensi pengajian secara real-time.
-			</p>
 		</div>
 
 		<div class="flex items-center gap-2">
@@ -187,7 +184,6 @@
 	<div class="space-y-3">
 		<div class="flex items-center justify-between">
 			<h2 class="text-sm font-semibold text-foreground tracking-tight">Akses Cepat Pengurus</h2>
-			<span class="text-[11px] text-foreground/50">Pintasan modul administratif</span>
 		</div>
 
 		<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -226,7 +222,6 @@
 		<div class="flex items-center justify-between">
 			<div>
 				<h2 class="text-sm font-semibold text-foreground">Aktivitas Presensi Pengajian Terakhir</h2>
-				<p class="text-xs text-foreground/60 mt-0.5">Daftar kegiatan pengajian yang baru dibuat atau sedang berjalan.</p>
 			</div>
 
 			<a

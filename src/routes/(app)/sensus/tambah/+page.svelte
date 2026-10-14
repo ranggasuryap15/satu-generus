@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(app)/sensus/tambah/+page.svelte
-  @purpose Form wizard interaktif 3-langkah pendaftaran sensus keluarga jamaah dengan input & validasi nomor HP numerik (wajib untuk kepala keluarga, opsional untuk anggota lain)
+  @purpose Form wizard interaktif 3-langkah pendaftaran sensus keluarga jamaah dengan standar Zero Over-Information sesuai DESIGN.md
   @usedBy Route client '/sensus/tambah'
   @dependencies @lucide/svelte, $lib/components/DateInput.svelte, $lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
   @publicFunctions nextStep, prevStep, addAnggota, removeAnggota
@@ -191,9 +191,9 @@
 		{#if step === 1}
 			<!-- STEP 1: Data Kartu Keluarga -->
 			<div class="space-y-4">
-				<div class="flex items-center gap-2 text-xs sm:text-sm text-primary font-medium bg-primary/10 p-3 rounded-xl">
+				<div class="flex items-center gap-2 text-xs text-primary font-medium bg-primary/10 p-2.5 rounded-xl">
 					<Shield class="w-4 h-4 shrink-0" />
-					<span>Nomor KK akan langsung dienkripsi dua arah (AES-256-GCM) di server.</span>
+					<span>Data tersimpan dengan enkripsi aman.</span>
 				</div>
 
 				<div>

@@ -158,50 +158,38 @@
 		<div class="w-8"></div>
 	</div>
 
-	<!-- Banner Hero Informasi -->
-	<div class="bg-gradient-to-br from-teal-500/15 via-emerald-500/10 to-teal-500/5 border border-teal-500/25 rounded-3xl p-5 shadow-xs relative overflow-hidden">
-		<div class="relative z-10 space-y-2">
-			<div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-teal-500/20 text-teal-700 dark:text-teal-300 text-[11px] font-bold">
-				<HeartHandshake class="w-3.5 h-3.5" />
-				<span>Amalan Jariyah</span>
+	<!-- Banner Hero Informasi Ringkas -->
+	<div class="bg-card border border-border rounded-2xl p-4 flex items-center justify-between gap-3 shadow-xs">
+		<div class="space-y-0.5">
+			<div class="inline-flex items-center gap-1.5 text-xs font-bold text-foreground">
+				<HeartHandshake class="w-4 h-4 text-emerald-500" />
+				<span>Infaq & Shodaqoh</span>
 			</div>
-			<h2 class="text-lg font-bold text-foreground tracking-tight">
-				Salurkan Shodaqoh Terbaik
-			</h2>
-			<p class="text-xs text-foreground/75 leading-relaxed">
-				Dukung kelancaran kegiatan pengajian, operasional, dan pembangunan di wilayah
-				<span class="font-bold text-foreground">{data.selectedKelompok?.nama || 'Kelompok'}</span>.
+			<p class="text-[11px] text-foreground/60">
+				Wilayah: <span class="font-semibold text-foreground">{data.selectedKelompok?.nama || 'Kelompok'}</span>
 			</p>
-
-			<div class="pt-2 flex items-center gap-2">
-				<button
-					type="button"
-					onclick={() => (isFormOpen = true)}
-					class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-md active:scale-95 transition-all"
-				>
-					<Send class="w-3.5 h-3.5" />
-					<span>Kirim Konfirmasi Transfer</span>
-				</button>
-			</div>
 		</div>
+
+		<button
+			type="button"
+			onclick={() => (isFormOpen = true)}
+			class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold shadow-xs active:scale-95 transition-all shrink-0 cursor-pointer"
+		>
+			<Send class="w-3.5 h-3.5" />
+			<span>Kirim Bukti</span>
+		</button>
 	</div>
 
 	<!-- Notifikasi Pesan Sukses / Error Form -->
 	{#if form?.success}
-		<div class="bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 p-4 rounded-2xl flex items-start gap-3 text-xs animate-in fade-in">
-			<CheckCircle2 class="w-5 h-5 shrink-0 mt-0.5" />
-			<div class="space-y-0.5">
-				<p class="font-bold">Laporan Berhasil Terkirim!</p>
-				<p class="text-foreground/70">{form.message}</p>
-			</div>
+		<div class="bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 p-3 rounded-xl flex items-center gap-2.5 text-xs">
+			<CheckCircle2 class="w-4 h-4 shrink-0 text-emerald-500" />
+			<span class="font-bold">{form.message || 'Laporan Shodaqoh Terkirim'}</span>
 		</div>
 	{:else if form?.message}
-		<div class="bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-300 p-4 rounded-2xl flex items-start gap-3 text-xs animate-in fade-in">
-			<AlertCircle class="w-5 h-5 shrink-0 mt-0.5" />
-			<div class="space-y-0.5">
-				<p class="font-bold">Periksa Kembali Laporan</p>
-				<p class="text-foreground/70">{form.message}</p>
-			</div>
+		<div class="bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-300 p-3 rounded-xl flex items-center gap-2.5 text-xs">
+			<AlertCircle class="w-4 h-4 shrink-0 text-rose-500" />
+			<span class="font-semibold">{form.message}</span>
 		</div>
 	{/if}
 

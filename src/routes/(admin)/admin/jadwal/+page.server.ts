@@ -334,7 +334,7 @@ export const actions: Actions = {
 					.run();
 			}
 
-			return { success: true, message: 'Template jadwal rutin berhasil disimpan.' };
+			return { success: true, message: 'Template Jadwal Tersimpan' };
 		} catch (err) {
 			console.error('Error saat menyimpan template jadwal:', err);
 			return fail(500, { error: 'Terjadi kesalahan sistem saat menyimpan template jadwal.' });
@@ -357,7 +357,7 @@ export const actions: Actions = {
 				syncJadwalCookies(cookies, existing.tingkatScope, existing.desaId, existing.kelompokId);
 			}
 			db.delete(jadwalPengajianTemplate).where(eq(jadwalPengajianTemplate.id, id)).run();
-			return { success: true, message: 'Template jadwal berhasil dihapus.' };
+			return { success: true, message: 'Template Jadwal Dihapus' };
 		} catch (err) {
 			console.error('Error menghapus template jadwal:', err);
 			return fail(500, { error: 'Gagal menghapus template jadwal.' });
@@ -511,7 +511,7 @@ export const actions: Actions = {
 
 			return {
 				success: true,
-				message: `Berhasil men-generate ${createdCount} sesi jadwal (${skippedCount} jadwal yang sudah ada dilewati agar tidak menimpa data).`
+				message: `${createdCount} Sesi Jadwal Dibuat`
 			};
 		} catch (err) {
 			console.error('Error generate sesi bulanan:', err);
@@ -605,7 +605,7 @@ export const actions: Actions = {
 				})
 				.run();
 
-			return { success: true, message: 'Sesi jadwal pengajian berhasil dibuat.' };
+			return { success: true, message: 'Jadwal Pengajian Dibuat' };
 		} catch (err) {
 			console.error('Error create sesi manual:', err);
 			return fail(500, { error: 'Gagal membuat sesi jadwal pengajian.' });
@@ -653,7 +653,7 @@ export const actions: Actions = {
 				.where(eq(presensiJadwal.id, id))
 				.run();
 
-			return { success: true, message: 'Perubahan jadwal khusus berhasil disimpan untuk sesi ini.' };
+			return { success: true, message: 'Jadwal Berhasil Diperbarui' };
 		} catch (err) {
 			console.error('Error updating sesi override:', err);
 			return fail(500, { error: 'Gagal memperbarui jadwal sesi.' });
@@ -678,7 +678,7 @@ export const actions: Actions = {
 			// Hapus kehadiran terkait lebih dulu untuk integritas data terjamin
 			db.delete(presensiKehadiran).where(eq(presensiKehadiran.jadwalId, id)).run();
 			db.delete(presensiJadwal).where(eq(presensiJadwal.id, id)).run();
-			return { success: true, message: 'Sesi jadwal berhasil dihapus.' };
+			return { success: true, message: 'Jadwal Dihapus' };
 		} catch (err) {
 			console.error('Error delete sesi:', err);
 			return fail(500, { error: 'Gagal menghapus sesi jadwal.' });
