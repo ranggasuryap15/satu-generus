@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(admin)/admin/dapukan/+page.server.ts
- * @purpose Memuat daftar struktur dapukan, penugasan RBAC pengurus dengan proteksi hierarki wilayah jamaah, validasi integritas keunikan Kyai (maksimal 1 di setiap kelompok, desa, daerah, dan pusat; sedangkan Wakil Kyai boleh banyak), serta mutasi penugasan
+ * @purpose Memuat daftar struktur dapukan, penugasan RBAC pengurus dengan proteksi hierarki wilayah jamaah, validasi integritas keunikan Kyai, pencegahan penugasan manual Superadmin/Admin Pusat, serta mutasi penugasan
  * @usedBy src/routes/(admin)/admin/dapukan/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm
  * @publicFunctions load, actions.assignDapukan, actions.updateDapukan, actions.removeDapukan
@@ -170,6 +170,21 @@ export const actions: Actions = {
 			return fail(400, { error: 'Tulis nama dapukan tentatif / kepanitiaan kustom.' });
 		}
 
+		let selectedDapukan: typeof dapukan.$inferSelect | undefined;
+		if (tipeDapukan === 'tetap' && dapukanId) {
+			selectedDapukan = db.select().from(dapukan).where(eq(dapukan.id, dapukanId)).get();
+			if (!selectedDapukan) {
+				return fail(400, { error: 'Dapukan tetap tidak ditemukan.' });
+			}
+			const dapukanNameClean = selectedDapukan.namaDapukan.trim().toLowerCase();
+			if (dapukanNameClean === 'superadmin' || dapukanNameClean.includes('superadmin')) {
+				return fail(400, { error: 'Dapukan Superadmin tidak dapat ditugaskan secara manual.' });
+			}
+			if (dapukanNameClean === 'admin pusat') {
+				return fail(400, { error: 'Dapukan Admin Pusat tidak dapat ditugaskan secara manual.' });
+			}
+		}
+
 		let finalKelompokId: number | null = null;
 		let finalDesaId: number | null = null;
 		let finalDaerahId: number | null = null;
@@ -226,22 +241,18 @@ export const actions: Actions = {
 				return fail(403, { error: 'Hanya wewenang Pusat yang dapat menugaskan pengurus tingkat Pusat.' });
 			}
 			// Integritas 4S: 4S hanya berlaku sampai tingkat Daerah (Kelompok, Desa, Daerah).
-			// Untuk tingkat Pusat, seluruh pengurus bertindak sebagai Admin Pusat / non-4S.
-			if (tipeDapukan === 'tetap' && dapukanId) {
-				const selectedDapukan = db.select().from(dapukan).where(eq(dapukan.id, dapukanId)).get();
-				if (selectedDapukan?.is4S && selectedDapukan.namaDapukan !== 'Superadmin') {
-					return fail(400, {
-						error: 'Struktur dapukan 4S hanya berlaku hingga tingkat Daerah. Untuk tingkat Pusat, silakan gunakan dapukan Admin Pusat atau kepanitiaan tentatif.'
-					});
-				}
+			// Untuk tingkat Pusat, seluruh pengurus bertindak sebagai non-4S / kepanitiaan tentatif.
+			if (tipeDapukan === 'tetap' && selectedDapukan?.is4S) {
+				return fail(400, {
+					error: 'Struktur dapukan 4S hanya berlaku hingga tingkat Daerah. Untuk tingkat Pusat, silakan gunakan kepanitiaan tentatif.'
+				});
 			}
 		}
 
 		// Validasi Integritas Dapukan: Kyai hanya boleh ada 1 di setiap lingkup (Kelompok, Desa, Daerah)
 		// Sedangkan Wakil Kyai dan dapukan lainnya diperbolehkan lebih dari satu.
-		if (tipeDapukan === 'tetap' && dapukanId && tingkatScope !== 'Pusat') {
-			const selectedDapukan = db.select().from(dapukan).where(eq(dapukan.id, dapukanId)).get();
-			const isKyai = selectedDapukan?.namaDapukan.trim().toLowerCase() === 'kyai';
+		if (tipeDapukan === 'tetap' && dapukanId && tingkatScope !== 'Pusat' && selectedDapukan) {
+			const isKyai = selectedDapukan.namaDapukan.trim().toLowerCase() === 'kyai';
 
 			if (isKyai) {
 				const queryScope = db
@@ -400,6 +411,21 @@ export const actions: Actions = {
 			return fail(400, { error: 'Tulis nama dapukan tentatif / kepanitiaan kustom.' });
 		}
 
+		let selectedDapukan: typeof dapukan.$inferSelect | undefined;
+		if (tipeDapukan === 'tetap' && dapukanId) {
+			selectedDapukan = db.select().from(dapukan).where(eq(dapukan.id, dapukanId)).get();
+			if (!selectedDapukan) {
+				return fail(400, { error: 'Dapukan tetap tidak ditemukan.' });
+			}
+			const dapukanNameClean = selectedDapukan.namaDapukan.trim().toLowerCase();
+			if (dapukanNameClean === 'superadmin' || dapukanNameClean.includes('superadmin')) {
+				return fail(400, { error: 'Dapukan Superadmin tidak dapat ditugaskan secara manual.' });
+			}
+			if (dapukanNameClean === 'admin pusat') {
+				return fail(400, { error: 'Dapukan Admin Pusat tidak dapat ditugaskan secara manual.' });
+			}
+		}
+
 		let finalKelompokId: number | null = null;
 		let finalDesaId: number | null = null;
 		let finalDaerahId: number | null = null;
@@ -453,22 +479,18 @@ export const actions: Actions = {
 				return fail(403, { error: 'Hanya wewenang Pusat yang dapat menugaskan pengurus tingkat Pusat.' });
 			}
 			// Integritas 4S: 4S hanya berlaku sampai tingkat Daerah (Kelompok, Desa, Daerah).
-			// Untuk tingkat Pusat, seluruh pengurus bertindak sebagai Admin Pusat / non-4S.
-			if (tipeDapukan === 'tetap' && dapukanId) {
-				const selectedDapukan = db.select().from(dapukan).where(eq(dapukan.id, dapukanId)).get();
-				if (selectedDapukan?.is4S && selectedDapukan.namaDapukan !== 'Superadmin') {
-					return fail(400, {
-						error: 'Struktur dapukan 4S hanya berlaku hingga tingkat Daerah. Untuk tingkat Pusat, silakan gunakan dapukan Admin Pusat atau kepanitiaan tentatif.'
-					});
-				}
+			// Untuk tingkat Pusat, seluruh pengurus bertindak sebagai non-4S / kepanitiaan tentatif.
+			if (tipeDapukan === 'tetap' && selectedDapukan?.is4S) {
+				return fail(400, {
+					error: 'Struktur dapukan 4S hanya berlaku hingga tingkat Daerah. Untuk tingkat Pusat, silakan gunakan kepanitiaan tentatif.'
+				});
 			}
 		}
 
 		// Validasi Integritas Dapukan: Kyai hanya boleh ada 1 di setiap lingkup (Kelompok, Desa, Daerah)
 		// Sedangkan Wakil Kyai dan dapukan lainnya diperbolehkan lebih dari satu.
-		if (tipeDapukan === 'tetap' && dapukanId && tingkatScope !== 'Pusat') {
-			const selectedDapukan = db.select().from(dapukan).where(eq(dapukan.id, dapukanId)).get();
-			const isKyai = selectedDapukan?.namaDapukan.trim().toLowerCase() === 'kyai';
+		if (tipeDapukan === 'tetap' && dapukanId && tingkatScope !== 'Pusat' && selectedDapukan) {
+			const isKyai = selectedDapukan.namaDapukan.trim().toLowerCase() === 'kyai';
 
 			if (isKyai) {
 				const queryScope = db

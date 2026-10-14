@@ -1,9 +1,9 @@
 <!--
   @file src/routes/(admin)/admin/dapukan/+page.svelte
-  @purpose Halaman manajemen struktur dapukan dan penugasan RBAC pengurus dengan dialog konfirmasi simpan penugasan, konfirmasi batal jika isian terisi, pagination data, proteksi wewenang 4S, penguncian scope wilayah, dan scroll retention
+  @purpose Halaman manajemen struktur dapukan dan penugasan RBAC pengurus dengan proteksi urutan dapukan 4S, penyembunyian Superadmin/Admin Pusat eksplisit, dialog konfirmasi simpan/batal penugasan, pagination data, dan penguncian scope wilayah
   @usedBy Route admin '/admin/dapukan'
   @dependencies @lucide/svelte, Svelte 5 Runes, $lib/components/SearchableSelect.svelte, $lib/components/Pagination.svelte, $app/forms (enhance), $lib/confirm.svelte (confirmAction)
-  @publicFunctions openAssignModal, closeAssignModal, resetAssignForm, handleAssignSubmit, openEditModal, closeEditModal, confirmRemove
+  @publicFunctions openAssignModal, closeAssignModal, resetAssignForm, handleAssignSubmit, openEditModal, closeEditModal, confirmRemove, isExplicitExcluded, getDapukanOrderIndex
   @sideEffects Menampilkan data dapukan/pengurus dan mengirim form mutasi pengurus ke server dengan konfirmasi modal interaktif
 -->
 <script lang="ts">
@@ -76,17 +76,41 @@
 		})
 	);
 
+	// Helper urutan dapukan 4S dan filter dapukan eksplisit (Superadmin & Admin Pusat disembunyikan)
+	function isExplicitExcluded(nama: string): boolean {
+		const clean = (nama || '').toLowerCase().trim();
+		return clean === 'superadmin' || clean === 'admin pusat' || clean.includes('superadmin');
+	}
+
+	function getDapukanOrderIndex(nama: string): number {
+		const clean = (nama || '').toLowerCase().replace(/\s+/g, '');
+		const targetOrders = [
+			'kyai',
+			'wakilkyai',
+			'ku/bendahara',
+			'sekretaris/penerobos',
+			'mubaligh/ulama',
+			'aghnia'
+		];
+		const idx = targetOrders.indexOf(clean);
+		return idx === -1 ? 999 : idx;
+	}
+
+	type MasterDapukanItem = (typeof data.masterDapukan)[number];
+
+	const displayMasterDapukan = $derived.by(() => {
+		return (data.masterDapukan || [])
+			.filter((m: MasterDapukanItem) => !isExplicitExcluded(m.namaDapukan))
+			.slice()
+			.sort((a: MasterDapukanItem, b: MasterDapukanItem) => getDapukanOrderIndex(a.namaDapukan) - getDapukanOrderIndex(b.namaDapukan));
+	});
+
 	const masterDapukanOptions = $derived(
 		(data.masterDapukan || [])
-			.filter((m: (typeof data.masterDapukan)[number]) => {
-				if (selectedScope === 'Pusat') {
-					// Di tingkat Pusat: tidak ada 4S, hanya Admin Pusat atau Superadmin
-					return !m.is4S || m.namaDapukan === 'Superadmin';
-				}
-				// Di tingkat Daerah, Desa, Kelompok: 4S berlaku penuh, sembunyikan Admin Pusat
-				return m.namaDapukan !== 'Admin Pusat';
-			})
-			.map((m: (typeof data.masterDapukan)[number]) => ({
+			.filter((m: MasterDapukanItem) => !isExplicitExcluded(m.namaDapukan))
+			.slice()
+			.sort((a: MasterDapukanItem, b: MasterDapukanItem) => getDapukanOrderIndex(a.namaDapukan) - getDapukanOrderIndex(b.namaDapukan))
+			.map((m: MasterDapukanItem) => ({
 				value: m.id,
 				label: m.namaDapukan,
 				sublabel: m.is4S ? '4S' : undefined
@@ -95,13 +119,10 @@
 
 	const editMasterDapukanOptions = $derived(
 		(data.masterDapukan || [])
-			.filter((m: (typeof data.masterDapukan)[number]) => {
-				if (editScope === 'Pusat') {
-					return !m.is4S || m.namaDapukan === 'Superadmin';
-				}
-				return m.namaDapukan !== 'Admin Pusat';
-			})
-			.map((m: (typeof data.masterDapukan)[number]) => ({
+			.filter((m: MasterDapukanItem) => !isExplicitExcluded(m.namaDapukan))
+			.slice()
+			.sort((a: MasterDapukanItem, b: MasterDapukanItem) => getDapukanOrderIndex(a.namaDapukan) - getDapukanOrderIndex(b.namaDapukan))
+			.map((m: MasterDapukanItem) => ({
 				value: m.id,
 				label: m.namaDapukan,
 				sublabel: m.is4S ? '4S' : undefined
@@ -501,8 +522,8 @@
 			<span class="text-[11px] text-foreground/50">Hak Akses Modifikasi Administratif</span>
 		</div>
 
-		<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-			{#each data.masterDapukan as m}
+		<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+			{#each displayMasterDapukan as m}
 				<div class="p-3 rounded-lg border border-border bg-secondary/30 flex items-center justify-between">
 					<div>
 						<p class="text-xs font-bold text-foreground">{m.namaDapukan}</p>
