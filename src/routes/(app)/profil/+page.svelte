@@ -21,6 +21,7 @@
 		CheckCircle2,
 		AlertCircle,
 		Pencil,
+		Repeat,
 		Download,
 		Smartphone,
 		HelpCircle,
@@ -29,13 +30,14 @@
 	import ThemeToggle from '#lib/components/ThemeToggle.svelte';
 	import PwaInstallGuideModal from '#lib/components/PwaInstallGuideModal.svelte';
 	import { pwaState } from '#lib/pwa.svelte.ts';
+	import { untrack } from 'svelte';
 	import { enhance } from '$app/forms';
 	import type { PageData, ActionData } from './$types';
 	import { confirmAction } from '#lib/confirm.svelte.ts';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
-	let activeModal = $state<'none' | 'profile' | 'password'>('none');
+	let activeModal = $state<'none' | 'profile' | 'password' | 'moveKelompok'>('none');
 	let showPwaGuide = $state(false);
 	let isSubmitting = $state(false);
 	let isInstallingPwa = $state(false);
@@ -141,8 +143,14 @@
 		}
 	}
 
+	let pindahKelompokId = $state<string | number>(untrack(() => data.user.kelompokId ?? ''));
+
 	$effect(() => {
 		if (form?.profileSuccess) {
+			activeModal = 'none';
+		}
+		if (form?.moveSuccess) {
+			pindahKelompokId = data.user.kelompokId ?? '';
 			activeModal = 'none';
 		}
 		if (form?.passwordSuccess) {
@@ -158,10 +166,17 @@
 
 <div class="space-y-5 pb-8">
 	<!-- Pesan Feedback Global -->
-	{#if form?.profileSuccess || form?.passwordSuccess}
+	{#if form?.profileSuccess || form?.passwordSuccess || form?.moveSuccess}
 		<div class="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
 			<CheckCircle class="w-4 h-4 shrink-0" />
-			<span>{form.profileSuccess || form.passwordSuccess}</span>
+			<span>{form.profileSuccess || form.passwordSuccess || form.moveSuccess}</span>
+		</div>
+	{/if}
+
+	{#if form?.moveError}
+		<div class="p-2.5 rounded-xl bg-destructive/10 border border-destructive/20 flex items-center gap-2 text-xs text-destructive font-semibold">
+			<AlertCircle class="w-4 h-4 shrink-0" />
+			<span>{form.moveError}</span>
 		</div>
 	{/if}
 
@@ -272,16 +287,29 @@
 		</div>
 
 		<!-- Status Kelompok -->
-		<div class="p-4 flex items-center justify-between">
-			<div class="flex items-center gap-3">
-				<div class="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-foreground/70">
+		<div class="p-4 flex items-center justify-between gap-3">
+			<div class="flex items-center gap-3 min-w-0">
+				<div class="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-foreground/70 shrink-0">
 					<MapPin class="w-4 h-4" />
 				</div>
-				<div>
+				<div class="min-w-0">
 					<p class="font-semibold text-foreground text-sm">Lingkup Kelompok</p>
-					<p class="text-xs text-foreground/50">{data.kelompokNama}</p>
+					<p class="text-xs text-foreground/50 truncate">{data.kelompokNama}</p>
 				</div>
 			</div>
+			{#if data.canMoveKelompok}
+				<button
+					type="button"
+					onclick={() => {
+						pindahKelompokId = data.user.kelompokId ?? '';
+						activeModal = 'moveKelompok';
+					}}
+					class="shrink-0 text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+				>
+					<Repeat class="w-3.5 h-3.5" />
+					Pindah
+				</button>
+			{/if}
 		</div>
 	</section>
 
@@ -589,6 +617,96 @@
 					</button>
 				</div>
 			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- Modal Pindah Kelompok (Khusus Superadmin) -->
+{#if activeModal === 'moveKelompok'}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150"
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="move-kelompok-title"
+		tabindex="-1"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) activeModal = 'none';
+		}}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') activeModal = 'none';
+		}}
+	>
+		<div class="w-full max-w-sm bg-card border border-border rounded-2xl shadow-xl overflow-hidden p-6 space-y-4">
+			<div class="flex items-center justify-between border-b border-border pb-3">
+				<h3 id="move-kelompok-title" class="text-sm font-bold text-foreground">Pindah Kelompok</h3>
+				<button
+					type="button"
+					onclick={() => (activeModal = 'none')}
+					class="text-foreground/50 hover:text-foreground text-sm font-semibold cursor-pointer"
+				>
+					✕
+				</button>
+			</div>
+
+			{#if data.daftarKelompok.length === 0}
+				<p class="text-xs text-foreground/60 leading-relaxed">
+					Belum ada kelompok yang tersedia. Buat Daerah, Desa, dan Kelompok terlebih dahulu melalui
+					menu <span class="font-semibold text-foreground">Data Wilayah</span>.
+				</p>
+			{:else}
+				<p class="text-xs text-foreground/60 leading-relaxed">
+					Pindahkan akun Anda ke kelompok lain. Akses Superadmin tetap berlaku di seluruh wilayah.
+				</p>
+				<form
+					method="POST"
+					action="?/pindahKelompokSaya"
+					use:enhance={() => {
+						isSubmitting = true;
+						return async ({ update }) => {
+							isSubmitting = false;
+							await update();
+						};
+					}}
+					class="space-y-4 text-xs"
+				>
+					<div>
+						<label for="pindahKelompok" class="block font-medium text-foreground/80 mb-1.5">
+							Kelompok Tujuan
+						</label>
+						<select
+							id="pindahKelompok"
+							name="kelompokId"
+							required
+							bind:value={pindahKelompokId}
+							class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-all"
+						>
+							<option value="">— Pilih Kelompok —</option>
+							{#each data.daftarKelompok as k (k.id)}
+								<option value={k.id}>
+									{[k.daerahNama, k.desaNama, k.nama].filter(Boolean).join(' • ')}
+								</option>
+							{/each}
+						</select>
+					</div>
+
+					<div class="flex gap-2.5 pt-2">
+						<button
+							type="button"
+							onclick={() => (activeModal = 'none')}
+							class="flex-1 py-2.5 rounded-xl border border-border bg-secondary/60 hover:bg-secondary text-foreground text-sm font-semibold transition-colors cursor-pointer"
+						>
+							Batal
+						</button>
+						<button
+							type="submit"
+							disabled={isSubmitting || !pindahKelompokId}
+							class="flex-1 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+						>
+							{isSubmitting ? 'Memindahkan...' : 'Pindah'}
+						</button>
+					</div>
+				</form>
+			{/if}
 		</div>
 	</div>
 {/if}

@@ -111,14 +111,21 @@ npm run dev
 
 ---
 
-## 🔑 Kredensial Akun Pengujian Bawaan
+## 🔑 Kredensial Awal
 
-Database telah diisi data *seed* awal untuk kebutuhan pengujian:
+Seeder hanya membuat **satu akun** (tidak ada data demo):
 
-| Role / Wewenang | Email / No HP | Kata Sandi | Halaman Utama |
+| Role / Wewenang | Email | Kata Sandi | Halaman Utama |
 | :--- | :--- | :--- | :--- |
-| **Admin Pengurus (4S Desa)** | `admin@satugenerus.id` | `password123` | [Panel Admin](http://localhost:5173/admin) |
-| **Jamaah Biasa** | `jamaah@satugenerus.id` | `password123` | [Beranda Jamaah](http://localhost:5173/) |
+| **Superadmin** | `superadmin@satugenerus.id` | `password123` | [Panel Admin](http://localhost:5173/admin) |
+
+> ⚠️ **Wajib ganti kata sandi** setelah login pertama (menu Profil → Ganti Sandi).
+>
+> Seeder **tidak** mengisi data wilayah. Setelah login, buat **Daerah → Desa → Kelompok** sendiri
+> lewat menu **Data Wilayah**, lalu daftarkan pengurus lewat **Dapukan & RBAC**.
+>
+> Superadmin juga dapat memindahkan kelompok akunnya sendiri dari halaman **Profil → Lingkup Kelompok → Pindah**.
+> Admin Daerah/Desa/Kelompok tidak memiliki hak ini karena terikat pada wilayahnya.
 
 ---
 

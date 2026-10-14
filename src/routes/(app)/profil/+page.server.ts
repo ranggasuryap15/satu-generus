@@ -1,18 +1,19 @@
 /**
  * @file src/routes/(app)/profil/+page.server.ts
- * @purpose Memuat informasi profil pengguna dan server action untuk update profil serta ganti password dengan respon ringkas bebas over-information sesuai DESIGN.md
+ * @purpose Memuat informasi profil pengguna dan server action untuk update profil, ganti password, serta pemindahan kelompok mandiri khusus Superadmin/Admin Pusat
  * @usedBy src/routes/(app)/profil/+page.svelte
- * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm, src/lib/server/auth
- * @publicFunctions load, actions.updateProfile, actions.updatePassword
- * @sideEffects Mengambil & memperbarui data pengguna di tabel SQLite users
+ * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm, src/lib/server/auth, src/lib/server/scope
+ * @publicFunctions load, actions.updateProfile, actions.updatePassword, actions.pindahKelompokSaya
+ * @sideEffects Mengambil & memperbarui data pengguna pada tabel PostgreSQL users
  */
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { db, first } from '#lib/db/index.js';
-import { users, kelompok } from '#lib/db/schema.js';
+import { users, kelompok, desa, daerah } from '#lib/db/schema.js';
 import { eq, and, ne } from 'drizzle-orm';
 import { hashPassword, verifyPassword } from '#lib/server/auth.js';
+import { getAdminScope } from '#lib/server/scope.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) {
@@ -21,16 +22,40 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	let kelompokNama = 'Belum terhubung';
 	if (locals.user.kelompokId) {
-		const kel = (await first(db.select().from(kelompok).where(eq(kelompok.id, locals.user.kelompokId))));
+		const kel = await first(
+			db.select().from(kelompok).where(eq(kelompok.id, locals.user.kelompokId))
+		);
 		if (kel) {
 			kelompokNama = kel.nama;
 		}
 	}
 
+	// Hanya Superadmin / Admin Pusat yang boleh memindahkan kelompok sendiri.
+	// Admin daerah/desa/kelompok terikat pada wilayahnya sehingga tidak diberi hak ini.
+	const adminScope = getAdminScope(locals.roles ?? []);
+	const canMoveKelompok = adminScope.isPusat;
+	if (!canMoveKelompok) {
+		return { user: locals.user, isAdmin: locals.isAdmin, kelompokNama, canMoveKelompok: false, daftarKelompok: [] };
+	}
+
+	const daftarKelompok = await db
+		.select({
+			id: kelompok.id,
+			nama: kelompok.nama,
+			desaNama: desa.nama,
+			daerahNama: daerah.nama
+		})
+		.from(kelompok)
+		.leftJoin(desa, eq(kelompok.desaId, desa.id))
+		.leftJoin(daerah, eq(desa.daerahId, daerah.id))
+		.orderBy(daerah.nama, desa.nama, kelompok.nama);
+
 	return {
 		user: locals.user,
 		isAdmin: locals.isAdmin,
-		kelompokNama
+		kelompokNama,
+		canMoveKelompok: true,
+		daftarKelompok
 	};
 };
 
@@ -155,6 +180,48 @@ export const actions: Actions = {
 		return {
 			passwordSuccess: 'Kata Sandi Diperbarui'
 		};
+	},
+
+	/**
+	 * Memindahkan kelompok akun sendiri. HANYA untuk Superadmin / Admin Pusat.
+	 * Admin Daerah/Desa/Kelompok terikat wilayah sehingga tidak berhak memakai aksi ini.
+	 */
+	pindahKelompokSaya: async ({ request, locals }) => {
+		if (!locals.user) {
+			throw redirect(303, '/login');
+		}
+
+		const adminScope = getAdminScope(locals.roles ?? []);
+		if (!adminScope.isPusat) {
+			return fail(403, {
+				moveError: 'Hanya Superadmin yang dapat memindahkan kelompok akun sendiri.'
+			});
+		}
+
+		const formData = await request.formData();
+		const kelompokIdStr = formData.get('kelompokId')?.toString()?.trim() || '';
+		const kelompokId = parseInt(kelompokIdStr, 10);
+
+		if (!kelompokIdStr || Number.isNaN(kelompokId)) {
+			return fail(400, { moveError: 'Kelompok tujuan wajib dipilih.' });
+		}
+
+		// Pastikan kelompok tujuan benar-benar ada
+		const target = await first(
+			db.select({ id: kelompok.id, nama: kelompok.nama }).from(kelompok).where(eq(kelompok.id, kelompokId))
+		);
+		if (!target) {
+			return fail(404, { moveError: 'Kelompok tujuan tidak ditemukan.' });
+		}
+
+		try {
+			await db.update(users).set({ kelompokId }).where(eq(users.id, locals.user.id));
+		} catch (error) {
+			console.error('Gagal memindahkan kelompok akun sendiri:', error);
+			return fail(500, { moveError: 'Terjadi kesalahan sistem saat memindahkan kelompok.' });
+		}
+
+		return { moveSuccess: `Berhasil dipindahkan ke ${target.nama}.` };
 	}
 };
 
