@@ -299,6 +299,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				if (existing) {
 					if (existing.statusBayar === 'Menunggu Konfirmasi' || existing.statusBayar === 'Menunggu') {
 						statusBayar = 'Menunggu Konfirmasi';
+					} else if (existing.statusBayar === 'Belum') {
+						statusBayar = 'Belum';
 					} else if (existing.statusBayar === 'Diterima' || existing.statusBayar === 'Lunas') {
 						statusBayar = 'Diterima';
 					} else if (existing.nominal > 0) {
@@ -678,17 +680,38 @@ export const actions: Actions = {
 	/**
 	 * Mengembalikan status setoran atau menolak (Khusus KU / Superadmin)
 	 */
-	rejectSetoran: async ({ request, locals }) => {
+	rejectSetoran: async ({ request, locals, url }) => {
 		if (!locals.user || !locals.isAdmin) {
 			return fail(401, { error: 'Sesi kedaluwarsa. Silakan login kembali.' });
 		}
 
 		const formData = await request.formData();
-		const kelompokId = Number(formData.get('kelompokId') || 0);
 		const transaksiId = formData.get('transaksiId') ? String(formData.get('transaksiId')) : null;
 		const anggotaId = formData.get('anggotaId') ? String(formData.get('anggotaId')) : null;
-		const tahun = Number(formData.get('tahun') || 0);
-		const bulan = Number(formData.get('bulan') || 0);
+		const tahun = Number(formData.get('tahun') || url.searchParams.get('tahun') || 0);
+		const bulan = Number(formData.get('bulan') || url.searchParams.get('bulan') || 0);
+		let kelompokId = Number(formData.get('kelompokId') || url.searchParams.get('kelompokId') || 0);
+
+		// Resolve kelompokId jika belum ada dari formData/url
+		if (!kelompokId && transaksiId) {
+			const trx = sqlite
+				.prepare('SELECT kelompok_id FROM transaksi_fr WHERE id = ?')
+				.get(transaksiId) as { kelompok_id: number } | undefined;
+			if (trx?.kelompok_id) kelompokId = trx.kelompok_id;
+		}
+
+		if (!kelompokId && anggotaId) {
+			const aRow = sqlite
+				.prepare(
+					`SELECT u.kelompok_id 
+					 FROM anggota_keluarga ak 
+					 JOIN keluarga k ON ak.keluarga_id = k.id 
+					 JOIN users u ON k.kepala_keluarga_id = u.id 
+					 WHERE ak.id = ?`
+				)
+				.get(anggotaId) as { kelompok_id: number } | undefined;
+			if (aRow?.kelompok_id) kelompokId = aRow.kelompok_id;
+		}
 
 		if (!kelompokId || (!transaksiId && (!anggotaId || !tahun || !bulan))) {
 			return fail(400, { error: 'Parameter pembatalan setoran tidak lengkap.' });
@@ -710,6 +733,7 @@ export const actions: Actions = {
 					.prepare(
 						`UPDATE transaksi_fr
 						 SET status_bayar = 'Belum',
+						     nominal = 0,
 						     updated_by_user_id = ?,
 						     updated_at = ?
 						 WHERE id = ?`
@@ -720,6 +744,7 @@ export const actions: Actions = {
 					.prepare(
 						`UPDATE transaksi_fr
 						 SET status_bayar = 'Belum',
+						     nominal = 0,
 						     updated_by_user_id = ?,
 						     updated_at = ?
 						 WHERE anggota_keluarga_id = ? AND tahun = ? AND bulan = ?`

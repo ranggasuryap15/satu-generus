@@ -808,7 +808,7 @@
 						<form
 							id="formManualKu"
 							method="POST"
-							action={`?kelompokId=${data.selectedKelompokId}&tahun=${data.tahun}&bulan=${data.bulan}&/saveSetoranManual`}
+							action={`?/saveSetoranManual&kelompokId=${data.selectedKelompokId || ''}&tahun=${data.tahun}&bulan=${data.bulan}`}
 							use:enhance={keepScrollSubmit({
 								beforeSubmit: () => {
 									isSavingModal = true;
@@ -851,8 +851,12 @@
 									}
 									closeDetail();
 								},
-								onError: () => {
+								onError: (result) => {
 									isSavingModal = false;
+									alert(
+										(result as any)?.data?.error ||
+											'Gagal menyimpan setoran manual. Silakan coba lagi.'
+									);
 								},
 								onFinally: () => {
 									isSavingModal = false;
@@ -1084,7 +1088,7 @@
 							{#if selectedDetailJamaah.statusBayar === 'Menunggu Konfirmasi' || selectedDetailJamaah.statusBayar === 'Menunggu'}
 								<form
 									method="POST"
-									action={`?kelompokId=${data.selectedKelompokId}&tahun=${data.tahun}&bulan=${data.bulan}&/approveSetoran`}
+									action={`?/approveSetoran&kelompokId=${data.selectedKelompokId || ''}&tahun=${data.tahun}&bulan=${data.bulan}`}
 									use:enhance={keepScrollSubmit({
 										beforeSubmit: () => {
 											isApproving = true;
@@ -1098,15 +1102,19 @@
 											}
 											closeDetail();
 										},
-										onError: () => {
+										onError: (result) => {
 											isApproving = false;
+											alert(
+												(result as any)?.data?.error ||
+													'Gagal menyetujui setoran. Silakan coba lagi.'
+											);
 										},
 										onFinally: () => {
 											isApproving = false;
 										}
 									})}
 								>
-									<input type="hidden" name="kelompokId" value={data.selectedKelompokId} />
+									<input type="hidden" name="kelompokId" value={data.selectedKelompokId || ''} />
 									<input type="hidden" name="tahun" value={data.tahun} />
 									<input type="hidden" name="bulan" value={data.bulan} />
 									<input type="hidden" name="anggotaId" value={selectedDetailJamaah.id} />
@@ -1130,7 +1138,7 @@
 							{#if selectedDetailJamaah.statusBayar === 'Diterima' || selectedDetailJamaah.statusBayar === 'Lunas'}
 								<form
 									method="POST"
-									action={`?kelompokId=${data.selectedKelompokId}&tahun=${data.tahun}&bulan=${data.bulan}&/rejectSetoran`}
+									action={`?/rejectSetoran&kelompokId=${data.selectedKelompokId || ''}&tahun=${data.tahun}&bulan=${data.bulan}`}
 									use:enhance={keepScrollSubmit({
 										beforeSubmit: () => {
 											isRejecting = true;
@@ -1139,20 +1147,28 @@
 											isRejecting = false;
 											if (selectedDetailJamaah) {
 												selectedDetailJamaah.statusBayar = 'Belum';
+												selectedDetailJamaah.nominal = 0;
 												const found = (data.jamaahList as JamaahItem[]).find((x) => x.id === selectedDetailJamaah?.id);
-												if (found) found.statusBayar = 'Belum';
+												if (found) {
+													found.statusBayar = 'Belum';
+													found.nominal = 0;
+												}
 											}
 											closeDetail();
 										},
-										onError: () => {
+										onError: (result) => {
 											isRejecting = false;
+											alert(
+												(result as any)?.data?.error ||
+													'Gagal mengembalikan status setoran. Silakan coba lagi.'
+											);
 										},
 										onFinally: () => {
 											isRejecting = false;
 										}
 									})}
 								>
-									<input type="hidden" name="kelompokId" value={data.selectedKelompokId} />
+									<input type="hidden" name="kelompokId" value={data.selectedKelompokId || ''} />
 									<input type="hidden" name="tahun" value={data.tahun} />
 									<input type="hidden" name="bulan" value={data.bulan} />
 									<input type="hidden" name="anggotaId" value={selectedDetailJamaah.id} />
