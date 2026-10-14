@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(admin)/admin/keuangan/shodaqoh/+page.server.ts
- * @purpose Backend controller manajemen shodaqoh berjenjang wilayah (Kelompok, Desa, Daerah): rekapitulasi statistik & grafik transaksi, approval bukti transfer, CRUD rekening & QRIS, serta isolasi jenis shodaqoh khusus KU dan Kyai. Semua action mengembalikan scope, id wilayah, dan tab aktif agar URL dan state tab tidak ter-reset ke tab default
+ * @purpose Backend controller manajemen shodaqoh berjenjang wilayah (Kelompok, Desa, Daerah): rekapitulasi statistik & grafik transaksi, approval bukti transfer, CRUD rekening & QRIS, seleksi wilayah adaptif (default null jika banyak wilayah, auto-select kelompok sendiri untuk admin kelompok), serta isolasi jenis shodaqoh khusus KU dan Kyai
  * @usedBy src/routes/(admin)/admin/keuangan/shodaqoh/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm, @sveltejs/kit, src/lib/server/upload
  * @publicFunctions load, actions (approve, reject, addJenis, deleteJenis, saveRekening, deleteRekening)
@@ -49,7 +49,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const paramId = url.searchParams.get('id') ? Number(url.searchParams.get('id')) : null;
 	const filterStatus = url.searchParams.get('status') || 'Semua';
 
-	let activeScope: 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok' = 'Kelompok';
+	let activeScope: 'Pusat' | 'Daerah' | 'Desa' | 'Kelompok' = paramScope || 'Kelompok';
 	let activeId: number | null = null;
 
 	// Evaluasi scope aktif berdasarkan parameter URL yang diizinkan
@@ -72,26 +72,25 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		}
 	}
 
-	// Default fallback sesuai hak akses
-	if (!activeId) {
-		if (adminScope.level === 'Kelompok' && accessibleWilayah.kelompokList.length > 0) {
-			activeScope = 'Kelompok';
-			activeId = accessibleWilayah.kelompokList[0].id;
-		} else if (adminScope.level === 'Desa' && accessibleWilayah.desaList.length > 0) {
-			activeScope = 'Desa';
-			activeId = accessibleWilayah.desaList[0].id;
-		} else if (adminScope.level === 'Daerah' && accessibleWilayah.daerahList.length > 0) {
-			activeScope = 'Daerah';
-			activeId = accessibleWilayah.daerahList[0].id;
-		} else if (accessibleWilayah.kelompokList.length > 0) {
-			activeScope = 'Kelompok';
-			activeId = accessibleWilayah.kelompokList[0].id;
-		} else if (accessibleWilayah.desaList.length > 0) {
-			activeScope = 'Desa';
-			activeId = accessibleWilayah.desaList[0].id;
-		} else if (accessibleWilayah.daerahList.length > 0) {
-			activeScope = 'Daerah';
-			activeId = accessibleWilayah.daerahList[0].id;
+	// Default fallback sesuai hak akses jika paramId tidak ada di URL:
+	// - Jika admin tingkat kelompok: langsung otomatis pilih kelompoknya sendiri dan sematkan ke URL.
+	// - Jika admin tingkat atas (Desa/Daerah/Pusat) dengan banyak opsi: default NULL (harus dipilih manual).
+	const isAdminKelompok =
+		adminScope.level === 'Kelompok' &&
+		(adminScope.kelompokIds.length > 0 || Boolean(locals.user.kelompokId));
+
+	if (!activeId && isAdminKelompok) {
+		activeScope = 'Kelompok';
+		activeId =
+			adminScope.kelompokIds[0] ||
+			locals.user.kelompokId ||
+			(accessibleWilayah.kelompokList[0]?.id ?? null);
+
+		if (activeId && !url.searchParams.get('id')) {
+			const targetUrl = new URL(url);
+			targetUrl.searchParams.set('scope', 'Kelompok');
+			targetUrl.searchParams.set('id', String(activeId));
+			throw redirect(303, targetUrl.pathname + targetUrl.search);
 		}
 	}
 
@@ -100,7 +99,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		nama: string;
 		indukNama?: string;
 		keterangan?: string;
-	} = { nama: '-' };
+	} = { nama: 'Pilih Wilayah' };
 
 	if (activeScope === 'Kelompok' && activeId) {
 		const k = accessibleWilayah.kelompokList.find((item) => item.id === activeId);

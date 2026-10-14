@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(admin)/admin/keuangan/shodaqoh/+page.svelte
-  @purpose Halaman manajemen shodaqoh wilayah untuk admin (KU & Kyai): rekapitulasi metrik, ekspor CSV transaksi, tanda terima/struk digital resmi, visualisasi grafik donasi bulanan, verifikasi & approval bukti transfer, CRUD rekening/QRIS, serta isolasi alokasi jenis shodaqoh dengan preservasi tab & URL wilayah
+  @purpose Halaman manajemen shodaqoh wilayah untuk admin (KU & Kyai): rekapitulasi metrik, ekspor CSV transaksi, tanda terima/struk digital resmi, visualisasi grafik donasi bulanan, verifikasi & approval bukti transfer, CRUD rekening/QRIS, seleksi wilayah adaptif (default null jika banyak wilayah, auto-select kelompok sendiri untuk admin kelompok), serta isolasi alokasi jenis shodaqoh dengan preservasi tab & URL wilayah
   @usedBy Route admin '/admin/keuangan/shodaqoh'
   @dependencies @lucide/svelte, $app/navigation, $app/forms (enhance), $app/state, Svelte 5 Runes, formatRupiah, $lib/components/SearchableSelect.svelte, $lib/keepScroll.ts (keepScrollSubmit)
   @publicFunctions exportToCsv, switchTab, changeWilayah, changeStatusFilter, printReceiptAdmin
@@ -118,10 +118,14 @@
 		}
 	}
 
-	function changeWilayah(scope: string, id: number) {
+	function changeWilayah(scope: string, id: number | null | undefined) {
 		const url = new URL(page.url.href);
 		url.searchParams.set('scope', scope);
-		url.searchParams.set('id', String(id));
+		if (id && Number(id) > 0) {
+			url.searchParams.set('id', String(id));
+		} else {
+			url.searchParams.delete('id');
+		}
 		if (activeTab !== 'transaksi') {
 			url.searchParams.set('tab', activeTab);
 		}
@@ -258,7 +262,11 @@
 						</span>
 					</h1>
 					<p class="text-xs text-foreground/60">
-						{data.activeWilayahInfo.nama} {data.activeWilayahInfo.indukNama ? `• ${data.activeWilayahInfo.indukNama}` : ''}
+						{#if data.activeId}
+							{data.activeWilayahInfo.nama} {data.activeWilayahInfo.indukNama ? `• ${data.activeWilayahInfo.indukNama}` : ''}
+						{:else}
+							Belum ada {data.activeScope.toLowerCase()} yang dipilih
+						{/if}
 					</p>
 				</div>
 			</div>
@@ -271,7 +279,10 @@
 				{#if data.accessibleWilayah.kelompokList.length > 0}
 					<button
 						type="button"
-						onclick={() => changeWilayah('Kelompok', data.accessibleWilayah.kelompokList[0].id)}
+						onclick={() => {
+							const defaultId = data.accessibleWilayah.kelompokList.length === 1 ? data.accessibleWilayah.kelompokList[0].id : null;
+							changeWilayah('Kelompok', defaultId);
+						}}
 						class="px-3 py-1.5 rounded-lg font-medium transition-all {data.activeScope === 'Kelompok'
 							? 'bg-card text-foreground font-bold shadow-xs'
 							: 'text-foreground/60 hover:text-foreground'}"
@@ -282,7 +293,10 @@
 				{#if data.accessibleWilayah.desaList.length > 0}
 					<button
 						type="button"
-						onclick={() => changeWilayah('Desa', data.accessibleWilayah.desaList[0].id)}
+						onclick={() => {
+							const defaultId = data.accessibleWilayah.desaList.length === 1 ? data.accessibleWilayah.desaList[0].id : null;
+							changeWilayah('Desa', defaultId);
+						}}
 						class="px-3 py-1.5 rounded-lg font-medium transition-all {data.activeScope === 'Desa'
 							? 'bg-card text-foreground font-bold shadow-xs'
 							: 'text-foreground/60 hover:text-foreground'}"
@@ -293,7 +307,10 @@
 				{#if data.accessibleWilayah.daerahList.length > 0}
 					<button
 						type="button"
-						onclick={() => changeWilayah('Daerah', data.accessibleWilayah.daerahList[0].id)}
+						onclick={() => {
+							const defaultId = data.accessibleWilayah.daerahList.length === 1 ? data.accessibleWilayah.daerahList[0].id : null;
+							changeWilayah('Daerah', defaultId);
+						}}
 						class="px-3 py-1.5 rounded-lg font-medium transition-all {data.activeScope === 'Daerah'
 							? 'bg-card text-foreground font-bold shadow-xs'
 							: 'text-foreground/60 hover:text-foreground'}"
@@ -309,8 +326,8 @@
 					<SearchableSelect
 						name="selectKelompok"
 						options={kelompokOptions}
-						value={data.activeId}
-						onchange={(val: string | number) => changeWilayah('Kelompok', Number(val))}
+						value={data.activeId || ''}
+						onchange={(val: string | number) => changeWilayah('Kelompok', val ? Number(val) : null)}
 						placeholder="-- Cari Kelompok --"
 						searchPlaceholder="Ketik nama kelompok..."
 					/>
@@ -318,8 +335,8 @@
 					<SearchableSelect
 						name="selectDesa"
 						options={desaOptions}
-						value={data.activeId}
-						onchange={(val: string | number) => changeWilayah('Desa', Number(val))}
+						value={data.activeId || ''}
+						onchange={(val: string | number) => changeWilayah('Desa', val ? Number(val) : null)}
 						placeholder="-- Cari Desa --"
 						searchPlaceholder="Ketik nama desa..."
 					/>
@@ -327,8 +344,8 @@
 					<SearchableSelect
 						name="selectDaerah"
 						options={daerahOptions}
-						value={data.activeId}
-						onchange={(val: string | number) => changeWilayah('Daerah', Number(val))}
+						value={data.activeId || ''}
+						onchange={(val: string | number) => changeWilayah('Daerah', val ? Number(val) : null)}
 						placeholder="-- Cari Daerah --"
 						searchPlaceholder="Ketik nama daerah..."
 					/>
@@ -350,8 +367,21 @@
 		</div>
 	</div>
 
-	<!-- Ringkasan Statistik Donasi -->
-	<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+	{#if !data.activeId}
+		<div class="p-12 text-center bg-card border border-border rounded-2xl shadow-xs space-y-3">
+			<div class="w-12 h-12 rounded-2xl bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center mx-auto shadow-2xs">
+				<Filter class="w-6 h-6" />
+			</div>
+			<div>
+				<h3 class="text-sm sm:text-base font-bold text-foreground">Pilih Wilayah Terlebih Dahulu</h3>
+				<p class="text-xs text-foreground/60 max-w-md mx-auto mt-1 leading-relaxed">
+					Silakan tentukan tingkat wilayah dan pilih {data.activeScope.toLowerCase()} pada menu dropdown di atas untuk membuka laporan transaksi, jenis shodaqoh, dan rekening penerima.
+				</p>
+			</div>
+		</div>
+	{:else}
+		<!-- Ringkasan Statistik Donasi -->
+		<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
 		<div class="bg-card border border-border p-4 rounded-2xl shadow-xs space-y-1">
 			<div class="flex items-center justify-between text-xs text-foreground/60">
 				<span>Total Shodaqoh</span>
@@ -874,6 +904,7 @@
 				</div>
 			{/if}
 		</div>
+	{/if}
 	{/if}
 </div>
 
