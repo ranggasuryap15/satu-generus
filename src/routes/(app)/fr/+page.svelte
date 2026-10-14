@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(app)/fr/+page.svelte
-  @purpose Halaman antarmuka client jamaah untuk pengisian dan pelaporan Isrun/FR bulanan: tabel spreadsheet 4 kolom terstruktur per kategori induk (A. Hak Pusat, B. Hak Daerah, C. Hak Desa, D. Hak Kelompok) mirip template KU, validasi input angka murni aktif & auto-format ribuan id-ID dengan nilai default kosong, kartu rekening bank dan kartu QRIS bergambar interaktif (bisa di-zoom), switcher anggota & periode, serta form upload bukti setor
+  @purpose Halaman antarmuka client jamaah untuk pengisian dan pelaporan Isrun/FR bulanan: tabel spreadsheet 4 kolom terstruktur per kategori induk (A. Hak Pusat, B. Hak Daerah, C. Hak Desa, D. Hak Kelompok) mirip template KU, validasi input angka murni aktif & auto-format ribuan id-ID dengan nilai default kosong, pemisahan struktur kartu rekening bank & kartu QRIS dengan tab switcher rapi (zoomable QRIS & 1-klik salin no rekening), switcher anggota & periode, serta form upload bukti setor
   @usedBy Route client '/fr' (diakses via Quick Access Beranda 'Isrun/FR')
   @dependencies @lucide/svelte, $app/forms (enhance), Svelte 5 Runes
   @publicFunctions handleInputRiil, handleNumberKeyDown, handleCopySaranKeRiil, handleResetRiil, formatRp, copyToClipboard
@@ -49,6 +49,23 @@
 	let copiedRekeningText = $state<string | null>(null);
 	let zoomedQris = $state<{ url: string; atasNama: string } | null>(null);
 	let previewBukti = $state<string | null>(null);
+
+	// Pemisahan saluran Rekening Bank & QRIS Resmi
+	const rekeningBankList = $derived(
+		(data.rekeningList || []).filter((r: any) => !r.qrisImageUrl && !r.namaBank?.toLowerCase().includes('qris'))
+	);
+	const qrisList = $derived(
+		(data.rekeningList || []).filter((r: any) => Boolean(r.qrisImageUrl) || r.namaBank?.toLowerCase().includes('qris'))
+	);
+	let transferChannel = $state<'bank' | 'qris'>('bank');
+
+	$effect(() => {
+		if (rekeningBankList.length === 0 && qrisList.length > 0) {
+			transferChannel = 'qris';
+		} else if (qrisList.length === 0 && rekeningBankList.length > 0) {
+			transferChannel = 'bank';
+		}
+	});
 
 	function handleFileChange(e: Event) {
 		const target = e.target as HTMLInputElement;
@@ -663,101 +680,147 @@
 			<!-- Rincian Rekening Resmi jika memilih Transfer -->
 			{#if metodeBayar === 'Transfer'}
 				<div class="space-y-3 pt-2">
-					<h4 class="text-xs font-bold text-foreground/80 flex items-center gap-1.5">
-						<ShieldCheck class="w-4 h-4 text-teal-600" />
-						Rekening & QRIS Resmi Kelompok ({data.kelompokNama})
-					</h4>
+					<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+						<h4 class="text-xs font-bold text-foreground/80 flex items-center gap-1.5">
+							<ShieldCheck class="w-4 h-4 text-teal-600" />
+							{#if rekeningBankList.length > 0 && qrisList.length > 0}
+								Rekening & QRIS Resmi Kelompok ({data.kelompokNama})
+							{:else if qrisList.length > 0}
+								QRIS Resmi Kelompok ({data.kelompokNama})
+							{:else}
+								Rekening Bank Resmi Kelompok ({data.kelompokNama})
+							{/if}
+						</h4>
 
-					{#if data.rekeningList && data.rekeningList.length > 0}
-						<div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-							{#each data.rekeningList as rek}
-								{#if rek.qrisImageUrl}
-									<!-- KARTU QRIS RESMI (DENGAN GAMBAR BARCODE) -->
-									<div class="border border-border bg-card rounded-2xl p-4 shadow-2xs space-y-3 flex flex-col justify-between">
-										<div class="flex items-center justify-between">
-											<div class="flex items-center gap-2">
-												<span class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-teal-500/10 text-teal-700 dark:text-teal-300 border border-teal-500/20 flex items-center gap-1">
-													<QrCode class="w-3 h-3" />
-													<span>QRIS</span>
-												</span>
-												<span class="text-xs font-bold text-foreground">
-													{rek.tipeTujuan || 'Infaq / Shodaqoh'}
-												</span>
-											</div>
-											<span class="text-[10px] text-foreground/50">a.n {rek.atasNama}</span>
+						<!-- Switcher Tab jika kelompok menyediakan kedua metode (Bank & QRIS) -->
+						{#if rekeningBankList.length > 0 && qrisList.length > 0}
+							<div class="inline-flex items-center p-1 bg-secondary/60 rounded-xl border border-border/80 text-xs self-start sm:self-auto shadow-2xs">
+								<button
+									type="button"
+									onclick={() => (transferChannel = 'bank')}
+									class="px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer {transferChannel === 'bank' ? 'bg-card text-foreground shadow-2xs border border-border/60' : 'text-foreground/60 hover:text-foreground'}"
+								>
+									<CreditCard class="w-3.5 h-3.5 text-primary" />
+									<span>Rekening Bank</span>
+									<span class="px-1.5 py-0.2 rounded-full text-[10px] bg-secondary text-foreground/70 font-semibold">{rekeningBankList.length}</span>
+								</button>
+								<button
+									type="button"
+									onclick={() => (transferChannel = 'qris')}
+									class="px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer {transferChannel === 'qris' ? 'bg-card text-foreground shadow-2xs border border-border/60' : 'text-foreground/60 hover:text-foreground'}"
+								>
+									<QrCode class="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+									<span>Scan QRIS</span>
+									<span class="px-1.5 py-0.2 rounded-full text-[10px] bg-secondary text-foreground/70 font-semibold">{qrisList.length}</span>
+								</button>
+							</div>
+						{/if}
+					</div>
+
+					{#if !data.rekeningList || data.rekeningList.length === 0}
+						<div class="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-300">
+							Belum ada rekening atau QRIS resmi yang dikonfigurasikan di kelompok ini. Anda dapat menanyakan langsung ke KU kelompok.
+						</div>
+					{:else if transferChannel === 'bank' && rekeningBankList.length > 0}
+						<!-- DAFTAR REKENING BANK RESMI (Kompak, tidak melar vertikal, anti-tabrakan teks) -->
+						<div class="grid grid-cols-1 {rekeningBankList.length > 1 ? 'sm:grid-cols-2' : ''} gap-3.5">
+							{#each rekeningBankList as rek}
+								<div class="border border-border bg-card rounded-2xl p-4 shadow-2xs space-y-3">
+									<div class="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 pb-2.5">
+										<div class="flex items-center gap-2 min-w-0">
+											<span class="px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 flex items-center gap-1 shrink-0">
+												<CreditCard class="w-3 h-3" />
+												<span>{rek.namaBank}</span>
+											</span>
+											<span class="text-xs font-bold text-foreground truncate">
+												{rek.tipeTujuan || 'Infaq / Shodaqoh'}
+											</span>
 										</div>
+										<span class="text-[11px] font-medium text-foreground/70 shrink-0">a.n {rek.atasNama}</span>
+									</div>
 
-										<div class="flex flex-col items-center justify-center p-3 bg-secondary/30 rounded-xl space-y-2">
+									<div class="flex items-center justify-between p-3 bg-secondary/40 rounded-xl border border-border/60 gap-3">
+										<div class="min-w-0 flex-1">
+											<p class="text-[10px] text-foreground/50 uppercase font-semibold">Nomor Rekening</p>
+											<p class="font-mono text-sm sm:text-base font-bold text-foreground tracking-wider select-all truncate">
+												{rek.nomorRekening}
+											</p>
+										</div>
+										<button
+											type="button"
+											onclick={() => copyToClipboard(rek.nomorRekening)}
+											class="px-3 py-2 rounded-xl bg-card border border-border hover:bg-secondary text-xs font-semibold text-foreground flex items-center gap-1.5 transition-all shadow-2xs active:scale-95 shrink-0 cursor-pointer"
+										>
+											{#if copiedRekeningText === rek.nomorRekening}
+												<CheckCircle2 class="w-3.5 h-3.5 text-emerald-500" />
+												<span class="text-emerald-600 font-bold">Disalin</span>
+											{:else}
+												<Copy class="w-3.5 h-3.5 text-foreground/60" />
+												<span>Salin</span>
+											{/if}
+										</button>
+									</div>
+
+									{#if rek.keterangan}
+										<p class="text-[11px] text-foreground/60 italic px-0.5">
+											{rek.keterangan}
+										</p>
+									{/if}
+								</div>
+							{/each}
+						</div>
+					{:else if transferChannel === 'qris' && qrisList.length > 0}
+						<!-- DAFTAR SCAN QRIS RESMI (Tampilan barcode terpusat & bersih) -->
+						<div class="grid grid-cols-1 {qrisList.length > 1 ? 'sm:grid-cols-2' : ''} gap-3.5">
+							{#each qrisList as rek}
+								<div class="border border-border bg-card rounded-2xl p-4 shadow-2xs space-y-3">
+									<div class="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 pb-2.5">
+										<div class="flex items-center gap-2 min-w-0">
+											<span class="px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-teal-500/10 text-teal-700 dark:text-teal-300 border border-teal-500/20 flex items-center gap-1 shrink-0">
+												<QrCode class="w-3 h-3" />
+												<span>QRIS</span>
+											</span>
+											<span class="text-xs font-bold text-foreground truncate">
+												{rek.tipeTujuan || 'Infaq / Shodaqoh'}
+											</span>
+										</div>
+										<span class="text-[11px] font-medium text-foreground/70 shrink-0">a.n {rek.atasNama}</span>
+									</div>
+
+									{#if rek.qrisImageUrl}
+										<div class="flex flex-col items-center justify-center p-3.5 bg-secondary/30 rounded-xl space-y-2.5">
 											<button
 												type="button"
 												onclick={() => (zoomedQris = { url: rek.qrisImageUrl!, atasNama: rek.atasNama })}
-												class="relative group rounded-xl overflow-hidden border border-border shadow-xs max-w-44 bg-white p-2 cursor-pointer transition-transform hover:scale-[1.02]"
+												class="relative group rounded-xl overflow-hidden border border-border shadow-xs max-w-48 bg-white p-2.5 cursor-pointer transition-transform hover:scale-[1.02]"
 												aria-label="Perbesar QRIS"
 											>
 												<img
 													src={rek.qrisImageUrl}
 													alt="QRIS {rek.atasNama}"
-													class="w-full h-auto object-contain max-h-44 mx-auto"
+													class="w-full h-auto object-contain max-h-48 mx-auto"
 												/>
-												<div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold rounded-xl">
+												<div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-bold rounded-xl">
 													Klik untuk perbesar
 												</div>
 											</button>
-											<p class="text-[10px] text-foreground/60 text-center">
-												Scan dengan aplikasi M-Banking atau E-Wallet apa saja
+											<p class="text-[11px] text-foreground/60 text-center max-w-xs">
+												Scan dengan aplikasi M-Banking atau E-Wallet apa saja (BCA, Mandiri, BSI, GoPay, OVO, Dana, ShopeePay)
 											</p>
 										</div>
-									</div>
-								{:else}
-									<!-- KARTU REKENING BANK RESMI -->
-									<div class="border border-border bg-card rounded-2xl p-4 shadow-2xs space-y-3 flex flex-col justify-between">
-										<div class="flex items-center justify-between">
-											<div class="flex items-center gap-2">
-												<span class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 flex items-center gap-1">
-													<CreditCard class="w-3 h-3" />
-													<span>{rek.namaBank}</span>
-												</span>
-												<span class="text-xs font-bold text-foreground">
-													{rek.tipeTujuan || 'Infaq / Shodaqoh'}
-												</span>
-											</div>
-											<span class="text-[10px] text-foreground/50">a.n {rek.atasNama}</span>
+									{:else}
+										<div class="p-3 bg-secondary/30 rounded-xl text-center text-xs text-foreground/60">
+											Gambar barcode QRIS belum diunggah oleh pengurus kelompok.
 										</div>
+									{/if}
 
-										<div class="flex items-center justify-between p-3 bg-secondary/40 rounded-xl border border-border/60">
-											<div class="min-w-0 pr-2">
-												<p class="text-[10px] text-foreground/50 uppercase font-semibold">Nomor Rekening</p>
-												<p class="font-mono text-sm sm:text-base font-bold text-foreground tracking-wider select-all truncate">
-													{rek.nomorRekening}
-												</p>
-											</div>
-											<button
-												type="button"
-												onclick={() => copyToClipboard(rek.nomorRekening)}
-												class="px-3 py-2 rounded-xl bg-card border border-border hover:bg-secondary text-xs font-semibold text-foreground flex items-center gap-1.5 transition-all shadow-2xs active:scale-95 shrink-0"
-											>
-												{#if copiedRekeningText === rek.nomorRekening}
-													<CheckCircle2 class="w-3.5 h-3.5 text-emerald-500" />
-													<span class="text-emerald-600 font-bold">Disalin</span>
-												{:else}
-													<Copy class="w-3.5 h-3.5 text-foreground/60" />
-													<span>Salin</span>
-												{/if}
-											</button>
-										</div>
-
-										{#if rek.keterangan}
-											<p class="text-[11px] text-foreground/60 italic px-1">
-												{rek.keterangan}
-											</p>
-										{/if}
-									</div>
-								{/if}
+									{#if rek.keterangan}
+										<p class="text-[11px] text-foreground/60 italic px-0.5 text-center">
+											{rek.keterangan}
+										</p>
+									{/if}
+								</div>
 							{/each}
-						</div>
-					{:else}
-						<div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-300">
-							Belum ada rekening/QRIS resmi yang dikonfigurasikan di kelompok ini. Anda dapat menanyakan langsung ke KU kelompok.
 						</div>
 					{/if}
 
