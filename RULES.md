@@ -54,20 +54,20 @@
 - **ROOT UPLOADS DIRECTORY:** Semua file unggahan wajib disimpan di luar folder build/static, yaitu pada direktori `path.resolve(process.cwd(), 'uploads/<nama_modul>')`.
 - **URL PATH:** Simpan path relatif `/uploads/<nama_modul>/<nama_file>` di database agar dilayani oleh endpoint catch-all `src/routes/uploads/[...filepath]/+server.ts`.
 
-## 🐳 Aturan Eksekusi Lingkungan (Docker-First)
+## 🐳 Aturan Eksekusi Lingkungan (Fleksibel Berbasis Kontainer)
 
-Proyek ini berjalan sepenuhnya di dalam lingkungan kontainer. **Seluruh eksekusi perintah (CLI) wajib dilakukan di dalam kontainer Docker**, bukan di terminal _host_ lokal maupun VPS. Hal ini untuk mencegah _error_ dependensi (seperti `tsx` atau `drizzle-kit` tidak ditemukan), perbedaan versi Node.js, dan kegagalan resolusi DNS database (`localhost` vs nama layanan Docker).
+Proyek ini dikerjakan menggunakan Docker, namun penentuan lokasi eksekusi perintah (CLI) bersifat **fleksibel dan bergantung pada ketersediaan _environment_ atau _tools_ di dalam kontainer**.
 
-- **Protokol Utama:** Dilarang menjalankan `npm`, `npx`, atau skrip database langsung di terminal _host_.
-- **Format Eksekusi:** Selalu gunakan awalan `docker compose exec <nama_service>` (atau `docker exec -it <nama_container>`).
+- **Eksekusi Wajib di Dalam Kontainer (Docker-First):** Jika eksekusi berkaitan dengan ekosistem utama proyek yang sudah dibungkus di dalam Docker (seperti Node.js, `npm`, Drizzle ORM, atau SvelteKit), maka perintah **wajib** dijalankan di dalam kontainer. Hal ini mencegah _error_ versi, dependensi yang hilang, atau kegagalan resolusi DNS _database_ internal.
+  - _Instalasi:_ `docker compose exec app npm install <paket>`
+  - _Migrasi:_ `docker compose exec app npx drizzle-kit generate`
+  - _Update DB:_ `docker compose exec app npm run db:migrate`
 
-**Standar Perintah Harian:**
+- **Eksekusi di Luar Kontainer (Terminal Host):** Jika eksekusi memerlukan bahasa pemrograman atau _tools_ yang **tidak diinstal** di dalam kontainer proyek (misalnya _script_ otomatisasi menggunakan Python, Git CLI, atau manajemen _file_ level OS host), maka eksekusi dilakukan langsung di terminal komputer lokal atau VPS.
+  - _Contoh:_ `python3 automasi_data.py`
+  - _Contoh:_ `git pull origin main`
 
-- **Instalasi Paket:** `docker compose exec app npm install <nama_paket>`
-- **Generate Migrasi Drizzle:** `docker compose exec app npx drizzle-kit generate`
-- **Terapkan Migrasi DB:** `docker compose exec app npm run db:migrate`
-- **Akses Shell Terminal SvelteKit:** `docker compose exec app sh` (atau `bash`)
-- **Melihat Log Aplikasi _Real-time_:** `docker compose logs -f app`
+**Aturan Jaringan Database Berdasarkan Konteks:**
 
-**Aturan Koneksi Database:**
-Semua skrip yang melakukan koneksi ke PostgreSQL wajib dieksekusi dari dalam kontainer `app`. Jika dijalankan dari _host_, aplikasi akan gagal membaca URI `DATABASE_URL` yang menggunakan _internal hostname_ jaringan Docker (misalnya `postgres://user:pass@postgres:5432/...`).
+- Jika _script_ berjalan **di dalam** kontainer SvelteKit: URL _database_ wajib menggunakan nama _service_ Docker (contoh: `postgres://user:pass@postgres:5432/...`).
+- Jika _script_ berjalan **di luar** kontainer (Terminal Host/Python): URL _database_ wajib menunjuk ke _port forwarding_ lokal (contoh: `postgresql://user:pass@127.0.0.1:5432/...`).
