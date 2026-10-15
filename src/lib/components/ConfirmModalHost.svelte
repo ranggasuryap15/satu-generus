@@ -81,13 +81,15 @@
 
 			<!-- Tombol Batal & Konfirmasi -->
 			<div class="flex items-center justify-center gap-2.5 pt-2">
-				<button
-					type="button"
-					onclick={handleCancel}
-					class="w-full py-2.5 px-4 rounded-xl border border-border text-sm font-semibold text-foreground/80 hover:bg-secondary hover:text-foreground transition-all active:scale-95"
-				>
-					{confirmModalState.cancelText}
-				</button>
+				{#if confirmModalState.cancelText}
+					<button
+						type="button"
+						onclick={handleCancel}
+						class="w-full py-2.5 px-4 rounded-xl border border-border text-sm font-semibold text-foreground/80 hover:bg-secondary hover:text-foreground transition-all active:scale-95"
+					>
+						{confirmModalState.cancelText}
+					</button>
+				{/if}
 
 				<button
 					type="button"

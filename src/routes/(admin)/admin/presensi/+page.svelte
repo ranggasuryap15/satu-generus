@@ -17,6 +17,7 @@
 	import { confirmAction } from '#lib/confirm.svelte.ts';
 	import { enhance } from '$app/forms';
 	import { keepScrollSubmit } from '#lib/keepScroll.js';
+	import { confirmSubmit } from '#lib/confirmSubmit.ts';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -347,7 +348,16 @@
 			<form
 				method="POST"
 				action="?/createJadwal"
-				use:enhance={keepScrollSubmit({ onSuccess: () => closeAddModal() })}
+				use:enhance={confirmSubmit(
+					{
+						title: 'Simpan Jadwal Pengajian?',
+						message: 'Pastikan nama kegiatan, tanggal, dan lokasi sudah sesuai. Yakin ingin menyimpan jadwal pengajian ini?',
+						confirmText: 'Ya, Simpan',
+						cancelText: 'Batal',
+						variant: 'primary'
+					},
+					keepScrollSubmit({ onSuccess: () => closeAddModal() })
+				)}
 				class="space-y-4"
 			>
 				<div>

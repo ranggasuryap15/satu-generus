@@ -11,6 +11,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { keepScrollSubmit } from '#lib/keepScroll.js';
+	import { confirmSubmit } from '#lib/confirmSubmit.ts';
 	import { confirmAction } from '#lib/confirm.svelte.ts';
 	import SearchableSelect from '#lib/components/SearchableSelect.svelte';
 	import LocationPicker from '#lib/components/LocationPicker.svelte';
@@ -784,7 +785,16 @@
 				</button>
 			</div>
 
-			<form method="POST" action={`?/updateLokasi&scope=${data.activeScope}&id=${data.activeId}`} use:enhance={keepScrollSubmit()} class="space-y-4">
+			<form method="POST" action={`?/updateLokasi&scope=${data.activeScope}&id=${data.activeId}`} use:enhance={confirmSubmit(
+				{
+					title: 'Simpan Perubahan Lokasi?',
+					message: 'Pastikan nama tempat dan koordinat lokasi sudah sesuai. Yakin ingin menyimpan perubahan lokasi ini?',
+					confirmText: 'Ya, Simpan',
+					cancelText: 'Batal',
+					variant: 'primary'
+				},
+				keepScrollSubmit()
+			)} class="space-y-4">
 				<input type="hidden" name="scope" value={data.activeScope} />
 				<input type="hidden" name="id" value={data.activeId} />
 
@@ -871,7 +881,18 @@
 				method="POST"
 				action={`${isEditingRekening ? '?/updateRekening' : '?/addRekening'}&scope=${data.activeScope}&id=${data.activeId}`}
 				enctype="multipart/form-data"
-				use:enhance={keepScrollSubmit()}
+				use:enhance={confirmSubmit(
+					{
+						title: isEditingRekening ? 'Simpan Perubahan Rekening?' : 'Simpan Rekening Shodaqoh?',
+						message: isEditingRekening
+							? 'Pastikan data rekening sudah sesuai. Yakin ingin menyimpan perubahan rekening ini?'
+							: 'Pastikan data rekening baru sudah sesuai. Yakin ingin menyimpan rekening shodaqoh ini?',
+						confirmText: 'Ya, Simpan',
+						cancelText: 'Batal',
+						variant: 'primary'
+					},
+					keepScrollSubmit()
+				)}
 				class="space-y-3.5"
 			>
 				<input type="hidden" name="scope" value={data.activeScope} />

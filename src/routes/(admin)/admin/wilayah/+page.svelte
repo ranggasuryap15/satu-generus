@@ -42,6 +42,7 @@
 	import Pagination from '#lib/components/Pagination.svelte';
 	import { enhance } from '$app/forms';
 	import { keepScrollSubmit } from '#lib/keepScroll.js';
+	import { confirmSubmit } from '#lib/confirmSubmit.ts';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -1777,7 +1778,16 @@
 			<form
 				method="POST"
 				action="?/createWilayah"
-				use:enhance={keepScrollSubmit({ onSuccess: () => closeUnifiedAddModal() })}
+				use:enhance={confirmSubmit(
+					{
+						title: 'Simpan Data Wilayah?',
+						message: 'Pastikan data daerah/desa/kelompok sudah sesuai. Yakin ingin menyimpan data wilayah ini?',
+						confirmText: 'Ya, Simpan',
+						cancelText: 'Batal',
+						variant: 'primary'
+					},
+					keepScrollSubmit({ onSuccess: () => closeUnifiedAddModal() })
+				)}
 				class="space-y-3.5"
 			>
 				<!-- LEVEL 1: DAERAH -->
@@ -2122,7 +2132,16 @@
 					<form
 						method="POST"
 						action="?/updateKelompokLocation"
-						use:enhance={keepScrollSubmit({ onSuccess: () => closeKelompokDetail() })}
+						use:enhance={confirmSubmit(
+							{
+								title: 'Simpan Lokasi Kelompok?',
+								message: 'Pastikan koordinat dan radius lokasi sudah sesuai. Yakin ingin menyimpan lokasi kelompok ini?',
+								confirmText: 'Ya, Simpan',
+								cancelText: 'Batal',
+								variant: 'primary'
+							},
+							keepScrollSubmit({ onSuccess: () => closeKelompokDetail() })
+						)}
 						class="space-y-4"
 					>
 						<input type="hidden" name="kelompokId" value={selectedKelompok.id} />
@@ -2289,7 +2308,16 @@
 					<form
 						method="POST"
 						action="?/updateDesaLocation"
-						use:enhance={keepScrollSubmit({ onSuccess: () => closeDesaDetail() })}
+						use:enhance={confirmSubmit(
+							{
+								title: 'Simpan Lokasi Desa?',
+								message: 'Pastikan koordinat dan radius lokasi sudah sesuai. Yakin ingin menyimpan lokasi desa ini?',
+								confirmText: 'Ya, Simpan',
+								cancelText: 'Batal',
+								variant: 'primary'
+							},
+							keepScrollSubmit({ onSuccess: () => closeDesaDetail() })
+						)}
 						class="space-y-4"
 					>
 						<input type="hidden" name="desaId" value={selectedDesa.id} />
@@ -2527,7 +2555,16 @@
 			<form
 				method="POST"
 				action="?/updateKelompok"
-				use:enhance={keepScrollSubmit({ onSuccess: () => closeEditKelompok() })}
+				use:enhance={confirmSubmit(
+					{
+						title: 'Simpan Perubahan Kelompok?',
+						message: 'Pastikan nama dan rincian kelompok sudah sesuai. Yakin ingin menyimpan perubahan kelompok ini?',
+						confirmText: 'Ya, Simpan',
+						cancelText: 'Batal',
+						variant: 'primary'
+					},
+					keepScrollSubmit({ onSuccess: () => closeEditKelompok() })
+				)}
 				class="p-4 sm:p-6 space-y-4 text-xs"
 			>
 				<input type="hidden" name="kelompokId" value={selectedKelompokToEdit.id} />
@@ -2631,7 +2668,16 @@
 			<form
 				method="POST"
 				action="?/updateDesa"
-				use:enhance={keepScrollSubmit({ onSuccess: () => closeEditDesa() })}
+				use:enhance={confirmSubmit(
+					{
+						title: 'Simpan Perubahan Desa?',
+						message: 'Pastikan nama dan rincian desa sudah sesuai. Yakin ingin menyimpan perubahan desa ini?',
+						confirmText: 'Ya, Simpan',
+						cancelText: 'Batal',
+						variant: 'primary'
+					},
+					keepScrollSubmit({ onSuccess: () => closeEditDesa() })
+				)}
 				class="p-4 sm:p-6 space-y-4 text-xs"
 			>
 				<input type="hidden" name="desaId" value={selectedDesaToEdit.id} />
@@ -2735,7 +2781,16 @@
 			<form
 				method="POST"
 				action="?/updateSubKelompok"
-				use:enhance={keepScrollSubmit({ onSuccess: () => closeEditSubKelompok() })}
+				use:enhance={confirmSubmit(
+					{
+						title: 'Simpan Perubahan Sub-Kelompok?',
+						message: 'Pastikan nama dan rincian sub-kelompok sudah sesuai. Yakin ingin menyimpan perubahan ini?',
+						confirmText: 'Ya, Simpan',
+						cancelText: 'Batal',
+						variant: 'primary'
+					},
+					keepScrollSubmit({ onSuccess: () => closeEditSubKelompok() })
+				)}
 				class="p-4 sm:p-6 space-y-4 text-xs"
 			>
 				<input type="hidden" name="subKelompokId" value={selectedSubKelompokToEdit.id} />

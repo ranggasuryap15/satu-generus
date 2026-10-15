@@ -32,6 +32,7 @@
 	import { formatDateDDMMYYYY } from '#lib/utils.js';
 	import { confirmAction } from '#lib/confirm.svelte.ts';
 	import { keepScrollSubmit } from '#lib/keepScroll.js';
+	import { confirmSubmit } from '#lib/confirmSubmit.ts';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -620,11 +621,20 @@
 			<form
 				method="POST"
 				action="?/updateKeluarga"
-				use:enhance={keepScrollSubmit({
-					beforeSubmit: () => { isSubmitting = true; },
-					onFinally: () => { isSubmitting = false; },
-					onSuccess: () => { closeEditKkModal(); }
-				})}
+				use:enhance={confirmSubmit(
+					{
+						title: 'Simpan Perubahan Kartu Keluarga?',
+						message: 'Pastikan nomor KK dan alamat sudah sesuai. Yakin ingin menyimpan perubahan data keluarga ini?',
+						confirmText: 'Ya, Simpan',
+						cancelText: 'Batal',
+						variant: 'primary'
+					},
+					keepScrollSubmit({
+						beforeSubmit: () => { isSubmitting = true; },
+						onFinally: () => { isSubmitting = false; },
+						onSuccess: () => { closeEditKkModal(); }
+					})
+				)}
 				class="space-y-4 text-xs"
 			>
 				<input type="hidden" name="keluargaId" value={data.keluarga?.id} />
@@ -711,11 +721,20 @@
 			<form
 				method="POST"
 				action="?/updateAnggota"
-				use:enhance={keepScrollSubmit({
-					beforeSubmit: () => { isSubmitting = true; },
-					onFinally: () => { isSubmitting = false; },
-					onSuccess: () => { closeEditAnggotaModal(); }
-				})}
+				use:enhance={confirmSubmit(
+					{
+						title: 'Simpan Perubahan Anggota?',
+						message: 'Pastikan data anggota sudah sesuai. Yakin ingin menyimpan perubahan anggota ini?',
+						confirmText: 'Ya, Simpan',
+						cancelText: 'Batal',
+						variant: 'primary'
+					},
+					keepScrollSubmit({
+						beforeSubmit: () => { isSubmitting = true; },
+						onFinally: () => { isSubmitting = false; },
+						onSuccess: () => { closeEditAnggotaModal(); }
+					})
+				)}
 				class="space-y-4 text-xs"
 			>
 				<input type="hidden" name="anggotaId" value={selectedAnggota.id} />
@@ -865,11 +884,20 @@
 			<form
 				method="POST"
 				action="?/tambahAnggota"
-				use:enhance={keepScrollSubmit({
-					beforeSubmit: () => { isSubmitting = true; },
-					onFinally: () => { isSubmitting = false; },
-					onSuccess: () => { closeTambahAnggotaModal(); }
-				})}
+				use:enhance={confirmSubmit(
+					{
+						title: 'Tambah Anggota Keluarga?',
+						message: 'Pastikan data anggota baru sudah sesuai. Yakin ingin menambahkan anggota keluarga ini?',
+						confirmText: 'Ya, Tambah',
+						cancelText: 'Batal',
+						variant: 'primary'
+					},
+					keepScrollSubmit({
+						beforeSubmit: () => { isSubmitting = true; },
+						onFinally: () => { isSubmitting = false; },
+						onSuccess: () => { closeTambahAnggotaModal(); }
+					})
+				)}
 				class="space-y-4 text-xs"
 			>
 				<input type="hidden" name="keluargaId" value={data.keluarga?.id} />

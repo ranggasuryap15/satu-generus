@@ -147,7 +147,7 @@
 	}
 
 	// Parsing Spreadsheet Text dari Excel / Google Sheets
-	function processPastedSpreadsheet() {
+	async function processPastedSpreadsheet() {
 		if (!pasteText.trim()) return;
 
 		const lines = pasteText.trim().split(/\r?\n/);
@@ -225,7 +225,13 @@
 			pasteText = '';
 			showPasteModal = false;
 		} else {
-			alert('Tidak ada baris data yang berhasil dikenali. Pastikan minimal kolom Daerah, Desa, dan Kelompok terisi.');
+			await confirmAction({
+				title: 'Data Tidak Terbaca',
+				message: 'Tidak ada baris data yang berhasil dikenali. Pastikan minimal kolom Daerah, Desa, dan Kelompok terisi.',
+				confirmText: 'Mengerti',
+				cancelText: '',
+				variant: 'warning'
+			});
 		}
 	}
 
@@ -364,27 +370,57 @@
 	<!-- Form Batch Groups Wilayah -->
 	<form
 		method="POST"
-		use:enhance={({ cancel }) => {
+		use:enhance={async ({ cancel }) => {
 			for (let i = 0; i < groups.length; i++) {
 				const g = groups[i];
 				if (!g.daerahNama.trim()) {
-					alert(`Grup #${i + 1}: Nama Daerah wajib diisi!`);
+					await confirmAction({
+						title: 'Data Belum Lengkap',
+						message: `Grup #${i + 1}: Nama Daerah wajib diisi!`,
+						confirmText: 'Mengerti',
+						cancelText: '',
+						variant: 'warning'
+					});
 					cancel();
 					return;
 				}
 				if (!g.desaNama.trim()) {
-					alert(`Grup #${i + 1}: Nama Desa wajib diisi!`);
+					await confirmAction({
+						title: 'Data Belum Lengkap',
+						message: `Grup #${i + 1}: Nama Desa wajib diisi!`,
+						confirmText: 'Mengerti',
+						cancelText: '',
+						variant: 'warning'
+					});
 					cancel();
 					return;
 				}
 				for (let k = 0; k < g.kelompoks.length; k++) {
 					const kl = g.kelompoks[k];
 					if (!kl.nama.trim()) {
-						alert(`Grup #${i + 1} (${g.desaNama}), Kelompok #${k + 1}: Nama kelompok wajib diisi!`);
+						await confirmAction({
+							title: 'Data Belum Lengkap',
+							message: `Grup #${i + 1} (${g.desaNama}), Kelompok #${k + 1}: Nama kelompok wajib diisi!`,
+							confirmText: 'Mengerti',
+							cancelText: '',
+							variant: 'warning'
+						});
 						cancel();
 						return;
 					}
 				}
+			}
+
+			const ok = await confirmAction({
+				title: 'Simpan Data Wilayah Batch?',
+				message: `Yakin ingin menyimpan ${groups.length} grup wilayah (semua desa, kelompok, dan sub-kelompok)? Pastikan seluruh data sudah sesuai.`,
+				confirmText: 'Ya, Simpan',
+				cancelText: 'Batal',
+				variant: 'primary'
+			});
+			if (!ok) {
+				cancel();
+				return;
 			}
 
 			isSubmitting = true;

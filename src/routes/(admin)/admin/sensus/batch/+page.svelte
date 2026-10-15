@@ -316,7 +316,7 @@
 	}
 
 	// Parsing Text Clipboard dari Google Sheets / Excel
-	function processPastedSpreadsheet() {
+	async function processPastedSpreadsheet() {
 		if (!pasteText.trim()) return;
 
 		const lines = pasteText.trim().split(/\r?\n/);
@@ -578,9 +578,13 @@
 			pasteText = '';
 			showPasteModal = false;
 		} else {
-			alert(
-				'Tidak ada data baris yang berhasil dikenali. Pastikan Anda menyalin kolom dari Excel / Google Sheets.'
-			);
+			await confirmAction({
+				title: 'Data Tidak Terbaca',
+				message: 'Tidak ada data baris yang berhasil dikenali. Pastikan Anda menyalin kolom dari Excel / Google Sheets.',
+				confirmText: 'Mengerti',
+				cancelText: '',
+				variant: 'warning'
+			});
 		}
 	}
 
@@ -748,9 +752,15 @@
 	<!-- Form Batch Groups Sensus -->
 	<form
 		method="POST"
-		use:enhance={({ cancel }) => {
+		use:enhance={async ({ cancel }) => {
 			if (families.length === 0) {
-				alert('Silakan tambahkan minimal 1 keluarga atau jamaah.');
+				await confirmAction({
+					title: 'Data Kosong',
+					message: 'Silakan tambahkan minimal 1 keluarga atau jamaah.',
+					confirmText: 'Mengerti',
+					cancelText: '',
+					variant: 'warning'
+				});
 				cancel();
 				return;
 			}
@@ -759,11 +769,15 @@
 			for (let fIdx = 0; fIdx < families.length; fIdx++) {
 				const fam = families[fIdx];
 				if (!fam.members || fam.members.length === 0) {
-					alert(
-						fam.isPerantau
+					await confirmAction({
+						title: 'Data Belum Lengkap',
+						message: fam.isPerantau
 							? `Baris Mandiri #${fIdx + 1} tidak memiliki data. Silakan isi atau hapus baris tersebut.`
-							: `Keluarga #${fIdx + 1} tidak memiliki anggota. Silakan tambahkan minimal 1 anggota atau hapus kartu keluarga tersebut.`
-					);
+							: `Keluarga #${fIdx + 1} tidak memiliki anggota. Silakan tambahkan minimal 1 anggota atau hapus kartu keluarga tersebut.`,
+						confirmText: 'Mengerti',
+						cancelText: '',
+						variant: 'warning'
+					});
 					cancel();
 					return;
 				}
@@ -771,29 +785,41 @@
 				for (let mIdx = 0; mIdx < fam.members.length; mIdx++) {
 					const m = fam.members[mIdx];
 					if (!m.namaLengkap.trim()) {
-						alert(
-							fam.isPerantau
+						await confirmAction({
+							title: 'Data Belum Lengkap',
+							message: fam.isPerantau
 								? `Baris Mandiri #${fIdx + 1}: Nama lengkap wajib diisi!`
-								: `Keluarga #${fIdx + 1}, Anggota #${mIdx + 1}: Nama lengkap wajib diisi!`
-						);
+								: `Keluarga #${fIdx + 1}, Anggota #${mIdx + 1}: Nama lengkap wajib diisi!`,
+							confirmText: 'Mengerti',
+							cancelText: '',
+							variant: 'warning'
+						});
 						cancel();
 						return;
 					}
 					if (!m.tanggalLahir.trim()) {
-						alert(
-							fam.isPerantau
+						await confirmAction({
+							title: 'Data Belum Lengkap',
+							message: fam.isPerantau
 								? `Baris Mandiri #${fIdx + 1} (${m.namaLengkap}): Tanggal lahir wajib diisi!`
-								: `Keluarga #${fIdx + 1} (${m.namaLengkap}): Tanggal lahir wajib diisi!`
-						);
+								: `Keluarga #${fIdx + 1} (${m.namaLengkap}): Tanggal lahir wajib diisi!`,
+							confirmText: 'Mengerti',
+							cancelText: '',
+							variant: 'warning'
+						});
 						cancel();
 						return;
 					}
 					if (!m.statusKeluarga.trim()) {
-						alert(
-							fam.isPerantau
+						await confirmAction({
+							title: 'Data Belum Lengkap',
+							message: fam.isPerantau
 								? `Baris Mandiri #${fIdx + 1} (${m.namaLengkap}): Hubungan keluarga wajib dipilih!`
-								: `Keluarga #${fIdx + 1} (${m.namaLengkap}): Hubungan keluarga wajib dipilih!`
-						);
+								: `Keluarga #${fIdx + 1} (${m.namaLengkap}): Hubungan keluarga wajib dipilih!`,
+							confirmText: 'Mengerti',
+							cancelText: '',
+							variant: 'warning'
+						});
 						cancel();
 						return;
 					}
@@ -802,7 +828,25 @@
 			}
 
 			if (totalValidMember === 0) {
-				alert('Tidak ada data anggota yang dapat disimpan.');
+				await confirmAction({
+					title: 'Data Kosong',
+					message: 'Tidak ada data anggota yang dapat disimpan.',
+					confirmText: 'Mengerti',
+					cancelText: '',
+					variant: 'warning'
+				});
+				cancel();
+				return;
+			}
+
+			const ok = await confirmAction({
+				title: 'Simpan Data Sensus Batch?',
+				message: `Yakin ingin menyimpan ${families.length} keluarga/mandiri (${totalJiwa} jamaah)? Pastikan seluruh data sudah sesuai.`,
+				confirmText: 'Ya, Simpan',
+				cancelText: 'Batal',
+				variant: 'primary'
+			});
+			if (!ok) {
 				cancel();
 				return;
 			}

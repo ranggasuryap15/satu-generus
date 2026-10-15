@@ -11,6 +11,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { keepScrollSubmit } from '#lib/keepScroll.js';
+	import { confirmSubmit } from '#lib/confirmSubmit.ts';
 	import SearchableSelect from '#lib/components/SearchableSelect.svelte';
 	import DateInput from '#lib/components/DateInput.svelte';
 	import {
@@ -1079,11 +1080,20 @@
 			<form
 				method="POST"
 				action={getActionUrl('saveTemplate', editingTemplate?.tingkatScope)}
-				use:enhance={keepScrollSubmit({
-					beforeSubmit: () => { isSubmitting = true; },
-					onFinally: () => { isSubmitting = false; },
-					onSuccess: () => { showTemplateModal = false; }
-				})}
+				use:enhance={confirmSubmit(
+					{
+						title: 'Simpan Template Jadwal?',
+						message: 'Pastikan template jadwal rutin sudah sesuai. Yakin ingin menyimpan template ini?',
+						confirmText: 'Ya, Simpan',
+						cancelText: 'Batal',
+						variant: 'primary'
+					},
+					keepScrollSubmit({
+						beforeSubmit: () => { isSubmitting = true; },
+						onFinally: () => { isSubmitting = false; },
+						onSuccess: () => { showTemplateModal = false; }
+					})
+				)}
 				class="space-y-3.5 text-xs"
 			>
 				{#if editingTemplate.id}
@@ -1286,11 +1296,20 @@
 			<form
 				method="POST"
 				action={getActionUrl('updateSesiOverride', editingSesi?.tingkatScope)}
-				use:enhance={keepScrollSubmit({
-					beforeSubmit: () => { isSubmitting = true; },
-					onFinally: () => { isSubmitting = false; },
-					onSuccess: () => { showOverrideModal = false; }
-				})}
+				use:enhance={confirmSubmit(
+					{
+						title: 'Simpan Perubahan Jadwal Khusus?',
+						message: 'Perubahan hanya berlaku untuk sesi pada tanggal ini. Yakin ingin menyimpan perubahan sesi ini?',
+						confirmText: 'Ya, Simpan',
+						cancelText: 'Batal',
+						variant: 'primary'
+					},
+					keepScrollSubmit({
+						beforeSubmit: () => { isSubmitting = true; },
+						onFinally: () => { isSubmitting = false; },
+						onSuccess: () => { showOverrideModal = false; }
+					})
+				)}
 				class="space-y-3.5 text-xs"
 			>
 				<input type="hidden" name="id" value={editingSesi.id} />
@@ -1457,11 +1476,20 @@
 			<form
 				method="POST"
 				action={getActionUrl('createSesiManual', createSesiScope)}
-				use:enhance={keepScrollSubmit({
-					beforeSubmit: () => { isSubmitting = true; },
-					onFinally: () => { isSubmitting = false; },
-					onSuccess: () => { showCreateSesiModal = false; }
-				})}
+				use:enhance={confirmSubmit(
+					{
+						title: 'Buat Sesi Jadwal?',
+						message: 'Pastikan tanggal dan rincian kegiatan sudah sesuai. Yakin ingin membuat sesi jadwal ini?',
+						confirmText: 'Ya, Simpan',
+						cancelText: 'Batal',
+						variant: 'primary'
+					},
+					keepScrollSubmit({
+						beforeSubmit: () => { isSubmitting = true; },
+						onFinally: () => { isSubmitting = false; },
+						onSuccess: () => { showCreateSesiModal = false; }
+					})
+				)}
 				class="space-y-3.5 text-xs"
 			>
 				<input type="hidden" name="tingkatScope" value={createSesiScope} />
@@ -1640,11 +1668,20 @@
 			<form
 				method="POST"
 				action={getActionUrl('generateSesiBulanan', generateScope)}
-				use:enhance={keepScrollSubmit({
-					beforeSubmit: () => { isSubmitting = true; },
-					onFinally: () => { isSubmitting = false; },
-					onSuccess: () => { showGenerateModal = false; }
-				})}
+				use:enhance={confirmSubmit(
+					{
+						title: 'Generate Sesi Bulanan?',
+						message: 'Yakin ingin membuat sesi bulanan dari template rutin? Pastikan bulan dan tahun sudah benar.',
+						confirmText: 'Ya, Generate',
+						cancelText: 'Batal',
+						variant: 'primary'
+					},
+					keepScrollSubmit({
+						beforeSubmit: () => { isSubmitting = true; },
+						onFinally: () => { isSubmitting = false; },
+						onSuccess: () => { showGenerateModal = false; }
+					})
+				)}
 				class="space-y-3.5 text-xs"
 			>
 				<input type="hidden" name="tingkatScope" value={generateScope} />

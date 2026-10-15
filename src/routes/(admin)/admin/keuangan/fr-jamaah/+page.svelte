@@ -10,6 +10,7 @@
 	import { enhance } from '$app/forms';
 	import SearchableSelect from '#lib/components/SearchableSelect.svelte';
 	import { keepScrollSubmit } from '#lib/keepScroll.js';
+	import { confirmAction } from '#lib/confirm.svelte.ts';
 	import {
 	  AlertCircle,
 	  Building2,
@@ -853,10 +854,13 @@
 								},
 								onError: (result) => {
 									isSavingModal = false;
-									alert(
-										(result as any)?.data?.error ||
-											'Gagal menyimpan setoran manual. Silakan coba lagi.'
-									);
+									void confirmAction({
+										title: 'Gagal Menyimpan',
+										message: (result as any)?.data?.error || 'Gagal menyimpan setoran manual. Silakan coba lagi.',
+										confirmText: 'Mengerti',
+										cancelText: '',
+										variant: 'danger'
+									});
 								},
 								onFinally: () => {
 									isSavingModal = false;
@@ -1104,10 +1108,13 @@
 										},
 										onError: (result) => {
 											isApproving = false;
-											alert(
-												(result as any)?.data?.error ||
-													'Gagal menyetujui setoran. Silakan coba lagi.'
-											);
+											void confirmAction({
+												title: 'Gagal Menyetujui',
+												message: (result as any)?.data?.error || 'Gagal menyetujui setoran. Silakan coba lagi.',
+												confirmText: 'Mengerti',
+												cancelText: '',
+												variant: 'danger'
+											});
 										},
 										onFinally: () => {
 											isApproving = false;
@@ -1158,10 +1165,13 @@
 										},
 										onError: (result) => {
 											isRejecting = false;
-											alert(
-												(result as any)?.data?.error ||
-													'Gagal mengembalikan status setoran. Silakan coba lagi.'
-											);
+											void confirmAction({
+												title: 'Gagal Mengembalikan',
+												message: (result as any)?.data?.error || 'Gagal mengembalikan status setoran. Silakan coba lagi.',
+												confirmText: 'Mengerti',
+												cancelText: '',
+												variant: 'danger'
+											});
 										},
 										onFinally: () => {
 											isRejecting = false;

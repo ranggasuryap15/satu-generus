@@ -29,7 +29,7 @@ class ConfirmModalState {
 		this.message = options.message;
 		this.confirmText =
 			options.confirmText || (options.variant === 'danger' ? 'Ya, Hapus' : 'Ya, Lanjutkan');
-		this.cancelText = options.cancelText || 'Batal';
+		this.cancelText = options.cancelText !== undefined ? options.cancelText : 'Batal';
 		this.variant = options.variant || 'warning';
 		this.isOpen = true;
 

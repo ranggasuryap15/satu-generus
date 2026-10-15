@@ -9,6 +9,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { enhance } from '$app/forms';
+	import { confirmAction } from '#lib/confirm.svelte.ts';
 	import QRCode from 'qrcode';
 	import {
 		AlertCircle,
@@ -347,28 +348,50 @@
 			<form
 				method="POST"
 				action="?/presensiMandiri"
-				use:enhance={({ cancel }) => {
+				use:enhance={async ({ cancel }) => {
 					if (!selectedJadwalId) {
-						alert('Pilih jadwal kegiatan terlebih dahulu.');
+						await confirmAction({
+							title: 'Data Belum Lengkap',
+							message: 'Pilih jadwal kegiatan terlebih dahulu.',
+							confirmText: 'Mengerti',
+							cancelText: '',
+							variant: 'warning'
+						});
 						cancel();
 						return;
 					}
 					if (selectedJadwal && selectedJadwal.bisaPresensi === false) {
-						alert(selectedJadwal.pesanStatusWaktu || 'Presensi belum dibuka untuk kegiatan ini.');
+						await confirmAction({
+							title: 'Presensi Belum Dibuka',
+							message: selectedJadwal.pesanStatusWaktu || 'Presensi belum dibuka untuk kegiatan ini.',
+							confirmText: 'Mengerti',
+							cancelText: '',
+							variant: 'warning'
+						});
 						cancel();
 						return;
 					}
 					if (metodeKehadiran === 'offline' && (!latitude || !longitude)) {
-						alert('Lokasi GPS belum terdeteksi. Silakan klik tombol "Deteksi Lokasi GPS" terlebih dahulu.');
+						await confirmAction({
+							title: 'Lokasi Belum Terdeteksi',
+							message: 'Lokasi GPS belum terdeteksi. Silakan klik tombol "Deteksi Lokasi GPS" terlebih dahulu.',
+							confirmText: 'Mengerti',
+							cancelText: '',
+							variant: 'warning'
+						});
 						cancel();
 						return;
 					}
 					if (!fotoDataUrl) {
-						alert(
-							metodeKehadiran === 'offline'
+						await confirmAction({
+							title: 'Foto Wajib Diunggah',
+							message: metodeKehadiran === 'offline'
 								? 'Wajib mengambil foto kamera di lokasi pengajian!'
-								: 'Wajib mengunggah foto bukti / tangkapan layar (SS) Zoom / SDC!'
-						);
+								: 'Wajib mengunggah foto bukti / tangkapan layar (SS) Zoom / SDC!',
+							confirmText: 'Mengerti',
+							cancelText: '',
+							variant: 'warning'
+						});
 						cancel();
 						return;
 					}
@@ -696,14 +719,26 @@
 			<form
 				method="POST"
 				action="?/ajukanIzin"
-				use:enhance={({ cancel }) => {
+				use:enhance={async ({ cancel }) => {
 					if (!izinJadwalId) {
-						alert('Pilih jadwal kegiatan terlebih dahulu.');
+						await confirmAction({
+							title: 'Data Belum Lengkap',
+							message: 'Pilih jadwal kegiatan terlebih dahulu.',
+							confirmText: 'Mengerti',
+							cancelText: '',
+							variant: 'warning'
+						});
 						cancel();
 						return;
 					}
 					if (!izinAlasan.trim()) {
-						alert('Alasan permohonan izin/sakit wajib diisi.');
+						await confirmAction({
+							title: 'Data Belum Lengkap',
+							message: 'Alasan permohonan izin/sakit wajib diisi.',
+							confirmText: 'Mengerti',
+							cancelText: '',
+							variant: 'warning'
+						});
 						cancel();
 						return;
 					}

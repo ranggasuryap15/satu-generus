@@ -21,6 +21,7 @@
 	  resolveStatusPernikahan
 	} from '#lib/generus.js';
 	import { keepScrollSubmit } from '#lib/keepScroll.js';
+	import { confirmSubmit } from '#lib/confirmSubmit.ts';
 	import { formatDateDDMMYYYY } from '#lib/utils.js';
 	import {
 	  AlertCircle,
@@ -917,11 +918,23 @@
 			if (res.ok) {
 				unmaskedData = { label: params.label, value: result.original };
 			} else {
-				alert(result.error || 'Gagal unmask data');
+				void confirmAction({
+					title: 'Gagal Membuka Data',
+					message: result.error || 'Gagal unmask data',
+					confirmText: 'Mengerti',
+					cancelText: '',
+					variant: 'danger'
+				});
 				showUnmaskModal = false;
 			}
 		} catch (err) {
-			alert('Terjadi kesalahan jaringan.');
+			void confirmAction({
+				title: 'Kesalahan Jaringan',
+				message: 'Terjadi kesalahan jaringan.',
+				confirmText: 'Mengerti',
+				cancelText: '',
+				variant: 'danger'
+			});
 			showUnmaskModal = false;
 		} finally {
 			unmaskLoading = false;
@@ -1528,7 +1541,16 @@
 				</div>
 			</div>
 
-			<form method="POST" action="?/createSensus" class="space-y-4">
+			<form method="POST" action="?/createSensus" use:enhance={confirmSubmit(
+				{
+					title: 'Simpan Data Sensus?',
+					message: 'Pastikan seluruh data sensus sudah lengkap dan sesuai. Yakin ingin menyimpan sensus baru ini?',
+					confirmText: 'Ya, Simpan',
+					cancelText: 'Batal',
+					variant: 'primary'
+				},
+				keepScrollSubmit({ onSuccess: () => closeCreateModal() })
+			)} class="space-y-4">
 				<!-- Tipe Sensus Selector (KK vs Mandiri) -->
 				<div class="space-y-1.5">
 					<span class="block text-xs font-semibold text-foreground">Kategori Sensus *</span>
@@ -2188,7 +2210,16 @@
 			<form
 				method="POST"
 				action="?/addAnggotaKeluarga"
-				use:enhance={keepScrollSubmit({ onSuccess: () => closeAddMemberModal() })}
+				use:enhance={confirmSubmit(
+					{
+						title: 'Tambah Anggota Keluarga?',
+						message: 'Pastikan data anggota baru sudah sesuai. Yakin ingin menambahkan anggota keluarga ini?',
+						confirmText: 'Ya, Tambah',
+						cancelText: 'Batal',
+						variant: 'primary'
+					},
+					keepScrollSubmit({ onSuccess: () => closeAddMemberModal() })
+				)}
 				class="space-y-3 text-xs"
 			>
 				<input type="hidden" name="keluargaId" value={targetKeluargaForMember.id} />
@@ -2684,11 +2715,20 @@
 			<form
 				method="POST"
 				action="?/updateAnggota"
-				use:enhance={keepScrollSubmit({
-					beforeSubmit: () => { isEditAnggotaSubmitting = true; },
-					onFinally: () => { isEditAnggotaSubmitting = false; },
-					onSuccess: () => { closeEditAnggotaModal(); }
-				})}
+				use:enhance={confirmSubmit(
+					{
+						title: 'Simpan Perubahan Anggota?',
+						message: 'Pastikan data anggota sudah sesuai. Yakin ingin menyimpan perubahan anggota ini?',
+						confirmText: 'Ya, Simpan',
+						cancelText: 'Batal',
+						variant: 'primary'
+					},
+					keepScrollSubmit({
+						beforeSubmit: () => { isEditAnggotaSubmitting = true; },
+						onFinally: () => { isEditAnggotaSubmitting = false; },
+						onSuccess: () => { closeEditAnggotaModal(); }
+					})
+				)}
 				class="space-y-4 text-xs"
 			>
 				<input type="hidden" name="anggotaId" value={editingAnggota.id} />
@@ -2992,11 +3032,20 @@
 			<form
 				method="POST"
 				action="?/updateKeluarga"
-				use:enhance={keepScrollSubmit({
-					beforeSubmit: () => { isEditKeluargaSubmitting = true; },
-					onFinally: () => { isEditKeluargaSubmitting = false; },
-					onSuccess: () => { closeEditKeluargaModal(); }
-				})}
+				use:enhance={confirmSubmit(
+					{
+						title: 'Simpan Perubahan KK?',
+						message: 'Pastikan data keluarga sudah sesuai. Yakin ingin menyimpan perubahan Kartu Keluarga ini?',
+						confirmText: 'Ya, Simpan',
+						cancelText: 'Batal',
+						variant: 'primary'
+					},
+					keepScrollSubmit({
+						beforeSubmit: () => { isEditKeluargaSubmitting = true; },
+						onFinally: () => { isEditKeluargaSubmitting = false; },
+						onSuccess: () => { closeEditKeluargaModal(); }
+					})
+				)}
 				class="space-y-3.5 text-xs"
 			>
 				<input type="hidden" name="keluargaId" value={editingKeluarga.id} />
@@ -3104,11 +3153,20 @@
 			<form
 				method="POST"
 				action="?/createMemberAccount"
-				use:enhance={keepScrollSubmit({
-					beforeSubmit: () => { isAccountSubmitting = true; },
-					onFinally: () => { isAccountSubmitting = false; },
-					onSuccess: () => { memberForAccount = null; }
-				})}
+				use:enhance={confirmSubmit(
+					{
+						title: 'Buat Akun Login?',
+						message: 'Yakin ingin membuat akun login untuk anggota ini? Akun akan dikirim/diaktifkan sesuai data anggota.',
+						confirmText: 'Ya, Buat Akun',
+						cancelText: 'Batal',
+						variant: 'primary'
+					},
+					keepScrollSubmit({
+						beforeSubmit: () => { isAccountSubmitting = true; },
+						onFinally: () => { isAccountSubmitting = false; },
+						onSuccess: () => { memberForAccount = null; }
+					})
+				)}
 				class="space-y-3 text-xs"
 			>
 				<input type="hidden" name="anggotaId" value={memberForAccount.id} />
@@ -3293,11 +3351,20 @@
 			<form
 				method="POST"
 				action="?/pindahKelompok"
-				use:enhance={keepScrollSubmit({
-					beforeSubmit: () => { isPindahKelompokSubmitting = true; },
-					onFinally: () => { isPindahKelompokSubmitting = false; },
-					onSuccess: () => { closePindahKelompokModal(); }
-				})}
+				use:enhance={confirmSubmit(
+					{
+						title: 'Pindah Kelompok?',
+						message: 'Pastikan kelompok tujuan sudah benar. Yakin ingin memindahkan keluarga ini ke kelompok lain?',
+						confirmText: 'Ya, Pindahkan',
+						cancelText: 'Batal',
+						variant: 'primary'
+					},
+					keepScrollSubmit({
+						beforeSubmit: () => { isPindahKelompokSubmitting = true; },
+						onFinally: () => { isPindahKelompokSubmitting = false; },
+						onSuccess: () => { closePindahKelompokModal(); }
+					})
+				)}
 				class="space-y-3.5 text-xs"
 			>
 				<input type="hidden" name="keluargaId" value={pindahKelompokTarget.id} />
@@ -3382,7 +3449,16 @@
 			<form
 				method="POST"
 				action="?/assignDapukan"
-				use:enhance={keepScrollSubmit({ onSuccess: () => closeAssignDapukanModal() })}
+				use:enhance={confirmSubmit(
+					{
+						title: 'Simpan Penugasan Dapukan?',
+						message: 'Pastikan akun dan dapukan yang dipilih sudah sesuai. Yakin ingin menyimpan penugasan pengurus ini?',
+						confirmText: 'Ya, Simpan',
+						cancelText: 'Batal',
+						variant: 'primary'
+					},
+					keepScrollSubmit({ onSuccess: () => closeAssignDapukanModal() })
+				)}
 				class="space-y-4"
 			>
 				<!-- Pilih Akun dalam KK (Jika > 1 Akun, tampilkan pilihan kartu/radio) -->
