@@ -385,8 +385,8 @@
 				title: 'Tutup Formulir Penugasan?',
 				message:
 					'Ada isian penugasan yang belum disimpan. Tetap tutup formulir? Isian yang belum disimpan akan dibatalkan.',
-				confirmText: 'Ya, Tutup Formulir',
-				cancelText: 'Lanjut Mengisi',
+				confirmText: 'Ya, Tutup',
+				cancelText: 'Batal',
 				variant: 'warning'
 			});
 			if (ok) {

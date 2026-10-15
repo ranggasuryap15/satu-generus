@@ -94,20 +94,22 @@
 		activeModal = 'editKk';
 	}
 
-	async function closeEditKkModal() {
-		const initialNoKk = isKkRevealed && plainNoKk ? plainNoKk : '';
-		const initialAlamat = data.keluarga?.alamatLengkap || '';
-		const isDirty = editKkNoKk !== initialNoKk || editKkAlamat !== initialAlamat;
-		if (isDirty) {
-			const ok = await confirmAction({
-				title: 'Tutup Ubah KK?',
-				message: 'Ada perubahan data Kartu Keluarga yang belum disimpan. Yakin ingin menutup modal?',
-				confirmText: 'Ya, Tutup Modal',
-				cancelText: 'Lanjut Mengisi',
-				variant: 'warning'
-			});
-			if (!ok) {
-				return;
+	async function closeEditKkModal(force = false) {
+		if (!force) {
+			const initialNoKk = isKkRevealed && plainNoKk ? plainNoKk : '';
+			const initialAlamat = data.keluarga?.alamatLengkap || '';
+			const isDirty = editKkNoKk !== initialNoKk || editKkAlamat !== initialAlamat;
+			if (isDirty) {
+				const ok = await confirmAction({
+					title: 'Tutup Ubah KK?',
+					message: 'Ada perubahan data Kartu Keluarga yang belum disimpan. Yakin ingin menutup modal?',
+					confirmText: 'Ya, Tutup',
+					cancelText: 'Batal',
+					variant: 'warning'
+				});
+				if (!ok) {
+					return;
+				}
 			}
 		}
 		activeModal = 'none';
@@ -124,25 +126,27 @@
 		activeModal = 'editAnggota';
 	}
 
-	async function closeEditAnggotaModal() {
-		if (selectedAnggota) {
-			const isDirty = (
-				editAnggotaNama !== (selectedAnggota.namaLengkap || '') ||
-				editAnggotaNik !== (revealedNiks[selectedAnggota.id] || '') ||
-				editAnggotaStatus !== selectedAnggota.statusHubungan ||
-				editAnggotaTgl !== selectedAnggota.tanggalLahir ||
-				editAnggotaJk !== selectedAnggota.jenisKelamin
-			);
-			if (isDirty) {
-				const ok = await confirmAction({
-					title: 'Tutup Ubah Anggota?',
-					message: 'Ada perubahan data anggota yang belum disimpan. Yakin ingin menutup modal?',
-					confirmText: 'Ya, Tutup Modal',
-					cancelText: 'Lanjut Mengisi',
-					variant: 'warning'
-				});
-				if (!ok) {
-					return;
+	async function closeEditAnggotaModal(force = false) {
+		if (!force) {
+			if (selectedAnggota) {
+				const isDirty = (
+					editAnggotaNama !== (selectedAnggota.namaLengkap || '') ||
+					editAnggotaNik !== (revealedNiks[selectedAnggota.id] || '') ||
+					editAnggotaStatus !== selectedAnggota.statusHubungan ||
+					editAnggotaTgl !== selectedAnggota.tanggalLahir ||
+					editAnggotaJk !== selectedAnggota.jenisKelamin
+				);
+				if (isDirty) {
+					const ok = await confirmAction({
+						title: 'Tutup Ubah Anggota?',
+						message: 'Ada perubahan data anggota yang belum disimpan. Yakin ingin menutup modal?',
+						confirmText: 'Ya, Tutup',
+						cancelText: 'Batal',
+						variant: 'warning'
+					});
+					if (!ok) {
+						return;
+					}
 				}
 			}
 		}
@@ -154,19 +158,21 @@
 		activeModal = 'tambahAnggota';
 	}
 
-	async function closeTambahAnggotaModal() {
-		const isDirty = !!(newAnggotaNama.trim() || newAnggotaNik.trim() || newAnggotaTgl);
-		if (isDirty) {
-			const ok = await confirmAction({
-				title: 'Tutup Tambah Anggota?',
-				message:
-					'Ada data anggota yang sudah Anda isi. Yakin ingin menutup modal? Isian Anda akan tetap tersimpan sebagai draf.',
-				confirmText: 'Ya, Tutup Modal',
-				cancelText: 'Lanjut Mengisi',
-				variant: 'warning'
-			});
-			if (!ok) {
-				return;
+	async function closeTambahAnggotaModal(force = false) {
+		if (!force) {
+			const isDirty = !!(newAnggotaNama.trim() || newAnggotaNik.trim() || newAnggotaTgl);
+			if (isDirty) {
+				const ok = await confirmAction({
+					title: 'Tutup Tambah Anggota?',
+					message:
+						'Ada data anggota yang sudah Anda isi. Yakin ingin menutup modal? Isian Anda akan tetap tersimpan sebagai draf.',
+					confirmText: 'Ya, Tutup',
+					cancelText: 'Batal',
+					variant: 'warning'
+				});
+				if (!ok) {
+					return;
+				}
 			}
 		}
 		activeModal = 'none';
@@ -611,7 +617,7 @@
 				</h3>
 				<button
 					type="button"
-					onclick={closeEditKkModal}
+					onclick={() => closeEditKkModal()}
 					class="text-foreground/50 hover:text-foreground text-sm font-semibold"
 				>
 					✕
@@ -632,7 +638,7 @@
 					keepScrollSubmit({
 						beforeSubmit: () => { isSubmitting = true; },
 						onFinally: () => { isSubmitting = false; },
-						onSuccess: () => { closeEditKkModal(); }
+						onSuccess: () => { closeEditKkModal(true); }
 					})
 				)}
 				class="space-y-4 text-xs"
@@ -680,7 +686,7 @@
 				<div class="flex gap-2 pt-2">
 					<button
 						type="button"
-						onclick={closeEditKkModal}
+						onclick={() => closeEditKkModal()}
 						class="flex-1 py-2 rounded-lg border border-border bg-secondary/60 hover:bg-secondary text-foreground font-semibold transition-colors"
 					>
 						Batal
@@ -711,7 +717,7 @@
 				<h3 class="text-sm font-bold text-foreground">Ubah Anggota Keluarga</h3>
 				<button
 					type="button"
-					onclick={closeEditAnggotaModal}
+					onclick={() => closeEditAnggotaModal()}
 					class="text-foreground/50 hover:text-foreground text-sm font-semibold"
 				>
 					✕
@@ -732,7 +738,7 @@
 					keepScrollSubmit({
 						beforeSubmit: () => { isSubmitting = true; },
 						onFinally: () => { isSubmitting = false; },
-						onSuccess: () => { closeEditAnggotaModal(); }
+						onSuccess: () => { closeEditAnggotaModal(true); }
 					})
 				)}
 				class="space-y-4 text-xs"
@@ -843,7 +849,7 @@
 				<div class="flex gap-2 pt-2">
 					<button
 						type="button"
-						onclick={closeEditAnggotaModal}
+						onclick={() => closeEditAnggotaModal()}
 						class="flex-1 py-2 rounded-lg border border-border bg-secondary/60 hover:bg-secondary text-foreground font-semibold transition-colors"
 					>
 						Batal
@@ -874,7 +880,7 @@
 				<h3 class="text-sm font-bold text-foreground">Tambah Anggota Keluarga</h3>
 				<button
 					type="button"
-					onclick={closeTambahAnggotaModal}
+					onclick={() => closeTambahAnggotaModal()}
 					class="text-foreground/50 hover:text-foreground text-sm font-semibold"
 				>
 					✕
@@ -895,7 +901,7 @@
 					keepScrollSubmit({
 						beforeSubmit: () => { isSubmitting = true; },
 						onFinally: () => { isSubmitting = false; },
-						onSuccess: () => { closeTambahAnggotaModal(); }
+						onSuccess: () => { closeTambahAnggotaModal(true); }
 					})
 				)}
 				class="space-y-4 text-xs"
@@ -1004,7 +1010,7 @@
 				<div class="flex gap-2 pt-2">
 					<button
 						type="button"
-						onclick={closeTambahAnggotaModal}
+						onclick={() => closeTambahAnggotaModal()}
 						class="flex-1 py-2 rounded-lg border border-border bg-secondary/60 hover:bg-secondary text-foreground font-semibold transition-colors"
 					>
 						Batal

@@ -66,13 +66,33 @@
 	});
 
 	function isAddFormDirty() {
+		const kelompokDipilih = String(selectedKelompokId).trim();
+		const kelompokAuto = String(lastAutoFilledKelompokId).trim();
+
+		// Ambil nilai lokasi default dari kelompok yang sedang dipilih (auto-fill)
+		const target = (data.kelompokList || []).find(
+			(k: (typeof data.kelompokList)[number]) =>
+				String(k.id) === kelompokDipilih || Number(k.id) === Number(kelompokDipilih)
+		);
+		const defaultLokasi = {
+			nama: target?.lokasiNama || target?.nama || '',
+			lat: target?.latitude || '',
+			lng: target?.longitude || ''
+		};
+
+		// Lokasi dianggap "dirty" hanya jika menyimpang dari auto-fill kelompok terpilih
+		const lokasiDirty = kelompokDipilih === ''
+			? newLokasiNama.trim() !== '' || newLatitude !== '' || newLongitude !== ''
+			: newLokasiNama.trim() !== defaultLokasi.nama ||
+				newLatitude !== defaultLokasi.lat ||
+				newLongitude !== defaultLokasi.lng;
+
 		return (
 			newNamaKegiatan.trim() !== '' ||
 			newTanggal !== '' ||
-			String(selectedKelompokId).trim() !== '' ||
-			newLokasiNama.trim() !== '' ||
-			newLatitude !== '' ||
-			newLongitude !== ''
+			// Kelompok diperhitungkan hanya bila bukan hasil auto-pick (mis. saat hanya ada 1 kelompok)
+			(kelompokDipilih !== '' && kelompokDipilih !== kelompokAuto) ||
+			lokasiDirty
 		);
 	}
 
@@ -95,14 +115,14 @@
 		showAddModal = true;
 	}
 
-	async function closeAddModal() {
-		if (isAddFormDirty()) {
+	async function closeAddModal(force = false) {
+		if (!force && isAddFormDirty()) {
 			const ok = await confirmAction({
 				title: 'Tutup Pembuatan Jadwal?',
 				message:
 					'Ada isian jadwal yang belum disimpan. Tetap tutup modal? Isian Anda akan tetap tersimpan sebagai draf.',
-				confirmText: 'Ya, Tutup Modal',
-				cancelText: 'Lanjut Mengisi',
+				confirmText: 'Ya, Tutup',
+				cancelText: 'Batal',
 				variant: 'warning'
 			});
 			if (ok) {
@@ -338,7 +358,7 @@
 				</div>
 				<button
 					type="button"
-					onclick={closeAddModal}
+					onclick={() => closeAddModal()}
 					class="p-1 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground"
 				>
 					<X class="w-5 h-5" />
@@ -356,7 +376,7 @@
 						cancelText: 'Batal',
 						variant: 'primary'
 					},
-					keepScrollSubmit({ onSuccess: () => closeAddModal() })
+					keepScrollSubmit({ onSuccess: () => closeAddModal(true) })
 				)}
 				class="space-y-4"
 			>
@@ -432,7 +452,7 @@
 					<div class="flex items-center gap-2">
 						<button
 							type="button"
-							onclick={closeAddModal}
+							onclick={() => closeAddModal()}
 							class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary"
 						>
 							Batal

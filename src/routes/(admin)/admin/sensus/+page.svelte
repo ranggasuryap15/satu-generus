@@ -820,8 +820,8 @@
 				title: 'Tutup Formulir Sensus?',
 				message:
 					'Ada data sensus yang sudah Anda isi. Yakin ingin menutup modal? Isian Anda akan tetap tersimpan sebagai draf.',
-				confirmText: 'Ya, Tutup Modal',
-				cancelText: 'Lanjut Mengisi',
+				confirmText: 'Ya, Tutup',
+				cancelText: 'Batal',
 				variant: 'warning'
 			});
 			if (!ok) {
@@ -874,14 +874,14 @@
 		showAddMemberModal = true;
 	}
 
-	async function closeAddMemberModal() {
-		if (isAddMemberFormDirty()) {
+	async function closeAddMemberModal(force = false) {
+		if (!force && isAddMemberFormDirty()) {
 			const ok = await confirmAction({
 				title: 'Tutup Formulir Anggota?',
 				message:
 					'Ada data anggota yang sudah Anda isi. Yakin ingin menutup modal? Isian Anda akan tetap tersimpan sebagai draf.',
-				confirmText: 'Ya, Tutup Modal',
-				cancelText: 'Lanjut Mengisi',
+				confirmText: 'Ya, Tutup',
+				cancelText: 'Batal',
 				variant: 'warning'
 			});
 			if (!ok) {
@@ -2200,7 +2200,7 @@
 				</div>
 				<button
 					type="button"
-					onclick={closeAddMemberModal}
+					onclick={() => closeAddMemberModal()}
 					class="p-1 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground"
 				>
 					<X class="w-5 h-5" />
@@ -2218,7 +2218,7 @@
 						cancelText: 'Batal',
 						variant: 'primary'
 					},
-					keepScrollSubmit({ onSuccess: () => closeAddMemberModal() })
+					keepScrollSubmit({ onSuccess: () => closeAddMemberModal(true) })
 				)}
 				class="space-y-3 text-xs"
 			>
@@ -2384,7 +2384,7 @@
 				<div class="flex items-center justify-end gap-2 pt-3 border-t border-border">
 					<button
 						type="button"
-						onclick={closeAddMemberModal}
+						onclick={() => closeAddMemberModal()}
 						class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary"
 					>
 						Batal

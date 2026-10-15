@@ -103,8 +103,8 @@
 				title: 'Tutup Ubah Profil?',
 				message:
 					'Ada perubahan profil yang belum disimpan. Tetap tutup modal? Isian Anda akan tetap tersimpan sebagai draf.',
-				confirmText: 'Ya, Tutup Modal',
-				cancelText: 'Lanjut Mengisi',
+				confirmText: 'Ya, Tutup',
+				cancelText: 'Batal',
 				variant: 'warning'
 			});
 			if (ok) {
@@ -131,8 +131,8 @@
 				title: 'Tutup Ubah Kata Sandi?',
 				message:
 					'Ada isian kata sandi yang belum disimpan. Tetap tutup modal? Isian Anda akan tetap tersimpan sebagai draf.',
-				confirmText: 'Ya, Tutup Modal',
-				cancelText: 'Lanjut Mengisi',
+				confirmText: 'Ya, Tutup',
+				cancelText: 'Batal',
 				variant: 'warning'
 			});
 			if (ok) {

@@ -12,6 +12,7 @@
 	import { goto, beforeNavigate } from '$app/navigation';
 	import { page } from '$app/state';
 	import { keepScrollSubmit } from '#lib/keepScroll.js';
+	import { confirmAction } from '#lib/confirm.svelte.ts';
 	import SearchableSelect from '#lib/components/SearchableSelect.svelte';
 	import {
 		AlertCircle,
@@ -259,11 +260,16 @@
 		goto(url.toString());
 	}
 
-	function handleGroupSwitch(gId: string) {
+	async function handleGroupSwitch(gId: string) {
 		if (isDirty) {
-			if (!confirm('Ada perubahan yang belum disimpan. Tetap berpindah group?')) {
-				return;
-			}
+			const ok = await confirmAction({
+				title: 'Pindah Kelompok?',
+				message: 'Ada perubahan yang belum disimpan. Tetap berpindah ke kelompok lain?',
+				confirmText: 'Ya, Pindah',
+				cancelText: 'Batal',
+				variant: 'warning'
+			});
+			if (!ok) return;
 		}
 		const url = new URL(page.url.href);
 		if (data.selectedKelompokId) {
@@ -402,14 +408,23 @@
 	});
 
 	// Cegah navigasi internal SPA (pindah tab, kelompok, atau menu) saat ada perubahan belum disimpan
+	let pendingNavigation: (() => void) | null = $state(null);
 	beforeNavigate((navigation) => {
 		if (isDirty && !isSaving) {
-			const konfirmasi = confirm(
-				'Data spreadsheet sedang diisi dan belum disimpan. Yakin ingin meninggalkan halaman ini? Perubahan yang belum disimpan akan hilang.'
-			);
-			if (!konfirmasi) {
-				navigation.cancel();
-			}
+			navigation.cancel();
+			void confirmAction({
+				title: 'Tinggalkan Halaman?',
+				message:
+					'Data spreadsheet sedang diisi dan belum disimpan. Yakin ingin meninggalkan halaman ini? Perubahan yang belum disimpan akan hilang.',
+				confirmText: 'Ya, Tinggalkan',
+				cancelText: 'Batal',
+				variant: 'warning'
+			}).then((ok) => {
+				if (ok && navigation.to) {
+					isDirty = false;
+					goto(navigation.to.url.href);
+				}
+			});
 		}
 	});
 </script>
@@ -430,13 +445,19 @@
 			!isSaving
 		) {
 			e.preventDefault();
-			const konfirmasi = confirm(
-				'Data spreadsheet sedang diisi dan belum disimpan. Yakin ingin me-refresh halaman? Perubahan yang belum disimpan akan hilang.'
-			);
-			if (konfirmasi) {
-				isDirty = false;
-				window.location.reload();
-			}
+			void confirmAction({
+				title: 'Muat Ulang Halaman?',
+				message:
+					'Data spreadsheet sedang diisi dan belum disimpan. Yakin ingin me-refresh halaman? Perubahan yang belum disimpan akan hilang.',
+				confirmText: 'Ya, Muat Ulang',
+				cancelText: 'Batal',
+				variant: 'warning'
+			}).then((ok) => {
+				if (ok) {
+					isDirty = false;
+					window.location.reload();
+				}
+			});
 		}
 	}}
 />
