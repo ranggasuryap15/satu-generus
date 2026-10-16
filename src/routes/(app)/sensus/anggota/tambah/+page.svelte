@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(app)/sensus/anggota/tambah/+page.svelte
-  @purpose Halaman mandiri tambah anggota keluarga jamaah dengan dukungan multi-member dinamis, struktur urutan field hierarkis (Nama, Hubungan/JK, Tempat/Tanggal Lahir, Umur/Pernikahan, Generus, NIK & No HP, Profesi & Gol Darah), kalkulasi umur & generus otomatis, dan sinkronisasi jenis kelamin hubungan keluarga
+  @purpose Halaman mandiri tambah anggota keluarga jamaah dengan dukungan multi-member dinamis, struktur urutan field hierarkis (Nama, Hubungan/JK, Tempat/Tanggal Lahir, Umur/Pernikahan, Generus, NIK & No HP, Profesi & Gol Darah), kalkulasi umur & generus otomatis, sinkronisasi hubungan keluarga, dan dialog konfirmasi batal saat formulir terisi
   @usedBy Route client '/sensus/anggota/tambah'
-  @dependencies @lucide/svelte, #lib/components/DateInput.svelte, #lib/generus, #lib/confirmSubmit.ts, Svelte 5 Runes
-  @publicFunctions addMemberCard, removeMemberCard, onStatusHubunganChange, onTanggalLahirChange
-  @sideEffects Mengirim batch data anggota keluarga ke server action via enhance dengan pra-validasi konfirmasi
+  @dependencies @lucide/svelte, $app/forms, $app/navigation (goto, beforeNavigate), #lib/confirm.svelte.ts (confirmAction), #lib/components/DateInput.svelte, #lib/generus, #lib/confirmSubmit.ts, #lib/keepScroll.js, Svelte 5 Runes
+  @publicFunctions addMemberCard, removeMemberCard, onStatusHubunganChange, onTanggalLahirChange, handleBatal
+  @sideEffects Mengirim batch data anggota keluarga ke server action via enhance serta menampilkan modal konfirmasi pembatalan/navigasi saat formulir telah terisi
 -->
 <script lang="ts">
 	import {
@@ -19,6 +19,7 @@
 		Calendar
 	} from '@lucide/svelte';
 	import { enhance } from '$app/forms';
+	import { goto, beforeNavigate } from '$app/navigation';
 	import type { ActionData, PageData } from './$types';
 	import DateInput from '#lib/components/DateInput.svelte';
 	import {
@@ -29,6 +30,7 @@
 	} from '#lib/generus.js';
 	import { confirmSubmit } from '#lib/confirmSubmit.ts';
 	import { keepScrollSubmit } from '#lib/keepScroll.js';
+	import { confirmAction } from '#lib/confirm.svelte.ts';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
 
@@ -160,6 +162,97 @@
 	});
 
 	let serializedMembers = $derived(JSON.stringify(members));
+
+	let bypassConfirm = $state(false);
+
+	// Deteksi apakah formulir telah terisi atau diubah dari kondisi default awal
+	const isFormDirty = $derived.by(() => {
+		if (members.length > 1) return true;
+		if (members.length === 0) return false;
+		const m = members[0];
+		const isTextFilled =
+			Boolean(m.namaLengkap?.trim()) ||
+			Boolean(m.nik?.trim()) ||
+			Boolean(m.tanggalLahir?.trim()) ||
+			Boolean(m.tempatLahir?.trim()) ||
+			Boolean(m.profesi?.trim()) ||
+			Boolean(m.golonganDarah?.trim()) ||
+			Boolean(m.noTelepon?.trim());
+
+		if (isTextFilled) return true;
+
+		const defaultStatus0 = !data.hasIstri ? 'Istri' : 'Anak';
+		const defaultJk0 = !data.hasIstri ? 'P' : 'L';
+		const defaultNikah0 = !data.hasIstri ? 'Sudah Menikah' : 'Belum Menikah';
+
+		if (
+			m.statusHubungan !== defaultStatus0 ||
+			m.jenisKelamin !== defaultJk0 ||
+			m.statusPernikahan !== defaultNikah0 ||
+			Boolean(m.statusGenerus)
+		) {
+			return true;
+		}
+
+		return false;
+	});
+
+	async function handleBatal(e?: Event) {
+		if (e) e.preventDefault();
+		if (isFormDirty && !bypassConfirm) {
+			const ok = await confirmAction({
+				title: 'Batalkan Pengisian?',
+				message:
+					'Ada formulir yang sudah terisi. Jika dibatalkan sekarang, isian yang belum disimpan akan hilang. Yakin ingin membatalkan?',
+				confirmText: 'Ya, Batalkan',
+				cancelText: 'Lanjut Mengisi',
+				variant: 'warning'
+			});
+			if (ok) {
+				bypassConfirm = true;
+				goto('/sensus');
+			}
+		} else {
+			bypassConfirm = true;
+			goto('/sensus');
+		}
+	}
+
+	// Cegah navigasi internal SPA saat ada isian formulir yang belum tersimpan
+	beforeNavigate((navigation) => {
+		if (isFormDirty && !bypassConfirm && !isSubmitting) {
+			navigation.cancel();
+			void confirmAction({
+				title: 'Batalkan Pengisian?',
+				message:
+					'Ada formulir yang sudah terisi. Jika keluar sekarang, data yang belum disimpan akan hilang. Yakin ingin membatalkan?',
+				confirmText: 'Ya, Tinggalkan',
+				cancelText: 'Lanjut Mengisi',
+				variant: 'warning'
+			}).then((ok) => {
+				if (ok && navigation.to) {
+					bypassConfirm = true;
+					goto(navigation.to.url.href);
+				}
+			});
+		}
+	});
+
+	// Peringatan konfirmasi saat reload atau menutup tab peramban jika form terisi
+	$effect(() => {
+		const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+			if (isFormDirty && !bypassConfirm && !isSubmitting) {
+				e.preventDefault();
+				e.returnValue = '';
+				return '';
+			}
+		};
+
+		window.addEventListener('beforeunload', handleBeforeUnload);
+		return () => {
+			window.removeEventListener('beforeunload', handleBeforeUnload);
+		};
+	});
 </script>
 
 <svelte:head>
@@ -170,13 +263,14 @@
 	<!-- Header Bar & Navigasi Kembali -->
 	<div class="flex items-center justify-between border-b border-border/70 pb-3">
 		<div class="flex items-center gap-3">
-			<a
-				href="/sensus"
+			<button
+				type="button"
+				onclick={handleBatal}
 				class="p-2 rounded-xl border border-border bg-card hover:bg-secondary text-foreground/70 hover:text-foreground transition-all cursor-pointer shadow-2xs"
 				title="Kembali ke Halaman Sensus"
 			>
 				<ArrowLeft class="w-4 h-4" />
-			</a>
+			</button>
 			<div>
 				<h1 class="text-base sm:text-lg font-bold text-foreground tracking-tight">
 					Tambah Anggota Keluarga
@@ -234,6 +328,7 @@
 			keepScrollSubmit({
 				beforeSubmit: () => {
 					isSubmitting = true;
+					bypassConfirm = true;
 					localError = null;
 				},
 				onFinally: () => {
@@ -241,6 +336,7 @@
 				},
 				onError: (result) => {
 					isSubmitting = false;
+					bypassConfirm = false;
 					if (result.type === 'failure' && result.data) {
 						localError = (result.data as any)?.error || 'Gagal menyimpan anggota keluarga.';
 					}
@@ -519,12 +615,13 @@
 
 		<!-- Tombol Aksi Simpan & Batal -->
 		<div class="flex items-center justify-end gap-3 pt-4 border-t border-border">
-			<a
-				href="/sensus"
+			<button
+				type="button"
+				onclick={handleBatal}
 				class="px-5 py-2.5 rounded-xl border border-border text-foreground hover:bg-secondary text-xs font-semibold transition-colors cursor-pointer"
 			>
 				Batal
-			</a>
+			</button>
 			<button
 				type="submit"
 				disabled={isSubmitting}
