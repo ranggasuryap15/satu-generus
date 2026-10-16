@@ -1,9 +1,9 @@
 <!--
   @file src/routes/(app)/shodaqoh/+page.svelte
-  @purpose Halaman shodaqoh & infaq mobile-first untuk jamaah: scan QRIS & salin rekening bank resmi (Kelompok & Desa), pelaporan konfirmasi transfer shodaqoh dengan transisi tab scope (Kelompok & Desa) yang halus & responsif, riwayat donasi dengan filter status & pencarian, dan struk digital resmi (e-receipt)
+  @purpose Halaman shodaqoh & infaq mobile-first untuk jamaah: scan QRIS & salin rekening bank resmi (Kelompok & Desa), daftar jenis & alokasi shodaqoh wilayah aktif, pelaporan konfirmasi transfer shodaqoh dengan transisi tab scope (Kelompok & Desa) yang halus & responsif, riwayat donasi dengan filter status & pencarian, dan struk digital resmi (e-receipt)
   @usedBy Route client '/shodaqoh'
   @dependencies @lucide/svelte, $app/forms, Svelte 5 Runes
-  @publicFunctions printReceipt, openFormForScope, switchScope
+  @publicFunctions printReceipt, openFormForScope, openFormForScopeAndJenis, switchScope
   @sideEffects Mengirim laporan shodaqoh baru beserta file bukti transfer ke server via action ?/laporShodaqoh, membuka modal struk dan mencetak dokumen struk resmi
 -->
 <script lang="ts">
@@ -17,6 +17,7 @@
 		Building2,
 		Calendar,
 		CheckCircle2,
+		ChevronRight,
 		Clock,
 		Coins,
 		Copy,
@@ -118,6 +119,11 @@
 		activeTabRekening === 'Kelompok' ? (data.rekeningKelompokList || []) : (data.rekeningDesaList || [])
 	);
 
+	// Derived: Jenis shodaqoh sesuai tab aktif wilayah (Kelompok vs Desa) untuk tampilan kartu di halaman utama
+	const currentJenisList = $derived(
+		activeTabRekening === 'Kelompok' ? (data.jenisKelompokList || []) : (data.jenisDesaList || [])
+	);
+
 	const activeScopeLabel = $derived(
 		activeTabRekening === 'Kelompok'
 			? (data.selectedKelompok?.nama || 'Kelompok')
@@ -126,6 +132,12 @@
 
 	function openFormForScope(scope: 'Kelompok' | 'Desa') {
 		switchScope(scope);
+		isFormOpen = true;
+	}
+
+	function openFormForScopeAndJenis(scope: 'Kelompok' | 'Desa', jenisNama: string) {
+		switchScope(scope);
+		formJenis = jenisNama;
 		isFormOpen = true;
 	}
 
@@ -337,6 +349,58 @@
 							>
 								<Send class="w-3 h-3" />
 								<span>Konfirmasi transfer ke {rek.tingkatScope} ini</span>
+							</button>
+						</div>
+					</div>
+				{/each}
+			</div>
+		{/if}
+	</div>
+
+	<!-- Daftar Jenis & Alokasi Shodaqoh Wilayah (Kelompok & Desa) -->
+	<div class="space-y-3 pt-2">
+		<div class="flex items-center justify-between">
+			<h3 class="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+				<Coins class="w-3.5 h-3.5 text-primary" />
+				<span>Jenis Shodaqoh ({activeScopeLabel})</span>
+			</h3>
+			<span class="text-[11px] font-semibold text-primary">
+				{currentJenisList.length} jenis tersedia
+			</span>
+		</div>
+
+		{#if currentJenisList.length === 0}
+			<div class="border border-border/80 rounded-2xl p-5 text-center space-y-1.5 bg-card">
+				<p class="text-xs font-semibold text-foreground">Belum Ada Jenis Shodaqoh</p>
+				<p class="text-[11px] text-foreground/50">
+					Belum ada jenis shodaqoh khusus yang didaftarkan untuk {activeScopeLabel}.
+				</p>
+			</div>
+		{:else}
+			<div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+				{#each currentJenisList as j}
+					<div class="border border-border bg-card rounded-2xl p-3.5 shadow-2xs space-y-2.5 flex flex-col justify-between hover:border-primary/40 transition-colors">
+						<div class="space-y-1">
+							<div class="flex items-center justify-between gap-2">
+								<h4 class="text-xs font-bold text-foreground">{j.nama}</h4>
+								<span class="px-1.5 py-0.5 rounded-md text-[9px] font-bold {j.isDefault ? 'bg-secondary text-foreground/70' : 'bg-primary/10 text-primary'}">
+									{j.tingkatScope}
+								</span>
+							</div>
+							<p class="text-[11px] text-foreground/60 leading-relaxed">
+								{j.deskripsi || 'Alokasi dana shodaqoh untuk kegiatan operasional wilayah.'}
+							</p>
+						</div>
+
+						<div class="pt-2 border-t border-border/60 flex items-center justify-between">
+							<span class="text-[10px] text-foreground/40 font-medium">Tersedia untuk jamaah</span>
+							<button
+								type="button"
+								onclick={() => openFormForScopeAndJenis(activeTabRekening, j.nama)}
+								class="text-[11px] font-bold text-primary hover:underline inline-flex items-center gap-1 cursor-pointer"
+							>
+								<span>Kirim Jenis Ini</span>
+								<ChevronRight class="w-3 h-3" />
 							</button>
 						</div>
 					</div>
@@ -579,11 +643,15 @@
 						id="jenisShodaqohSelect"
 						name="namaJenisShodaqoh"
 						bind:value={formJenis}
-						class="w-full bg-secondary/60 border border-border rounded-xl px-3 py-2.5 text-foreground font-medium focus:ring-1 focus:ring-primary outline-none"
+						class="w-full bg-secondary/60 border border-border rounded-xl px-3 py-2.5 text-foreground font-medium focus:ring-1 focus:ring-primary outline-none cursor-pointer"
 					>
-						{#each scopedJenisList as j}
-							<option value={j.nama}>{j.nama}</option>
-						{/each}
+						{#if scopedJenisList.length === 0}
+							<option value="Shodaqoh {formTingkatScope}">Shodaqoh {formTingkatScope}</option>
+						{:else}
+							{#each scopedJenisList as j}
+								<option value={j.nama}>{j.nama}</option>
+							{/each}
+						{/if}
 					</select>
 				</div>
 
