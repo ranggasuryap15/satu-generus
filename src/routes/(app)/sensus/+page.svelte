@@ -105,7 +105,7 @@
 	});
 
 	function openEditKk() {
-		editKkNoKk = data.keluarga?.noKkPlain || '';
+		editKkNoKk = plainNoKk || data.keluarga?.noKkPlain || data.keluarga?.noKkRaw || '';
 		editKkAlamat = data.keluarga?.alamatLengkap || '';
 		activeModal = 'editKk';
 	}
@@ -120,7 +120,7 @@
 	function openEditAnggota(anggota: (typeof data.anggotaList)[number]) {
 		selectedAnggota = anggota;
 		editAnggotaNama = anggota.namaLengkap;
-		editAnggotaNik = anggota.nikRaw || revealedNiks[anggota.id] || '';
+		editAnggotaNik = revealedNiks[anggota.id] || anggota.nikRaw || (anggota as any)?.nikPlain || '';
 		editAnggotaStatus = anggota.statusHubungan;
 		editAnggotaTgl = anggota.tanggalLahir || '';
 		editAnggotaJk = anggota.jenisKelamin || 'L';

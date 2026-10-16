@@ -101,6 +101,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			nikMasked,
 			hasNik,
 			nikRaw: nikPlain,
+			nikPlain: nikPlain,
 			statusHubungan: a.statusHubungan,
 			tanggalLahir: a.tanggalLahir,
 			tempatLahir: a.tempatLahir || '',
@@ -120,6 +121,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			isKk,
 			noKkMasked,
 			noKkRaw: noKkPlain,
+			noKkPlain: noKkPlain,
+			hasNoKk: Boolean(noKkPlain || keluargaRecord.noKkEncrypted),
 			alamatLengkap: keluargaRecord.alamatLengkap
 		},
 		anggotaList
