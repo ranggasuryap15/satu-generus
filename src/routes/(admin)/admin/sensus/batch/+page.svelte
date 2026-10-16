@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(admin)/admin/sensus/batch/+page.svelte
-  @purpose Antarmuka batch insert sensus massal terstruktur: grouping keluarga hierarkis untuk KK dan kartu baris tunggal datar untuk Jamaah Mandiri/Perantau, DateInput dengan manual typing & kalender, auto-kalkulasi generus, validasi noTelepon numerik (wajib jika buat akun), layout form responsif desktop & mobile, paste spreadsheet otomatis, dan opsi pembuatan akun
+  @purpose Antarmuka batch insert sensus massal terstruktur: grouping keluarga hierarkis untuk KK dan kartu baris tunggal datar untuk Jamaah Mandiri/Perantau, DateInput dengan manual typing & kalender, auto-kalkulasi generus, validasi noTelepon numerik (wajib jika buat akun), layout form responsif desktop & mobile, paste spreadsheet otomatis, dan opsi pembuatan akun dengan default password jokam354 terkunci
   @usedBy Route admin '/admin/sensus/batch'
   @dependencies @lucide/svelte, $app/forms, #lib/components/SearchableSelect.svelte, #lib/components/DateInput.svelte, #lib/generus (hitungUmur, hitungStatusGenerus, getDaftarStatusKeluargaByGender, daftar konstanta), Svelte 5 Runes
   @publicFunctions addFamily, addPerantauFamily, removeFamily, addMemberToFamily, removeMember, clearFamilies, convertToPerantau, convertToFamily, onGlobalKelompokChange, onJenisKelaminChange, onStatusKeluargaChange, onTanggalLahirOrMenikahChange, processPastedSpreadsheet, toggleAllBuatAkun
@@ -31,6 +31,7 @@
 		KeyRound,
 		Plus,
 		Save,
+		ShieldCheck,
 		Sparkles,
 		Trash2,
 		UserCheck,
@@ -683,17 +684,23 @@
 		<div>
 			<label
 				for="defaultPasswordInput"
-				class="block font-semibold text-foreground/80 mb-1 flex items-center gap-1"
+				class="block font-semibold text-foreground/80 mb-1 flex items-center justify-between"
 			>
-				<KeyRound class="w-3.5 h-3.5 text-primary" />
-				<span>Password Default Akun</span>
+				<span class="flex items-center gap-1">
+					<KeyRound class="w-3.5 h-3.5 text-primary" />
+					<span>Password Default Akun</span>
+				</span>
+				<span class="text-[10px] text-primary font-semibold flex items-center gap-1">
+					<ShieldCheck class="w-3 h-3" />
+					<span>Terkunci Default</span>
+				</span>
 			</label>
 			<input
 				id="defaultPasswordInput"
 				type="text"
-				bind:value={defaultPassword}
-				placeholder="password"
-				class="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary"
+				disabled
+				value="jokam354"
+				class="w-full bg-secondary/80 border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-foreground/80 cursor-not-allowed select-none"
 			/>
 		</div>
 

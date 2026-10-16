@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(admin)/admin/sensus/+page.svelte
-  @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri, pagination tabel/kartu data, standarisasi tombol aksi simetris seragam, dashboard statistik, penugasan dapukan pengurus KK, modal detail lengkap, modal edit anggota/KK dengan retensi nilai NIK/KK asli pada form, pra-validasi sebelum dialog konfirmasi, pelaporan in-modal error feedback & field highlighting instan, serta pembuatan akun dengan retensi scroll
+  @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri, pagination tabel/kartu data, standarisasi tombol aksi simetris seragam, dashboard statistik, penugasan dapukan pengurus KK, modal detail lengkap, modal edit anggota/KK dengan retensi nilai NIK/KK asli pada form, pra-validasi sebelum dialog konfirmasi, pelaporan in-modal error feedback & field highlighting instan, serta pembuatan akun mandiri dengan password default jokam354 terkunci dan retensi scroll
   @usedBy Route admin '/admin/sensus'
   @dependencies @lucide/svelte, Svelte 5 Runes, #lib/components/SearchableSelect.svelte, #lib/components/DateInput.svelte, #lib/components/Pagination.svelte, #lib/confirm.svelte, #lib/confirmSubmit.ts, #lib/keepScroll.ts (keepScrollSubmit), #lib/utils (formatDateDDMMYYYY), #lib/generus
   @publicFunctions openDetailModal, closeDetailModal, requestUnmask, openCreateModal, closeCreateModal, openAddMemberModal, closeAddMemberModal, openCreateAccountModal, openEditAnggotaModal, closeEditAnggotaModal, openEditKeluargaModal, closeEditKeluargaModal, openPindahKelompokModal, closePindahKelompokModal, openAssignDapukanModal, closeAssignDapukanModal, handleHapusSensus, handleToggleStatusJamaah, resetFilters, toggleMobileFilter
@@ -95,7 +95,7 @@
 	let memberForAccount = $state<(typeof data.daftarKeluarga)[0]['anggota'][0] | null>(null);
 	let newAccountEmail = $state('');
 	let newAccountPhone = $state('');
-	let newAccountPassword = $state('');
+	let newAccountPassword = $state('jokam354');
 	let isAccountSubmitting = $state(false);
 	let createAccountError = $state<string | null>(null);
 	let createAccountErrorField = $state<string | null>(null);
@@ -104,7 +104,7 @@
 		memberForAccount = member;
 		newAccountEmail = '';
 		newAccountPhone = member.noTelepon !== '-' ? member.noTelepon : '';
-		newAccountPassword = '12345678';
+		newAccountPassword = 'jokam354';
 		createAccountError = null;
 		createAccountErrorField = null;
 	}
@@ -3719,19 +3719,26 @@
 				</div>
 
 				<div>
-					<label for="accPass" class="block font-medium text-foreground/80 mb-1">
-						Kata Sandi Akun *
+					<label for="accPass" class="block font-medium text-foreground/80 mb-1 flex items-center justify-between">
+						<span>Kata Sandi Akun (Baku Otomatis)</span>
+						<span class="text-[10px] text-primary font-semibold flex items-center gap-1">
+							<ShieldCheck class="w-3 h-3" />
+							<span>Terkunci Default</span>
+						</span>
 					</label>
-					<input
-						id="accPass"
-						name="password"
-						type="text"
-						required
-						minlength="6"
-						bind:value={newAccountPassword}
-						placeholder="Minimal 6 karakter"
-						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary"
-					/>
+					<div class="relative">
+						<input
+							id="accPass"
+							type="text"
+							disabled
+							value="jokam354"
+							class="w-full bg-secondary/80 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground/80 cursor-not-allowed select-none"
+						/>
+						<input type="hidden" name="password" value="jokam354" />
+					</div>
+					<p class="text-[11px] text-foreground/60 mt-1">
+						Password default otomatis <span class="font-mono font-bold text-foreground">jokam354</span> (dapat diubah oleh jamaah setelah login melalui menu Profil).
+					</p>
 				</div>
 
 				<div class="flex gap-2 pt-2">
