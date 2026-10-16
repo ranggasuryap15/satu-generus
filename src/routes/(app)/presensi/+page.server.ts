@@ -1,10 +1,10 @@
 /**
  * @file src/routes/(app)/presensi/+page.server.ts
- * @purpose Memuat jadwal pengajian aktif rentang kemarin s/d besok (H-1 s/d H+1) tingkat kelompok & desa, pewarisan lokasi kelompok/desa persisten (termasuk via desa.lokasiKelompokId) yang terikat ke profil jamaah tanpa tergantung ada/tidaknya jadwal aktif, QR token unik, validasi radius GPS, serta mutasi presensi mandiri & permohonan izin
+ * @purpose Memuat jadwal pengajian aktif rentang kemarin s/d besok (H-1 s/d H+1) tingkat kelompok & desa, pewarisan lokasi kelompok/desa persisten yang terikat ke profil jamaah tanpa tergantung ada/tidaknya jadwal aktif, QR token unik, validasi radius GPS, serta mutasi presensi mandiri, permohonan izin, & kalibrasi lokasi kelompok oleh admin
  * @usedBy src/routes/(app)/presensi/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm, src/lib/server/upload, src/lib/presensi-waktu (validasiWaktuPresensi, getWaktuSekarangWIB)
- * @publicFunctions load, actions.presensiMandiri, actions.ajukanIzin
- * @sideEffects Validasi tanggal & jam mulai jadwal, validasi jarak radius Haversine lokasi kelompok/desa, menyimpan file foto ke root uploads/presensi, dan menulis presensi_kehadiran ke database
+ * @publicFunctions load, actions.presensiMandiri, actions.ajukanIzin, actions.updateLokasiKelompokSaatIni
+ * @sideEffects Validasi tanggal & jam mulai jadwal, validasi jarak radius Haversine lokasi kelompok/desa, update lokasi koordinat kelompok oleh admin, menyimpan file foto ke root uploads/presensi, dan menulis presensi_kehadiran ke database
  */
 
 import { fail, redirect } from '@sveltejs/kit';
@@ -131,6 +131,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			radiusMeterVenue: venueRadius,
 			gmapsUrlVenue: venueGmaps,
 			hasVenueLocation: Boolean(venueLat && venueLng),
+			hasCustomVenueLocation: Boolean(j.latitude && j.longitude),
 			statusKehadiran: rec?.status || 'Belum Terdata',
 			metodeKehadiran: rec?.metodeKehadiran || null,
 			fotoUrl: rec?.fotoUrl || null,
@@ -491,5 +492,57 @@ export const actions: Actions = {
 			success: true,
 			message: 'Permohonan Terkirim'
 		};
+	},
+
+	updateLokasiKelompokSaatIni: async ({ request, locals }) => {
+		if (!locals.user || !locals.isAdmin) {
+			return fail(403, { error: 'Hanya admin yang memiliki akses untuk menyinkronkan lokasi kelompok.' });
+		}
+		if (!locals.user.kelompokId) {
+			return fail(400, { error: 'Akun Anda tidak terikat dengan kelompok manapun.' });
+		}
+
+		const formData = await request.formData();
+		const lat = formData.get('latitude')?.toString()?.trim();
+		const lng = formData.get('longitude')?.toString()?.trim();
+		const lokasiNama = formData.get('lokasiNama')?.toString()?.trim();
+		const radiusMeterStr = formData.get('radiusMeter')?.toString()?.trim();
+		const radiusMeter = radiusMeterStr ? parseInt(radiusMeterStr, 10) : undefined;
+
+		if (!lat || !lng) {
+			return fail(400, { error: 'Koordinat GPS saat ini belum terdeteksi.' });
+		}
+
+		try {
+			const updateData: {
+				latitude: string;
+				longitude: string;
+				lokasiNama?: string;
+				radiusMeter?: number;
+			} = {
+				latitude: lat,
+				longitude: lng
+			};
+
+			if (lokasiNama) {
+				updateData.lokasiNama = lokasiNama;
+			}
+			if (radiusMeter && !isNaN(radiusMeter) && radiusMeter > 0) {
+				updateData.radiusMeter = radiusMeter;
+			}
+
+			await db
+				.update(kelompok)
+				.set(updateData)
+				.where(eq(kelompok.id, locals.user.kelompokId));
+
+			return {
+				success: true,
+				message: 'Titik acuan lokasi kelompok berhasil disinkronkan ke posisi GPS saat ini.'
+			};
+		} catch (err) {
+			console.error('Gagal memperbarui lokasi kelompok:', err);
+			return fail(500, { error: 'Terjadi kesalahan sistem saat memperbarui lokasi kelompok.' });
+		}
 	}
 };

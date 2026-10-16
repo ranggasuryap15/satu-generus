@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(app)/presensi/+page.svelte
-  @purpose Halaman presensi mandiri jamaah (tingkat kelompok & desa; Hadir Offline/Online, Izin/Sakit, Riwayat, Kartu QR) sesuai konsep Flat Design Minimalist yang di-upsize: Header Hijau Melengkung terintegrasi, Switcher Mode Admin ⇄ Jamaah, Floating 4-Tab Bar, card dark slate, input dan tombol semantik
+  @purpose Halaman presensi mandiri jamaah (tingkat kelompok & desa; Hadir Offline/Online, Izin/Sakit, Riwayat, Kartu QR) dengan acuan geofencing default terikat ke lokasi kelompok jamaah tanpa tergantung ada/tidaknya jadwal aktif, transparansi radius & jarak real-time, serta opsi kalibrasi titik kelompok oleh admin
   @usedBy Route client '/presensi'
   @dependencies qrcode, @lucide/svelte, $app/forms, $app/state (page), #lib/utils (formatDateDDMMYYYY), #lib/components/ThemeToggle.svelte, Svelte 5 Runes
   @publicFunctions captureLocation, calculateDistanceMeters, handleFotoChange, resetPresensiForm, openPreviewFoto, closePreviewFoto
-  @sideEffects Mengakses HTML5 Geolocation API, input kamera/galeri, generate QR code personal, dan mengirim form presensi ke server
+  @sideEffects Mengakses HTML5 Geolocation API, input kamera/galeri, generate QR code personal, kalibrasi lokasi kelompok via server action, dan mengirim form presensi ke server
 -->
 <script lang="ts">
 	import { onMount } from 'svelte';
@@ -57,23 +57,34 @@
 		data.jadwalList.find((j: (typeof data.jadwalList)[number]) => String(j.id) === String(selectedJadwalId))
 	);
 
-	// Titik venue acuan: terikat dengan kelompok jamaah sebagai basis,
-	// atau menggunakan lokasi khusus kegiatan jika pengajian terpilih memiliki lokasi khusus
+	// Titik venue acuan: default selalu terikat dengan lokasi kelompok jamaah
+	// Hanya gunakan lokasi khusus jika pengajian terpilih memiliki koordinat khusus sendiri
 	const effectiveVenue = $derived.by(() => {
-		const venueLat = selectedJadwal?.latitudeVenue || data.kelompokData?.latitude || null;
-		const venueLng = selectedJadwal?.longitudeVenue || data.kelompokData?.longitude || null;
-		const venueRadius = selectedJadwal?.radiusMeterVenue || data.kelompokData?.radiusMeter || 100;
-		const venueNama = selectedJadwal?.lokasiNama || data.kelompokData?.lokasiNama || data.kelompokData?.nama || data.kelompokNama || 'Lokasi Kelompok';
-		const venueGmaps = selectedJadwal?.gmapsUrlVenue || data.kelompokData?.gmapsUrl || null;
-		const hasLocation = Boolean(venueLat && venueLng);
+		if (selectedJadwal?.hasCustomVenueLocation) {
+			return {
+				isSpecialJadwal: true,
+				scopeLabel: selectedJadwal.isDesaScope ? 'Lokasi Pengajian Desa' : 'Lokasi Khusus Pengajian',
+				latitude: selectedJadwal.latitudeVenue,
+				longitude: selectedJadwal.longitudeVenue,
+				radiusMeter: selectedJadwal.radiusMeterVenue || 100,
+				lokasiNama: selectedJadwal.lokasiNama || 'Lokasi Kegiatan',
+				gmapsUrl: selectedJadwal.gmapsUrlVenue,
+				hasLocation: Boolean(selectedJadwal.latitudeVenue && selectedJadwal.longitudeVenue)
+			};
+		}
 
+		// Terikat ke lokasi kelompok jamaah sebagai basis utama
+		const kelompokLat = data.kelompokData?.latitude || null;
+		const kelompokLng = data.kelompokData?.longitude || null;
 		return {
-			latitude: venueLat,
-			longitude: venueLng,
-			radiusMeter: venueRadius,
-			lokasiNama: venueNama,
-			gmapsUrl: venueGmaps,
-			hasLocation
+			isSpecialJadwal: false,
+			scopeLabel: 'Lokasi Kelompok',
+			latitude: kelompokLat,
+			longitude: kelompokLng,
+			radiusMeter: data.kelompokData?.radiusMeter || 100,
+			lokasiNama: data.kelompokData?.lokasiNama || data.kelompokData?.nama || data.kelompokNama || 'Kelompok',
+			gmapsUrl: data.kelompokData?.gmapsUrl || null,
+			hasLocation: Boolean(kelompokLat && kelompokLng)
 		};
 	});
 
@@ -566,33 +577,59 @@
 
 					<!-- Bagian Deteksi Lokasi GPS (Khusus Hadir Offline) -->
 					{#if metodeKehadiran === 'offline'}
-						<div class="p-3 rounded-xl bg-[#0F172A] border border-slate-700/60 space-y-2">
-							<div class="flex items-center justify-between">
-								<span class="font-semibold text-slate-200 flex items-center gap-1.5 text-xs">
-									<MapPin class="w-3.5 h-3.5 text-emerald-400" />
-									<span>Lokasi Anda</span>
-								</span>
+						<div class="p-3 sm:p-3.5 rounded-xl bg-[#0F172A] border border-slate-700/60 space-y-3">
+							<!-- Header & Info Titik Acuan Lokasi -->
+							<div class="flex items-start justify-between gap-2">
+								<div class="space-y-0.5 min-w-0">
+									<div class="flex items-center gap-1.5 flex-wrap">
+										<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+											<MapPin class="w-3 h-3 shrink-0" />
+											<span>{effectiveVenue.scopeLabel}</span>
+										</span>
+										<span class="text-[11px] font-medium text-slate-400">
+											(Radius: {effectiveVenue.radiusMeter}m)
+										</span>
+									</div>
+									<div class="flex items-center gap-1.5 pt-0.5">
+										<span class="font-bold text-slate-200 text-xs truncate">
+											{effectiveVenue.lokasiNama}
+										</span>
+										{#if effectiveVenue.gmapsUrl || (effectiveVenue.latitude && effectiveVenue.longitude)}
+											<a
+												href={effectiveVenue.gmapsUrl || `https://www.google.com/maps?q=${effectiveVenue.latitude},${effectiveVenue.longitude}`}
+												target="_blank"
+												rel="noopener noreferrer"
+												class="text-emerald-400 hover:text-emerald-300 inline-flex items-center gap-0.5 text-[11px] font-medium shrink-0"
+												title="Buka peta lokasi di Google Maps"
+											>
+												<ExternalLink class="w-3 h-3" />
+											</a>
+										{/if}
+									</div>
+								</div>
+
 								<button
 									type="button"
 									onclick={captureLocation}
 									disabled={isLocating}
-									class="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 hover:underline cursor-pointer"
+									class="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 hover:underline cursor-pointer shrink-0 py-0.5 px-1.5 rounded-md hover:bg-emerald-500/10 transition-colors"
 								>
 									{#if isLocating}
 										<Loader2 class="w-3 h-3 animate-spin" />
 										<span>Mencari...</span>
 									{:else}
 										<RefreshCw class="w-3 h-3" />
-										<span>Ulang</span>
+										<span>Deteksi GPS</span>
 									{/if}
 								</button>
 							</div>
 
+							<!-- Status Jangkauan & Evaluasi Koordinat -->
 							{#if !effectiveVenue.hasLocation}
 								<div class="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-center justify-between gap-2">
-									<span class="flex items-center gap-1.5 font-medium">
+									<span class="flex items-center gap-1.5 font-medium min-w-0">
 										<AlertCircle class="w-4 h-4 shrink-0" />
-										Titik lokasi belum diset
+										<span class="truncate">Koordinat {effectiveVenue.scopeLabel.toLowerCase()} belum diset</span>
 									</span>
 									<button
 										type="button"
@@ -606,25 +643,30 @@
 								{#if distanceToVenue !== null}
 									{#if isWithinRadius}
 										<div class="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-between text-xs font-semibold">
-											<span class="flex items-center gap-1.5">
+											<span class="flex items-center gap-1.5 min-w-0">
 												<CheckCircle2 class="w-4 h-4 text-emerald-400 shrink-0" />
-												<span>Lokasi Sesuai</span>
+												<span class="truncate">Lokasi Sesuai ({effectiveVenue.scopeLabel})</span>
 											</span>
-											<span class="font-mono text-[11px] text-slate-400">~{distanceToVenue}m</span>
+											<span class="font-mono text-[11px] text-emerald-300 shrink-0">~{distanceToVenue}m</span>
 										</div>
 									{:else}
-										<div class="p-2.5 rounded-lg bg-rose-950/40 border border-rose-800/40 text-rose-300 flex items-center justify-between gap-2 text-xs font-semibold">
-											<span class="flex items-center gap-1.5 min-w-0">
-												<AlertCircle class="w-4 h-4 shrink-0" />
-												<span class="truncate">Di Luar Jangkauan (~{distanceToVenue}m)</span>
-											</span>
-											<button
-												type="button"
-												onclick={() => (metodeKehadiran = 'online')}
-												class="px-2.5 py-1 rounded-lg bg-sky-500 hover:bg-sky-600 text-white font-bold text-[11px] shrink-0 cursor-pointer"
-											>
-												Pindah Online
-											</button>
+										<div class="p-2.5 rounded-lg bg-rose-950/40 border border-rose-800/40 text-rose-300 space-y-1.5 text-xs">
+											<div class="flex items-center justify-between gap-2 font-semibold">
+												<span class="flex items-center gap-1.5 min-w-0">
+													<AlertCircle class="w-4 h-4 text-rose-400 shrink-0" />
+													<span class="truncate">Di Luar Jangkauan {effectiveVenue.scopeLabel} (~{distanceToVenue}m)</span>
+												</span>
+												<button
+													type="button"
+													onclick={() => (metodeKehadiran = 'online')}
+													class="px-2.5 py-1 rounded-lg bg-sky-500 hover:bg-sky-600 text-white font-bold text-[11px] shrink-0 cursor-pointer"
+												>
+													Pindah Online
+												</button>
+											</div>
+											<p class="text-[11px] text-rose-300/80 leading-snug">
+												Jarak Anda saat ini ~{distanceToVenue}m dari {effectiveVenue.lokasiNama} (batas radius {effectiveVenue.radiusMeter}m). Acuan lokasi terikat pada {effectiveVenue.scopeLabel.toLowerCase()}, bukan karena ketiadaan jadwal.
+											</p>
 										</div>
 									{/if}
 								{:else}
@@ -636,10 +678,10 @@
 								<div class="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-center gap-1.5 font-medium">
 									{#if isLocating}
 										<Loader2 class="w-4 h-4 animate-spin shrink-0" />
-										<span>Mendeteksi GPS ponsel...</span>
+										<span>Mendeteksi koordinat GPS ponsel...</span>
 									{:else}
 										<AlertCircle class="w-4 h-4 shrink-0" />
-										<span>Lokasi GPS belum terdeteksi</span>
+										<span>Lokasi GPS belum terdeteksi. Klik "Deteksi GPS".</span>
 									{/if}
 								</div>
 							{/if}
@@ -648,6 +690,40 @@
 								<p class="text-[11px] text-rose-400 leading-tight font-medium">
 									{locationError}
 								</p>
+							{/if}
+
+							<!-- Opsi Kalibrasi Admin: Setel Titik Kelompok ke Posisi Saya Sekarang -->
+							{#if isAdmin && latitude && longitude}
+								<div class="pt-2 border-t border-slate-700/60">
+									<form
+										method="POST"
+										action="?/updateLokasiKelompokSaatIni"
+										use:enhance={async ({ cancel }) => {
+											const confirmed = await confirmAction({
+												title: 'Kalibrasi Lokasi Kelompok',
+												message: `Setel titik acuan koordinat "${effectiveVenue.lokasiNama}" ke posisi GPS Anda saat ini (${latitude}, ${longitude})?`,
+												confirmText: 'Ya, Kalibrasi Sekarang',
+												cancelText: 'Batal',
+												variant: 'info'
+											});
+											if (!confirmed) {
+												cancel();
+												return;
+											}
+										}}
+									>
+										<input type="hidden" name="latitude" value={latitude} />
+										<input type="hidden" name="longitude" value={longitude} />
+										<input type="hidden" name="lokasiNama" value={effectiveVenue.lokasiNama} />
+										<button
+											type="submit"
+											class="w-full py-1.5 px-3 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+										>
+											<MapPin class="w-3.5 h-3.5 text-emerald-400" />
+											<span>Setel Titik Kelompok ke Posisi Saya Sekarang (Admin)</span>
+										</button>
+									</form>
+								</div>
 							{/if}
 						</div>
 					{/if}
