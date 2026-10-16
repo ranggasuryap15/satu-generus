@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(admin)/admin/profil-wilayah/+page.svelte
-  @purpose Halaman dedicated profil wilayah (Kelompok/Desa/Daerah) untuk seluruh 4S & Superadmin: dashboard metrik jamaah & persentase isrun bulan ini, manajemen titik lokasi pengajian (termasuk 2 opsi pemilihan lokasi desa dari kelompok atau kustom), daftar jadwal pengajian dengan shortcut tambah jadwal, rekening Bank & QRIS shodaqoh, dan filter wilayah adaptif
+  @purpose Halaman dedicated profil wilayah (Kelompok/Desa/Daerah) untuk seluruh 4S & Superadmin: dashboard metrik jamaah & persentase isrun bulan ini, manajemen titik lokasi pengajian (termasuk 2 opsi pemilihan lokasi desa dari kelompok atau kustom tanpa duplikasi field nama lokasi), daftar jadwal pengajian dengan shortcut tambah jadwal, rekening Bank & QRIS shodaqoh, dan filter wilayah adaptif
   @usedBy Route admin '/admin/profil-wilayah'
   @dependencies @lucide/svelte, $app/navigation, $app/state, Svelte 5 Runes, #lib/components/SearchableSelect.svelte, #lib/components/LocationPicker.svelte, $app/forms (enhance), #lib/keepScroll.ts (keepScrollSubmit), #lib/confirm.svelte (confirmAction), #lib/jadwal (formatDateIndoFull)
   @publicFunctions changeWilayah, openLocationModal, closeLocationModal, openAddRekeningModal, closeAddRekeningModal, openEditRekeningModal, closeEditRekeningModal, copyToClipboard, handleQrisFileChange, handlePilihKelompokDesa
-  @sideEffects Mengirim form updateLokasi, addRekening, updateRekening, deleteRekening via enhance dengan pelestarian query param scope & id wilayah aktif dan menjaga scroll
+  @sideEffects Mengirim form updateLokasi, addRekening, updateRekening, deleteRekening via enhance dengan pelestarian query param scope & id wilayah aktif, menutup modal otomatis saat berhasil disimpan, dan menjaga scroll
 -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
@@ -931,7 +931,11 @@
 						cancelText: 'Batal',
 						variant: 'primary'
 					},
-					keepScrollSubmit()
+					keepScrollSubmit({
+						onSuccess: () => {
+							closeLocationModal();
+						}
+					})
 				)}
 				class="space-y-4"
 			>
@@ -998,21 +1002,6 @@
 						{/if}
 					</div>
 				{/if}
-
-				<div>
-					<label for="editLokasiNama" class="block text-xs font-semibold text-foreground mb-1">
-						Nama Tempat / Masjid / Majelis *
-					</label>
-					<input
-						type="text"
-						id="editLokasiNama"
-						name="lokasiNama"
-						required
-						bind:value={editLokasiNama}
-						placeholder="Contoh: Masjid Baitul Makmur, Aula Kelompok 1"
-						class="w-full bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-medium"
-					/>
-				</div>
 
 				<LocationPicker
 					bind:lokasiNama={editLokasiNama}
@@ -1093,7 +1082,11 @@
 						cancelText: 'Batal',
 						variant: 'primary'
 					},
-					keepScrollSubmit()
+					keepScrollSubmit({
+						onSuccess: () => {
+							closeRekeningModal();
+						}
+					})
 				)}
 				class="space-y-3.5"
 			>
