@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(app)/presensi/+page.svelte
-  @purpose Halaman presensi mandiri jamaah (Hadir Offline / Online / Izin / QR) dengan standar Zero Over-Information sesuai DESIGN.md: visual-first feedback, eliminasi teks redundant, dan notifikasi to-the-point
+  @purpose Halaman presensi mandiri jamaah (Hadir Offline / Online / Izin / QR) dengan seleksi jadwal aktif kemarin s/d besok (H-1 s/d H+1), penguncian tombol presensi sebelum 1 jam acara dimulai, dan standar Modern Flat sesuai DESIGN.md
   @usedBy Route client '/presensi'
   @dependencies qrcode, @lucide/svelte, $app/forms, #lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
   @publicFunctions captureLocation, calculateDistanceMeters, handleFotoChange, resetPresensiForm, openPreviewFoto, closePreviewFoto
@@ -16,6 +16,7 @@
 		Calendar,
 		Camera,
 		CheckCircle2,
+		ChevronRight,
 		Clock,
 		ExternalLink,
 		FileText,
@@ -40,12 +41,13 @@
 	type TabType = 'hadir' | 'izin' | 'riwayat' | 'qr';
 	let activeTab = $state<TabType>('hadir');
 
-	// State Presensi Hadir
-	let selectedJadwalId = $state<number | string>(data.jadwalList[0]?.id || '');
+	// State Presensi Hadir (Gunakan activeJadwalList untuk rentang kemarin s/d besok)
+	let selectedJadwalId = $state<number | string>(data.defaultJadwalId || data.activeJadwalList[0]?.id || '');
 	let metodeKehadiran = $state<'offline' | 'online'>('offline');
 	let isSubmitting = $state(false);
 
 	let selectedJadwal = $derived(
+		data.activeJadwalList.find((j: (typeof data.activeJadwalList)[number]) => String(j.id) === String(selectedJadwalId)) ||
 		data.jadwalList.find((j: (typeof data.jadwalList)[number]) => String(j.id) === String(selectedJadwalId))
 	);
 
@@ -119,7 +121,7 @@
 	}
 
 	// State Pengajuan Izin
-	let izinJadwalId = $state<number | string>(data.jadwalList[0]?.id || '');
+	let izinJadwalId = $state<number | string>(data.defaultJadwalId || data.activeJadwalList[0]?.id || '');
 	let izinStatus = $state<'Izin' | 'Sakit'>('Izin');
 	let izinAlasan = $state('');
 	let izinFotoDataUrl = $state('');
@@ -408,24 +410,49 @@
 				<input type="hidden" name="longitude" value={longitude} />
 				<input type="hidden" name="fotoBase64" value={fotoDataUrl} />
 
-				<!-- Pilihan Jadwal Pengajian -->
+				<!-- Pilihan Jadwal Pengajian (Rentang Kemarin s/d Besok) -->
 				<div>
-					<label for="jadwalSelect" class="block font-semibold text-foreground/80 mb-1.5">
-						Pilih Kegiatan Pengajian *
-					</label>
-					<select
-						id="jadwalSelect"
-						name="jadwalId"
-						bind:value={selectedJadwalId}
-						required
-						class="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:bg-background"
-					>
-						{#each data.jadwalList as j}
-							<option value={j.id}>
-								{j.namaKegiatan} ({formatDateDDMMYYYY(j.tanggal)}{j.jamMulai ? ` • ${j.jamMulai} WIB` : ''}){j.bisaPresensi === false ? ' [Presensi Belum Dibuka]' : ''}
-							</option>
-						{/each}
-					</select>
+					<div class="flex items-center justify-between mb-1.5">
+						<label for="jadwalSelect" class="block font-semibold text-foreground/80">
+							Pilih Kegiatan Pengajian *
+						</label>
+						<a
+							href="/jadwal"
+							class="text-[11px] font-semibold text-primary hover:underline inline-flex items-center gap-0.5"
+						>
+							<span>Jadwal Sebulan</span>
+							<ChevronRight class="w-3 h-3" />
+						</a>
+					</div>
+
+					{#if data.activeJadwalList.length === 0}
+						<div class="p-3.5 rounded-xl bg-secondary/50 border border-border text-center space-y-2">
+							<p class="text-xs text-foreground/70">
+								Tidak ada kegiatan pengajian aktif hari ini (rentang kemarin - besok).
+							</p>
+							<a
+								href="/jadwal"
+								class="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+							>
+								<span>Lihat Jadwal Pengajian Sebulan</span>
+								<ChevronRight class="w-3.5 h-3.5" />
+							</a>
+						</div>
+					{:else}
+						<select
+							id="jadwalSelect"
+							name="jadwalId"
+							bind:value={selectedJadwalId}
+							required
+							class="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:bg-background"
+						>
+							{#each data.activeJadwalList as j}
+								<option value={j.id}>
+									{j.namaKegiatan} ({formatDateDDMMYYYY(j.tanggal)}{j.jamMulai ? ` • ${j.jamMulai} WIB` : ''}){j.bisaPresensi === false ? ' [Presensi Belum Dibuka]' : ''}
+								</option>
+							{/each}
+						</select>
+					{/if}
 
 					{#if selectedJadwal && selectedJadwal.bisaPresensi === false}
 						<div class="mt-2.5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 flex items-start gap-2.5 text-xs">
@@ -689,6 +716,23 @@
 						<Globe class="w-4 h-4" />
 						<span>Di Luar Jangkauan — Beralih ke Online</span>
 					</button>
+				{:else if selectedJadwal && selectedJadwal.bisaPresensi === false}
+					<button
+						type="button"
+						disabled
+						class="w-full py-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-not-allowed select-none opacity-90"
+					>
+						<Clock class="w-4 h-4" />
+						<span>Presensi Belum Dibuka (1 Jam Sebelum Acara)</span>
+					</button>
+				{:else if !selectedJadwal}
+					<button
+						type="button"
+						disabled
+						class="w-full py-2.5 rounded-xl bg-secondary text-foreground/40 border border-border text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-not-allowed"
+					>
+						<span>Tidak Ada Jadwal Pengajian Aktif</span>
+					</button>
 				{:else}
 					<button
 						type="submit"
@@ -753,24 +797,30 @@
 				<input type="hidden" name="status" value={izinStatus} />
 				<input type="hidden" name="fotoBase64" value={izinFotoDataUrl} />
 
-				<!-- Pilihan Jadwal -->
+				<!-- Pilihan Jadwal (Rentang Kemarin s/d Besok) -->
 				<div>
 					<label for="izinJadwalSelect" class="block font-semibold text-foreground/80 mb-1.5">
 						Pilih Jadwal Kegiatan *
 					</label>
-					<select
-						id="izinJadwalSelect"
-						name="jadwalId"
-						bind:value={izinJadwalId}
-						required
-						class="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:bg-background"
-					>
-						{#each data.jadwalList as j}
-							<option value={j.id}>
-								{j.namaKegiatan} ({formatDateDDMMYYYY(j.tanggal)})
-							</option>
-						{/each}
-					</select>
+					{#if data.activeJadwalList.length === 0}
+						<div class="p-3 rounded-xl bg-secondary/50 border border-border text-center text-xs text-foreground/60">
+							Tidak ada jadwal kegiatan aktif (rentang kemarin - besok) untuk permohonan izin saat ini.
+						</div>
+					{:else}
+						<select
+							id="izinJadwalSelect"
+							name="jadwalId"
+							bind:value={izinJadwalId}
+							required
+							class="w-full bg-secondary/50 border border-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:bg-background"
+						>
+							{#each data.activeJadwalList as j}
+								<option value={j.id}>
+									{j.namaKegiatan} ({formatDateDDMMYYYY(j.tanggal)}{j.jamMulai ? ` • ${j.jamMulai} WIB` : ''})
+								</option>
+							{/each}
+						</select>
+					{/if}
 				</div>
 
 				<!-- Jenis Izin: Izin atau Sakit -->

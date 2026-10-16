@@ -1,8 +1,8 @@
 /**
  * @file src/routes/(app)/presensi/+page.server.ts
- * @purpose Memuat jadwal pengajian dengan fallback lokasi kelompok, QR token, validasi radius GPS, serta mutasi presensi mandiri & permohonan izin dengan respon feedback ringkas bebas over-information sesuai DESIGN.md
+ * @purpose Memuat jadwal pengajian dengan filter presensi aktif rentang kemarin s/d besok (H-1 s/d H+1), fallback lokasi kelompok, QR token, validasi radius GPS, serta mutasi presensi mandiri & permohonan izin dengan respon feedback ringkas sesuai DESIGN.md
  * @usedBy src/routes/(app)/presensi/+page.svelte
- * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm, src/lib/server/upload, src/lib/presensi-waktu
+ * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm, src/lib/server/upload, src/lib/presensi-waktu (validasiWaktuPresensi, getWaktuSekarangWIB)
  * @publicFunctions load, actions.presensiMandiri, actions.ajukanIzin
  * @sideEffects Validasi tanggal & jam mulai jadwal, validasi jarak radius Haversine lokasi kelompok, menyimpan file foto ke root uploads/presensi, dan menulis presensi_kehadiran ke SQLite
  */
@@ -13,7 +13,7 @@ import { db, first } from '#lib/db/index.js';
 import { presensiJadwal, presensiKehadiran, kelompok } from '#lib/db/schema.js';
 import { eq, desc, and } from 'drizzle-orm';
 import { saveUploadedFile } from '#lib/server/upload.js';
-import { validasiWaktuPresensi } from '#lib/presensi-waktu.js';
+import { validasiWaktuPresensi, getWaktuSekarangWIB } from '#lib/presensi-waktu.js';
 
 async function saveUploadedFoto(
 	fileOrBase64: File | string | null | undefined,
@@ -22,7 +22,7 @@ async function saveUploadedFoto(
 	return saveUploadedFile(fileOrBase64, 'presensi', prefix);
 }
 
-export const load: PageServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals, url }) => {
 	if (!locals.user) {
 		throw redirect(303, '/login?redirectTo=/presensi');
 	}
@@ -48,11 +48,20 @@ export const load: PageServerLoad = async ({ locals }) => {
 		.select()
 		.from(presensiKehadiran)
 		.where(eq(presensiKehadiran.userId, locals.user.id))
-);
+	);
 	const recordMap = new Map<number, (typeof kehadiranRecords)[number]>();
 	kehadiranRecords.forEach((k) => {
 		recordMap.set(k.jadwalId, k);
 	});
+
+	// Hitung rentang kemarin (H-1), hari ini (H), dan besok (H+1) dalam zona waktu WIB
+	const waktuWIB = getWaktuSekarangWIB();
+	const hariIni = waktuWIB.tanggal;
+	const dHariIni = new Date(`${hariIni}T12:00:00Z`);
+	const dKemarin = new Date(dHariIni.getTime() - 24 * 60 * 60 * 1000);
+	const dBesok = new Date(dHariIni.getTime() + 24 * 60 * 60 * 1000);
+	const tanggalKemarin = dKemarin.toISOString().slice(0, 10);
+	const tanggalBesok = dBesok.toISOString().slice(0, 10);
 
 	const jadwalWithStatus = jadwalList.map((j) => {
 		const rec = recordMap.get(j.id);
@@ -92,6 +101,20 @@ export const load: PageServerLoad = async ({ locals }) => {
 		};
 	});
 
+	// List pengajian aktif untuk pilihan dropdown (HANYA rentang kemarin s/d besok)
+	const activeJadwalList = jadwalWithStatus
+		.filter((j) => j.tanggal >= tanggalKemarin && j.tanggal <= tanggalBesok)
+		.sort((a, b) => {
+			if (a.tanggal !== b.tanggal) return a.tanggal.localeCompare(b.tanggal);
+			return (a.jamMulai || '').localeCompare(b.jamMulai || '');
+		});
+
+	// Default jadwalId dari URL query param jika ada
+	const queryJadwalId = parseInt(url.searchParams.get('jadwalId') || '', 10);
+	const defaultJadwalId = !isNaN(queryJadwalId) && activeJadwalList.some((j) => j.id === queryJadwalId)
+		? queryJadwalId
+		: activeJadwalList[0]?.id || null;
+
 	// QR Payload unik jamaah (format: SGQR:userId:kelompokId)
 	const qrPayload = `SGQR:${locals.user.id}:${userKelompokId || 0}`;
 
@@ -110,6 +133,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 				}
 			: null,
 		qrPayload,
+		activeJadwalList,
+		defaultJadwalId,
 		jadwalList: jadwalWithStatus
 	};
 };

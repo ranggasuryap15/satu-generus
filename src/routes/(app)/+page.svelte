@@ -186,10 +186,10 @@
 				</h3>
 			</div>
 			<a
-				href="/presensi"
+				href="/jadwal"
 				class="text-xs sm:text-sm font-semibold text-[#009B60] dark:text-emerald-400 hover:underline flex items-center gap-0.5"
 			>
-				Presensi Mandiri <ChevronRight class="w-4 h-4" />
+				Lihat Semua <ChevronRight class="w-4 h-4" />
 			</a>
 		</div>
 
