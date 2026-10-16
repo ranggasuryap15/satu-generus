@@ -10,14 +10,19 @@ Dokumen ini berisi panduan rancangan antarmuka (UI) dan pengalaman pengguna (UX)
    - **Hilangkan Teks Sia-sia:** Hindari paragraf instruksi panjang yang hanya mengulang fungsi form, kalimat sambutan bertele-tele, atau deskripsi teknis jarak GPS yang membingungkan.
    - **Status Berhasil (Success State):** Tandai langsung dengan warna hijau *Vibrant Jade / Emerald*, lencana *"Lokasi Sesuai"*, atau notifikasi *"Data Tersimpan"*.
    - **Status Peringatan / Kendala (Warning & Error State):** Langsung tunjukkan inti kendala (misal: *"Titik lokasi belum diset"*, *"Di Luar Jangkauan (~450m)"*) disertai tombol tindakan langsung (misal: tombol biru **[Pindah Online]**).
-2. **Integrated Curved Header (Header Hijau Melengkung Terintegrasi):**
-   - Bagian atas aplikasi mobile menggunakan blok solid warna hijau *Deep Lush Green* (`#166534` / dark: `#14532D`) yang menempel langsung ke tepi atas dan samping layar, dengan lengkungan bawah yang halus (`rounded-b-[28px]`).
-   - Kontrol navigasi atas (logo SG, judul aplikasi/halaman, tombol tema, pencarian, dan lonceng notifikasi) terintegrasi langsung di baris pertama header hijau ini, tanpa bilah abu-abu terpisah.
-3. **Overlapping Floating Cards (Elevasi Kartu Mengambang Minimalis):**
-   - Kontrol utama (5-launcher shortcut pada Beranda, atau 4-tab switcher pada Presensi) diletakkan pada kartu mengambang (*floating card*) yang bertumpuk halus di batas bawah header hijau menggunakan margin negatif (`-mt-7` s/d `-mt-8`).
-   - Menggunakan warna dasar kartu *Dark Slate Navy* (`#1E293B`) dengan border halus (`border-slate-700/60`), sudut membulat (`rounded-2xl`), dan bayangan tipis (*shadow-md*).
-4. **Format Tanggal Baku (DD-MM-YYYY):**
-   - Seluruh tampilan tanggal pada UI client dan admin (riwayat kegiatan, kartu presensi, input tanggal) disajikan dalam format **DD-MM-YYYY** (contoh: `14-10-2026`).
+2. **Integrated Curved Header & Role Switcher:**
+   - Bagian atas aplikasi mobile menggunakan blok solid warna hijau *Deep Lush Green* (`#166534` / dark: `#14532D`) yang menempel langsung ke tepi atas dan samping layar, dengan lengkungan bawah yang halus dan luas (`rounded-b-[32px]`).
+   - Kontrol navigasi atas (logo SG berukuran mantap `w-11 h-11`, judul aplikasi `text-xl font-black`, tombol tema, dan lonceng notifikasi interaktif) terintegrasi langsung di baris pertama header.
+   - **Mode Switcher (Admin ⇄ Jamaah):** Jika pengguna memiliki peran kepengurusan/admin, ditampilkan pill switcher interaktif yang jelas di header (`[Mode: Jamaah ⇄ Ke Admin]`), memungkinkan perpindahan instan antar mode aplikasi.
+3. **Overlapping Floating Cards & Upsized Scale:**
+   - Kontrol utama (5-launcher shortcut pada Beranda, atau 4-tab switcher pada Presensi) diletakkan pada kartu mengambang (*floating card*) yang bertumpuk halus di batas bawah header hijau menggunakan margin negatif (`-mt-9`).
+   - Menggunakan warna dasar kartu *Dark Slate Navy* (`#1E293B`) dengan border halus (`border-slate-700/60`), sudut membulat lebar (`rounded-3xl`), padding lega (`p-4 sm:p-5`), dan bayangan lembut (*shadow-lg*).
+   - Seluruh elemen penting (lingkaran ikon launcher `w-14 h-14`, nilai ringkasan `text-2xl font-black`, teks label `text-sm font-bold`) diskalakan agar nyaman disentuh jari (*fat-finger friendly*) dan mudah terbaca.
+4. **Jadwal Pengajian (Aksi Presensi & Semua):**
+   - Header bagian Jadwal Pengajian menyediakan tombol navigasi **[Semua]** yang mengarah ke riwayat sebulan penuh (`/jadwal?from=beranda`).
+   - Setiap kartu pengajian terdekat yang aktif dilengkapi tombol aksi cepat **[Presensi]** (`bg-emerald-500 font-black`) yang langsung mengarahkan jamaah ke form presensi dengan sesi tersebut terpilih otomatis.
+5. **Format Tanggal Baku (DD-MM-YYYY):**
+   - Seluruh tampilan tanggal pada UI client dan admin disajikan dalam format **DD-MM-YYYY** atau penanggalan bahasa Indonesia penuh.
 
 ---
 

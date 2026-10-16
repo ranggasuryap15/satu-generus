@@ -1,8 +1,8 @@
 <!--
   @file src/routes/(app)/presensi/+page.svelte
-  @purpose Halaman presensi mandiri jamaah (Hadir Offline/Online, Izin/Sakit, Riwayat, Kartu QR) sesuai konsep Flat Design Minimalist: Header Hijau Melengkung terintegrasi, Floating 4-Tab Bar, card dark slate, input dan tombol semantik
+  @purpose Halaman presensi mandiri jamaah (Hadir Offline/Online, Izin/Sakit, Riwayat, Kartu QR) sesuai konsep Flat Design Minimalist yang di-upsize: Header Hijau Melengkung terintegrasi, Switcher Mode Admin ⇄ Jamaah, Floating 4-Tab Bar, card dark slate, input dan tombol semantik
   @usedBy Route client '/presensi'
-  @dependencies qrcode, @lucide/svelte, $app/forms, #lib/utils (formatDateDDMMYYYY), #lib/components/ThemeToggle.svelte, Svelte 5 Runes
+  @dependencies qrcode, @lucide/svelte, $app/forms, $app/state (page), #lib/utils (formatDateDDMMYYYY), #lib/components/ThemeToggle.svelte, Svelte 5 Runes
   @publicFunctions captureLocation, calculateDistanceMeters, handleFotoChange, resetPresensiForm, openPreviewFoto, closePreviewFoto
   @sideEffects Mengakses HTML5 Geolocation API, input kamera/galeri, generate QR code personal, dan mengirim form presensi ke server
 -->
@@ -35,11 +35,14 @@
 		X,
 		XCircle
 	} from '@lucide/svelte';
+	import { page } from '$app/state';
 	import ThemeToggle from '#lib/components/ThemeToggle.svelte';
 	import type { ActionData, PageData } from './$types';
 	import { formatDateDDMMYYYY } from '#lib/utils.js';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
+
+	const isAdmin = $derived(Boolean(page.data.isAdmin));
 
 	type TabType = 'hadir' | 'izin' | 'riwayat' | 'qr';
 	let activeTab = $state<TabType>('hadir');
@@ -281,78 +284,91 @@
 </svelte:head>
 
 <div class="space-y-4">
-	<!-- 1. Header Hijau Melengkung Terintegrasi (Top Bar, Judul, Subtitle, ThemeToggle) -->
-	<header class="bg-[#166534] dark:bg-[#14532D] text-white px-5 pt-4 pb-12 rounded-b-[28px] shadow-sm">
-		<div class="flex items-center justify-between mb-4">
+	<!-- 1. Header Hijau Melengkung Terintegrasi (Top Bar, Judul, Subtitle, ThemeToggle, Switcher Mode) -->
+	<header class="bg-[#166534] dark:bg-[#14532D] text-white px-5 pt-5 pb-14 rounded-b-[32px] shadow-sm">
+		<div class="flex items-center justify-between mb-3.5">
 			<a
 				href="/"
-				class="p-1.5 -ml-1.5 text-white/90 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+				class="p-2 -ml-1 text-white/90 hover:text-white rounded-xl hover:bg-white/15 transition-colors cursor-pointer"
 				title="Kembali ke Beranda"
 			>
-				<ArrowLeft class="w-5 h-5" />
+				<ArrowLeft class="w-6 h-6" />
 			</a>
-			<ThemeToggle />
+
+			<div class="flex items-center gap-2">
+				{#if isAdmin}
+					<a
+						href="/admin"
+						class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 hover:bg-white/30 text-white text-xs sm:text-sm font-bold border border-white/30 backdrop-blur-xs transition-all active:scale-95 shadow-xs"
+						title="Beralih ke Panel Pengurus/Admin"
+					>
+						<span class="w-2 h-2 rounded-full bg-emerald-300 animate-pulse"></span>
+						<span>⇄ Admin</span>
+					</a>
+				{/if}
+				<ThemeToggle />
+			</div>
 		</div>
 
 		<div class="space-y-1">
-			<div class="flex items-center gap-2">
-				<h1 class="text-xl sm:text-2xl font-bold tracking-tight text-white">
+			<div class="flex items-center gap-2 flex-wrap">
+				<h1 class="text-2xl sm:text-3xl font-black tracking-tight text-white">
 					Presensi Pengajian
 				</h1>
-				<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white/20 text-white backdrop-blur-xs">
+				<span class="px-3 py-0.5 rounded-full text-xs sm:text-sm font-bold bg-white/20 text-white backdrop-blur-xs">
 					Jamaah
 				</span>
 			</div>
-			<p class="text-xs sm:text-sm text-white/80 font-medium">
+			<p class="text-xs sm:text-sm text-white/90 font-medium">
 				{data.kelompokNama} · {data.user.namaLengkap}
 			</p>
 		</div>
 	</header>
 
-	<!-- 2. Floating 4-Tab Bar (Overlapping Header) -->
-	<div class="-mt-8 px-4">
-		<div class="bg-[#1E293B] border border-slate-700/60 rounded-2xl p-1.5 shadow-md grid grid-cols-4 gap-1 text-center">
+	<!-- 2. Floating 4-Tab Bar (Upsized & Overlapping Header) -->
+	<div class="-mt-9 px-4">
+		<div class="bg-[#1E293B] border border-slate-700/60 rounded-3xl p-2 shadow-lg grid grid-cols-4 gap-1.5 text-center">
 			<button
 				type="button"
 				onclick={() => (activeTab = 'hadir')}
-				class="py-2 rounded-xl transition-all flex flex-col items-center gap-1 text-xs cursor-pointer {activeTab === 'hadir'
-					? 'border border-emerald-500 bg-emerald-500/10 text-emerald-400 font-bold'
-					: 'text-slate-400 hover:text-slate-200 font-medium'}"
+				class="py-2.5 rounded-2xl transition-all flex flex-col items-center gap-1 text-xs sm:text-sm cursor-pointer {activeTab === 'hadir'
+					? 'border border-emerald-500 bg-emerald-500/15 text-emerald-400 font-bold shadow-xs'
+					: 'text-slate-400 hover:text-slate-200 font-semibold'}"
 			>
-				<UserCheck class="w-4 h-4" />
+				<UserCheck class="w-5 h-5" />
 				<span>Hadir</span>
 			</button>
 
 			<button
 				type="button"
 				onclick={() => (activeTab = 'izin')}
-				class="py-2 rounded-xl transition-all flex flex-col items-center gap-1 text-xs cursor-pointer {activeTab === 'izin'
-					? 'border border-emerald-500 bg-emerald-500/10 text-emerald-400 font-bold'
-					: 'text-slate-400 hover:text-slate-200 font-medium'}"
+				class="py-2.5 rounded-2xl transition-all flex flex-col items-center gap-1 text-xs sm:text-sm cursor-pointer {activeTab === 'izin'
+					? 'border border-emerald-500 bg-emerald-500/15 text-emerald-400 font-bold shadow-xs'
+					: 'text-slate-400 hover:text-slate-200 font-semibold'}"
 			>
-				<FileText class="w-4 h-4" />
+				<FileText class="w-5 h-5" />
 				<span>Izin/Sakit</span>
 			</button>
 
 			<button
 				type="button"
 				onclick={() => (activeTab = 'riwayat')}
-				class="py-2 rounded-xl transition-all flex flex-col items-center gap-1 text-xs cursor-pointer {activeTab === 'riwayat'
-					? 'border border-emerald-500 bg-emerald-500/10 text-emerald-400 font-bold'
-					: 'text-slate-400 hover:text-slate-200 font-medium'}"
+				class="py-2.5 rounded-2xl transition-all flex flex-col items-center gap-1 text-xs sm:text-sm cursor-pointer {activeTab === 'riwayat'
+					? 'border border-emerald-500 bg-emerald-500/15 text-emerald-400 font-bold shadow-xs'
+					: 'text-slate-400 hover:text-slate-200 font-semibold'}"
 			>
-				<Clock class="w-4 h-4" />
+				<Clock class="w-5 h-5" />
 				<span>Riwayat</span>
 			</button>
 
 			<button
 				type="button"
 				onclick={() => (activeTab = 'qr')}
-				class="py-2 rounded-xl transition-all flex flex-col items-center gap-1 text-xs cursor-pointer {activeTab === 'qr'
-					? 'border border-emerald-500 bg-emerald-500/10 text-emerald-400 font-bold'
-					: 'text-slate-400 hover:text-slate-200 font-medium'}"
+				class="py-2.5 rounded-2xl transition-all flex flex-col items-center gap-1 text-xs sm:text-sm cursor-pointer {activeTab === 'qr'
+					? 'border border-emerald-500 bg-emerald-500/15 text-emerald-400 font-bold shadow-xs'
+					: 'text-slate-400 hover:text-slate-200 font-semibold'}"
 			>
-				<QrCode class="w-4 h-4" />
+				<QrCode class="w-5 h-5" />
 				<span>Kartu QR</span>
 			</button>
 		</div>

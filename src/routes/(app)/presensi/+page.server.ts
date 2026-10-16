@@ -143,9 +143,15 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	// Default jadwalId dari URL query param jika ada
 	const queryJadwalId = parseInt(url.searchParams.get('jadwalId') || '', 10);
-	const defaultJadwalId = !isNaN(queryJadwalId) && activeJadwalList.some((j) => j.id === queryJadwalId)
-		? queryJadwalId
-		: activeJadwalList[0]?.id || null;
+	const targetJadwal = !isNaN(queryJadwalId) ? jadwalWithStatus.find((j) => j.id === queryJadwalId) : undefined;
+	if (targetJadwal && !activeJadwalList.some((j) => j.id === targetJadwal.id)) {
+		activeJadwalList.push(targetJadwal);
+		activeJadwalList.sort((a, b) => {
+			if (a.tanggal !== b.tanggal) return a.tanggal.localeCompare(b.tanggal);
+			return (a.jamMulai || '').localeCompare(b.jamMulai || '');
+		});
+	}
+	const defaultJadwalId = targetJadwal ? targetJadwal.id : activeJadwalList[0]?.id || null;
 
 	// QR Payload unik jamaah (format: SGQR:userId:kelompokId)
 	const qrPayload = `SGQR:${locals.user.id}:${userKelompokId || 0}`;
