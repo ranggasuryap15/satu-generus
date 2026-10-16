@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(app)/jadwal/+page.server.ts
- * @purpose Memuat seluruh jadwal pengajian kelompok & desa dalam satu bulan kalender (baik yang sudah lewat maupun akan datang) lengkap dengan riwayat status kehadiran jamaah
+ * @purpose Memuat seluruh jadwal pengajian kelompok & desa dalam satu bulan kalender (baik yang sudah lewat maupun akan datang) lengkap dengan riwayat status kehadiran jamaah dan parameter navigasi kembali (presensi atau beranda)
  * @usedBy Route client '/jadwal' pada src/routes/(app)/jadwal/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/presensi-waktu, drizzle-orm
  * @publicFunctions load
@@ -35,6 +35,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	if (isNaN(bulan) || bulan < 1 || bulan > 12) {
 		bulan = currentMonth;
 	}
+
+	const from = url.searchParams.get('from') === 'presensi' ? 'presensi' : 'beranda';
 
 	// Hitung rentang tanggal awal dan akhir bulan
 	const lastDay = new Date(tahun, bulan, 0).getDate();
@@ -156,6 +158,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		bulan,
 		tahun,
 		today,
+		from,
 		jadwalKelompok: rawJadwalKelompok.map(transformJadwal),
 		jadwalDesa: rawJadwalDesa.map(transformJadwal)
 	};

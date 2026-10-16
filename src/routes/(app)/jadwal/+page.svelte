@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(app)/jadwal/+page.svelte
-  @purpose Halaman jadwal pengajian sebulan penuh untuk jamaah (kelompok & desa), navigasi bulan fleksibel, indikator status kehadiran, dan tautan langsung presensi hari ini
+  @purpose Halaman jadwal pengajian sebulan penuh untuk jamaah (kelompok & desa), navigasi bulan fleksibel, retensi asal navigasi kembali dinamis (ke presensi jika diakses dari presensi, atau ke beranda jika diakses dari beranda), indikator status kehadiran, dan tautan langsung presensi hari ini
   @usedBy Route client '/jadwal'
   @dependencies @lucide/svelte, #lib/jadwal (NAMA_BULAN_INDO, formatDateIndoFull), Svelte 5 Runes
   @publicFunctions changeMonth, goToCurrentMonth
-  @sideEffects Navigasi halaman dengan URL search params (?bulan=..&tahun=..)
+  @sideEffects Navigasi halaman dengan URL search params (?bulan=..&tahun=..&from=..)
 -->
 <script lang="ts">
 	import { goto } from '$app/navigation';
@@ -34,6 +34,9 @@
 
 	const namaBulanAktif = $derived(NAMA_BULAN_INDO[data.bulan - 1] || 'Bulan');
 
+	const backUrl = $derived(data.from === 'presensi' ? '/presensi' : '/');
+	const backLabel = $derived(data.from === 'presensi' ? 'Kembali ke Presensi' : 'Kembali ke Beranda');
+
 	function changeMonth(delta: number) {
 		let newMonth = data.bulan + delta;
 		let newYear = data.tahun;
@@ -46,14 +49,14 @@
 			newYear += 1;
 		}
 
-		goto(`/jadwal?bulan=${newMonth}&tahun=${newYear}`);
+		goto(`/jadwal?bulan=${newMonth}&tahun=${newYear}&from=${data.from}`);
 	}
 
 	function goToCurrentMonth() {
 		const now = new Date();
 		const currentYear = now.getFullYear();
 		const currentMonth = now.getMonth() + 1;
-		goto(`/jadwal?bulan=${currentMonth}&tahun=${currentYear}`);
+		goto(`/jadwal?bulan=${currentMonth}&tahun=${currentYear}&from=${data.from}`);
 	}
 
 	const isViewingCurrentMonth = $derived.by(() => {
@@ -72,9 +75,9 @@
 	<div class="flex items-center justify-between border-b border-border/70 pb-3">
 		<div class="flex items-center gap-3">
 			<a
-				href="/"
+				href={backUrl}
 				class="p-2 rounded-xl border border-border bg-card hover:bg-secondary text-foreground/70 hover:text-foreground transition-all cursor-pointer shadow-2xs"
-				title="Kembali ke Beranda"
+				title={backLabel}
 			>
 				<ArrowLeft class="w-4 h-4" />
 			</a>

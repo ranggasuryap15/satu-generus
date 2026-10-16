@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(app)/presensi/+page.svelte
-  @purpose Halaman presensi mandiri jamaah (Hadir Offline / Online / Izin / QR) dengan seleksi jadwal aktif kemarin s/d besok (H-1 s/d H+1), penguncian tombol presensi sebelum 1 jam acara dimulai, dan standar Modern Flat sesuai DESIGN.md
+  @purpose Halaman presensi mandiri jamaah (Hadir Offline / Online / Izin / QR) dengan seleksi jadwal aktif kemarin s/d besok (H-1 s/d H+1), tautan ke jadwal sebulan penuh dengan return origin 'presensi', penguncian tombol presensi sebelum 1 jam acara dimulai, dan standar Modern Flat sesuai DESIGN.md
   @usedBy Route client '/presensi'
   @dependencies qrcode, @lucide/svelte, $app/forms, #lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
   @publicFunctions captureLocation, calculateDistanceMeters, handleFotoChange, resetPresensiForm, openPreviewFoto, closePreviewFoto
@@ -417,7 +417,7 @@
 							Pilih Kegiatan Pengajian *
 						</label>
 						<a
-							href="/jadwal"
+							href="/jadwal?from=presensi"
 							class="text-[11px] font-semibold text-primary hover:underline inline-flex items-center gap-0.5"
 						>
 							<span>Jadwal Sebulan</span>
@@ -431,7 +431,7 @@
 								Tidak ada kegiatan pengajian aktif hari ini (rentang kemarin - besok).
 							</p>
 							<a
-								href="/jadwal"
+								href="/jadwal?from=presensi"
 								class="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
 							>
 								<span>Lihat Jadwal Pengajian Sebulan</span>
@@ -799,12 +799,30 @@
 
 				<!-- Pilihan Jadwal (Rentang Kemarin s/d Besok) -->
 				<div>
-					<label for="izinJadwalSelect" class="block font-semibold text-foreground/80 mb-1.5">
-						Pilih Jadwal Kegiatan *
-					</label>
+					<div class="flex items-center justify-between mb-1.5">
+						<label for="izinJadwalSelect" class="block font-semibold text-foreground/80">
+							Pilih Jadwal Kegiatan *
+						</label>
+						<a
+							href="/jadwal?from=presensi"
+							class="text-[11px] font-semibold text-primary hover:underline inline-flex items-center gap-0.5"
+						>
+							<span>Jadwal Sebulan</span>
+							<ChevronRight class="w-3 h-3" />
+						</a>
+					</div>
 					{#if data.activeJadwalList.length === 0}
-						<div class="p-3 rounded-xl bg-secondary/50 border border-border text-center text-xs text-foreground/60">
-							Tidak ada jadwal kegiatan aktif (rentang kemarin - besok) untuk permohonan izin saat ini.
+						<div class="p-3.5 rounded-xl bg-secondary/50 border border-border text-center space-y-2">
+							<p class="text-xs text-foreground/70">
+								Tidak ada jadwal kegiatan aktif (rentang kemarin - besok) untuk permohonan izin saat ini.
+							</p>
+							<a
+								href="/jadwal?from=presensi"
+								class="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+							>
+								<span>Lihat Jadwal Pengajian Sebulan</span>
+								<ChevronRight class="w-3.5 h-3.5" />
+							</a>
 						</div>
 					{:else}
 						<select

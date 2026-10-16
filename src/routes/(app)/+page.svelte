@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(app)/+page.svelte
-  @purpose Halaman beranda client/jamaah (Modern, Minimalis & Flat) sesuai spesifikasi visual mockup: kartu sambutan Fresh Emerald, launcher 5 kolom pastel, kartu Infaq & Shodaqoh warm amber, tab pengajian segmented control, dan modal ekosistem
+  @purpose Halaman beranda client/jamaah (Modern, Minimalis & Flat) sesuai spesifikasi visual mockup: kartu sambutan Fresh Emerald, launcher 5 kolom pastel, kartu Infaq & Shodaqoh warm amber, tab pengajian segmented control (tautan ke jadwal sebulan dengan return origin 'beranda'), dan modal ekosistem
   @usedBy Route utama client '/'
   @dependencies @lucide/svelte, #lib/utils (formatDateDDMMYYYY), #lib/jadwal (formatDateIndoFull), Svelte 5 Runes
   @publicFunctions openAppDetail, closeModals
@@ -186,7 +186,7 @@
 				</h3>
 			</div>
 			<a
-				href="/jadwal"
+				href="/jadwal?from=beranda"
 				class="text-xs sm:text-sm font-semibold text-[#009B60] dark:text-emerald-400 hover:underline flex items-center gap-0.5"
 			>
 				Lihat Semua <ChevronRight class="w-4 h-4" />
