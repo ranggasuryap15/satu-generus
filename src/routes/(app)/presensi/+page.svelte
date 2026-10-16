@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(app)/presensi/+page.svelte
-  @purpose Halaman presensi mandiri jamaah (tingkat kelompok & desa; Hadir Offline/Online, Izin/Sakit, Riwayat, Kartu QR) dengan acuan geofencing default terikat ke lokasi kelompok jamaah tanpa tergantung ada/tidaknya jadwal aktif, transparansi radius & jarak real-time, serta opsi kalibrasi titik kelompok oleh admin
+  @purpose Halaman presensi mandiri jamaah (tingkat kelompok & desa; Hadir Offline/Online, Izin/Sakit, Riwayat, Kartu QR) dengan acuan geofencing default terikat ke lokasi kelompok jamaah tanpa tergantung ada/tidaknya jadwal aktif, serta transparansi radius & jarak real-time
   @usedBy Route client '/presensi'
   @dependencies qrcode, @lucide/svelte, $app/forms, $app/state (page), #lib/utils (formatDateDDMMYYYY), #lib/components/ThemeToggle.svelte, Svelte 5 Runes
   @publicFunctions captureLocation, calculateDistanceMeters, handleFotoChange, resetPresensiForm, openPreviewFoto, closePreviewFoto
-  @sideEffects Mengakses HTML5 Geolocation API, input kamera/galeri, generate QR code personal, kalibrasi lokasi kelompok via server action, dan mengirim form presensi ke server
+  @sideEffects Mengakses HTML5 Geolocation API, input kamera/galeri, generate QR code personal, dan mengirim form presensi ke server
 -->
 <script lang="ts">
 	import { onMount } from 'svelte';
@@ -690,40 +690,6 @@
 								<p class="text-[11px] text-rose-400 leading-tight font-medium">
 									{locationError}
 								</p>
-							{/if}
-
-							<!-- Opsi Kalibrasi Admin: Setel Titik Kelompok ke Posisi Saya Sekarang -->
-							{#if isAdmin && latitude && longitude}
-								<div class="pt-2 border-t border-slate-700/60">
-									<form
-										method="POST"
-										action="?/updateLokasiKelompokSaatIni"
-										use:enhance={async ({ cancel }) => {
-											const confirmed = await confirmAction({
-												title: 'Kalibrasi Lokasi Kelompok',
-												message: `Setel titik acuan koordinat "${effectiveVenue.lokasiNama}" ke posisi GPS Anda saat ini (${latitude}, ${longitude})?`,
-												confirmText: 'Ya, Kalibrasi Sekarang',
-												cancelText: 'Batal',
-												variant: 'info'
-											});
-											if (!confirmed) {
-												cancel();
-												return;
-											}
-										}}
-									>
-										<input type="hidden" name="latitude" value={latitude} />
-										<input type="hidden" name="longitude" value={longitude} />
-										<input type="hidden" name="lokasiNama" value={effectiveVenue.lokasiNama} />
-										<button
-											type="submit"
-											class="w-full py-1.5 px-3 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-										>
-											<MapPin class="w-3.5 h-3.5 text-emerald-400" />
-											<span>Setel Titik Kelompok ke Posisi Saya Sekarang (Admin)</span>
-										</button>
-									</form>
-								</div>
 							{/if}
 						</div>
 					{/if}
