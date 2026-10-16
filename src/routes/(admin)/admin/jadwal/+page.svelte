@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(admin)/admin/jadwal/+page.svelte
-  @purpose Antarmuka manajemen jadwal pengajian bertingkat (Desa & Kelompok), default selector NULL saat klik tab pengajian, retensi filter terpilih setelah simpan/edit/hapus/override/generate via URL query params & cookies, helper getActionUrl penjaga query params form submit (?/actionName&params), selector kelompok & desa tanpa refresh kasar, generator sesi bulanan, override mendadak, pewarisan lokasi default Desa & Kelompok pada sesi manual, penghapusan sesi & template dengan modal konfirmasi aman serta scroll retention
+  @purpose Antarmuka manajemen jadwal pengajian bertingkat (Desa & Kelompok), pelabelan sesi "Rutin" vs manual, generator sesi bulanan dengan auto-replace sesi rutin, default selector NULL saat klik tab pengajian, retensi filter terpilih setelah simpan/edit/hapus/override/generate via URL query params & cookies, helper getActionUrl penjaga query params form submit (?/actionName&params), selector kelompok & desa tanpa refresh kasar, override mendadak, pewarisan lokasi default Desa & Kelompok pada sesi manual, penghapusan sesi & template dengan modal konfirmasi aman serta scroll retention
   @usedBy Route admin '/admin/jadwal'
   @dependencies @lucide/svelte, $app/forms, $app/navigation, $app/state, #lib/confirm.svelte, #lib/keepScroll.ts, #lib/components/SearchableSelect.svelte, #lib/jadwal (getNamaHari, getMingguKe, formatDateIndoFull, formatWhatsAppReminder, generateWhatsAppLink, NAMA_HARI_INDO, NAMA_BULAN_INDO), Svelte 5 Runes
   @publicFunctions getActionUrl, switchTab, handleSelectKelompok, handleSelectDesa, openCreateTemplateModal, openEditTemplateModal, openOverrideModal, openWaModal, openGenerateModal, copyWaText
@@ -616,6 +616,13 @@
 											<span>{sesi.jamMulai}{sesi.jamSelesai ? ` - ${sesi.jamSelesai}` : ''} WIB</span>
 										</span>
 
+										{#if sesi.templateId}
+											<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20">
+												<Calendar class="w-3 h-3" />
+												<span>Rutin</span>
+											</span>
+										{/if}
+
 										{#if sesi.status === 'libur'}
 											<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400">
 												Libur
@@ -942,6 +949,13 @@
 											<Clock class="w-3.5 h-3.5" />
 											<span>{sesi.jamMulai}{sesi.jamSelesai ? ` - ${sesi.jamSelesai}` : ''} WIB</span>
 										</span>
+
+										{#if sesi.templateId}
+											<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20">
+												<Calendar class="w-3 h-3" />
+												<span>Rutin</span>
+											</span>
+										{/if}
 
 										{#if sesi.status === 'libur'}
 											<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400">
@@ -1658,7 +1672,7 @@
 
 			<div class="space-y-1">
 				<p class="text-xs text-foreground/70 leading-relaxed">
-					Sistem akan membuat seluruh tanggal sesi pengajian untuk bulan yang dipilih berdasarkan pola rutin yang telah diatur. Sesi yang sudah pernah dibuat tidak akan ditimpa.
+					Sistem akan men-generate sesi pengajian rutin untuk bulan yang dipilih. Sesi rutin sebelumnya di bulan ini akan digantikan secara otomatis dengan konfigurasi terbaru, sedangkan sesi manual tetap aman dipertahankan.
 				</p>
 				<p class="text-[11px] font-bold text-primary">
 					Tingkat: {generateScope} ({generateScope === 'Desa' ? (activeDesaObj?.nama || 'Desa') : (activeKelompokObj?.nama || 'Kelompok')})
@@ -1670,8 +1684,8 @@
 				action={getActionUrl('generateSesiBulanan', generateScope)}
 				use:enhance={confirmSubmit(
 					{
-						title: 'Generate Sesi Bulanan?',
-						message: 'Yakin ingin membuat sesi bulanan dari template rutin? Pastikan bulan dan tahun sudah benar.',
+						title: 'Generate Ulang Sesi Bulanan?',
+						message: 'Sesi rutin sebelumnya di bulan ini akan digantikan dengan template rutin terbaru. Sesi yang dibuat manual tidak akan terhapus. Lanjutkan generate?',
 						confirmText: 'Ya, Generate',
 						cancelText: 'Batal',
 						variant: 'primary'

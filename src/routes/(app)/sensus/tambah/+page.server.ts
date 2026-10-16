@@ -1,8 +1,8 @@
 /**
  * @file src/routes/(app)/sensus/tambah/+page.server.ts
- * @purpose Form action pendaftaran sensus KK/anggota keluarga dengan enkripsi AES-256-GCM, validasi noTelepon numerik (wajib untuk kepala keluarga yang memiliki akun, opsional untuk anggota lain)
+ * @purpose Form action pendaftaran sensus KK/anggota keluarga lengkap (tempat lahir, profesi, gol. darah, status pernikahan) dengan pengurutan hierarki resmi (Kepala Keluarga -> Istri -> Anak tertua ke termuda), enkripsi AES-256-GCM, normalisasi jenis kelamin, dan transaksi database atomik
  * @usedBy Wizard form sensus pada src/routes/(app)/sensus/tambah/+page.svelte
- * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/sensus (getKeluargaForUser), src/lib/utils (normalizeDateToISO), src/lib/generus, drizzle-orm
+ * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/sensus (getKeluargaForUser), src/lib/utils (normalizeDateToISO), src/lib/generus (hitungStatusGenerus, hitungUmur, resolveStatusPernikahan, sortAnggotaKeluargaHierarki), drizzle-orm
  * @publicFunctions load, actions.default
  * @sideEffects Menulis record terenkripsi ke tabel keluarga, anggota_keluarga, dan sinkronisasi users.no_telepon dalam satu transaksi SQLite atomik
  */
@@ -12,7 +12,7 @@ import { anggotaKeluarga, keluarga, users } from "#lib/db/schema.js";
 import { encryptSensitive } from "#lib/server/crypto.js";
 import { getKeluargaForUser } from "#lib/server/sensus.js";
 import { normalizeDateToISO } from "#lib/utils.js";
-import { hitungStatusGenerus, hitungUmur, resolveStatusPernikahan } from "#lib/generus.js";
+import { hitungStatusGenerus, hitungUmur, resolveStatusPernikahan, sortAnggotaKeluargaHierarki } from "#lib/generus.js";
 import { fail, redirect } from "@sveltejs/kit";
 import { eq } from "drizzle-orm";
 import type { Actions, PageServerLoad } from "./$types";
@@ -60,8 +60,13 @@ export const actions: Actions = {
       namaLengkap?: string;
       nik?: string;
       statusHubungan: string;
+      tempatLahir?: string;
       tanggalLahir: string;
       jenisKelamin: string;
+      statusPernikahan?: string;
+      statusGenerus?: string;
+      profesi?: string;
+      golonganDarah?: string;
       noTelepon?: string;
     }> = [];
 
@@ -86,7 +91,7 @@ export const actions: Actions = {
     // Validasi setiap anggota
     for (let i = 0; i < anggotaList.length; i++) {
       const a = anggotaList[i];
-      const nikVal = a.nik ? a.nik.trim() : "";
+      const nikVal = a.nik ? a.nik.trim().replace(/\D/g, "") : "";
       if (nikVal) {
         if (nikVal.length !== 16 || !/^\d+$/.test(nikVal)) {
           return fail(400, {
@@ -146,15 +151,14 @@ export const actions: Actions = {
 
         if (!existingKeluarga) {
           // Jika user belum punya KK, buat kartu keluarga baru
-          const [newKeluarga] = (await tx
+          const [newKeluarga] = await tx
             .insert(keluarga)
             .values({
               noKkEncrypted,
               kepalaKeluargaId: locals.user?.id,
               alamatLengkap,
             })
-            .returning()
-);
+            .returning();
           targetKeluargaId = newKeluarga.id;
         } else {
           targetKeluargaId = existingKeluarga.id;
@@ -174,31 +178,32 @@ export const actions: Actions = {
             updates.alamatLengkap = alamatLengkap;
           }
           if (Object.keys(updates).length > 0) {
-(await tx.update(keluarga)
+            await tx.update(keluarga)
               .set(updates)
-              .where(eq(keluarga.id, targetKeluargaId))
-);
+              .where(eq(keluarga.id, targetKeluargaId));
           }
         }
 
-        for (let i = 0; i < anggotaList.length; i++) {
-          const a = anggotaList[i];
+        const sortedAnggotaList = sortAnggotaKeluargaHierarki(anggotaList);
+
+        for (let i = 0; i < sortedAnggotaList.length; i++) {
+          const a = sortedAnggotaList[i];
           const isKepala = a.statusHubungan === "Kepala Keluarga" || i === 0;
           const cleanHp = a.noTelepon ? a.noTelepon.trim().replace(/\D/g, "") : null;
-          const nikVal = a.nik ? a.nik.trim() : "";
+          const nikVal = a.nik ? a.nik.trim().replace(/\D/g, "") : "";
           const isoTgl = normalizeDateToISO(a.tanggalLahir);
-          const statusPernikahan = resolveStatusPernikahan(a.statusHubungan);
+          const jk = (a.jenisKelamin === 'P' || a.jenisKelamin === 'Perempuan') ? 'P' : 'L';
+          const resolvedPernikahan = a.statusPernikahan?.trim() || resolveStatusPernikahan(a.statusHubungan);
           const umur = isoTgl ? hitungUmur(isoTgl) : 0;
-          const statusGenerus = isoTgl ? hitungStatusGenerus(umur, statusPernikahan) : null;
+          const resolvedGenerus = a.statusGenerus?.trim() || (isoTgl ? hitungStatusGenerus(umur, resolvedPernikahan) : null);
 
           if (isKepala && cleanHp && locals.user?.id) {
-(await tx.update(users)
+            await tx.update(users)
               .set({ noTelepon: cleanHp })
-              .where(eq(users.id, locals.user.id))
-);
+              .where(eq(users.id, locals.user.id));
           }
 
-(await tx.insert(anggotaKeluarga)
+          await tx.insert(anggotaKeluarga)
             .values({
               keluargaId: targetKeluargaId,
               userId: isKepala ? locals.user?.id : null,
@@ -206,15 +211,17 @@ export const actions: Actions = {
                 a.namaLengkap?.trim() || locals.user?.namaLengkap || "Anggota",
               nikEncrypted: nikVal ? encryptSensitive(nikVal) : null,
               statusHubungan: a.statusHubungan,
+              tempatLahir: a.tempatLahir?.trim() || null,
               tanggalLahir: isoTgl,
-              jenisKelamin: a.jenisKelamin,
+              jenisKelamin: jk,
               noTelepon: cleanHp || null,
-              statusPernikahan,
-              statusGenerus,
+              statusPernikahan: resolvedPernikahan,
+              statusGenerus: resolvedGenerus,
+              profesi: a.profesi?.trim() || null,
+              golonganDarah: a.golonganDarah?.trim() || null,
               statusJamaah: "Aktif",
               isrun: isKepala ? "Ya" : "Tidak"
-            })
-);
+            });
         }
       });
     } catch (error) {

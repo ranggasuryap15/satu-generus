@@ -1,8 +1,8 @@
 <!--
   @file src/routes/(app)/sensus/tambah/+page.svelte
-  @purpose Form wizard interaktif 3-langkah pendaftaran sensus keluarga jamaah dengan standar Zero Over-Information sesuai DESIGN.md
+  @purpose Form wizard interaktif 3-langkah pendaftaran sensus keluarga jamaah dengan data jiwa lengkap terstruktur hierarki (Nama Lengkap, Hubungan/JK, Tempat/Tanggal Lahir, Status Pernikahan/Generus, NIK & No HP, Profesi & Gol. Darah) dan auto-sinkronisasi jenis kelamin serta status generus reaktif
   @usedBy Route client '/sensus/tambah'
-  @dependencies @lucide/svelte, #lib/components/DateInput.svelte, #lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
+  @dependencies @lucide/svelte, #lib/components/DateInput.svelte, #lib/utils (formatDateDDMMYYYY), #lib/generus, Svelte 5 Runes
   @publicFunctions nextStep, prevStep, addAnggota, removeAnggota
   @sideEffects Mengirim formulir sensus terenkripsi ke server action
 -->
@@ -19,6 +19,12 @@
 	} from '@lucide/svelte';
 	import DateInput from '#lib/components/DateInput.svelte';
 	import { formatDateDDMMYYYY } from '#lib/utils.js';
+	import {
+		DAFTAR_STATUS_GENERUS,
+		hitungUmur,
+		hitungStatusGenerus,
+		resolveStatusPernikahan
+	} from '#lib/generus.js';
 	import type { ActionData, PageData } from './$types';
 
 	let { data, form } = $props<{ data: PageData; form: ActionData }>();
@@ -41,8 +47,13 @@
 		namaLengkap: string;
 		nik: string;
 		statusHubungan: string;
+		tempatLahir: string;
 		tanggalLahir: string;
 		jenisKelamin: string;
+		statusPernikahan: string;
+		statusGenerus: string;
+		profesi: string;
+		golonganDarah: string;
 		noTelepon?: string;
 	}
 
@@ -52,8 +63,13 @@
 			namaLengkap: data.user?.namaLengkap || '',
 			nik: '',
 			statusHubungan: 'Kepala Keluarga',
+			tempatLahir: '',
 			tanggalLahir: '',
 			jenisKelamin: 'L',
+			statusPernikahan: 'Sudah Menikah',
+			statusGenerus: '',
+			profesi: '',
+			golonganDarah: '',
 			noTelepon: data.user?.noTelepon || ''
 		}
 	]);
@@ -81,7 +97,8 @@
 				return false;
 			}
 			if (a.nik && a.nik.trim()) {
-				if (a.nik.trim().length !== 16 || !/^\d+$/.test(a.nik.trim())) {
+				const cNik = a.nik.trim().replace(/\D/g, '');
+				if (cNik.length !== 16) {
 					errors.anggota = `NIK anggota ke-${i + 1} harus 16 digit angka.`;
 					return false;
 				}
@@ -125,16 +142,43 @@
 	}
 
 	function addAnggota() {
+		const hasIstri = anggotaList.some((a) => a.statusHubungan === 'Istri');
+		const defaultStatus = !hasIstri ? 'Istri' : 'Anak';
+		const defaultJk = defaultStatus === 'Istri' ? 'P' : 'L';
+		const defaultPernikahan = defaultStatus === 'Istri' ? 'Sudah Menikah' : 'Belum Menikah';
 		anggotaList.push({
 			id: Math.random().toString(36).substring(2, 9),
 			namaLengkap: '',
 			nik: '',
-			statusHubungan: 'Anak',
+			statusHubungan: defaultStatus,
+			tempatLahir: '',
 			tanggalLahir: '',
-			jenisKelamin: 'L',
+			jenisKelamin: defaultJk,
+			statusPernikahan: defaultPernikahan,
+			statusGenerus: '',
+			profesi: '',
+			golonganDarah: '',
 			noTelepon: ''
 		});
 	}
+
+	$effect(() => {
+		for (const a of anggotaList) {
+			if (a.statusHubungan === 'Istri' && a.jenisKelamin !== 'P') {
+				a.jenisKelamin = 'P';
+			} else if ((a.statusHubungan === 'Kepala Keluarga' || a.statusHubungan === 'Suami') && a.jenisKelamin !== 'L') {
+				a.jenisKelamin = 'L';
+			}
+
+			if (a.tanggalLahir) {
+				const umur = hitungUmur(a.tanggalLahir);
+				const pernikahan = resolveStatusPernikahan(a.statusHubungan, a.statusPernikahan);
+				a.statusGenerus = hitungStatusGenerus(umur, pernikahan);
+			} else {
+				a.statusGenerus = '';
+			}
+		}
+	});
 
 	function removeAnggota(index: number) {
 		if (anggotaList.length > 1) {
@@ -271,6 +315,7 @@
 								{/if}
 							</div>
 
+							<!-- 1. Nama Lengkap (Wajib) -->
 							<div>
 								<label for={`nama-${idx}`} class="block text-sm font-semibold text-foreground/80 mb-1.5">
 									Nama Lengkap *
@@ -284,26 +329,8 @@
 								/>
 							</div>
 
-							<div>
-								<label for={`nik-${idx}`} class="block text-sm font-semibold text-foreground/80 mb-1.5">
-									NIK (16 Digit, Opsional)
-								</label>
-								<input
-									id={`nik-${idx}`}
-									type="text"
-									inputmode="numeric"
-									pattern="[0-9]*"
-									maxlength="16"
-									placeholder="16 digit angka (opsional)"
-									bind:value={anggota.nik}
-									oninput={(e) => {
-										anggota.nik = e.currentTarget.value.replace(/\D/g, '');
-									}}
-									class="w-full bg-background border border-border rounded-lg px-3.5 py-2.5 text-sm text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary"
-								/>
-							</div>
-
-							<div class="grid grid-cols-2 gap-2.5">
+							<!-- 2. Status Hubungan & Jenis Kelamin (Wajib di atas) -->
+							<div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
 								<div>
 									<label for={`hub-${idx}`} class="block text-sm font-semibold text-foreground/80 mb-1.5">
 										Status Hubungan *
@@ -311,6 +338,15 @@
 									<select
 										id={`hub-${idx}`}
 										bind:value={anggota.statusHubungan}
+										onchange={() => {
+											if (anggota.statusHubungan === 'Istri') {
+												anggota.jenisKelamin = 'P';
+												anggota.statusPernikahan = 'Sudah Menikah';
+											} else if (anggota.statusHubungan === 'Kepala Keluarga' || anggota.statusHubungan === 'Suami') {
+												anggota.jenisKelamin = 'L';
+												anggota.statusPernikahan = 'Sudah Menikah';
+											}
+										}}
 										class="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 									>
 										<option value="Kepala Keluarga">Kepala Keluarga</option>
@@ -337,35 +373,142 @@
 								</div>
 							</div>
 
-							<div>
-								<label for={`tgl-${idx}`} class="block text-sm font-semibold text-foreground/80 mb-1.5">
-									Tanggal Lahir (DD-MM-YYYY) *
-								</label>
-								<DateInput
-									id={`tgl-${idx}`}
-									required
-									bind:value={anggota.tanggalLahir}
-									class="bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-								/>
+							<!-- 3. Tempat Lahir & Tanggal Lahir (Setelah tempat lahir itu tanggal lahir) -->
+							<div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+								<div>
+									<label for={`tempat-${idx}`} class="block text-sm font-semibold text-foreground/80 mb-1.5">
+										Tempat Lahir
+									</label>
+									<input
+										id={`tempat-${idx}`}
+										type="text"
+										placeholder="Kota/Kabupaten kelahiran"
+										bind:value={anggota.tempatLahir}
+										class="w-full bg-background border border-border rounded-lg px-3.5 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+									/>
+								</div>
+
+								<div>
+									<label for={`tgl-${idx}`} class="block text-sm font-semibold text-foreground/80 mb-1.5">
+										Tanggal Lahir (DD-MM-YYYY) *
+									</label>
+									<DateInput
+										id={`tgl-${idx}`}
+										required
+										bind:value={anggota.tanggalLahir}
+										class="bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+									/>
+								</div>
 							</div>
 
-							<div>
-								<label for={`hp-${idx}`} class="block text-sm font-semibold text-foreground/80 mb-1.5">
-									No. HP / WhatsApp {idx === 0 || anggota.statusHubungan === 'Kepala Keluarga' ? '*' : '(Opsional)'}
-								</label>
-								<input
-									id={`hp-${idx}`}
-									type="tel"
-									inputmode="numeric"
-									pattern="[0-9]*"
-									required={idx === 0 || anggota.statusHubungan === 'Kepala Keluarga'}
-									placeholder="0812xxxxxxxx"
-									bind:value={anggota.noTelepon}
-									oninput={(e) => {
-										anggota.noTelepon = e.currentTarget.value.replace(/\D/g, '');
-									}}
-									class="w-full bg-background border border-border rounded-lg px-3.5 py-2.5 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-								/>
+							<!-- 4. Status Pernikahan & Status Generus -->
+							<div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+								<div>
+									<label for={`pernikahan-${idx}`} class="block text-sm font-semibold text-foreground/80 mb-1.5">
+										Status Pernikahan *
+									</label>
+									<select
+										id={`pernikahan-${idx}`}
+										bind:value={anggota.statusPernikahan}
+										class="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+									>
+										<option value="Belum Menikah">Belum Menikah</option>
+										<option value="Sudah Menikah">Sudah Menikah</option>
+										<option value="Duda">Duda</option>
+										<option value="Janda">Janda</option>
+									</select>
+								</div>
+
+								<div>
+									<label for={`generus-${idx}`} class="block text-sm font-semibold text-foreground/80 mb-1.5">
+										Status Generus
+									</label>
+									<select
+										id={`generus-${idx}`}
+										bind:value={anggota.statusGenerus}
+										class="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+									>
+										<option value="">-- Otomatis --</option>
+										{#each DAFTAR_STATUS_GENERUS as gen}
+											<option value={gen}>{gen}</option>
+										{/each}
+									</select>
+								</div>
+							</div>
+
+							<!-- 5. NIK di bawahnya Tanggal Lahir & No. HP setelah NIK -->
+							<div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+								<div>
+									<label for={`nik-${idx}`} class="block text-sm font-semibold text-foreground/80 mb-1.5">
+										NIK (16 Digit, Opsional)
+									</label>
+									<input
+										id={`nik-${idx}`}
+										type="text"
+										inputmode="numeric"
+										pattern="[0-9]*"
+										maxlength="16"
+										placeholder="16 digit angka (opsional)"
+										bind:value={anggota.nik}
+										oninput={(e) => {
+											anggota.nik = e.currentTarget.value.replace(/\D/g, '');
+										}}
+										class="w-full bg-background border border-border rounded-lg px-3.5 py-2.5 text-sm text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+									/>
+								</div>
+
+								<div>
+									<label for={`hp-${idx}`} class="block text-sm font-semibold text-foreground/80 mb-1.5">
+										No. HP / WhatsApp {idx === 0 || anggota.statusHubungan === 'Kepala Keluarga' ? '*' : '(Opsional)'}
+									</label>
+									<input
+										id={`hp-${idx}`}
+										type="tel"
+										inputmode="numeric"
+										pattern="[0-9]*"
+										required={idx === 0 || anggota.statusHubungan === 'Kepala Keluarga'}
+										placeholder="0812xxxxxxxx"
+										bind:value={anggota.noTelepon}
+										oninput={(e) => {
+											anggota.noTelepon = e.currentTarget.value.replace(/\D/g, '');
+										}}
+										class="w-full bg-background border border-border rounded-lg px-3.5 py-2.5 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+									/>
+								</div>
+							</div>
+
+							<!-- 6. Profesi & Golongan Darah (Opsional) -->
+							<div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+								<div class="sm:col-span-2">
+									<label for={`profesi-${idx}`} class="block text-sm font-semibold text-foreground/80 mb-1.5">
+										Profesi / Pekerjaan
+									</label>
+									<input
+										id={`profesi-${idx}`}
+										type="text"
+										placeholder="Contoh: Karyawan Swasta, Pelajar, dll"
+										bind:value={anggota.profesi}
+										class="w-full bg-background border border-border rounded-lg px-3.5 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+									/>
+								</div>
+
+								<div>
+									<label for={`goldar-${idx}`} class="block text-sm font-semibold text-foreground/80 mb-1.5">
+										Golongan Darah
+									</label>
+									<select
+										id={`goldar-${idx}`}
+										bind:value={anggota.golonganDarah}
+										class="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+									>
+										<option value="">-- Pilih --</option>
+										<option value="A">A</option>
+										<option value="B">B</option>
+										<option value="AB">AB</option>
+										<option value="O">O</option>
+										<option value="-">-</option>
+									</select>
+								</div>
 							</div>
 						</div>
 					{/each}
@@ -389,18 +532,34 @@
 				<div class="space-y-2">
 					<p class="text-xs font-semibold text-foreground">Daftar Anggota ({anggotaList.length}):</p>
 					{#each anggotaList as a, idx}
-						<div class="flex items-center justify-between p-2.5 rounded-lg border border-border bg-card text-xs">
-							<div>
+						<div class="p-2.5 rounded-lg border border-border bg-card text-xs space-y-1">
+							<div class="flex items-center justify-between">
 								<span class="font-bold text-foreground">{a.namaLengkap}</span>
-								<div class="flex items-center gap-1.5 mt-0.5">
-									<span class="text-[10px] text-primary font-semibold">{a.statusHubungan}</span>
-									<span class="text-[11px] text-foreground/60 font-mono">• NIK: {a.nik || 'Belum diisi'}</span>
-									<span class="text-[11px] text-foreground/60 font-mono">• HP: {a.noTelepon || '-'}</span>
-								</div>
+								<span class="text-[10px] bg-secondary px-2 py-0.5 rounded text-foreground/70">
+									{a.jenisKelamin === 'L' ? 'Laki-laki' : 'Perempuan'} • {formatDateDDMMYYYY(a.tanggalLahir)} {a.tanggalLahir ? `(${hitungUmur(a.tanggalLahir)} Thn)` : ''}
+								</span>
 							</div>
-							<span class="text-[10px] bg-secondary px-2 py-0.5 rounded text-foreground/70">
-								{a.jenisKelamin === 'L' ? 'L' : 'P'} • {formatDateDDMMYYYY(a.tanggalLahir)}
-							</span>
+							<div class="flex items-center gap-2 flex-wrap text-[11px] text-foreground/60">
+								<span class="text-primary font-semibold">{a.statusHubungan}</span>
+								{#if a.statusGenerus}
+									<span>• Generus: {a.statusGenerus}</span>
+								{/if}
+								{#if a.statusPernikahan}
+									<span>• {a.statusPernikahan}</span>
+								{/if}
+								{#if a.tempatLahir}
+									<span>• Tpt Lahir: {a.tempatLahir}</span>
+								{/if}
+								{#if a.profesi}
+									<span>• Profesi: {a.profesi}</span>
+								{/if}
+								{#if a.golonganDarah}
+									<span>• Goldar: {a.golonganDarah}</span>
+								{/if}
+								{#if a.noTelepon}
+									<span class="font-mono">• HP: {a.noTelepon}</span>
+								{/if}
+							</div>
 						</div>
 					{/each}
 				</div>

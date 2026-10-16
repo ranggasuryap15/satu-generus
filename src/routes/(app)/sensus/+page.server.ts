@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(app)/sensus/+page.server.ts
- * @purpose Menampilkan status sensus keluarga/mandiri milik user sendiri dan memproses server actions dengan feedback ringkas bebas over-information sesuai DESIGN.md
+ * @purpose Menampilkan status sensus keluarga/mandiri milik user sendiri, pengurutan hierarki KK standar (Kepala Keluarga -> Istri -> Anak), penyediaan nilai dekripsi NIK/KK asli untuk modal edit, dan pemrosesan server actions sensus
  * @usedBy src/routes/(app)/sensus/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/sensus, src/lib/utils, src/lib/generus, drizzle-orm
  * @publicFunctions load, actions.updateKeluarga, actions.updateAnggota, actions.tambahAnggota, actions.hapusAnggota
@@ -35,13 +35,14 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	const isKk = keluargaRecord.isKk ?? true;
 
-	// Dekripsi nomor KK untuk dimasking di tampilan
+	// Dekripsi nomor KK untuk dimasking di tampilan dan prefill form edit
 	let noKkMasked = 'Tanpa KK (Perantau)';
+	let noKkPlain = '';
 	if (isKk) {
 		if (keluargaRecord.noKkEncrypted) {
 			try {
-				const decryptedKk = decryptSensitive(keluargaRecord.noKkEncrypted);
-				noKkMasked = maskSensitive(decryptedKk);
+				noKkPlain = decryptSensitive(keluargaRecord.noKkEncrypted);
+				noKkMasked = maskSensitive(noKkPlain);
 			} catch (_) {
 				noKkMasked = '****';
 			}
@@ -50,19 +51,42 @@ export const load: PageServerLoad = async ({ locals }) => {
 		}
 	}
 
+	// Helper urutan hierarki keluarga standar KK: Kepala Keluarga -> Istri -> Anak -> Lainnya
+	const getStatusOrder = (status: string | null | undefined): number => {
+		if (!status) return 99;
+		const s = status.toLowerCase();
+		if (s.includes('kepala') || s === 'suami') return 1;
+		if (s === 'istri') return 2;
+		if (s === 'anak') return 3;
+		if (s.includes('orang tua') || s.includes('mertua')) return 4;
+		return 5;
+	};
+
 	// Ambil daftar anggota keluarga
 	const rawAnggota = (await db
 		.select()
 		.from(anggotaKeluarga)
 		.where(eq(anggotaKeluarga.keluargaId, keluargaRecord.id))
-);
+	);
+
+	rawAnggota.sort((a, b) => {
+		const orderA = getStatusOrder(a.statusHubungan);
+		const orderB = getStatusOrder(b.statusHubungan);
+		if (orderA !== orderB) return orderA - orderB;
+		if (a.tanggalLahir && b.tanggalLahir) {
+			return a.tanggalLahir.localeCompare(b.tanggalLahir);
+		}
+		return 0;
+	});
+
 	const anggotaList = rawAnggota.map((a) => {
+		let nikPlain = '';
 		let nikMasked = 'Belum Ada NIK';
 		const hasNik = !!a.nikEncrypted;
 		if (hasNik) {
 			try {
-				const decNik = decryptSensitive(a.nikEncrypted!);
-				nikMasked = maskSensitive(decNik);
+				nikPlain = decryptSensitive(a.nikEncrypted!);
+				nikMasked = maskSensitive(nikPlain);
 			} catch (_) {
 				nikMasked = '****';
 			}
@@ -76,9 +100,15 @@ export const load: PageServerLoad = async ({ locals }) => {
 				(a.statusHubungan === 'Kepala Keluarga' ? (locals.user?.namaLengkap || 'Kepala Keluarga') : a.statusHubungan),
 			nikMasked,
 			hasNik,
+			nikRaw: nikPlain,
 			statusHubungan: a.statusHubungan,
 			tanggalLahir: a.tanggalLahir,
+			tempatLahir: a.tempatLahir || '',
 			jenisKelamin: a.jenisKelamin,
+			statusGenerus: a.statusGenerus || '',
+			statusPernikahan: a.statusPernikahan || '',
+			profesi: a.profesi || '',
+			golonganDarah: a.golonganDarah || '',
 			noTelepon: a.noTelepon || ''
 		};
 	});
@@ -89,6 +119,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			id: keluargaRecord.id,
 			isKk,
 			noKkMasked,
+			noKkRaw: noKkPlain,
 			alamatLengkap: keluargaRecord.alamatLengkap
 		},
 		anggotaList
@@ -124,22 +155,23 @@ export const actions: Actions = {
 		};
 
 		// Jika input noKk diisi baru, validasi 16 digit dan enkripsi, jika dikosongkan set null
-		if (noKk) {
-			if (noKk.length !== 16 || !/^\d+$/.test(noKk)) {
+		const cleanNoKk = noKk ? noKk.trim().replace(/\D/g, '') : '';
+		if (cleanNoKk) {
+			if (cleanNoKk.length !== 16) {
 				return fail(400, {
 					errorKeluarga: 'Nomor Kartu Keluarga harus 16 digit angka jika diisi.'
 				});
 			}
-			updatePayload.noKkEncrypted = encryptSensitive(noKk);
+			updatePayload.noKkEncrypted = encryptSensitive(cleanNoKk);
 		} else {
 			updatePayload.noKkEncrypted = null;
 		}
 
 		try {
-(await db.update(keluarga)
+			(await db.update(keluarga)
 				.set(updatePayload)
 				.where(eq(keluarga.id, keluargaId))
-);
+			);
 		} catch (error) {
 			console.error('Gagal memperbarui Kartu Keluarga:', error);
 			return fail(500, { errorKeluarga: 'Terjadi kesalahan sistem saat memperbarui data KK.' });
@@ -161,6 +193,11 @@ export const actions: Actions = {
 		const tanggalLahir = formData.get('tanggalLahir')?.toString()?.trim() || '';
 		const jenisKelamin = formData.get('jenisKelamin')?.toString()?.trim() || '';
 		const noTelepon = formData.get('noTelepon')?.toString()?.trim() || '';
+		const tempatLahir = formData.get('tempatLahir')?.toString()?.trim() || null;
+		const profesi = formData.get('profesi')?.toString()?.trim() || null;
+		const golonganDarah = formData.get('golonganDarah')?.toString()?.trim() || null;
+		let statusPernikahan = formData.get('statusPernikahan')?.toString()?.trim() || null;
+		let statusGenerus = formData.get('statusGenerus')?.toString()?.trim() || null;
 
 		if (!anggotaId) {
 			return fail(400, { errorAnggota: 'ID anggota keluarga tidak ditemukan.' });
@@ -171,7 +208,7 @@ export const actions: Actions = {
 			.select({ id: anggotaKeluarga.id, keluargaId: anggotaKeluarga.keluargaId, userId: anggotaKeluarga.userId })
 			.from(anggotaKeluarga)
 			.where(eq(anggotaKeluarga.id, anggotaId))
-			));
+		));
 
 		if (!verifiedAnggota || !await isUserInKeluarga(locals.user.id, verifiedAnggota.keluargaId)) {
 			return fail(403, { errorAnggota: 'Anda tidak memiliki hak akses mengubah anggota ini.' });
@@ -197,17 +234,36 @@ export const actions: Actions = {
 			}
 		}
 
+		const isoTgl = normalizeDateToISO(tanggalLahir);
+		if (!statusPernikahan) {
+			statusPernikahan = resolveStatusPernikahan(statusHubungan);
+		}
+		if (!statusGenerus && isoTgl) {
+			const umur = hitungUmur(isoTgl);
+			statusGenerus = hitungStatusGenerus(umur, statusPernikahan);
+		}
+
 		const updatePayload: {
 			namaLengkap?: string;
 			statusHubungan: string;
 			tanggalLahir: string;
 			jenisKelamin: string;
+			tempatLahir: string | null;
+			statusGenerus: string | null;
+			statusPernikahan: string | null;
+			profesi: string | null;
+			golonganDarah: string | null;
 			noTelepon?: string | null;
 			nikEncrypted?: string | null;
 		} = {
 			statusHubungan,
-			tanggalLahir: normalizeDateToISO(tanggalLahir),
-			jenisKelamin,
+			tanggalLahir: isoTgl,
+			jenisKelamin: jenisKelamin === 'L' || jenisKelamin === 'Laki-laki' ? 'L' : 'P',
+			tempatLahir,
+			statusGenerus,
+			statusPernikahan,
+			profesi,
+			golonganDarah,
 			noTelepon: cleanNoTelepon || null
 		};
 
@@ -216,11 +272,12 @@ export const actions: Actions = {
 		}
 
 		// Jika NIK diisi, validasi 16 digit angka dan enkripsi, jika dikosongkan set null
-		if (nik) {
-			if (nik.length !== 16 || !/^\d+$/.test(nik)) {
+		const cleanNik = nik ? nik.trim().replace(/\D/g, '') : '';
+		if (cleanNik) {
+			if (cleanNik.length !== 16) {
 				return fail(400, { errorAnggota: 'NIK harus 16 digit angka jika diisi.' });
 			}
-			updatePayload.nikEncrypted = encryptSensitive(nik);
+			updatePayload.nikEncrypted = encryptSensitive(cleanNik);
 		} else {
 			updatePayload.nikEncrypted = null;
 		}

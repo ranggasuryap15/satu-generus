@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(admin)/admin/jadwal/+page.server.ts
- * @purpose Server load & actions untuk pengelolaan jadwal pengajian bertingkat (Desa & Kelompok), default NULL saat klik tab pengajian, persistensi filter terpilih setelah simpan/edit/hapus via URL parameter & cookies, template siklus rutin, generator sesi bulanan dengan pewarisan lokasi default Desa & Kelompok, serta penghapusan aman sesi pengajian (beserta presensi kehadiran terkait)
+ * @purpose Server load & actions untuk pengelolaan jadwal pengajian bertingkat (Desa & Kelompok), default NULL saat klik tab pengajian, persistensi filter terpilih, template siklus rutin, generator sesi bulanan dengan fitur auto-replace sesi rutin lama tanpa menghapus sesi manual, pewarisan lokasi default Desa & Kelompok, serta penghapusan aman sesi pengajian
  * @usedBy src/routes/(admin)/admin/jadwal/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema (jadwalPengajianTemplate, presensiJadwal, presensiKehadiran, kelompok, desa), src/lib/server/scope, src/lib/jadwal, drizzle-orm
  * @publicFunctions load, actions.saveTemplate, actions.deleteTemplate, actions.generateSesiBulanan, actions.createSesiManual, actions.updateSesiOverride, actions.deleteSesi
@@ -14,7 +14,7 @@ import { jadwalPengajianTemplate, presensiJadwal, presensiKehadiran, kelompok, d
 import { getAdminScope, getAccessibleWilayah, isKelompokAllowed } from '#lib/server/scope.js';
 import { hitungTanggalSesiBulanan } from '#lib/jadwal.js';
 import { normalizeDateToISO } from '#lib/utils.js';
-import { eq, and, desc, asc } from 'drizzle-orm';
+import { eq, and, desc, asc, isNotNull, gte, lte, inArray } from 'drizzle-orm';
 
 const COOKIE_OPTS = { path: '/', httpOnly: false, sameSite: 'lax' as const, maxAge: 60 * 60 * 24 * 7 };
 
@@ -448,8 +448,43 @@ export const actions: Actions = {
 			}
 		}
 
+		const padMonth = String(month).padStart(2, '0');
+		const lastDay = new Date(year, month, 0).getDate();
+		const startDate = `${year}-${padMonth}-01`;
+		const endDate = `${year}-${padMonth}-${String(lastDay).padStart(2, '0')}`;
+
 		try {
+			let createdCount = 0;
+			let replacedCount = 0;
+
 			await db.transaction(async (tx) => {
+				// 1. Ambil seluruh sesi rutin lama (templateId IS NOT NULL) di bulan ini untuk scope terkait
+				// Sesi yang dibuat MANUAL (templateId IS NULL) TIDAK akan terambil dan TIDAK akan terhapus!
+				const oldRoutineSesi = await tx
+					.select({ id: presensiJadwal.id })
+					.from(presensiJadwal)
+					.where(
+						and(
+							eq(presensiJadwal.tingkatScope, tingkatScope),
+							tingkatScope === 'Desa'
+								? eq(presensiJadwal.desaId, desaId!)
+								: eq(presensiJadwal.kelompokId, kelompokId!),
+							isNotNull(presensiJadwal.templateId),
+							gte(presensiJadwal.tanggal, startDate),
+							lte(presensiJadwal.tanggal, endDate)
+						)
+					);
+
+				if (oldRoutineSesi.length > 0) {
+					const oldIds = oldRoutineSesi.map((s) => s.id);
+					// Hapus data presensi kehadiran yang merujuk pada sesi rutin lama ini
+					await tx.delete(presensiKehadiran).where(inArray(presensiKehadiran.jadwalId, oldIds));
+					// Hapus sesi rutin lama
+					await tx.delete(presensiJadwal).where(inArray(presensiJadwal.id, oldIds));
+					replacedCount = oldIds.length;
+				}
+
+				// 2. Generate sesi terbaru dari template rutin aktif
 				for (const tmpl of templates) {
 					const dates = hitungTanggalSesiBulanan({
 						year,
@@ -460,54 +495,36 @@ export const actions: Actions = {
 					});
 
 					for (const tanggal of dates) {
-						// Periksa apakah sesi pada tanggal ini sudah ada agar tidak menimpa override
-						const existing = (await first(tx
-							.select({ id: presensiJadwal.id })
-							.from(presensiJadwal)
-							.where(
-								and(
-									eq(presensiJadwal.tingkatScope, tingkatScope),
-									tingkatScope === 'Desa'
-										? eq(presensiJadwal.desaId, desaId!)
-										: eq(presensiJadwal.kelompokId, kelompokId!),
-									eq(presensiJadwal.tanggal, tanggal)
-								)
-							)
-							));
-
-						if (existing) {
-							skippedCount++;
-							continue;
-						}
-
-(await tx.insert(presensiJadwal)
-							.values({
-								tingkatScope,
-								desaId: tingkatScope === 'Desa' ? desaId : null,
-								kelompokId: tingkatScope === 'Kelompok' ? kelompokId : null,
-								templateId: tmpl.id,
-								tanggal,
-								jamMulai: tmpl.jamMulai,
-								jamSelesai: tmpl.jamSelesai,
-								namaKegiatan: tmpl.namaKegiatan,
-								detailMateri: tmpl.detailMateri,
-								status: tmpl.isLibur ? 'libur' : 'aktif',
-								isOverride: false,
-								lokasiNama: tmpl.lokasiNama || defaultLokasiNama,
-								latitude: tmpl.latitude || defaultLat,
-								longitude: tmpl.longitude || defaultLng,
-								radiusMeter: tmpl.radiusMeter || defaultRadius,
-								gmapsUrl: tmpl.gmapsUrl || defaultGmapsUrl
-							})
-);
+						await tx.insert(presensiJadwal).values({
+							tingkatScope,
+							desaId: tingkatScope === 'Desa' ? desaId : null,
+							kelompokId: tingkatScope === 'Kelompok' ? kelompokId : null,
+							templateId: tmpl.id,
+							tanggal,
+							jamMulai: tmpl.jamMulai,
+							jamSelesai: tmpl.jamSelesai,
+							namaKegiatan: tmpl.namaKegiatan,
+							detailMateri: tmpl.detailMateri,
+							status: tmpl.isLibur ? 'libur' : 'aktif',
+							isOverride: false,
+							lokasiNama: tmpl.lokasiNama || defaultLokasiNama,
+							latitude: tmpl.latitude || defaultLat,
+							longitude: tmpl.longitude || defaultLng,
+							radiusMeter: tmpl.radiusMeter || defaultRadius,
+							gmapsUrl: tmpl.gmapsUrl || defaultGmapsUrl
+						});
 						createdCount++;
 					}
 				}
 			});
 
+			const message = replacedCount > 0
+				? `${createdCount} Sesi Rutin Diperbarui (${replacedCount} sesi rutin lama digantikan)`
+				: `${createdCount} Sesi Rutin Berhasil Dibuat`;
+
 			return {
 				success: true,
-				message: `${createdCount} Sesi Jadwal Dibuat`
+				message
 			};
 		} catch (err) {
 			console.error('Error generate sesi bulanan:', err);

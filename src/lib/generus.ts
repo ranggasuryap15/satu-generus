@@ -3,7 +3,7 @@
  * @purpose Helper kalkulasi umur, klasifikasi status generus otomatis, opsi metadata sensus jamaah sesuai jenis kelamin, dan default status pernikahan berdasarkan hubungan keluarga
  * @usedBy Form sensus, modul batch insert (/admin/sensus/batch), dan visualisasi data generus
  * @dependencies Tidak ada (Pure utility TypeScript)
- * @publicFunctions hitungUmur, hitungStatusGenerus, getDaftarStatusKeluargaByGender, isStatusHubunganMenikah, resolveStatusPernikahan, isStatusGenerusBelumMenikah, resolvePernikahanFromGenerus, DAFTAR_STATUS_GENERUS, DAFTAR_STATUS_PERNIKAHAN, DAFTAR_STATUS_KELUARGA, DAFTAR_GOLONGAN_DARAH
+ * @publicFunctions hitungUmur, hitungStatusGenerus, getDaftarStatusKeluargaByGender, isStatusHubunganMenikah, resolveStatusPernikahan, isStatusGenerusBelumMenikah, resolvePernikahanFromGenerus, getHierarkiHubunganWeight, sortAnggotaKeluargaHierarki, DAFTAR_STATUS_GENERUS, DAFTAR_STATUS_PERNIKAHAN, DAFTAR_STATUS_KELUARGA, DAFTAR_GOLONGAN_DARAH
  * @sideEffects Tidak ada (Fungsi murni deterministik / read-only date)
  */
 
@@ -213,6 +213,58 @@ export function resolvePernikahanFromGenerus(
 		return 'Sudah Menikah';
 	}
 	return currentPernikahan === 'Sudah Menikah' ? 'Sudah Menikah' : 'Belum Menikah';
+}
+
+/**
+ * Mendapatkan bobot hierarki hubungan dalam satu KK:
+ * 1. Kepala Keluarga (1)
+ * 2. Istri (2) / Suami jika KK istri (2.5)
+ * 3. Anak (3)
+ * 4. Orang Tua / Mertua (4)
+ * 5. Famili Lain / Lainnya (5)
+ */
+export function getHierarkiHubunganWeight(statusHubungan?: string | null): number {
+	if (!statusHubungan) return 99;
+	const s = statusHubungan.trim().toLowerCase();
+	if (s === 'kepala keluarga') return 1;
+	if (s === 'istri') return 2;
+	if (s === 'suami') return 2.5;
+	if (s === 'anak') return 3;
+	if (s === 'orang tua' || s === 'mertua') return 4;
+	if (s === 'famili lain') return 5;
+	return 6;
+}
+
+/**
+ * Mengurutkan array anggota keluarga dalam 1 KK sesuai hierarki resmi:
+ * 1. Kepala Keluarga
+ * 2. Istri
+ * 3. Anak (berdasarkan umur dari yang tertua ke termuda)
+ * 4. Orang Tua / Mertua (berdasarkan umur dari tertua ke termuda)
+ * 5. Famili Lain / Lainnya
+ */
+export function sortAnggotaKeluargaHierarki<T extends { statusHubungan?: string; tanggalLahir?: string | null }>(
+	anggotaList: T[]
+): T[] {
+	return [...anggotaList].sort((a, b) => {
+		const weightA = getHierarkiHubunganWeight(a.statusHubungan);
+		const weightB = getHierarkiHubunganWeight(b.statusHubungan);
+
+		if (weightA !== weightB) {
+			return weightA - weightB;
+		}
+
+		// Jika tingkat hierarki sama (misal sesama Anak atau sesama Orang Tua),
+		// urutkan berdasarkan umur dari yang tertua ke termuda (umur lebih besar di atas)
+		const umurA = a.tanggalLahir ? hitungUmur(a.tanggalLahir) : -1;
+		const umurB = b.tanggalLahir ? hitungUmur(b.tanggalLahir) : -1;
+
+		if (umurA !== umurB) {
+			return umurB - umurA;
+		}
+
+		return 0;
+	});
 }
 
 
