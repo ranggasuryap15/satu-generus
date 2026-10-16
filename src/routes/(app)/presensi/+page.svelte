@@ -665,7 +665,7 @@
 												</button>
 											</div>
 											<p class="text-[11px] text-rose-300/80 leading-snug">
-												Jarak Anda saat ini ~{distanceToVenue}m dari {effectiveVenue.lokasiNama} (batas radius {effectiveVenue.radiusMeter}m). Acuan lokasi terikat pada {effectiveVenue.scopeLabel.toLowerCase()}, bukan karena ketiadaan jadwal.
+												Jarak Anda saat ini ~{distanceToVenue}m dari {effectiveVenue.lokasiNama} (batas radius {effectiveVenue.radiusMeter}m).
 											</p>
 										</div>
 									{/if}
