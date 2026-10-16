@@ -1,17 +1,17 @@
 /**
  * @file src/routes/(app)/presensi/+page.server.ts
- * @purpose Memuat jadwal pengajian dengan filter presensi aktif rentang kemarin s/d besok (H-1 s/d H+1), fallback lokasi kelompok, QR token, validasi radius GPS, serta mutasi presensi mandiri & permohonan izin dengan respon feedback ringkas sesuai DESIGN.md
+ * @purpose Memuat jadwal pengajian aktif rentang kemarin s/d besok (H-1 s/d H+1) tingkat kelompok & desa, pewarisan lokasi kelompok/desa persisten yang terikat ke profil jamaah tanpa tergantung ada/tidaknya jadwal aktif, QR token unik, validasi radius GPS, serta mutasi presensi mandiri & permohonan izin
  * @usedBy src/routes/(app)/presensi/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm, src/lib/server/upload, src/lib/presensi-waktu (validasiWaktuPresensi, getWaktuSekarangWIB)
  * @publicFunctions load, actions.presensiMandiri, actions.ajukanIzin
- * @sideEffects Validasi tanggal & jam mulai jadwal, validasi jarak radius Haversine lokasi kelompok, menyimpan file foto ke root uploads/presensi, dan menulis presensi_kehadiran ke SQLite
+ * @sideEffects Validasi tanggal & jam mulai jadwal, validasi jarak radius Haversine lokasi kelompok/desa, menyimpan file foto ke root uploads/presensi, dan menulis presensi_kehadiran ke database
  */
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { db, first } from '#lib/db/index.js';
-import { presensiJadwal, presensiKehadiran, kelompok } from '#lib/db/schema.js';
-import { eq, desc, and } from 'drizzle-orm';
+import { presensiJadwal, presensiKehadiran, kelompok, desa } from '#lib/db/schema.js';
+import { eq, desc, and, or } from 'drizzle-orm';
 import { saveUploadedFile } from '#lib/server/upload.js';
 import { validasiWaktuPresensi, getWaktuSekarangWIB } from '#lib/presensi-waktu.js';
 
@@ -30,18 +30,44 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const userKelompokId = locals.user.kelompokId;
 	let kelompokNama = 'Kelompok';
 	let kelompokData: (typeof kelompok.$inferSelect) | undefined = undefined;
+	let desaData: (typeof desa.$inferSelect) | undefined = undefined;
 
 	if (userKelompokId) {
 		kelompokData = (await first(db.select().from(kelompok).where(eq(kelompok.id, userKelompokId))));
-		if (kelompokData) kelompokNama = kelompokData.nama;
+		if (kelompokData) {
+			kelompokNama = kelompokData.nama;
+			if (kelompokData.desaId) {
+				desaData = (await first(db.select().from(desa).where(eq(desa.id, kelompokData.desaId))));
+			}
+		}
 	}
 
-	// Ambil jadwal kegiatan untuk kelompok jamaah
-	const jadwalList = (await (userKelompokId ? db
+	// Lokasi basis kelompok jamaah (fallback ke desa jika kelompok belum set lat/lng)
+	const kelompokLat = kelompokData?.latitude || desaData?.latitude || null;
+	const kelompokLng = kelompokData?.longitude || desaData?.longitude || null;
+	const kelompokRadius = kelompokData?.radiusMeter || desaData?.radiusMeter || 100;
+	const kelompokLokasiNama = kelompokData?.lokasiNama || kelompokData?.nama || desaData?.lokasiNama || desaData?.nama || kelompokNama;
+	const kelompokGmapsUrl = kelompokData?.gmapsUrl || desaData?.gmapsUrl || null;
+
+	// Ambil jadwal kegiatan untuk kelompok jamaah maupun desa jamaah
+	const userDesaId = kelompokData?.desaId || null;
+	const jadwalList = (await (userKelompokId
+		? db
 				.select()
 				.from(presensiJadwal)
-				.where(eq(presensiJadwal.kelompokId, userKelompokId))
-				.orderBy(desc(presensiJadwal.tanggal)) : []));
+				.where(
+					userDesaId
+						? or(eq(presensiJadwal.kelompokId, userKelompokId), eq(presensiJadwal.desaId, userDesaId))
+						: eq(presensiJadwal.kelompokId, userKelompokId)
+				)
+				.orderBy(desc(presensiJadwal.tanggal))
+		: userDesaId
+			? db
+					.select()
+					.from(presensiJadwal)
+					.where(eq(presensiJadwal.desaId, userDesaId))
+					.orderBy(desc(presensiJadwal.tanggal))
+			: []));
 
 	// Ambil riwayat kehadiran jamaah ini
 	const kehadiranRecords = (await db
@@ -65,12 +91,18 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	const jadwalWithStatus = jadwalList.map((j) => {
 		const rec = recordMap.get(j.id);
-		// Prioritaskan lokasi jadwal jika ada, fallback ke lokasi basis kelompok
-		const venueLat = j.latitude || kelompokData?.latitude || null;
-		const venueLng = j.longitude || kelompokData?.longitude || null;
-		const venueRadius = j.radiusMeter || kelompokData?.radiusMeter || 100;
-		const venueNama = j.lokasiNama || kelompokData?.lokasiNama || kelompokData?.nama || null;
-		const venueGmaps = j.gmapsUrl || kelompokData?.gmapsUrl || null;
+		const isDesaScope = Boolean(j.desaId && !j.kelompokId);
+		const defaultLat = isDesaScope ? (desaData?.latitude || kelompokLat) : (kelompokLat || desaData?.latitude);
+		const defaultLng = isDesaScope ? (desaData?.longitude || kelompokLng) : (kelompokLng || desaData?.longitude);
+		const defaultRadius = isDesaScope ? (desaData?.radiusMeter || kelompokRadius) : (kelompokRadius || desaData?.radiusMeter);
+		const defaultNama = isDesaScope ? (desaData?.lokasiNama || desaData?.nama || kelompokLokasiNama) : (kelompokLokasiNama || desaData?.lokasiNama);
+		const defaultGmaps = isDesaScope ? (desaData?.gmapsUrl || kelompokGmapsUrl) : (kelompokGmapsUrl || desaData?.gmapsUrl);
+
+		const venueLat = j.latitude || defaultLat || null;
+		const venueLng = j.longitude || defaultLng || null;
+		const venueRadius = j.radiusMeter || defaultRadius || 100;
+		const venueNama = j.lokasiNama || defaultNama || null;
+		const venueGmaps = j.gmapsUrl || defaultGmaps || null;
 		const statusWaktu = validasiWaktuPresensi(j.tanggal, j.jamMulai);
 
 		return {
@@ -121,17 +153,15 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	return {
 		user: locals.user,
 		kelompokNama,
-		kelompokData: kelompokData
-			? {
-					id: kelompokData.id,
-					nama: kelompokData.nama,
-					lokasiNama: kelompokData.lokasiNama,
-					latitude: kelompokData.latitude,
-					longitude: kelompokData.longitude,
-					radiusMeter: kelompokData.radiusMeter,
-					gmapsUrl: kelompokData.gmapsUrl
-				}
-			: null,
+		kelompokData: {
+			id: kelompokData?.id || null,
+			nama: kelompokNama,
+			lokasiNama: kelompokLokasiNama,
+			latitude: kelompokLat,
+			longitude: kelompokLng,
+			radiusMeter: kelompokRadius,
+			gmapsUrl: kelompokGmapsUrl
+		},
 		qrPayload,
 		activeJadwalList,
 		defaultJadwalId,
@@ -187,15 +217,31 @@ export const actions: Actions = {
 				});
 			}
 
-			// Ambil detail kelompok untuk validasi jarak radius
+			// Ambil detail kelompok dan desa untuk validasi jarak radius
 			const targetKelompokId = jadwal.kelompokId || locals.user.kelompokId;
 			const targetKelompok = targetKelompokId
 				? await first(db.select().from(kelompok).where(eq(kelompok.id, targetKelompokId)))
 				: null;
 
-			const targetLatStr = jadwal.latitude || targetKelompok?.latitude || null;
-			const targetLngStr = jadwal.longitude || targetKelompok?.longitude || null;
-			const targetRadius = jadwal.radiusMeter || targetKelompok?.radiusMeter || 100;
+			const targetDesaId = jadwal.desaId || targetKelompok?.desaId;
+			const targetDesa = targetDesaId
+				? await first(db.select().from(desa).where(eq(desa.id, targetDesaId)))
+				: null;
+
+			const isDesaSesi = Boolean(jadwal.desaId && !jadwal.kelompokId);
+			const fallbackLat = isDesaSesi
+				? (targetDesa?.latitude || targetKelompok?.latitude)
+				: (targetKelompok?.latitude || targetDesa?.latitude);
+			const fallbackLng = isDesaSesi
+				? (targetDesa?.longitude || targetKelompok?.longitude)
+				: (targetKelompok?.longitude || targetDesa?.longitude);
+			const fallbackRadius = isDesaSesi
+				? (targetDesa?.radiusMeter || targetKelompok?.radiusMeter)
+				: (targetKelompok?.radiusMeter || targetDesa?.radiusMeter);
+
+			const targetLatStr = jadwal.latitude || fallbackLat || null;
+			const targetLngStr = jadwal.longitude || fallbackLng || null;
+			const targetRadius = jadwal.radiusMeter || fallbackRadius || 100;
 
 			if (!targetLatStr || !targetLngStr) {
 				return fail(400, {

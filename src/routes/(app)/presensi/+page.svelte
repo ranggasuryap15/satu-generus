@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(app)/presensi/+page.svelte
-  @purpose Halaman presensi mandiri jamaah (Hadir Offline / Online / Izin / QR) dengan seleksi jadwal aktif kemarin s/d besok (H-1 s/d H+1), tautan ke jadwal sebulan penuh dengan return origin 'presensi', penguncian tombol presensi sebelum 1 jam acara dimulai, dan standar Modern Flat sesuai DESIGN.md
+  @purpose Halaman presensi mandiri jamaah (Hadir Offline / Online / Izin / QR) dengan seleksi jadwal aktif kemarin s/d besok (H-1 s/d H+1), titik lokasi venue persisten terikat ke basis kelompok jamaah (tetap terdeteksi walau belum ada sesi pengajian aktif), tautan jadwal sebulan dengan return origin 'presensi', dan standar Modern Flat
   @usedBy Route client '/presensi'
   @dependencies qrcode, @lucide/svelte, $app/forms, #lib/utils (formatDateDDMMYYYY), Svelte 5 Runes
   @publicFunctions captureLocation, calculateDistanceMeters, handleFotoChange, resetPresensiForm, openPreviewFoto, closePreviewFoto
@@ -51,6 +51,26 @@
 		data.jadwalList.find((j: (typeof data.jadwalList)[number]) => String(j.id) === String(selectedJadwalId))
 	);
 
+	// Titik venue acuan: terikat dengan kelompok jamaah sebagai basis,
+	// atau menggunakan lokasi khusus kegiatan jika pengajian terpilih memiliki lokasi khusus
+	const effectiveVenue = $derived.by(() => {
+		const venueLat = selectedJadwal?.latitudeVenue || data.kelompokData?.latitude || null;
+		const venueLng = selectedJadwal?.longitudeVenue || data.kelompokData?.longitude || null;
+		const venueRadius = selectedJadwal?.radiusMeterVenue || data.kelompokData?.radiusMeter || 100;
+		const venueNama = selectedJadwal?.lokasiNama || data.kelompokData?.lokasiNama || data.kelompokData?.nama || data.kelompokNama || 'Lokasi Kelompok';
+		const venueGmaps = selectedJadwal?.gmapsUrlVenue || data.kelompokData?.gmapsUrl || null;
+		const hasLocation = Boolean(venueLat && venueLng);
+
+		return {
+			latitude: venueLat,
+			longitude: venueLng,
+			radiusMeter: venueRadius,
+			lokasiNama: venueNama,
+			gmapsUrl: venueGmaps,
+			hasLocation
+		};
+	});
+
 	// State Geolocation (Untuk Hadir Offline)
 	let latitude = $state<string>('');
 	let longitude = $state<string>('');
@@ -82,15 +102,15 @@
 		if (
 			!latitude ||
 			!longitude ||
-			!selectedJadwal?.latitudeVenue ||
-			!selectedJadwal?.longitudeVenue
+			!effectiveVenue.latitude ||
+			!effectiveVenue.longitude
 		) {
 			return null;
 		}
 		const latUser = parseFloat(latitude);
 		const lonUser = parseFloat(longitude);
-		const latVenue = parseFloat(selectedJadwal.latitudeVenue);
-		const lonVenue = parseFloat(selectedJadwal.longitudeVenue);
+		const latVenue = parseFloat(effectiveVenue.latitude);
+		const lonVenue = parseFloat(effectiveVenue.longitude);
 		if (isNaN(latUser) || isNaN(lonUser) || isNaN(latVenue) || isNaN(lonVenue)) {
 			return null;
 		}
@@ -98,8 +118,8 @@
 	});
 
 	let isWithinRadius = $derived.by(() => {
-		if (distanceToVenue === null || !selectedJadwal?.radiusMeterVenue) return null;
-		return distanceToVenue <= selectedJadwal.radiusMeterVenue;
+		if (distanceToVenue === null || !effectiveVenue.radiusMeter) return null;
+		return distanceToVenue <= effectiveVenue.radiusMeter;
 	});
 
 	// State Bukti Foto
@@ -513,7 +533,11 @@
 									<MapPin class="w-4 h-4 text-primary shrink-0" />
 									<span>Offline (Lokasi)</span>
 								</div>
-								{#if isWithinRadius === false}
+								{#if !effectiveVenue.hasLocation}
+									<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400">
+										Belum Diset
+									</span>
+								{:else if isWithinRadius === false}
 									<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-destructive/10 text-destructive">
 										Luar
 									</span>
@@ -554,6 +578,11 @@
 							<span class="font-semibold text-foreground flex items-center gap-1.5 text-xs">
 								<MapPin class="w-3.5 h-3.5 text-primary" />
 								<span>Lokasi Anda</span>
+								{#if effectiveVenue.lokasiNama}
+									<span class="font-normal text-[11px] text-foreground/50 truncate max-w-[140px] sm:max-w-[200px]" title={effectiveVenue.lokasiNama}>
+										({effectiveVenue.lokasiNama})
+									</span>
+								{/if}
 							</span>
 							<button
 								type="button"
@@ -571,7 +600,7 @@
 							</button>
 						</div>
 
-						{#if !selectedJadwal?.latitudeVenue}
+						{#if !effectiveVenue.hasLocation}
 							<div class="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs flex items-center justify-between gap-2">
 								<span class="flex items-center gap-1.5 font-medium">
 									<AlertCircle class="w-4 h-4 shrink-0" />
@@ -736,7 +765,7 @@
 				{:else}
 					<button
 						type="submit"
-						disabled={isSubmitting || (metodeKehadiran === 'offline' && (!isWithinRadius || !latitude || !selectedJadwal?.latitudeVenue))}
+						disabled={isSubmitting || (metodeKehadiran === 'offline' && (!isWithinRadius || !latitude || !effectiveVenue.hasLocation))}
 						class="w-full py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold transition-all shadow-xs active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
 					>
 						{#if isSubmitting}
