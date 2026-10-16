@@ -4,7 +4,7 @@
   @usedBy Semua route di dalam grouping (app)
   @dependencies ClientTopBar, BottomNavbar, AppFooter, $app/state (page), Svelte 5 Runes
   @publicFunctions N/A (Svelte Component)
-  @sideEffects Menata struktur tampilan mobile-first dengan container terpusat, header terintegrasi pada beranda/presensi/transaksi, dan navigasi bawah
+  @sideEffects Menata struktur tampilan mobile-first dengan container terpusat, header terintegrasi pada beranda/presensi/transaksi/sensus, dan navigasi bawah
 -->
 <script lang="ts">
 	import { page } from '$app/state';
@@ -17,7 +17,8 @@
 	const hasIntegratedHeader = $derived(
 		page.url.pathname === '/' ||
 		page.url.pathname.startsWith('/presensi') ||
-		page.url.pathname.startsWith('/transaksi')
+		page.url.pathname.startsWith('/transaksi') ||
+		page.url.pathname === '/sensus'
 	);
 </script>
 
