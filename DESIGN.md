@@ -1,164 +1,101 @@
 # 🎨 DESIGN.md: Pedoman UI/UX (Satu Generus)
 
-Dokumen ini berisi panduan rancangan antarmuka (UI) dan pengalaman pengguna (UX) untuk aplikasi Satu Generus. Pendekatan desain yang digunakan adalah penggabungan antara **Modern Clean UI (Fintech/POS Style)** dan prinsip **Zero Over-Information / Visual-First**, yang mengedepankan kebersihan visual, keterbacaan tinggi, navigasi yang intuitif, serta komunikasi berbasis warna dan ikon alih-alih teks yang bertele-tele.
+Dokumen ini berisi panduan rancangan antarmuka (UI) dan pengalaman pengguna (UX) untuk aplikasi Satu Generus. Pendekatan desain yang diterapkan adalah **Flat Design Minimalist (Mobile-First)** yang mengedepankan kebersihan visual, hierarki informasi yang jernih, navigasi intuitif berbasis zona jempol (*thumb zone*), serta komunikasi status berbasis warna dan ikon fungsional (*Show, Don't Tell*).
+
+---
 
 ## 1. Prinsip Desain Utama
 
-* **"Show, Don't Tell" (Visual-First & Zero Over-Information):**
-  * **Hilangkan Teks Sia-sia:** Hindari paragraf panjang, kalimat pembuka yang tidak penting, helper text yang hanya mengulang label, atau instruksi teknis bertele-tele di layar.
-  * **Keberhasilan (Success State):** Saat suatu aksi atau kondisi berhasil, **JANGAN** sertakan rincian panjang kenapa bisa berhasil. Cukup tandai dengan indikator visual (warna hijau Vibrant Jade, ikon centang, badge singkat "Sesuai" / "Tersimpan"). Pengguna hanya perlu tahu bahwa aksinya beres.
-  * **Kegagalan (Failure State):** Saat terjadi kegagalan atau error, cukup beritahu **inti apa yang gagal** secara ringkas, to-the-point, dengan warna peringatan (merah/amber) dan ikon penanda. Berikan tombol aksi penyelesaian instan bila ada (misal: "Pindah Online" saat di luar radius), tanpa instruksi bertumpuk.
-* **Modern, Minimalis & Flat:** Mengurangi penggunaan gradasi atau efek 3D yang berlebihan. Fokus pada warna solid, ruang kosong (*white space*) yang longgar, dan elemen yang murni fungsional.
-* **Single Source of Truth:** Tidak ada duplikasi fitur. Misalnya, detail profil dan form edit disatukan dalam satu layar dengan mode *toggle*, menghindari penumpukan tumpukan navigasi (*navigation stack*).
-* **Format Tanggal Baku (DD-MM-YYYY):** Seluruh hal yang berkaitan dengan tanggal pada UI (tabel, kartu ringkasan, rincian sensus, tanggal lahir, jadwal presensi, serta seluruh formulir input tanggal) **wajib disajikan dan diinput dalam format DD-MM-YYYY** (contoh: `10-10-2026`). Seluruh input form tanggal wajib menggunakan komponen terstandarisasi `DateInput` (`src/lib/components/DateInput.svelte`) yang mendukung auto-masking pengetikan dan pemilih kalender visual. Penyimpanan database SQLite dinormalisasi secara terpusat ke standar ISO `YYYY-MM-DD`.
+1. **"Show, Don't Tell" (Visual-First & Zero Over-Information):**
+   - **Hilangkan Teks Sia-sia:** Hindari paragraf instruksi panjang yang hanya mengulang fungsi form, kalimat sambutan bertele-tele, atau deskripsi teknis jarak GPS yang membingungkan.
+   - **Status Berhasil (Success State):** Tandai langsung dengan warna hijau *Vibrant Jade / Emerald*, lencana *"Lokasi Sesuai"*, atau notifikasi *"Data Tersimpan"*.
+   - **Status Peringatan / Kendala (Warning & Error State):** Langsung tunjukkan inti kendala (misal: *"Titik lokasi belum diset"*, *"Di Luar Jangkauan (~450m)"*) disertai tombol tindakan langsung (misal: tombol biru **[Pindah Online]**).
+2. **Integrated Curved Header (Header Hijau Melengkung Terintegrasi):**
+   - Bagian atas aplikasi mobile menggunakan blok solid warna hijau *Deep Lush Green* (`#166534` / dark: `#14532D`) yang menempel langsung ke tepi atas dan samping layar, dengan lengkungan bawah yang halus (`rounded-b-[28px]`).
+   - Kontrol navigasi atas (logo SG, judul aplikasi/halaman, tombol tema, pencarian, dan lonceng notifikasi) terintegrasi langsung di baris pertama header hijau ini, tanpa bilah abu-abu terpisah.
+3. **Overlapping Floating Cards (Elevasi Kartu Mengambang Minimalis):**
+   - Kontrol utama (5-launcher shortcut pada Beranda, atau 4-tab switcher pada Presensi) diletakkan pada kartu mengambang (*floating card*) yang bertumpuk halus di batas bawah header hijau menggunakan margin negatif (`-mt-7` s/d `-mt-8`).
+   - Menggunakan warna dasar kartu *Dark Slate Navy* (`#1E293B`) dengan border halus (`border-slate-700/60`), sudut membulat (`rounded-2xl`), dan bayangan tipis (*shadow-md*).
+4. **Format Tanggal Baku (DD-MM-YYYY):**
+   - Seluruh tampilan tanggal pada UI client dan admin (riwayat kegiatan, kartu presensi, input tanggal) disajikan dalam format **DD-MM-YYYY** (contoh: `14-10-2026`).
 
 ---
 
-## 2. Pemisahan Tampilan (Client vs Admin)
+## 2. Struktur Navigasi & Tata Letak
 
-* **Client-Facing (Mobile-First):** UI/UX untuk *client* difokuskan pada ukuran layar *smartphone*.
-  * Aksesibilitas menggunakan zona jempol (*thumb zone*).
-  * Berorientasi pada *task* (mengisi sensus, melihat jadwal, cek status, presensi).
-  * Menggunakan **Card Layout** untuk menampilkan data (bukan tabel).
-  * Input form menggunakan pendekatan *step-by-step* (wizard) agar tidak mengintimidasi.
-* **Admin-Facing (Desktop-First):** UI/UX untuk admin difokuskan pada visualisasi data luas di layar besar.
-  * Berorientasi pada rekapitulasi dan manajemen akses.
-  * Menggunakan **Data Table** yang mendukung *sorting*, *filtering*, dan *export/import*.
-  * Memiliki halaman visualisasi *chart* (grafik demografi).
+### A. Mobile-First Container
+- Seluruh antarmuka client dioptimalkan untuk ukuran layar ponsel dengan lebar maksimal terpusat `max-w-md` (`~448px`).
+- Pada layar desktop, antarmuka tetap tampil konsisten di tengah layar sebagai *frame phone app* yang elegan.
 
----
-
-## 3. Struktur Layout & Navigasi Responsif
-
-Antarmuka aplikasi mengadopsi struktur utama penyusun halaman berdasarkan perangkat:
-
-### A. Curved Header (Header Melengkung) - Mobile
-
-Bagian atas layar yang memuat profil pengguna, salam, atau ringkasan nominal utama (saldo/total sensus).
-
-* **Karakteristik:** Memiliki warna latar *Primary* (Hijau Tua) dengan potongan bawah yang melengkung.
-* **Implementasi Tailwind:**
-  ```html
-  <header class="bg-primary text-white rounded-b-[2.5rem] pt-8 pb-16 px-6">
-    <!-- Konten header (Salam, Notifikasi) -->
-  </header>
-  ```
-
-### B. Card-Based Content (Konten Kartu)
-
-Daftar riwayat (seperti presensi, shodaqoh) dan menu aksi dibungkus dalam kartu yang "mengambang".
-
-* **Karakteristik:** Sudut sangat membulat (*rounded-2xl* atau *rounded-3xl*), warna latar solid (*white* / *dark surface*), dan bayangan sangat tipis.
-* **Implementasi Tailwind (Light Mode):**
-  ```html
-  <div class="bg-white rounded-2xl p-5 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-100">
-     <!-- Angka saldo, list transaksi, form input -->
-  </div>
-  ```
-
-### C. Navigasi Berubah Bentuk (Bottom Nav ke Sidebar)
-
-* **Mobile Mode (< 768px):** Menggunakan **Floating Bottom Navigation** berbentuk pil (*pill*) yang mengambang.
-  * **Implementasi Tailwind:**
-    ```html
-    <nav class="fixed bottom-4 left-4 right-4 bg-white rounded-full shadow-lg border border-slate-100 px-6 py-4 flex justify-between items-center z-50">
-      <!-- Ikon Menu -->
-    </nav>
-    ```
-* **Desktop Mode (>= 768px):** Otomatis berubah menjadi **Sidebar** vertikal di kiri (lebar standar 250px) yang bisa di-*collapse*, dengan *Main Content* memakan sisa ruang di kanan.
+### B. Floating Bottom Navigation Bar (5 Kolom + Center FAB)
+Navigasi bawah berbentuk floating bar modern dengan 5 item:
+1. **Beranda:** Ikon `Home`, menuju `/`
+2. **Keluarga:** Ikon `Users`, menuju `/sensus`
+3. **Presensi (Center Elevated FAB):** Tombol bulat elevated di tengah (`w-12 h-12 rounded-full bg-[#05A875] text-slate-950 -mt-6 border-[3px] border-[#131927] shadow-lg`), ikon `QrCode`, label *"Presensi"*
+4. **Transaksi:** Ikon `Wallet`, menuju `/transaksi`
+5. **Profil:** Ikon `User`, menuju `/profil`
 
 ---
 
-## 4. Design Tokens: Tipografi (Poppins)
+## 3. Palet Warna & Token Desain
 
-* **Font Family:** `Poppins`, *sans-serif*. Dipilih karena geometris, bersahabat, dan nyaman di mata.
-* **Skala Ukuran Responsif:** Wajib **16px** untuk body teks dan input form di mobile agar terhindar dari bug *auto-zoom* iOS Safari.
+### A. Warna Utama (Brand & Surface)
+| Peran                                | Hex Code       | Deskripsi / Penggunaan                                                                  |
+| :----------------------------------- | :------------- | :-------------------------------------------------------------------------------------- |
+| **Top Green Banner (Light/Dark)**    | `#166534` / `#14532D` | Warna header melengkung utama di bagian atas layar Beranda, Presensi, dan Transaksi.    |
+| **Brand Primary (Accent & FAB)**     | `#05A875` / `#10B981` | Tombol elevated presensi, tombol aksi kirim presensi, badge aktif, dan highlight hijau. |
+| **Canvas Background (Dark)**         | `#0F172A` / `#131927` | Latar belakang kanvas aplikasi gelap ramah mata (Midnight Slate).                       |
+| **Card Surface Level 1**             | `#1E293B`      | Kontainer kartu utama, floating launcher, card ringkasan, dan formulir utama.          |
+| **Surface Level 2 (Input & Select)** | `#0F172A`      | Kotak input form, select dropdown, textarea alasan, dan nested container lokasi.       |
+| **Border / Divider**                 | `#334155` / `slate-700/60` | Garis batas tipis pemisah antar seksi tanpa kontras yang tajam.                         |
 
-| Hierarki                                 | Mobile (< 768px)                                                    | Desktop (>= 768px)                                        | Penggunaan & Keterangan                                       |
-| :--------------------------------------- | :------------------------------------------------------------------ | :-------------------------------------------------------- | :------------------------------------------------------------ |
-| **H1 (Judul Halaman)**             | `22px – 24px` (SemiBold 600 / Bold 700)                          | `28px – 32px` (Bold 700)                               | Header utama halaman aplikasi                                 |
-| **H2 (Judul Kartu / Modal)**       | `18px – 20px` (SemiBold 600)                                     | `20px – 22px` (SemiBold 600)                           | Header kartu utama, judul modal pop-up                        |
-| **H3 (Sub-judul / Label Utama)**   | `15px – 16px` (SemiBold 600)                                     | `14px – 15px` (SemiBold 600)                           | Label form input, sub-header section                          |
-| **Body (Teks Utama & Input Form)** | **`16px`** (Regular 400 / Medium 500, Line-height 1.5–1.6) | **`14px – 15px`** (Regular 400, Line-height 1.6) | **Wajib 16px di mobile** agar bebas auto-zoom di iOS    |
-| **Body Small / Sub-text**          | `14px` (Regular 400, Line-height 1.5)                             | `13px` (Regular 400, Line-height 1.5)                   | Teks pendukung, deskripsi, sublabel list                      |
-| **Caption / Badge / Helper**       | `12px – 13px` (Medium 500)                                       | `12px` (Regular 400 / Medium 500)                       | Badge status, tooltip, catatan bantuan (hindari < 12px di HP) |
+### B. Ikon Launcher Akses Cepat (5 Lingkaran Melayang)
+| Menu         | Lingkaran Background Dark   | Aksen Border & Ikon          | Route Tujuan  |
+| :----------- | :-------------------------- | :--------------------------- | :------------ |
+| **Presensi** | `bg-emerald-950/80`         | `border-emerald-500/30 text-emerald-400` | `/presensi`   |
+| **Isrun/FR** | `bg-amber-950/80`           | `border-amber-500/30 text-amber-400`     | `/transaksi`  |
+| **Keluarga** | `bg-sky-950/80`             | `border-sky-500/30 text-sky-400`         | `/sensus`     |
+| **SI-PPG**   | `bg-purple-950/80`          | `border-purple-500/30 text-purple-400`   | Modal SI-PPG  |
+| **Lainnya**  | `bg-slate-800`              | `border-slate-600/50 text-slate-300`     | Modal Apps    |
 
----
+### C. Ringkasan Statistik Bulan Ini (3 Kolom Kartu)
+- **Kehadiran:** Nilai nominal teks tebal warna hijau *Emerald* (`#10B981` / `text-emerald-400`), misal: `8/10`.
+- **Izin:** Nilai nominal teks tebal warna biru langit *Sky* (`#38BDF8` / `text-sky-400`), misal: `2`.
+- **Shodaqoh:** Nilai nominal teks tebal warna kuning amber (`#F59E0B` / `text-amber-400`), misal: `Rp150rb`.
 
-## 5. Design Tokens: Semantik Warna & Palet
-
-Aplikasi menggunakan palet **Hijau** sebagai identitas utama, dipadukan dengan **Hitam Slate Dingin (Midnight Slate)** untuk latar belakang (terutama mode gelap), dan menghindari abu-abu kusam atau hitam pekat mati. Sistem wajib mendeteksi preferensi tema perangkat dengan opsi *toggle* manual.
-
-### A. Palet Utama (Tema & Identitas)
-
-| Peran                   | Hex Code                | Tailwind Variable | Penggunaan                                                       |
-| :---------------------- | :---------------------- | :---------------- | :--------------------------------------------------------------- |
-| **Primary**       | `#009B60` (Fresh Emerald / Vibrant Jade) | `bg-primary`    | Kartu sambutan, tombol utama, ikon aktif, teks *highlight*. Tidak tua/gelap dan tidak pudar. |
-| **Primary Light** | `#10B981` (Emerald-500) | `bg-primary/80` | State *hover* pada tombol utama dan aksen dark mode.           |
-| **Accent**        | `#F59E0B` (Amber-500)   | `bg-accent`     | Kartu infaq/shodaqoh, tombol CTA penting, notifikasi.           |
-
-### B. Palet Pastel Launcher Akses Cepat (Minimalist & Flat)
-
-| Menu Launcher     | Background Pastel (Light) | Background (Dark)     | Warna Ikon & Label                    |
-| :---------------- | :------------------------ | :-------------------- | :------------------------------------ |
-| **Presensi**      | `#D7F5E9` (Mint Pastel)   | `#064E3B`/60          | `#009B60` / `#10B981` (Fresh Emerald) |
-| **Isrun/FR**      | `#FEF0D6` (Warm Cream)    | `#78350F`/40          | `#D97706` / `#F59E0B` (Warm Amber)    |
-| **Keluarga**      | `#E0F2FE` (Soft Sky Blue) | `#0C4A6E`/40          | `#0284C7` / `#38BDF8` (Sky Blue)      |
-| **SI-PPG**        | `#F3E8FF` (Soft Lilac)    | `#581C87`/40          | `#9333EA` / `#C084FC` (Purple)        |
-| **Lainnya**       | `#F1F5F9` (Slate Neutral) | `#1E293B`/80          | `#52525B` / `#94A3B8` (Slate Neutral) |
-
-### C. Surface & Background (Midnight Slate Base)
-
-| Tipe Elemen                               | Mode Terang (Light)    | Mode Gelap (Dark) | Karakteristik & Fungsi                                                    |
-| :---------------------------------------- | :--------------------- | :---------------- | :------------------------------------------------------------------------ |
-| **Main Background / Canvas**        | `#F8FAFC` (Slate-50) | `#0B0F19`       | Hitam slate modern di dark mode. Ramah di mata (off-white di light mode). |
-| **Card / Container Level 1**        | `#FFFFFF` (White)    | `#121826`       | Warna card utama. Memberikan efek elevasi yang bersih dan mewah.          |
-| **Surface Level 2 / Input / Table** | `#F1F5F9`            | `#1A2338`       | Background input form, dropdown select, baris tabel, atau hover card.     |
-| **Border / Divider**                | `#E2E8F0`            | `#26324D`       | Halus memisahkan konten tanpa garis tegas yang mengganggu.                |
-| **Text Main**                       | `#1F2937` (Gray-800) | `#F8FAFC`       | Teks utama, judul, angka saldo/statistik.                                 |
-| **Text Muted**                      | `#6B7280` (Gray-500) | `#94A3B8`       | Label kecil, teks sekunder, deskripsi tambahan, *placeholder*.          |
-
-### C. Warna Aksen & Indikator Status (Show, Don't Tell)
-
-Gantikan teks status yang panjang dengan warna yang merepresentasikan maknanya secara universal.
-
-| Kegunaan / Status                          | Hex Code    | Nama Shade     | Penerapan "Show, Don't Tell"                                                                                             |
-| :----------------------------------------- | :---------- | :------------- | :----------------------------------------------------------------------------------------------------------------------- |
-| **Brand / Success (Valid/Berhasil)** | `#05A875` | Vibrant Jade   | Segala yang berjalan lancar (Lokasi GPS Valid, Data Tersimpan, Bukti Terverifikasi). Ikon centang. Lencana status aktif. |
-| **Warning (Pending/Perhatian)**      | `#F59E0B` | Warm Amber     | Menunggu persetujuan, proses sedang berjalan, peringatan. Badge status "Pending", Ikon tanda seru.                       |
-| **Danger (Gagal/Ditolak/Error)**     | `#EF4444` | Soft Coral Red | Gagal presensi, di luar jangkauan, data ditolak. Ikon silang.                                                            |
-| **Info / Jamaah Mandiri**            | `#0284C7` | Ocean Blue     | Informasi netral, panduan, atau label grup khusus.                                                                       |
-| **Neutral / Disabled**               | `#94A3B8` | Slate Muted    | Elemen yang belum bisa diakses, form*disabled*, informasi sekunder.                                                    |
+### D. Warna Semantik Status Transaksi & Presensi
+- **Berhasil / Hadir:** Badge hijau emerald (`bg-emerald-500/15 text-emerald-400`).
+- **Menunggu / Izin:** Badge kuning amber (`bg-amber-500/15 text-amber-400`).
+- **Ditolak / Sakit / Di Luar Jangkauan:** Badge merah koral (`bg-rose-500/15 text-rose-400`).
+- **Pindah Online:** Tombol biru cerah (`bg-sky-500 hover:bg-sky-600 text-white font-bold`).
 
 ---
 
-## 6. Standar Interaksi (UX) & Validasi Visual
+## 4. Standar Tampilan Modul Presensi (4 Tab)
 
-* **Dropdown Search:** Pada bagian dropdown yang berpotensi akan banyak data (Daerah, Desa, Kelompok), gunakan Dropdown Search.
-* **Tabel/Data Display:** Ganti teks status panjang dengan *Pill/Badge* berwarna (Kuning untuk "Pending", Hijau untuk "Disetujui"). Sembunyikan detail log waktu/admin di balik interaksi klik/hover.
-* **Feedback Sukses & Error (Toasts vs Alerts):**
-  * Setelah aksi CRUD, gunakan *Toast notification* atau banner tipis yang menghilang otomatis (contoh: **"Data Tersimpan"**), tanpa rincian bertele-tele.
-  * Validasi error input form harus muncul secara *inline* di bawah input teks secara *real-time* (teks merah kecil + border merah).
-* **Form & Input Guidance:**
-  * Dilarang meletakkan paragraf instruksi di bawah judul form jika fungsi sudah jelas.
-  * Gunakan *placeholder* yang jelas atau ikon *tooltip* ( ℹ️ ) untuk penjelasan ekstra.
-* **Upload File:** Setelah file dipilih, tampilkan *thumbnail preview* dengan border hijau tipis dan ikon centang.
-* **Kondisi Data Kosong (Empty States):** Selalu tampilkan ilustrasi minimalis dengan satu baris teks penjelasan dan tombol *Call to Action* (misal: "Belum ada data jamaah. [Tambah Data]").
+Halaman `/presensi` terdiri atas header hijau melengkung dan 4 tab segmented control mengambang:
+1. **Tab Hadir:**
+   - Dropdown pilihan kegiatan pengajian (`<select>` gaya dark slate).
+   - Banner status waktu jika presensi belum dibuka (jam mulai acara belum masuk rentang 1 jam).
+   - Switcher metode kehadiran: `Offline` (GPS & Kamera langsung) vs `Online` (Daring & Bukti SS).
+   - Kotak status GPS terikat kelompok jamaah dengan tombol `[Ulang]`. Menampilkan *"Lokasi Sesuai"* atau *"Di Luar Jangkauan [Pindah Online]"*.
+   - Kotak unggah foto/kamera berbingkai putus-putus (*dashed border*) dengan ikon kamera melingkar.
+   - Tombol kirim presensi berwarna hijau emerald solid (`bg-[#05A875] text-slate-950 font-bold`).
+2. **Tab Izin / Sakit:**
+   - Pilihan kegiatan pengajian aktif.
+   - Tombol toggle jenis izin: `Izin` (warna amber) vs `Sakit`.
+   - Textarea alasan yang ringkas.
+   - Tombol upload bukti surat keterangan/foto (opsional).
+   - Tombol kirim permohonan berwarna amber solid (`bg-[#F59E0B] text-slate-950 font-bold`) dengan ikon kirim.
+3. **Tab Riwayat:**
+   - Kartu riwayat kehadiran per sesi pengajian lengkap dengan tanggal, nama kegiatan, pill badge kehadiran, dan tautan pratinjau foto.
+4. **Tab Kartu QR:**
+   - Kartu putih elegan di tengah layar yang menampilkan kode QR unik jamaah (`SGQR:userId:kelompokId`) untuk pemindaian cepat oleh penerima tamu.
 
-## 7. Standar Modal, Dialog & Aksesibilitas (Svelte 5)
+---
 
-* **Modal & Dialog:**
-  * **Backdrop:** Gelap transparan dengan efek *blur* tipis (`bg-slate-900/40 backdrop-blur-sm`).
-  * **Panel Dialog:** Muncul di tengah layar untuk aksi destruktif atau form singkat.
-  * **Animasi:** Masuk dengan halus (`animate-in fade-in zoom-in-95 duration-200`). Jangan gunakan `window.confirm()`.
-* **Aksesibilitas SvelteKit (a11y):**
-  * Setiap elemen interaktif (bisa diklik) harus berupa `<button type="button">` atau `<a>`.
-  * Jika harus menggunakan `<div>` (misal untuk backdrop), sematkan *ignore comment*:
-    ```html
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    ```
-  * Sertakan `tabindex="-1"` atau `tabindex="0"` pada elemen `role="dialog"`.
-* **State Management (Svelte 5):**
-  * Gunakan `$state(untrack(() => data.value))` untuk menginisialisasi nilai *form input* yang akan diedit oleh pengguna, agar terhindar dari *warning* reaktivitas.
-  * Gunakan `$derived(data.value)` untuk data baca-saja yang harus selalu sinkron mutlak dengan perubahan data server.
+## 5. Standar Aksesibilitas & Responsivitas (Svelte 5)
+
+- **Elemen Interaktif:** Seluruh tombol dan tab interaktif wajib berupa elemen `<button type="button">` atau `<a>` dengan penanda kursor yang jelas (`cursor-pointer`).
+- **State Management:** Menggunakan Runes Svelte 5 (`$state`, `$derived`, `$props`) secara konsisten.
+- **Transisi Halus:** Animasi modal dan pergantian tab menggunakan transisi halus (`animate-in fade-in duration-200`) tanpa *layout shift* yang mengganggu.
