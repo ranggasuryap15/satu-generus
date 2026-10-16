@@ -1,9 +1,9 @@
 <!--
   @file src/routes/(app)/shodaqoh/+page.svelte
-  @purpose Halaman shodaqoh & infaq mobile-first untuk jamaah: scan QRIS & salin rekening bank resmi (Kelompok & Desa), pelaporan konfirmasi transfer shodaqoh scoped, riwayat donasi dengan filter status & pencarian, dan struk digital resmi (e-receipt)
+  @purpose Halaman shodaqoh & infaq mobile-first untuk jamaah: scan QRIS & salin rekening bank resmi (Kelompok & Desa), pelaporan konfirmasi transfer shodaqoh dengan transisi tab scope (Kelompok & Desa) yang halus & responsif, riwayat donasi dengan filter status & pencarian, dan struk digital resmi (e-receipt)
   @usedBy Route client '/shodaqoh'
   @dependencies @lucide/svelte, $app/forms, Svelte 5 Runes
-  @publicFunctions printReceipt
+  @publicFunctions printReceipt, openFormForScope, switchScope
   @sideEffects Mengirim laporan shodaqoh baru beserta file bukti transfer ke server via action ?/laporShodaqoh, membuka modal struk dan mencetak dokumen struk resmi
 -->
 <script lang="ts">
@@ -95,6 +95,24 @@
 		(data.jenisList || []).filter((j: any) => !j.tingkatScope || j.tingkatScope === formTingkatScope)
 	);
 
+	// Derived: Rekening yang sesuai dengan scope form saat ini
+	const scopedRekeningList = $derived(
+		formTingkatScope === 'Kelompok' ? (data.rekeningKelompokList || []) : (data.rekeningDesaList || [])
+	);
+
+	let formRekeningId = $state<string>('');
+
+	function switchScope(scope: 'Kelompok' | 'Desa') {
+		formTingkatScope = scope;
+		activeTabRekening = scope;
+		const matchingJenis = (data.jenisList || []).find((j: any) => j.tingkatScope === scope);
+		if (matchingJenis) {
+			formJenis = matchingJenis.nama;
+		}
+		const matchingReks = scope === 'Kelompok' ? (data.rekeningKelompokList || []) : (data.rekeningDesaList || []);
+		formRekeningId = matchingReks[0]?.id || '';
+	}
+
 	// Derived: Rekening dan label scope berdasarkan tab aktif (Kelompok vs Desa)
 	const currentRekeningList = $derived(
 		activeTabRekening === 'Kelompok' ? (data.rekeningKelompokList || []) : (data.rekeningDesaList || [])
@@ -107,12 +125,7 @@
 	);
 
 	function openFormForScope(scope: 'Kelompok' | 'Desa') {
-		formTingkatScope = scope;
-		activeTabRekening = scope;
-		const matchingJenis = (data.jenisList || []).find((j: any) => j.tingkatScope === scope);
-		if (matchingJenis) {
-			formJenis = matchingJenis.nama;
-		}
+		switchScope(scope);
 		isFormOpen = true;
 	}
 
@@ -172,7 +185,7 @@
 
 		<button
 			type="button"
-			onclick={() => (isFormOpen = true)}
+			onclick={() => openFormForScope(activeTabRekening)}
 			class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold shadow-xs active:scale-95 transition-all shrink-0 cursor-pointer"
 		>
 			<Send class="w-3.5 h-3.5" />
@@ -468,29 +481,92 @@
 				<input type="hidden" name="tingkatScope" value={formTingkatScope} />
 				<input type="hidden" name="kelompokId" value={data.selectedKelompok?.id} />
 				<input type="hidden" name="desaId" value={data.targetDesaId} />
+				<input type="hidden" name="rekeningWilayahId" value={formRekeningId} />
 
 				<!-- Pilihan Tingkat Scope Tujuan Shodaqoh -->
-				<div class="space-y-1">
-					<label class="font-semibold text-foreground">Tingkat Wilayah Tujuan *</label>
-					<div class="grid grid-cols-2 gap-2 p-1 bg-secondary/50 rounded-xl border border-border">
+				<div class="space-y-2">
+					<div class="flex items-center justify-between">
+						<label class="font-bold text-foreground flex items-center gap-1.5 text-xs">
+							<span>Tingkat Wilayah Tujuan</span>
+							<span class="text-rose-500">*</span>
+						</label>
+						<span class="text-[11px] font-bold px-2 py-0.5 rounded-full {formTingkatScope === 'Kelompok'
+							? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+							: 'bg-teal-500/15 text-teal-600 dark:text-teal-400 border border-teal-500/30'}">
+							{formTingkatScope === 'Kelompok' ? 'Kas Kelompok' : 'Kas Desa'}
+						</span>
+					</div>
+
+					<!-- Segmented Switcher Tab yang Halus & Menonjol -->
+					<div class="grid grid-cols-2 p-1.5 bg-secondary/80 rounded-2xl border border-border gap-1.5 shadow-inner">
+						<!-- Tab Kelompok -->
 						<button
 							type="button"
-							onclick={() => openFormForScope('Kelompok')}
-							class="py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all {formTingkatScope === 'Kelompok'
-								? 'bg-card text-foreground shadow-xs border border-border'
-								: 'text-foreground/60 hover:text-foreground'}"
+							onclick={() => switchScope('Kelompok')}
+							class="py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 flex flex-col items-center justify-center gap-0.5 cursor-pointer text-center {formTingkatScope === 'Kelompok'
+								? 'bg-emerald-600 text-white shadow-md shadow-emerald-950/20 ring-1 ring-emerald-400/40 active:scale-98'
+								: 'text-foreground/60 hover:text-foreground hover:bg-secondary/60'}"
 						>
-							{data.selectedKelompok?.nama || 'Kelompok'}
+							<div class="flex items-center gap-1.5">
+								<Users class="w-3.5 h-3.5 {formTingkatScope === 'Kelompok' ? 'text-white' : 'text-foreground/50'}" />
+								<span class="truncate">{data.selectedKelompok?.nama || 'Kelompok'}</span>
+							</div>
+							<span class="text-[10px] font-medium {formTingkatScope === 'Kelompok' ? 'text-emerald-100' : 'text-foreground/40'}">
+								Tingkat Kelompok
+							</span>
 						</button>
+
+						<!-- Tab Desa -->
 						<button
 							type="button"
-							onclick={() => openFormForScope('Desa')}
-							class="py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all {formTingkatScope === 'Desa'
-								? 'bg-card text-foreground shadow-xs border border-border'
-								: 'text-foreground/60 hover:text-foreground'}"
+							onclick={() => switchScope('Desa')}
+							class="py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 flex flex-col items-center justify-center gap-0.5 cursor-pointer text-center {formTingkatScope === 'Desa'
+								? 'bg-teal-600 text-white shadow-md shadow-teal-950/20 ring-1 ring-teal-400/40 active:scale-98'
+								: 'text-foreground/60 hover:text-foreground hover:bg-secondary/60'}"
 						>
-							Desa {data.selectedKelompok?.desaNama || 'Desa'}
+							<div class="flex items-center gap-1.5">
+								<Building2 class="w-3.5 h-3.5 {formTingkatScope === 'Desa' ? 'text-white' : 'text-foreground/50'}" />
+								<span class="truncate">Desa {data.selectedKelompok?.desaNama || 'Desa'}</span>
+							</div>
+							<span class="text-[10px] font-medium {formTingkatScope === 'Desa' ? 'text-teal-100' : 'text-foreground/40'}">
+								Tingkat Desa
+							</span>
 						</button>
+					</div>
+
+					<!-- Banner Ringkasan Konteks Tujuan Tab yang Dinamis & Halus -->
+					<div class="p-2.5 rounded-xl border transition-all duration-200 {formTingkatScope === 'Kelompok'
+						? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-800 dark:text-emerald-200'
+						: 'bg-teal-500/10 border-teal-500/25 text-teal-800 dark:text-teal-200'}">
+						<div class="flex items-start gap-2">
+							<div class="mt-0.5">
+								{#if formTingkatScope === 'Kelompok'}
+									<Users class="w-4 h-4 text-emerald-500 shrink-0" />
+								{:else}
+									<Building2 class="w-4 h-4 text-teal-500 shrink-0" />
+								{/if}
+							</div>
+							<div class="space-y-0.5 min-w-0 flex-1">
+								<p class="font-bold text-xs">
+									{formTingkatScope === 'Kelompok'
+										? `Alokasi Kas Kelompok (${data.selectedKelompok?.nama || 'Kelompok'})`
+										: `Alokasi Kas Desa (${data.selectedKelompok?.desaNama || 'Desa'})`}
+								</p>
+								<p class="text-[11px] opacity-85 leading-snug">
+									{formTingkatScope === 'Kelompok'
+										? 'Shodaqoh ini dicatat dan disalurkan untuk kegiatan & operasional di lingkungan kelompok Anda.'
+										: 'Shodaqoh ini dicatat dan disalurkan untuk kegiatan pembinaan & operasional tingkat desa.'}
+								</p>
+								{#if scopedRekeningList.length > 0}
+									<div class="pt-1 flex items-center gap-1.5 text-[10px] font-medium opacity-90">
+										<Banknote class="w-3 h-3 shrink-0" />
+										<span class="truncate">
+											Rekening tujuan: {scopedRekeningList[0].namaBank} ({scopedRekeningList[0].nomorRekening})
+										</span>
+									</div>
+								{/if}
+							</div>
+						</div>
 					</div>
 				</div>
 
