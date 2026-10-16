@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(admin)/admin/sensus/+page.svelte
-  @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri, pagination tabel/kartu data, standarisasi tombol aksi simetris seragam, dashboard statistik, penugasan dapukan pengurus KK, modal detail lengkap (hapus sensus, pindah kelompok, toggle status jamaah), modal edit anggota/KK, input & validasi noTelepon (wajib jika punya akun, opsional jika tidak), dan pembuatan akun dengan retensi scroll (mencegah loncat ke atas)
+  @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri, pagination tabel/kartu data, standarisasi tombol aksi simetris seragam, dashboard statistik, penugasan dapukan pengurus KK, modal detail lengkap, modal edit anggota/KK, pra-validasi sebelum dialog konfirmasi, pelaporan in-modal error feedback & field highlighting instan, serta pembuatan akun dengan retensi scroll
   @usedBy Route admin '/admin/sensus'
-  @dependencies @lucide/svelte, Svelte 5 Runes, #lib/components/SearchableSelect.svelte, #lib/components/DateInput.svelte, #lib/components/Pagination.svelte, #lib/confirm.svelte, #lib/keepScroll.ts (keepScrollSubmit), #lib/utils (formatDateDDMMYYYY), #lib/generus (isStatusHubunganMenikah, hitungUmur, hitungStatusGenerus, resolveStatusPernikahan, isStatusGenerusBelumMenikah, resolvePernikahanFromGenerus, DAFTAR_STATUS_GENERUS)
+  @dependencies @lucide/svelte, Svelte 5 Runes, #lib/components/SearchableSelect.svelte, #lib/components/DateInput.svelte, #lib/components/Pagination.svelte, #lib/confirm.svelte, #lib/confirmSubmit.ts, #lib/keepScroll.ts (keepScrollSubmit), #lib/utils (formatDateDDMMYYYY), #lib/generus
   @publicFunctions openDetailModal, closeDetailModal, requestUnmask, openCreateModal, closeCreateModal, openAddMemberModal, closeAddMemberModal, openCreateAccountModal, openEditAnggotaModal, closeEditAnggotaModal, openEditKeluargaModal, closeEditKeluargaModal, openPindahKelompokModal, closePindahKelompokModal, openAssignDapukanModal, closeAssignDapukanModal, handleHapusSensus, handleToggleStatusJamaah, resetFilters, toggleMobileFilter
-  @sideEffects Menampilkan metrik, unmask data sensitif, submit actions (createSensus, addAnggotaKeluarga, updateAnggota, updateKeluarga, deleteSensus, pindahKelompok, toggleStatusJamaah, createMemberAccount, assignDapukan) dengan retensi posisi scroll
+  @sideEffects Menampilkan metrik, unmask data sensitif, submit actions (createSensus, addAnggotaKeluarga, updateAnggota, updateKeluarga, deleteSensus, pindahKelompok, toggleStatusJamaah, createMemberAccount, assignDapukan) dengan retensi posisi scroll dan in-modal error display
 -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
@@ -35,6 +35,7 @@
 	  Filter,
 	  Home,
 	  KeyRound,
+	  Loader2,
 	  MapPin,
 	  Pencil,
 	  Plus,
@@ -96,12 +97,16 @@
 	let newAccountPhone = $state('');
 	let newAccountPassword = $state('');
 	let isAccountSubmitting = $state(false);
+	let createAccountError = $state<string | null>(null);
+	let createAccountErrorField = $state<string | null>(null);
 
 	function openCreateAccountModal(member: (typeof data.daftarKeluarga)[0]['anggota'][0]) {
 		memberForAccount = member;
 		newAccountEmail = '';
 		newAccountPhone = member.noTelepon !== '-' ? member.noTelepon : '';
 		newAccountPassword = '12345678';
+		createAccountError = null;
+		createAccountErrorField = null;
 	}
 
 	// State Modal Edit Anggota Keluarga (Manual Versi Admin)
@@ -291,6 +296,10 @@
 
 	// State Modal Tambah Sensus Baru (Akun + KK/Mandiri + Anggota)
 	let showCreateModal = $state(false);
+	let createModalContainerEl: HTMLDivElement | null = $state(null);
+	let createError = $state<string | null>(null);
+	let createErrorField = $state<string | null>(null);
+	let isCreateSubmitting = $state(false);
 	let newTipeSensus = $state<'keluarga' | 'mandiri'>('keluarga');
 	let newNamaLengkap = $state('');
 	let newEmail = $state('');
@@ -413,6 +422,8 @@
 
 	// State Modal Tambah Anggota ke KK yang Ada
 	let showAddMemberModal = $state(false);
+	let addMemberError = $state<string | null>(null);
+	let isAddMemberSubmitting = $state(false);
 	let targetKeluargaForMember = $state<(typeof data.daftarKeluarga)[0] | null>(null);
 	let memberNamaLengkap = $state('');
 	let memberNik = $state('');
@@ -811,11 +822,13 @@
 
 	function openCreateModal() {
 		// Buka modal tanpa menghapus draf isian yang sedang diketik
+		createError = null;
+		createErrorField = null;
 		showCreateModal = true;
 	}
 
-	async function closeCreateModal() {
-		if (isCreateFormDirty()) {
+	async function closeCreateModal(force = false) {
+		if (!force && isCreateFormDirty()) {
 			const ok = await confirmAction({
 				title: 'Tutup Formulir Sensus?',
 				message:
@@ -828,7 +841,63 @@
 				return;
 			}
 		}
+		createError = null;
+		createErrorField = null;
 		showCreateModal = false;
+	}
+
+	function validateCreateSensus(): { message: string; field: string } | null {
+		if (!newNamaLengkap.trim()) {
+			return { message: 'Nama lengkap jamaah wajib diisi.', field: 'namaLengkap' };
+		}
+		if (!newKelompokId) {
+			return { message: 'Kelompok basis wajib dipilih sesuai wewenang Anda.', field: 'kelompokId' };
+		}
+		const cleanHp = newNoTelepon.replace(/\D/g, '');
+		if (!cleanHp) {
+			return { message: 'Nomor HP / WhatsApp wajib diisi untuk akun jamaah.', field: 'noTelepon' };
+		}
+		if (!/^\d{8,16}$/.test(cleanHp)) {
+			return { message: 'Nomor HP harus berupa angka 8-16 digit.', field: 'noTelepon' };
+		}
+		if (newEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail.trim())) {
+			return { message: 'Format alamat email tidak valid.', field: 'email' };
+		}
+
+		if (newTipeSensus === 'mandiri') {
+			if (!newTanggalLahirMandiri) {
+				return { message: 'Tanggal lahir jamaah mandiri wajib diisi.', field: 'tanggalLahirMandiri' };
+			}
+			if (!newJenisKelaminMandiri) {
+				return { message: 'Jenis kelamin jamaah mandiri wajib dipilih.', field: 'jenisKelaminMandiri' };
+			}
+		} else {
+			if (!newAnggotaList || newAnggotaList.length === 0) {
+				return { message: 'Minimal 1 anggota keluarga wajib didaftarkan.', field: 'anggota' };
+			}
+			for (let i = 0; i < newAnggotaList.length; i++) {
+				const a = newAnggotaList[i];
+				if (!a.statusHubungan) {
+					return { message: `Status hubungan anggota ke-${i + 1} wajib diisi.`, field: `anggota-${i}-statusHubungan` };
+				}
+				if (!a.tanggalLahir) {
+					return { message: `Tanggal lahir anggota ke-${i + 1} wajib diisi.`, field: `anggota-${i}-tanggalLahir` };
+				}
+				if (!a.jenisKelamin) {
+					return { message: `Jenis kelamin anggota ke-${i + 1} wajib diisi.`, field: `anggota-${i}-jenisKelamin` };
+				}
+				if (a.noTelepon && a.noTelepon.trim()) {
+					const cHp = a.noTelepon.replace(/\D/g, '');
+					if (!/^\d{8,16}$/.test(cHp)) {
+						return {
+							message: `Nomor HP anggota ke-${i + 1} (${a.namaLengkap || a.statusHubungan}) tidak valid (harus 8-16 digit angka).`,
+							field: `anggota-${i}-noTelepon`
+						};
+					}
+				}
+			}
+		}
+		return null;
 	}
 
 	function addAnggotaRow() {
@@ -900,6 +969,25 @@
 			showAssignDapukanModal = false;
 			targetKeluargaForDapukan = null;
 			assignUserId = '';
+			createError = null;
+			createErrorField = null;
+			addMemberError = null;
+			createAccountError = null;
+			createAccountErrorField = null;
+		}
+		if (form?.error) {
+			if (showCreateModal && !createError) {
+				createError = form.error;
+				createErrorField = (form as any).field || null;
+				createModalContainerEl?.scrollTo({ top: 0, behavior: 'smooth' });
+			}
+			if (showAddMemberModal && !addMemberError) {
+				addMemberError = form.error;
+			}
+		}
+		if (form?.errorAccount && memberForAccount && !createAccountError) {
+			createAccountError = form.errorAccount;
+			createAccountErrorField = (form as any).field || null;
 		}
 	});
 
@@ -1512,6 +1600,7 @@
 	>
 		<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 		<div
+			bind:this={createModalContainerEl}
 			class="bg-card border border-border rounded-2xl max-w-3xl w-full p-4 sm:p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto"
 			onclick={(e) => e.stopPropagation()}
 		>
@@ -1524,12 +1613,31 @@
 				</div>
 				<button
 					type="button"
-					onclick={closeCreateModal}
+					onclick={() => closeCreateModal()}
 					class="p-1 rounded-lg hover:bg-secondary text-foreground/60 hover:text-foreground"
 				>
 					<X class="w-5 h-5" />
 				</button>
 			</div>
+
+			<!-- In-Modal Alert Error jika ada kegagalan simpan / duplikasi data / validasi -->
+			{#if createError}
+				<div class="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 dark:bg-rose-950/40 dark:border-rose-900/60 dark:text-rose-300 text-xs flex items-start gap-2.5 shadow-xs animate-in fade-in slide-in-from-top-1 duration-150">
+					<AlertCircle class="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />
+					<div class="flex-1 min-w-0">
+						<span class="font-bold block">Gagal Menyimpan Sensus:</span>
+						<span class="text-xs leading-relaxed">{createError}</span>
+					</div>
+					<button
+						type="button"
+						onclick={() => { createError = null; createErrorField = null; }}
+						class="p-0.5 text-rose-500 hover:text-rose-700 dark:hover:text-rose-200 rounded"
+						aria-label="Tutup pesan error"
+					>
+						<X class="w-3.5 h-3.5" />
+					</button>
+				</div>
+			{/if}
 
 			<!-- Notice Password Default jokam354 -->
 			<div class="p-3 rounded-xl bg-primary/10 border border-primary/20 text-xs flex items-center gap-2.5 text-foreground">
@@ -1549,7 +1657,43 @@
 					cancelText: 'Batal',
 					variant: 'primary'
 				},
-				keepScrollSubmit({ onSuccess: () => closeCreateModal() })
+				keepScrollSubmit({
+					beforeSubmit: () => {
+						isCreateSubmitting = true;
+						createError = null;
+						createErrorField = null;
+					},
+					onFinally: () => {
+						isCreateSubmitting = false;
+					},
+					onSuccess: () => {
+						isCreateSubmitting = false;
+						createError = null;
+						createErrorField = null;
+						closeCreateModal(true);
+					},
+					onError: (result) => {
+						isCreateSubmitting = false;
+						if (result.type === 'failure' && result.data) {
+							const d = result.data as any;
+							createError = d.error || 'Gagal menyimpan sensus.';
+							createErrorField = d.field || null;
+						} else {
+							createError = 'Terjadi kesalahan sistem saat menyimpan data sensus.';
+						}
+						createModalContainerEl?.scrollTo({ top: 0, behavior: 'smooth' });
+					}
+				}),
+				() => {
+					const err = validateCreateSensus();
+					if (err) {
+						createError = err.message;
+						createErrorField = err.field;
+						createModalContainerEl?.scrollTo({ top: 0, behavior: 'smooth' });
+						return false;
+					}
+					return true;
+				}
 			)} class="space-y-4">
 				<!-- Tipe Sensus Selector (KK vs Mandiri) -->
 				<div class="space-y-1.5">
@@ -1623,9 +1767,21 @@
 								name="email"
 								type="email"
 								bind:value={newEmail}
+								oninput={() => {
+									if (createErrorField === 'email' || createError?.toLowerCase().includes('email')) {
+										createError = null;
+										createErrorField = null;
+									}
+								}}
 								placeholder="ahmad@example.com"
-								class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+								class="w-full bg-secondary/60 border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 {createError && (createErrorField === 'email' || createError.toLowerCase().includes('email')) ? 'border-rose-500 focus:ring-rose-500 bg-rose-50/20 dark:bg-rose-950/20' : 'border-border focus:ring-primary'}"
 							/>
+							{#if createError && (createErrorField === 'email' || createError.toLowerCase().includes('email'))}
+								<p class="text-[11px] font-medium text-rose-600 dark:text-rose-400 flex items-center gap-1 mt-1">
+									<AlertCircle class="w-3 h-3 shrink-0" />
+									<span>{createError}</span>
+								</p>
+							{/if}
 						</div>
 
 						<div>
@@ -1645,10 +1801,20 @@
 									if (newAnggotaList.length > 0) {
 										newAnggotaList[0].noTelepon = newNoTelepon;
 									}
+									if (createErrorField === 'noTelepon' || createError?.toLowerCase().includes('nomor hp') || createError?.toLowerCase().includes('no hp')) {
+										createError = null;
+										createErrorField = null;
+									}
 								}}
 								placeholder="0812xxxxxxxx"
-								class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+								class="w-full bg-secondary/60 border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 {createError && (createErrorField === 'noTelepon' || createError.toLowerCase().includes('nomor hp') || createError.toLowerCase().includes('no hp')) ? 'border-rose-500 focus:ring-rose-500 bg-rose-50/20 dark:bg-rose-950/20' : 'border-border focus:ring-primary'}"
 							/>
+							{#if createError && (createErrorField === 'noTelepon' || createError.toLowerCase().includes('nomor hp') || createError.toLowerCase().includes('no hp'))}
+								<p class="text-[11px] font-medium text-rose-600 dark:text-rose-400 flex items-center gap-1 mt-1">
+									<AlertCircle class="w-3 h-3 shrink-0" />
+									<span>{createError}</span>
+								</p>
+							{/if}
 						</div>
 					</div>
 
@@ -2162,16 +2328,22 @@
 					<div class="flex items-center gap-2">
 						<button
 							type="button"
-							onclick={closeCreateModal}
-							class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary"
+							onclick={() => closeCreateModal()}
+							class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary transition-colors"
 						>
 							Batal
 						</button>
 						<button
 							type="submit"
-							class="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 shadow-sm"
+							disabled={isCreateSubmitting}
+							class="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 shadow-sm disabled:opacity-50 flex items-center gap-1.5 transition-all"
 						>
-							Simpan Sensus & Buat Akun
+							{#if isCreateSubmitting}
+								<Loader2 class="w-3.5 h-3.5 animate-spin" />
+								<span>Menyimpan Sensus...</span>
+							{:else}
+								<span>Simpan Sensus & Buat Akun</span>
+							{/if}
 						</button>
 					</div>
 				</div>
@@ -2207,6 +2379,25 @@
 				</button>
 			</div>
 
+			<!-- In-Modal Alert Error jika ada kegagalan simpan -->
+			{#if addMemberError}
+				<div class="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 dark:bg-rose-950/40 dark:border-rose-900/60 dark:text-rose-300 text-xs flex items-start gap-2.5 shadow-xs animate-in fade-in slide-in-from-top-1 duration-150">
+					<AlertCircle class="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />
+					<div class="flex-1 min-w-0">
+						<span class="font-bold block">Gagal Menambahkan Anggota:</span>
+						<span class="text-xs leading-relaxed">{addMemberError}</span>
+					</div>
+					<button
+						type="button"
+						onclick={() => (addMemberError = null)}
+						class="p-0.5 text-rose-500 hover:text-rose-700 dark:hover:text-rose-200 rounded"
+						aria-label="Tutup pesan error"
+					>
+						<X class="w-3.5 h-3.5" />
+					</button>
+				</div>
+			{/if}
+
 			<form
 				method="POST"
 				action="?/addAnggotaKeluarga"
@@ -2218,7 +2409,28 @@
 						cancelText: 'Batal',
 						variant: 'primary'
 					},
-					keepScrollSubmit({ onSuccess: () => closeAddMemberModal(true) })
+					keepScrollSubmit({
+						beforeSubmit: () => {
+							isAddMemberSubmitting = true;
+							addMemberError = null;
+						},
+						onFinally: () => {
+							isAddMemberSubmitting = false;
+						},
+						onSuccess: () => {
+							isAddMemberSubmitting = false;
+							addMemberError = null;
+							closeAddMemberModal(true);
+						},
+						onError: (result) => {
+							isAddMemberSubmitting = false;
+							if (result.type === 'failure' && result.data) {
+								addMemberError = (result.data as any)?.error || 'Gagal menambahkan anggota keluarga.';
+							} else {
+								addMemberError = 'Gagal menambahkan anggota keluarga.';
+							}
+						}
+					})
 				)}
 				class="space-y-3 text-xs"
 			>
@@ -2391,9 +2603,15 @@
 					</button>
 					<button
 						type="submit"
-						class="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90"
+						disabled={isAddMemberSubmitting}
+						class="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-50 flex items-center gap-1.5 transition-all"
 					>
-						Simpan Anggota
+						{#if isAddMemberSubmitting}
+							<Loader2 class="w-3.5 h-3.5 animate-spin" />
+							<span>Menyimpan...</span>
+						{:else}
+							<span>Simpan Anggota</span>
+						{/if}
 					</button>
 				</div>
 			</form>
@@ -3150,6 +3368,25 @@
 				</button>
 			</div>
 
+			<!-- In-Modal Alert Error jika pembuatan akun gagal -->
+			{#if createAccountError}
+				<div class="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 dark:bg-rose-950/40 dark:border-rose-900/60 dark:text-rose-300 text-xs flex items-start gap-2.5 shadow-xs animate-in fade-in slide-in-from-top-1 duration-150">
+					<AlertCircle class="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />
+					<div class="flex-1 min-w-0">
+						<span class="font-bold block">Gagal Membuat Akun:</span>
+						<span class="text-xs leading-relaxed">{createAccountError}</span>
+					</div>
+					<button
+						type="button"
+						onclick={() => { createAccountError = null; createAccountErrorField = null; }}
+						class="p-0.5 text-rose-500 hover:text-rose-700 dark:hover:text-rose-200 rounded"
+						aria-label="Tutup pesan error"
+					>
+						<X class="w-3.5 h-3.5" />
+					</button>
+				</div>
+			{/if}
+
 			<form
 				method="POST"
 				action="?/createMemberAccount"
@@ -3162,9 +3399,19 @@
 						variant: 'primary'
 					},
 					keepScrollSubmit({
-						beforeSubmit: () => { isAccountSubmitting = true; },
+						beforeSubmit: () => { isAccountSubmitting = true; createAccountError = null; createAccountErrorField = null; },
 						onFinally: () => { isAccountSubmitting = false; },
-						onSuccess: () => { memberForAccount = null; }
+						onSuccess: () => { isAccountSubmitting = false; createAccountError = null; memberForAccount = null; },
+						onError: (result) => {
+							isAccountSubmitting = false;
+							if (result.type === 'failure' && result.data) {
+								const d = result.data as any;
+								createAccountError = d?.errorAccount || d?.error || 'Gagal membuat akun login.';
+								createAccountErrorField = d?.field || null;
+							} else {
+								createAccountError = 'Gagal membuat akun login.';
+							}
+						}
 					})
 				)}
 				class="space-y-3 text-xs"
@@ -3186,9 +3433,21 @@
 						name="email"
 						type="email"
 						bind:value={newAccountEmail}
+						oninput={() => {
+							if (createAccountErrorField === 'email' || createAccountError?.toLowerCase().includes('email')) {
+								createAccountError = null;
+								createAccountErrorField = null;
+							}
+						}}
 						placeholder="contoh@domain.com"
-						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-primary"
+						class="w-full bg-secondary/50 border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 {createAccountError && (createAccountErrorField === 'email' || createAccountError.toLowerCase().includes('email')) ? 'border-rose-500 focus:ring-rose-500 bg-rose-50/20 dark:bg-rose-950/20' : 'border-border focus:ring-primary'}"
 					/>
+					{#if createAccountError && (createAccountErrorField === 'email' || createAccountError.toLowerCase().includes('email'))}
+						<p class="text-[11px] font-medium text-rose-600 dark:text-rose-400 flex items-center gap-1 mt-1">
+							<AlertCircle class="w-3 h-3 shrink-0" />
+							<span>{createAccountError}</span>
+						</p>
+					{/if}
 				</div>
 
 				<div>
@@ -3205,10 +3464,20 @@
 						bind:value={newAccountPhone}
 						oninput={(e) => {
 							newAccountPhone = e.currentTarget.value.replace(/\D/g, '');
+							if (createAccountErrorField === 'noTelepon' || createAccountError?.toLowerCase().includes('nomor hp') || createAccountError?.toLowerCase().includes('no hp')) {
+								createAccountError = null;
+								createAccountErrorField = null;
+							}
 						}}
 						placeholder="0812xxxxxxxx"
-						class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary"
+						class="w-full bg-secondary/50 border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:ring-1 {createAccountError && (createAccountErrorField === 'noTelepon' || createAccountError.toLowerCase().includes('nomor hp') || createAccountError.toLowerCase().includes('no hp')) ? 'border-rose-500 focus:ring-rose-500 bg-rose-50/20 dark:bg-rose-950/20' : 'border-border focus:ring-primary'}"
 					/>
+					{#if createAccountError && (createAccountErrorField === 'noTelepon' || createAccountError.toLowerCase().includes('nomor hp') || createAccountError.toLowerCase().includes('no hp'))}
+						<p class="text-[11px] font-medium text-rose-600 dark:text-rose-400 flex items-center gap-1 mt-1">
+							<AlertCircle class="w-3 h-3 shrink-0" />
+							<span>{createAccountError}</span>
+						</p>
+					{/if}
 				</div>
 
 				<div>

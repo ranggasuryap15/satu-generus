@@ -1,10 +1,10 @@
 /**
  * @file src/routes/(admin)/admin/sensus/+page.server.ts
- * @purpose Rekapitulasi sensus KK & Mandiri, metrik dashboard, penugasan dapukan pengurus KK, validasi integritas keunikan Kyai (maksimal 1 per lingkup), sinkronisasi noTelepon (wajib jika punya akun, opsional jika tidak), resolusi effectiveUserId & default isrun Kepala Keluarga, serta form actions sensus; email kepala keluarga bersifat opsional (login utama via Nomor HP); pencegahan penugasan manual Superadmin
+ * @purpose Rekapitulasi sensus KK & Mandiri, metrik dashboard, penugasan dapukan pengurus KK, validasi integritas keunikan Kyai, validasi keunikan email & noTelepon (dengan pelaporan field & tangkapan SQLite UNIQUE constraint), sinkronisasi noTelepon akun, resolusi effectiveUserId & default isrun Kepala Keluarga, serta form actions sensus
  * @usedBy src/routes/(admin)/admin/sensus/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/auth, src/lib/server/scope, src/lib/utils (normalizeDateToISO), src/lib/generus (hitungUmur, hitungStatusGenerus, isStatusHubunganMenikah, resolveStatusPernikahan, isStatusGenerusBelumMenikah), drizzle-orm
  * @publicFunctions load, actions.createSensus, actions.addAnggotaKeluarga, actions.updateAnggota, actions.updateKeluarga, actions.deleteSensus, actions.pindahKelompok, actions.toggleStatusJamaah, actions.createMemberAccount, actions.assignDapukan
- * @sideEffects Transaksi penulisan database tabel users, keluarga, anggota_keluarga, user_dapukan; query join multi-tabel terindeks; sinkronisasi user_id, no_telepon & default isrun Kepala Keluarga
+ * @sideEffects Transaksi penulisan database tabel users, keluarga, anggota_keluarga, user_dapukan; query join multi-tabel terindeks; sinkronisasi user_id, no_telepon & default isrun Kepala Keluarga; penanganan error duplikasi email & nomor HP
  */
 
 import { fail, redirect } from '@sveltejs/kit';
@@ -427,7 +427,8 @@ export const actions: Actions = {
 		));
 		if (existingPhone) {
 			return fail(400, {
-				error: `Nomor HP ${cleanNoTelepon} sudah terdaftar pada akun lain.`
+				error: `Nomor HP ${cleanNoTelepon} sudah terdaftar pada akun lain. Silakan gunakan nomor HP berbeda.`,
+				field: 'noTelepon'
 			});
 		}
 
@@ -438,7 +439,8 @@ export const actions: Actions = {
 			));
 			if (existingUser) {
 				return fail(400, {
-					error: `Email ${email} sudah terdaftar pada akun lain.`
+					error: `Email ${email} sudah terdaftar pada akun lain. Silakan gunakan email berbeda atau kosongkan.`,
+					field: 'email'
 				});
 			}
 		}
@@ -587,10 +589,23 @@ export const actions: Actions = {
 );
 				}
 			});
-		} catch (err) {
+		} catch (err: any) {
 			console.error('Gagal membuat sensus baru:', err);
+			const errMsg = err?.message || '';
+			if (errMsg.includes('UNIQUE constraint failed: users.email')) {
+				return fail(400, {
+					error: `Email ${email} sudah terdaftar pada akun lain. Silakan gunakan email berbeda atau kosongkan.`,
+					field: 'email'
+				});
+			}
+			if (errMsg.includes('UNIQUE constraint failed: users.no_telepon')) {
+				return fail(400, {
+					error: `Nomor HP ${cleanNoTelepon} sudah terdaftar pada akun lain. Silakan gunakan nomor HP berbeda.`,
+					field: 'noTelepon'
+				});
+			}
 			return fail(500, {
-				error: 'Terjadi kesalahan sistem saat menyimpan data sensus.'
+				error: 'Terjadi kesalahan sistem saat menyimpan data sensus: ' + (errMsg || 'Gagal menyimpan ke database')
 			});
 		}
 
@@ -768,8 +783,17 @@ export const actions: Actions = {
 				.where(eq(users.email, email.toLowerCase()))
 				));
 			if (existingEmail) {
-				return fail(400, { errorAccount: 'Email tersebut sudah terdaftar pada akun lain.' });
+				return fail(400, { errorAccount: 'Email tersebut sudah terdaftar pada akun lain.', field: 'email' });
 			}
+		}
+
+		const existingPhone = (await first(db
+			.select({ id: users.id })
+			.from(users)
+			.where(eq(users.noTelepon, cleanNoTelepon))
+			));
+		if (existingPhone) {
+			return fail(400, { errorAccount: `Nomor HP ${cleanNoTelepon} sudah terdaftar pada akun lain.`, field: 'noTelepon' });
 		}
 
 		const passwordHash = await hashPassword(password);
@@ -799,10 +823,17 @@ export const actions: Actions = {
 			return {
 				success: 'Akun login mandiri berhasil dibuat untuk anggota keluarga!'
 			};
-		} catch (err) {
+		} catch (err: any) {
 			console.error('Gagal membuat akun anggota keluarga:', err);
+			const errMsg = err?.message || '';
+			if (errMsg.includes('UNIQUE constraint failed: users.email')) {
+				return fail(400, { errorAccount: 'Email tersebut sudah terdaftar pada akun lain.', field: 'email' });
+			}
+			if (errMsg.includes('UNIQUE constraint failed: users.no_telepon')) {
+				return fail(400, { errorAccount: 'Nomor HP tersebut sudah terdaftar pada akun lain.', field: 'noTelepon' });
+			}
 			return fail(500, {
-				errorAccount: 'Terjadi kesalahan sistem saat membuat akun login.'
+				errorAccount: 'Terjadi kesalahan sistem saat membuat akun login: ' + (errMsg || 'Gagal menyimpan akun')
 			});
 		}
 	},
