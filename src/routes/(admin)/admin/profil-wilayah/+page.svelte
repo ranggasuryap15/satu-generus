@@ -1,9 +1,9 @@
 <!--
   @file src/routes/(admin)/admin/profil-wilayah/+page.svelte
-  @purpose Halaman dedicated profil wilayah (Kelompok/Desa/Daerah) untuk seluruh 4S & Superadmin: manajemen titik lokasi pengajian, rekening Bank & QRIS shodaqoh berotoritas khusus KU & Superadmin, filter wilayah fleksibel adaptif bergaya shodaqoh (scope switcher & searchable select), pelestarian state wilayah saat mutasi, hierarki sub-wilayah, dan navigasi wilayah
+  @purpose Halaman dedicated profil wilayah (Kelompok/Desa/Daerah) untuk seluruh 4S & Superadmin: dashboard metrik jamaah & persentase isrun bulan ini, manajemen titik lokasi pengajian (termasuk 2 opsi pemilihan lokasi desa dari kelompok atau kustom), daftar jadwal pengajian dengan shortcut tambah jadwal, rekening Bank & QRIS shodaqoh, dan filter wilayah adaptif
   @usedBy Route admin '/admin/profil-wilayah'
-  @dependencies @lucide/svelte, $app/navigation, $app/state, Svelte 5 Runes, #lib/components/SearchableSelect.svelte, #lib/components/LocationPicker.svelte, #lib/components/Pagination.svelte, $app/forms (enhance), #lib/keepScroll.ts (keepScrollSubmit), #lib/confirm.svelte (confirmAction)
-  @publicFunctions changeWilayah, openLocationModal, closeLocationModal, openAddRekeningModal, closeAddRekeningModal, openEditRekeningModal, closeEditRekeningModal, copyToClipboard, handleQrisFileChange
+  @dependencies @lucide/svelte, $app/navigation, $app/state, Svelte 5 Runes, #lib/components/SearchableSelect.svelte, #lib/components/LocationPicker.svelte, $app/forms (enhance), #lib/keepScroll.ts (keepScrollSubmit), #lib/confirm.svelte (confirmAction), #lib/jadwal (formatDateIndoFull)
+  @publicFunctions changeWilayah, openLocationModal, closeLocationModal, openAddRekeningModal, closeAddRekeningModal, openEditRekeningModal, closeEditRekeningModal, copyToClipboard, handleQrisFileChange, handlePilihKelompokDesa
   @sideEffects Mengirim form updateLokasi, addRekening, updateRekening, deleteRekening via enhance dengan pelestarian query param scope & id wilayah aktif dan menjaga scroll
 -->
 <script lang="ts">
@@ -15,30 +15,39 @@
 	import { confirmAction } from '#lib/confirm.svelte.ts';
 	import SearchableSelect from '#lib/components/SearchableSelect.svelte';
 	import LocationPicker from '#lib/components/LocationPicker.svelte';
-	import Pagination from '#lib/components/Pagination.svelte';
+	import { formatDateIndoFull } from '#lib/jadwal.js';
 	import {
 		ArrowLeft,
 		Building2,
+		Calendar,
+		CalendarClock,
 		Check,
 		ChevronRight,
+		Clock,
+		Coins,
 		Copy,
 		CreditCard,
 		ExternalLink,
 		Eye,
 		Filter,
 		Globe,
+		HandCoins,
 		Image as ImageIcon,
 		Landmark,
 		Layers,
 		Lock,
 		MapPin,
 		Pencil,
+		Percent,
 		Plus,
 		QrCode,
 		ShieldCheck,
 		Trash2,
+		TrendingUp,
 		Upload,
+		UserCheck,
 		Users,
+		Wallet,
 		X
 	} from '@lucide/svelte';
 	import type { PageData, ActionData } from './$types';
@@ -56,7 +65,6 @@
 		goto(url.toString());
 	}
 
-
 	// State Modal Edit Lokasi
 	let showLocationModal = $state(false);
 	let editLokasiNama = $state('');
@@ -64,6 +72,8 @@
 	let editLongitude = $state('');
 	let editRadiusMeter = $state(100);
 	let editGmapsUrl = $state('');
+	let desaLokasiMode = $state<'kelompok' | 'manual'>('kelompok');
+	let selectedLokasiKelompokId = $state<string | number>('');
 
 	// State Modal Rekening / QRIS
 	let showRekeningModal = $state(false);
@@ -73,7 +83,7 @@
 	let inputNamaBank = $state('');
 	let inputNomorRekening = $state('');
 	let inputAtasNama = $state('');
-	let inputTipeTujuan = $state('Infaq/Shodaqoh');
+	let inputTipeTujuan = $state('Infaq & Shodaqoh');
 	let inputQrisImageUrl = $state('');
 	let inputKeterangan = $state('');
 	let inputIsActive = $state(true);
@@ -87,13 +97,6 @@
 	// State Feedback Copy No Rekening
 	let copiedRekeningId = $state<string | null>(null);
 
-	// State Pagination Sub Wilayah
-	let subPage = $state(1);
-	let subPageSize = $state(10);
-	let paginatedSubWilayah = $derived(
-		(data.subWilayahList || []).slice((subPage - 1) * subPageSize, subPage * subPageSize)
-	);
-
 	function openLocationModal() {
 		if (!data.profilData) return;
 		editLokasiNama = data.profilData.lokasiNama || '';
@@ -101,11 +104,31 @@
 		editLongitude = data.profilData.longitude || '';
 		editRadiusMeter = data.profilData.radiusMeter || 100;
 		editGmapsUrl = data.profilData.gmapsUrl || '';
+
+		if (data.activeScope === 'Desa') {
+			selectedLokasiKelompokId = data.profilData.lokasiKelompokId || '';
+			desaLokasiMode = data.profilData.lokasiKelompokId ? 'kelompok' : 'manual';
+		}
+
 		showLocationModal = true;
 	}
 
 	function closeLocationModal() {
 		showLocationModal = false;
+	}
+
+	function handlePilihKelompokDesa() {
+		if (!selectedLokasiKelompokId) return;
+		const target = (data.kelompokInDesa || []).find(
+			(k: any) => String(k.id) === String(selectedLokasiKelompokId)
+		);
+		if (target) {
+			editLokasiNama = target.lokasiNama || `Masjid Kelompok ${target.nama}`;
+			editLatitude = target.latitude || '';
+			editLongitude = target.longitude || '';
+			editRadiusMeter = target.radiusMeter || 100;
+			editGmapsUrl = target.gmapsUrl || '';
+		}
 	}
 
 	function openAddRekeningModal() {
@@ -115,7 +138,7 @@
 		inputNamaBank = '';
 		inputNomorRekening = '';
 		inputAtasNama = '';
-		inputTipeTujuan = 'Infaq/Shodaqoh';
+		inputTipeTujuan = 'Infaq & Shodaqoh';
 		inputQrisImageUrl = '';
 		qrisFilePreview = null;
 		inputQrisMode = 'upload';
@@ -143,7 +166,7 @@
 			inputQrisMode = 'upload';
 		}
 		inputAtasNama = rek.atasNama;
-		inputTipeTujuan = rek.tipeTujuan || 'Infaq/Shodaqoh';
+		inputTipeTujuan = rek.tipeTujuan || 'Infaq & Shodaqoh';
 		inputKeterangan = rek.keterangan || '';
 		inputIsActive = rek.isActive ?? true;
 		showRekeningModal = true;
@@ -159,7 +182,7 @@
 		if (file) {
 			const reader = new FileReader();
 			reader.onload = (e) => {
-				qrisFilePreview = (e.target?.result as string) || null;
+				qrisFilePreview = e.target?.result as string;
 			};
 			reader.readAsDataURL(file);
 		} else {
@@ -172,86 +195,78 @@
 			await navigator.clipboard.writeText(text);
 			copiedRekeningId = id;
 			setTimeout(() => {
-				if (copiedRekeningId === id) copiedRekeningId = null;
+				copiedRekeningId = null;
 			}, 2000);
-		} catch (e) {
-			console.error('Gagal menyalin:', e);
+		} catch (err) {
+			console.error('Gagal menyalin:', err);
 		}
 	}
 
-	$effect(() => {
-		if (form?.success) {
-			showLocationModal = false;
-			showRekeningModal = false;
-			if (form?.scope && form?.id && typeof window !== 'undefined') {
-				const currentUrl = new URL(window.location.href);
-				if (
-					currentUrl.searchParams.get('scope') !== String(form.scope) ||
-					currentUrl.searchParams.get('id') !== String(form.id)
-				) {
-					currentUrl.searchParams.set('scope', String(form.scope));
-					currentUrl.searchParams.set('id', String(form.id));
-					window.history.replaceState({}, '', currentUrl.toString());
-				}
-			}
-		}
-	});
-
+	// Opsi filter wilayah untuk SearchableSelect
 	const kelompokOptions = $derived(
-		(data.accessibleWilayah?.kelompokList || []).map((k: any) => ({
+		(data.accessibleWilayah.kelompokList || []).map((k: any) => ({
 			value: k.id,
-			label: `${k.nama}${k.desaNama ? ` (${k.desaNama})` : ''}`
+			label: `${k.nama} (Desa ${k.desaNama})`
 		}))
 	);
 
 	const desaOptions = $derived(
-		(data.accessibleWilayah?.desaList || []).map((d: any) => ({
+		(data.accessibleWilayah.desaList || []).map((d: any) => ({
 			value: d.id,
-			label: `${d.nama}${d.daerahNama ? ` (${d.daerahNama})` : ''}`
+			label: `${d.nama} (${d.daerahNama})`
 		}))
 	);
 
 	const daerahOptions = $derived(
-		(data.accessibleWilayah?.daerahList || []).map((dr: any) => ({
+		(data.accessibleWilayah.daerahList || []).map((dr: any) => ({
 			value: dr.id,
 			label: dr.nama
 		}))
 	);
 
-	const standardAlokasi = ['Infaq/Shodaqoh', 'Pembangunan', 'Lainnya'];
-	const alokasiOptions = $derived([
-		...standardAlokasi.map((a) => ({ value: a, label: a })),
-		...(data.customAlokasiList || [])
-			.filter((a: string) => !standardAlokasi.includes(a))
-			.map((a: string) => ({ value: a, label: a, sublabel: 'Kustom Wilayah Ini' }))
-	]);
+	// URL shortcut tambah jadwal pengajian
+	const urlTambahJadwal = $derived.by(() => {
+		if (!data.activeId) return '/admin/jadwal';
+		if (data.activeScope === 'Kelompok') {
+			return `/admin/jadwal?tab=kelompok&kelompokId=${data.activeId}&tambah=1`;
+		}
+		if (data.activeScope === 'Desa') {
+			return `/admin/jadwal?tab=desa&desaId=${data.activeId}&tambah=1`;
+		}
+		return '/admin/jadwal';
+	});
+
+	const urlLihatSemuaJadwal = $derived.by(() => {
+		if (!data.activeId) return '/admin/jadwal';
+		if (data.activeScope === 'Kelompok') {
+			return `/admin/jadwal?tab=kelompok&kelompokId=${data.activeId}`;
+		}
+		if (data.activeScope === 'Desa') {
+			return `/admin/jadwal?tab=desa&desaId=${data.activeId}`;
+		}
+		return '/admin/jadwal';
+	});
 </script>
 
 <svelte:head>
-	<title>Profil Wilayah & Rekening - Admin Satu Generus</title>
+	<title>Profil Wilayah - Satu Generus</title>
 </svelte:head>
 
-<div class="space-y-6">
-
-	<!-- Top Header & Scope Selector -->
-	<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card border border-border p-4 md:p-6 rounded-2xl shadow-xs">
-		<div class="space-y-1">
-			<div class="flex items-center gap-2">
-				<div class="w-9 h-9 rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center border border-teal-500/20">
+<div class="space-y-5 pb-12">
+	<!-- Top Bar Header & Filter Wilayah Adaptif -->
+	<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-border">
+		<div>
+			<div class="flex items-center gap-2.5">
+				<div class="w-10 h-10 rounded-2xl bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0">
 					<Landmark class="w-5 h-5" />
 				</div>
 				<div>
-					<h1 class="text-lg md:text-xl font-bold text-foreground tracking-tight flex items-center gap-2">
-						<span>Profil & Pengaturan Wilayah</span>
-						{#if data.activeScope}
-							<span class="text-xs px-2 py-0.5 rounded-full font-semibold bg-primary/10 text-primary border border-primary/20">
-								{data.activeScope}
-							</span>
-						{/if}
+					<h1 class="text-xl sm:text-2xl font-black text-foreground tracking-tight">
+						Profil Wilayah
 					</h1>
-					<p class="text-xs text-foreground/60">
+					<p class="text-xs text-foreground/60 font-medium">
 						{#if data.profilData}
-							{data.profilData.nama}
+							{data.activeScope} {data.profilData.nama}
 							{#if data.activeScope === 'Kelompok' && data.profilData.desaNama}
 								• Desa {data.profilData.desaNama}
 							{:else if data.activeScope === 'Desa' && data.profilData.daerahNama}
@@ -276,8 +291,8 @@
 							const defaultId = data.accessibleWilayah.kelompokList.length === 1 ? data.accessibleWilayah.kelompokList[0].id : null;
 							changeWilayah('Kelompok', defaultId);
 						}}
-						class="px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer {data.activeScope === 'Kelompok'
-							? 'bg-card text-foreground font-bold shadow-xs'
+						class="px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer {data.activeScope === 'Kelompok'
+							? 'bg-card text-foreground shadow-xs'
 							: 'text-foreground/60 hover:text-foreground'}"
 					>
 						Kelompok
@@ -290,8 +305,8 @@
 							const defaultId = data.accessibleWilayah.desaList.length === 1 ? data.accessibleWilayah.desaList[0].id : null;
 							changeWilayah('Desa', defaultId);
 						}}
-						class="px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer {data.activeScope === 'Desa'
-							? 'bg-card text-foreground font-bold shadow-xs'
+						class="px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer {data.activeScope === 'Desa'
+							? 'bg-card text-foreground shadow-xs'
 							: 'text-foreground/60 hover:text-foreground'}"
 					>
 						Desa
@@ -304,8 +319,8 @@
 							const defaultId = data.accessibleWilayah.daerahList.length === 1 ? data.accessibleWilayah.daerahList[0].id : null;
 							changeWilayah('Daerah', defaultId);
 						}}
-						class="px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer {data.activeScope === 'Daerah'
-							? 'bg-card text-foreground font-bold shadow-xs'
+						class="px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer {data.activeScope === 'Daerah'
+							? 'bg-card text-foreground shadow-xs'
 							: 'text-foreground/60 hover:text-foreground'}"
 					>
 						Daerah
@@ -313,7 +328,7 @@
 				{/if}
 			</div>
 
-			<!-- Dropdown Wilayah Spesifik dengan Fitur Pencarian Real-Time -->
+			<!-- Dropdown Wilayah Spesifik -->
 			<div class="w-60 sm:w-72">
 				{#if data.activeScope === 'Kelompok'}
 					<SearchableSelect
@@ -347,45 +362,45 @@
 
 			<!-- Badge Otoritas Keuangan (KU / Superadmin) -->
 			{#if data.canManageFinance}
-				<span class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[11px] font-bold">
-					<ShieldCheck class="w-3.5 h-3.5" />
-					KU / Superadmin
+				<span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs font-bold">
+					<ShieldCheck class="w-4 h-4" />
+					<span>KU / Superadmin</span>
 				</span>
 			{/if}
 		</div>
 	</div>
 
-	<!-- Bar Navigasi Kembali & Breadcrumbs Hierarki -->
+	<!-- Breadcrumbs Navigasi Hierarki -->
 	{#if data.profilData}
-		<div class="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-card border border-border shadow-xs">
+		<div class="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-card border border-border shadow-xs">
 			<div class="flex items-center gap-2 text-xs">
 				{#if data.activeScope === 'Kelompok'}
 					<a
 						href={`/admin/profil-wilayah?scope=Desa&id=${data.profilData.desaId}`}
-						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-bold transition-colors cursor-pointer"
+						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary font-bold transition-colors cursor-pointer"
 					>
 						<ArrowLeft class="w-3.5 h-3.5" />
-						<span>Kembali ke Desa {data.profilData.desaNama}</span>
+						<span>Ke Desa {data.profilData.desaNama}</span>
 					</a>
 				{:else if data.activeScope === 'Desa'}
 					<a
 						href={`/admin/profil-wilayah?scope=Daerah&id=${data.profilData.daerahId}`}
-						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-bold transition-colors cursor-pointer"
+						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary font-bold transition-colors cursor-pointer"
 					>
 						<ArrowLeft class="w-3.5 h-3.5" />
-						<span>Kembali ke Daerah {data.profilData.daerahNama}</span>
+						<span>Ke Daerah {data.profilData.daerahNama}</span>
 					</a>
 				{/if}
 
 				<a
 					href="/admin/wilayah"
-					class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-foreground/60 hover:text-foreground hover:bg-secondary/60 transition-colors text-xs font-medium"
+					class="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-foreground/70 hover:text-foreground hover:bg-secondary/60 transition-colors text-xs font-semibold"
 				>
-					<span>Semua Data Wilayah</span>
+					<span>Struktur Administratif Wilayah ➔</span>
 				</a>
 			</div>
 
-			<!-- Breadcrumbs Hierarki Aktif -->
+			<!-- Breadcrumbs Path -->
 			<nav class="flex items-center gap-1.5 text-xs text-foreground/60 flex-wrap" aria-label="Hierarki Wilayah">
 				{#if data.activeScope === 'Kelompok'}
 					<a href={`/admin/profil-wilayah?scope=Daerah&id=${data.profilData.daerahId}`} class="hover:text-primary transition-colors">
@@ -412,37 +427,127 @@
 
 	<!-- Empty State jika belum ada wilayah yang dipilih -->
 	{#if !data.profilData}
-		<div class="p-12 text-center bg-card border border-border rounded-2xl shadow-xs space-y-3">
-			<div class="w-12 h-12 rounded-2xl bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center mx-auto shadow-2xs">
-				<Filter class="w-6 h-6" />
+		<div class="p-12 text-center bg-card border border-border rounded-3xl shadow-xs space-y-3">
+			<div class="w-14 h-14 rounded-2xl bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center mx-auto shadow-2xs">
+				<Filter class="w-7 h-7" />
 			</div>
 			<div>
-				<h3 class="text-sm sm:text-base font-bold text-foreground">Pilih Wilayah Terlebih Dahulu</h3>
-				<p class="text-xs text-foreground/60 max-w-md mx-auto mt-1 leading-relaxed">
-					Silakan tentukan tingkat wilayah dan pilih {data.activeScope ? data.activeScope.toLowerCase() : 'wilayah'} pada menu di atas untuk membuka profil lokasi, rekening shodaqoh resmi, dan hierarki wilayah.
+				<h3 class="text-base sm:text-lg font-bold text-foreground">Pilih Wilayah Terlebih Dahulu</h3>
+				<p class="text-xs sm:text-sm text-foreground/60 max-w-md mx-auto mt-1 leading-relaxed">
+					Silakan tentukan tingkat wilayah dan pilih {data.activeScope ? data.activeScope.toLowerCase() : 'wilayah'} pada menu di atas untuk membuka dashboard statistik jamaah, lokasi pengajian, dan rekening resmi.
 				</p>
 			</div>
 		</div>
 	{:else}
-		<!-- 1. BLOK INFORMASI LOKASI & TEMPAT PENGAJIAN -->
-		<div class="bg-card border border-border rounded-2xl p-5 shadow-xs space-y-4">
+		<!-- 1. DASHBOARD STATISTIK JAMAAH & CAPAIAN ISRUN -->
+		<section class="space-y-3">
+			<div class="flex items-center justify-between px-1">
+				<div class="flex items-center gap-2">
+					<TrendingUp class="w-5 h-5 text-emerald-500" />
+					<h2 class="text-base sm:text-lg font-bold text-foreground tracking-tight">
+						Dashboard Statistik {data.activeScope}
+					</h2>
+				</div>
+				<span class="text-xs text-foreground/50 font-medium">
+					Bulan {data.dashboardStats.bulanIni} / {data.dashboardStats.tahunIni}
+				</span>
+			</div>
+
+			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+				<!-- Card 1: Total Jamaah -->
+				<div class="bg-card border border-border rounded-2xl p-4 sm:p-4.5 shadow-xs flex items-center gap-3.5">
+					<div class="w-12 h-12 rounded-2xl bg-sky-500/10 text-sky-500 flex items-center justify-center shrink-0">
+						<Users class="w-6 h-6" />
+					</div>
+					<div class="min-w-0">
+						<span class="text-xs text-foreground/60 font-semibold block">Total Jamaah Aktif</span>
+						<h3 class="text-xl sm:text-2xl font-black text-foreground tracking-tight mt-0.5">
+							{data.dashboardStats.totalJamaah} <span class="text-xs font-bold text-foreground/60">Jiwa</span>
+						</h3>
+						<p class="text-[11px] text-foreground/50 truncate mt-0.5">
+							{data.dashboardStats.totalKk} KK • {data.dashboardStats.totalLaki} L / {data.dashboardStats.totalPerempuan} P
+						</p>
+					</div>
+				</div>
+
+				<!-- Card 2: Wajib Isrun -->
+				<div class="bg-card border border-border rounded-2xl p-4 sm:p-4.5 shadow-xs flex items-center gap-3.5">
+					<div class="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+						<HandCoins class="w-6 h-6" />
+					</div>
+					<div class="min-w-0">
+						<span class="text-xs text-foreground/60 font-semibold block">Wajib Isrun (FR)</span>
+						<h3 class="text-xl sm:text-2xl font-black text-amber-500 tracking-tight mt-0.5">
+							{data.dashboardStats.totalWajibIsrun} <span class="text-xs font-bold text-foreground/60">Jamaah</span>
+						</h3>
+						<p class="text-[11px] text-foreground/50 truncate mt-0.5">
+							Kewajiban setoran bulanan
+						</p>
+					</div>
+				</div>
+
+				<!-- Card 3: Persentase Capaian Isrun Bulan Ini -->
+				<div class="bg-card border border-border rounded-2xl p-4 sm:p-4.5 shadow-xs space-y-2">
+					<div class="flex items-center justify-between">
+						<span class="text-xs text-foreground/60 font-semibold">Capaian Isrun Bulan Ini</span>
+						<span class="text-xs font-bold {data.dashboardStats.persenBayarIsrun >= 80 ? 'text-emerald-500' : 'text-amber-500'}">
+							{data.dashboardStats.persenBayarIsrun}%
+						</span>
+					</div>
+
+					<div class="flex items-center gap-2">
+						<div class="flex-1 bg-secondary rounded-full h-2.5 overflow-hidden">
+							<div
+								class="h-full rounded-full transition-all {data.dashboardStats.persenBayarIsrun >= 80 ? 'bg-emerald-500' : 'bg-amber-500'}"
+								style={`width: ${Math.min(100, data.dashboardStats.persenBayarIsrun)}%`}
+							></div>
+						</div>
+					</div>
+
+					<div class="flex items-center justify-between text-[11px] text-foreground/50">
+						<span>{data.dashboardStats.sudahBayarIsrunCount} dari {data.dashboardStats.totalWajibIsrun} setor</span>
+						<span class="font-bold text-foreground">Rp{data.dashboardStats.totalNominalIsrunBulanIni.toLocaleString('id-ID')}</span>
+					</div>
+				</div>
+
+				<!-- Card 4: Pengajian & Rekening -->
+				<div class="bg-card border border-border rounded-2xl p-4 sm:p-4.5 shadow-xs flex items-center gap-3.5">
+					<div class="w-12 h-12 rounded-2xl bg-purple-500/10 text-purple-500 flex items-center justify-center shrink-0">
+						<CalendarClock class="w-6 h-6" />
+					</div>
+					<div class="min-w-0">
+						<span class="text-xs text-foreground/60 font-semibold block">Sesi Pengajian & Rekening</span>
+						<h3 class="text-lg sm:text-xl font-black text-foreground tracking-tight mt-0.5">
+							{data.daftarJadwal.length} Sesi • {data.daftarRekening.length} Rek/QRIS
+						</h3>
+						<p class="text-[11px] text-foreground/50 truncate mt-0.5">
+							Tersinkronisasi aktif
+						</p>
+					</div>
+				</div>
+			</div>
+		</section>
+
+		<!-- 2. BLOK INFORMASI LOKASI & TEMPAT PENGAJIAN -->
+		<section class="bg-card border border-border rounded-3xl p-5 sm:p-6 shadow-xs space-y-4">
 			<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
 				<div class="flex items-center gap-3">
-					<div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-						<Building2 class="w-5 h-5" />
+					<div class="w-11 h-11 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+						<Building2 class="w-6 h-6" />
 					</div>
 					<div>
-						<h2 class="text-base font-bold text-foreground leading-tight">
-							{data.profilData.nama}
-						</h2>
-						<p class="text-xs text-foreground/50">
-							{#if data.activeScope === 'Kelompok'}
-								Kelompok • Desa {data.profilData.desaNama} • {data.profilData.daerahNama}
-							{:else if data.activeScope === 'Desa'}
-								Desa • Kecamatan {data.profilData.kecamatan || '-'} • {data.profilData.daerahNama}
-							{:else}
-								Daerah • {data.profilData.kotaKabupaten}, {data.profilData.provinsi}
+						<div class="flex items-center gap-2 flex-wrap">
+							<h2 class="text-base sm:text-lg font-bold text-foreground leading-tight">
+								Lokasi Tempat Pengajian
+							</h2>
+							{#if data.activeScope === 'Desa' && data.profilData.lokasiKelompokId}
+								<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+									Mewarisi Kelompok
+								</span>
 							{/if}
+						</div>
+						<p class="text-xs text-foreground/50 mt-0.5">
+							Titik pusat verifikasi GPS radius presensi mandiri jamaah {data.activeScope} {data.profilData.nama}.
 						</p>
 					</div>
 				</div>
@@ -450,76 +555,171 @@
 				<button
 					type="button"
 					onclick={openLocationModal}
-					class="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors shadow-xs"
+					class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs sm:text-sm font-bold hover:bg-primary/90 transition-all shadow-xs cursor-pointer active:scale-95"
 				>
-					<Pencil class="w-3.5 h-3.5" />
+					<Pencil class="w-4 h-4" />
 					<span>Ubah Titik Lokasi</span>
 				</button>
 			</div>
 
 			<!-- Detail Lokasi Geotagging -->
 			<div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-				<div class="p-3.5 rounded-xl bg-secondary/40 border border-border/60 space-y-1">
-					<span class="text-foreground/50 font-medium">Nama Tempat / Majelis:</span>
-					<p class="text-sm font-semibold text-foreground">
+				<div class="p-4 rounded-2xl bg-secondary/40 border border-border/60 space-y-1">
+					<span class="text-foreground/50 font-medium block">Nama Tempat / Masjid:</span>
+					<p class="text-sm sm:text-base font-bold text-foreground">
 						{data.profilData.lokasiNama || 'Belum diisi'}
 					</p>
 				</div>
 
-				<div class="p-3.5 rounded-xl bg-secondary/40 border border-border/60 space-y-1">
-					<span class="text-foreground/50 font-medium">Koordinat GPS & Radius:</span>
+				<div class="p-4 rounded-2xl bg-secondary/40 border border-border/60 space-y-1">
+					<span class="text-foreground/50 font-medium block">Koordinat GPS & Radius:</span>
 					{#if data.profilData.latitude && data.profilData.longitude}
-						<div class="flex items-center gap-2">
-							<span class="font-mono font-semibold text-foreground">
+						<div class="flex items-center gap-2 flex-wrap pt-0.5">
+							<span class="font-mono font-bold text-foreground text-xs sm:text-sm">
 								{data.profilData.latitude}, {data.profilData.longitude}
 							</span>
-							<span class="px-1.5 py-0.5 rounded bg-primary/10 text-primary font-bold text-[10px]">
+							<span class="px-2 py-0.5 rounded-md bg-primary/10 text-primary font-bold text-xs">
 								±{data.profilData.radiusMeter || 100}m
 							</span>
 						</div>
 					{:else}
-						<p class="text-foreground/50 italic">Belum disetel pin koordinat</p>
+						<p class="text-foreground/50 italic pt-0.5">Belum disetel pin koordinat</p>
 					{/if}
 				</div>
 
-				<div class="p-3.5 rounded-xl bg-secondary/40 border border-border/60 space-y-1">
-					<span class="text-foreground/50 font-medium">Navigasi Peta Google:</span>
-					<div>
+				<div class="p-4 rounded-2xl bg-secondary/40 border border-border/60 space-y-1">
+					<span class="text-foreground/50 font-medium block">Navigasi Peta Google:</span>
+					<div class="pt-0.5">
 						{#if data.profilData.gmapsUrl}
 							<a
 								href={data.profilData.gmapsUrl}
 								target="_blank"
 								rel="noopener noreferrer"
-								class="inline-flex items-center gap-1 text-primary hover:underline font-semibold"
+								class="inline-flex items-center gap-1.5 text-primary hover:underline font-bold text-xs sm:text-sm"
 							>
 								<span>Buka di Google Maps</span>
-								<ExternalLink class="w-3.5 h-3.5" />
+								<ExternalLink class="w-4 h-4" />
 							</a>
 						{:else if data.profilData.latitude && data.profilData.longitude}
 							<a
 								href={`https://www.google.com/maps?q=${data.profilData.latitude},${data.profilData.longitude}`}
 								target="_blank"
 								rel="noopener noreferrer"
-								class="inline-flex items-center gap-1 text-primary hover:underline font-semibold"
+								class="inline-flex items-center gap-1.5 text-primary hover:underline font-bold text-xs sm:text-sm"
 							>
 								<span>Buka Pin Koordinat</span>
-								<ExternalLink class="w-3.5 h-3.5" />
+								<ExternalLink class="w-4 h-4" />
 							</a>
 						{:else}
-							<span class="text-foreground/50 italic">Tautan belum tersedia</span>
+							<span class="text-foreground/50 italic">Tautan peta belum disetel</span>
 						{/if}
 					</div>
 				</div>
 			</div>
-		</div>
+		</section>
 
-		<!-- 2. BLOK REKENING & QRIS SHODAQOH / INFAQ -->
-		<div class="bg-card border border-border rounded-2xl p-5 shadow-xs space-y-4">
+		<!-- 3. DAFTAR JADWAL PENGAJIAN WILAYAH & SHORTCUT TAMBAH -->
+		<section class="bg-card border border-border rounded-3xl p-5 sm:p-6 shadow-xs space-y-4">
+			<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
+				<div class="flex items-center gap-3">
+					<div class="w-11 h-11 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+						<CalendarClock class="w-6 h-6" />
+					</div>
+					<div>
+						<h2 class="text-base sm:text-lg font-bold text-foreground leading-tight">
+							Jadwal Pengajian {data.activeScope}
+						</h2>
+						<p class="text-xs text-foreground/50 mt-0.5">
+							Sesi kegiatan pengajian terdekat yang terjadwal untuk wilayah ini.
+						</p>
+					</div>
+				</div>
+
+				<div class="flex items-center gap-2">
+					<a
+						href={urlLihatSemuaJadwal}
+						class="px-3.5 py-2 rounded-xl text-xs font-semibold text-foreground/70 hover:text-foreground hover:bg-secondary transition-colors"
+					>
+						Lihat Semua
+					</a>
+					<a
+						href={urlTambahJadwal}
+						class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs sm:text-sm font-black transition-all shadow-xs cursor-pointer active:scale-95"
+					>
+						<Plus class="w-4 h-4 stroke-[3]" />
+						<span>Tambah Jadwal</span>
+					</a>
+				</div>
+			</div>
+
+			<!-- List Sesi Pengajian -->
+			{#if data.daftarJadwal.length === 0}
+				<div class="p-8 text-center rounded-2xl border border-dashed border-border space-y-2">
+					<p class="text-xs sm:text-sm text-foreground/50">
+						Belum ada sesi pengajian terdekat untuk {data.activeScope} ini.
+					</p>
+					<div>
+						<a
+							href={urlTambahJadwal}
+							class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold transition-colors"
+						>
+							<Plus class="w-3.5 h-3.5" />
+							<span>Buat Sesi Pengajian Sekarang</span>
+						</a>
+					</div>
+				</div>
+			{:else}
+				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+					{#each data.daftarJadwal as jadwal}
+						<div class="p-4 rounded-2xl bg-secondary/30 border border-border/80 space-y-2 hover:border-emerald-500/40 transition-colors">
+							<div class="flex items-center justify-between gap-2">
+								<span class="text-xs font-bold text-foreground">
+									{formatDateIndoFull(jadwal.tanggal)}
+								</span>
+								{#if jadwal.status === 'libur'}
+									<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20">
+										Libur
+									</span>
+								{:else if jadwal.templateId}
+									<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+										Rutin
+									</span>
+								{:else}
+									<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-secondary text-foreground/70 border border-border">
+										Manual
+									</span>
+								{/if}
+							</div>
+
+							<h3 class="text-sm font-bold text-foreground leading-snug line-clamp-1">
+								{jadwal.namaKegiatan}
+							</h3>
+
+							<div class="flex items-center gap-3 text-xs text-foreground/60 flex-wrap pt-0.5">
+								<span class="flex items-center gap-1 font-mono text-[11px]">
+									<Clock class="w-3.5 h-3.5" />
+									<span>{jadwal.jamMulai}{jadwal.jamSelesai ? ` - ${jadwal.jamSelesai}` : ''} WIB</span>
+								</span>
+								{#if jadwal.lokasiNama}
+									<span class="flex items-center gap-1 text-[11px] truncate">
+										<MapPin class="w-3.5 h-3.5 shrink-0" />
+										<span class="truncate">{jadwal.lokasiNama}</span>
+									</span>
+								{/if}
+							</div>
+						</div>
+					{/each}
+				</div>
+			{/if}
+		</section>
+
+		<!-- 4. BLOK REKENING & QRIS SHODAQOH / INFAQ -->
+		<section class="bg-card border border-border rounded-3xl p-5 sm:p-6 shadow-xs space-y-4">
 			<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
 				<div>
 					<div class="flex items-center gap-2">
 						<CreditCard class="w-5 h-5 text-primary" />
-						<h2 class="text-base font-bold text-foreground">Rekening & QRIS Shodaqoh</h2>
+						<h2 class="text-base sm:text-lg font-bold text-foreground">Rekening & QRIS Shodaqoh</h2>
 						{#if data.canManageFinance}
 							<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
 								<ShieldCheck class="w-3.5 h-3.5" />
@@ -533,7 +733,7 @@
 						{/if}
 					</div>
 					<p class="text-xs text-foreground/50 mt-0.5">
-						Rekening resmi penerimaan infaq/shodaqoh jamaah untuk {data.activeScope} {data.profilData.nama}.
+						Rekening resmi penerimaan infaq dan shodaqoh jamaah untuk {data.activeScope} {data.profilData.nama}.
 					</p>
 				</div>
 
@@ -541,7 +741,7 @@
 					<button
 						type="button"
 						onclick={openAddRekeningModal}
-						class="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors shadow-xs"
+						class="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs sm:text-sm font-bold hover:bg-primary/90 transition-all shadow-xs cursor-pointer active:scale-95"
 					>
 						<Plus class="w-4 h-4" />
 						<span>Tambah Rekening / QRIS</span>
@@ -551,13 +751,13 @@
 
 			<!-- Daftar Kartu Rekening -->
 			{#if data.daftarRekening.length === 0}
-				<div class="p-8 text-center text-foreground/50 text-xs rounded-xl border border-dashed border-border">
+				<div class="p-8 text-center text-foreground/50 text-xs sm:text-sm rounded-2xl border border-dashed border-border">
 					Belum ada nomor rekening atau QRIS shodaqoh yang ditambahkan untuk wilayah ini.
 				</div>
 			{:else}
 				<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
 					{#each data.daftarRekening as rek}
-						<div class="bg-card border border-border rounded-xl p-4 shadow-xs space-y-3 relative overflow-hidden flex flex-col justify-between">
+						<div class="bg-card border border-border rounded-2xl p-4 shadow-xs space-y-3 relative overflow-hidden flex flex-col justify-between">
 							<div class="space-y-2">
 								<div class="flex items-start justify-between gap-2">
 									<div>
@@ -582,7 +782,7 @@
 									{/if}
 								</div>
 
-								<div class="bg-secondary/40 rounded-lg p-2.5 space-y-1">
+								<div class="bg-secondary/40 rounded-xl p-3 space-y-1">
 									<div class="flex items-center justify-between gap-2">
 										<span class="font-mono text-sm font-bold text-foreground tracking-wide select-all">
 											{#if rek.qrisImageUrl && (!rek.nomorRekening || rek.nomorRekening === '-')}
@@ -658,157 +858,159 @@
 					{/each}
 				</div>
 			{/if}
-		</div>
+		</section>
 
-		<!-- 3. BLOK HIERARKI SUB-WILAYAH BAWAHAN -->
-		<div class="bg-card border border-border rounded-2xl p-5 shadow-xs space-y-4">
-			<div class="flex items-center justify-between pb-3 border-b border-border">
+		<!-- 5. TAUTAN RUJUKAN MANAJEMEN STRUKTUR SUB-WILAYAH (Daftar SUB Dipindahkan ke /admin/wilayah) -->
+		<section class="p-4 sm:p-5 rounded-2xl bg-secondary/30 border border-border flex items-center justify-between gap-3 flex-wrap">
+			<div class="flex items-center gap-3">
+				<div class="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+					<Layers class="w-5 h-5" />
+				</div>
 				<div>
-					<h2 class="text-base font-bold text-foreground">
-						{#if data.activeScope === 'Kelompok'}
-							Daftar Sub-Kelompok (RT / Blok)
-						{:else if data.activeScope === 'Desa'}
-							Daftar Kelompok Binaan
-						{:else}
-							Daftar Desa dalam Daerah
-						{/if}
-					</h2>
-					<p class="text-xs text-foreground/50 mt-0.5">
-						Unit struktur bawahan yang berada di bawah wewenang {data.activeScope} {data.profilData.nama}.
+					<h3 class="text-xs sm:text-sm font-bold text-foreground">
+						Struktur Hirarki Unit Bawahan
+					</h3>
+					<p class="text-[11px] sm:text-xs text-foreground/50">
+						Pengelolaan detail RT/Blok, penambahan kelompok baru, dan administrasi hierarki wilayah dapat diakses di menu Manajemen Wilayah.
 					</p>
 				</div>
 			</div>
-
-			{#if data.subWilayahList.length === 0}
-				<div class="p-6 text-center text-foreground/50 text-xs rounded-xl border border-dashed border-border">
-					Belum ada data bawahan tercatat.
-				</div>
-			{:else}
-				<!-- Tampilan Desktop Table -->
-				<div class="border border-border rounded-xl overflow-hidden shadow-xs">
-					<table class="w-full text-left text-sm">
-						<thead class="bg-secondary/60 text-foreground/70 uppercase text-xs tracking-wider border-b border-border">
-							<tr>
-								<th class="py-3 px-4 font-semibold">Nama Unit</th>
-								{#if data.activeScope === 'Kelompok'}
-									<th class="py-3 px-4 font-semibold">Keterangan</th>
-								{:else if data.activeScope === 'Desa'}
-									<th class="py-3 px-4 font-semibold">Lokasi Tempat</th>
-									<th class="py-3 px-4 font-semibold text-right">Aksi</th>
-								{:else}
-									<th class="py-3 px-4 font-semibold">Kecamatan</th>
-									<th class="py-3 px-4 font-semibold">Jumlah Kelompok</th>
-									<th class="py-3 px-4 font-semibold text-right">Aksi</th>
-								{/if}
-							</tr>
-						</thead>
-						<tbody class="divide-y divide-border">
-							{#each paginatedSubWilayah as item}
-								<tr class="hover:bg-secondary/30 transition-colors">
-									<td class="py-3 px-4 font-semibold text-foreground">
-										{item.nama}
-									</td>
-									{#if data.activeScope === 'Kelompok'}
-										<td class="py-3 px-4 text-foreground/70 text-xs">
-											{item.keterangan || '-'}
-										</td>
-									{:else if data.activeScope === 'Desa'}
-										<td class="py-3 px-4 text-foreground/70 text-xs">
-											{item.lokasiNama || '-'}
-										</td>
-										<td class="py-3 px-4 text-right">
-											<a
-												href={`/admin/profil-wilayah?scope=Kelompok&id=${item.id}`}
-												class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground font-semibold text-xs transition-colors"
-											>
-												<span>Buka Profil</span>
-											</a>
-										</td>
-									{:else}
-										<td class="py-3 px-4 text-foreground/70 text-xs">
-											{item.kecamatan || '-'}
-										</td>
-										<td class="py-3 px-4 text-foreground/70 text-xs font-semibold">
-											{item.kelompokCount || 0} Kelompok
-										</td>
-										<td class="py-3 px-4 text-right">
-											<a
-												href={`/admin/profil-wilayah?scope=Desa&id=${item.id}`}
-												class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground font-semibold text-xs transition-colors"
-											>
-												<span>Buka Profil</span>
-											</a>
-										</td>
-									{/if}
-								</tr>
-							{/each}
-						</tbody>
-					</table>
-					<div class="p-4 border-t border-border">
-						<Pagination
-							bind:currentPage={subPage}
-							bind:pageSize={subPageSize}
-							totalItems={data.subWilayahList.length}
-							pageSizeOptions={[5, 10, 25]}
-						/>
-					</div>
-				</div>
-			{/if}
-		</div>
+			<a
+				href="/admin/wilayah"
+				class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-card hover:bg-secondary text-primary border border-border text-xs font-bold transition-all shadow-xs"
+			>
+				<span>Buka Manajemen Wilayah</span>
+				<ChevronRight class="w-3.5 h-3.5" />
+			</a>
+		</section>
 	{/if}
 </div>
 
-<!-- MODAL FORM UBAH LOKASI GEOTAGGING -->
+<!-- MODAL FORM EDIT LOKASI PENGAJIAN (DENGAN 2 OPSI UNTUK DESA) -->
 {#if showLocationModal}
 	<div
-		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
+		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150"
 		role="dialog"
 		aria-modal="true"
 		onclick={(e) => {
 			if (e.target === e.currentTarget) closeLocationModal();
 		}}
 	>
-		<div class="bg-card border border-border rounded-2xl max-w-xl w-full p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
+		<div class="bg-card border border-border rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
 			<div class="flex items-center justify-between pb-3 border-b border-border">
-				<div class="flex items-center gap-2">
-					<MapPin class="w-5 h-5 text-primary" />
-					<h3 class="font-bold text-base text-foreground">
-						Atur Titik Lokasi ({data.activeScope} {data.profilData?.nama})
-					</h3>
+				<div class="flex items-center gap-2.5">
+					<div class="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+						<MapPin class="w-5 h-5" />
+					</div>
+					<div>
+						<h3 class="font-bold text-base text-foreground">
+							Ubah Lokasi Pengajian {data.activeScope}
+						</h3>
+						<p class="text-xs text-foreground/50">
+							{data.profilData?.nama}
+						</p>
+					</div>
 				</div>
 				<button
 					type="button"
 					onclick={closeLocationModal}
-					class="p-1 rounded-lg text-foreground/40 hover:text-foreground hover:bg-secondary transition-colors"
+					class="p-1 rounded-lg text-foreground/40 hover:text-foreground hover:bg-secondary transition-colors cursor-pointer"
 				>
 					<X class="w-5 h-5" />
 				</button>
 			</div>
 
-			<form method="POST" action={`?/updateLokasi&scope=${data.activeScope}&id=${data.activeId}`} use:enhance={confirmSubmit(
-				{
-					title: 'Simpan Perubahan Lokasi?',
-					message: 'Pastikan nama tempat dan koordinat lokasi sudah sesuai. Yakin ingin menyimpan perubahan lokasi ini?',
-					confirmText: 'Ya, Simpan',
-					cancelText: 'Batal',
-					variant: 'primary'
-				},
-				keepScrollSubmit()
-			)} class="space-y-4">
+			<form
+				method="POST"
+				action={`?/updateLokasi&scope=${data.activeScope}&id=${data.activeId}`}
+				use:enhance={confirmSubmit(
+					{
+						title: 'Simpan Perubahan Lokasi?',
+						message: 'Pastikan nama tempat dan koordinat lokasi sudah sesuai. Yakin ingin menyimpan perubahan lokasi ini?',
+						confirmText: 'Ya, Simpan',
+						cancelText: 'Batal',
+						variant: 'primary'
+					},
+					keepScrollSubmit()
+				)}
+				class="space-y-4"
+			>
 				<input type="hidden" name="scope" value={data.activeScope} />
 				<input type="hidden" name="id" value={data.activeId} />
+				<input
+					type="hidden"
+					name="lokasiKelompokId"
+					value={data.activeScope === 'Desa' && desaLokasiMode === 'kelompok' ? selectedLokasiKelompokId : ''}
+				/>
+
+				<!-- 2 OPSI KHUSUS DESA: PILIH DARI KELOMPOK ATAU KUSTOM -->
+				{#if data.activeScope === 'Desa'}
+					<div class="p-3.5 bg-secondary/50 rounded-2xl border border-border space-y-2.5">
+						<label class="block text-xs font-bold text-foreground">
+							Sumber Penentuan Lokasi Pengajian Desa:
+						</label>
+						<div class="grid grid-cols-2 gap-2 p-1 bg-card rounded-xl border border-border text-xs">
+							<button
+								type="button"
+								onclick={() => (desaLokasiMode = 'kelompok')}
+								class="py-2 px-3 rounded-lg font-bold transition-all cursor-pointer {desaLokasiMode === 'kelompok'
+									? 'bg-primary text-primary-foreground shadow-xs'
+									: 'text-foreground/60 hover:text-foreground'}"
+							>
+								Pilih dari Kelompok Binaan
+							</button>
+							<button
+								type="button"
+								onclick={() => {
+									desaLokasiMode = 'manual';
+									selectedLokasiKelompokId = '';
+								}}
+								class="py-2 px-3 rounded-lg font-bold transition-all cursor-pointer {desaLokasiMode === 'manual'
+									? 'bg-primary text-primary-foreground shadow-xs'
+									: 'text-foreground/60 hover:text-foreground'}"
+							>
+								Kustom / Cari Peta
+							</button>
+						</div>
+
+						{#if desaLokasiMode === 'kelompok'}
+							<div class="space-y-1.5 pt-1">
+								<label for="pilihKelompokDesa" class="block text-xs font-semibold text-foreground/80">
+									Pilih Kelompok Acuan:
+								</label>
+								<select
+									id="pilihKelompokDesa"
+									bind:value={selectedLokasiKelompokId}
+									onchange={handlePilihKelompokDesa}
+									class="w-full bg-card border border-border rounded-xl px-3.5 py-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-semibold"
+								>
+									<option value="">-- Pilih Kelompok Binaan di Desa Ini --</option>
+									{#each (data.kelompokInDesa || []) as k}
+										<option value={k.id}>
+											{k.nama} {k.lokasiNama ? `(${k.lokasiNama})` : ''}
+										</option>
+									{/each}
+								</select>
+								<p class="text-[11px] text-foreground/60 leading-relaxed">
+									Nama tempat, titik koordinat GPS, dan radius akan otomatis disalin dari kelompok terpilih.
+								</p>
+							</div>
+						{/if}
+					</div>
+				{/if}
 
 				<div>
 					<label for="editLokasiNama" class="block text-xs font-semibold text-foreground mb-1">
-						Nama Tempat / Masjid / Majelis
+						Nama Tempat / Masjid / Majelis *
 					</label>
 					<input
 						type="text"
 						id="editLokasiNama"
 						name="lokasiNama"
+						required
 						bind:value={editLokasiNama}
 						placeholder="Contoh: Masjid Baitul Makmur, Aula Kelompok 1"
-						class="w-full bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+						class="w-full bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-medium"
 					/>
 				</div>
 
@@ -824,13 +1026,13 @@
 					<button
 						type="button"
 						onclick={closeLocationModal}
-						class="px-4 py-2 rounded-xl text-xs font-semibold text-foreground/70 hover:bg-secondary transition-colors"
+						class="px-4 py-2 rounded-xl text-xs font-semibold text-foreground/70 hover:bg-secondary transition-colors cursor-pointer"
 					>
 						Batal
 					</button>
 					<button
 						type="submit"
-						class="px-4 py-2 rounded-xl text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-xs"
+						class="px-5 py-2 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-xs cursor-pointer active:scale-95"
 					>
 						Simpan Perubahan Lokasi
 					</button>
@@ -843,14 +1045,14 @@
 <!-- MODAL FORM TAMBAH / UBAH REKENING SHODAQOH -->
 {#if showRekeningModal}
 	<div
-		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
+		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150"
 		role="dialog"
 		aria-modal="true"
 		onclick={(e) => {
 			if (e.target === e.currentTarget) closeRekeningModal();
 		}}
 	>
-		<div class="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
+		<div class="bg-card border border-border rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
 			<div class="flex items-center justify-between pb-3 border-b border-border">
 				<div class="flex items-center gap-2">
 					{#if inputMetode === 'qris'}
@@ -871,7 +1073,7 @@
 				<button
 					type="button"
 					onclick={closeRekeningModal}
-					class="p-1 rounded-lg text-foreground/40 hover:text-foreground hover:bg-secondary transition-colors"
+					class="p-1 rounded-lg text-foreground/40 hover:text-foreground hover:bg-secondary transition-colors cursor-pointer"
 				>
 					<X class="w-5 h-5" />
 				</button>
@@ -902,7 +1104,7 @@
 					<input type="hidden" name="rekeningId" value={editRekeningId} />
 				{/if}
 
-				<!-- 1. PILIHAN METODE (BANK VS QRIS) DI PALING ATAS -->
+				<!-- Pilihan Metode (Bank vs QRIS) -->
 				<div>
 					<span class="block text-xs font-semibold text-foreground mb-1.5">
 						Metode Transaksi Shodaqoh *
@@ -911,7 +1113,7 @@
 						<button
 							type="button"
 							onclick={() => (inputMetode = 'bank')}
-							class="flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all {inputMetode === 'bank' ? 'bg-card text-foreground shadow-xs border border-border' : 'text-foreground/60 hover:text-foreground'}"
+							class="flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer {inputMetode === 'bank' ? 'bg-card text-foreground shadow-xs border border-border' : 'text-foreground/60 hover:text-foreground'}"
 						>
 							<CreditCard class="w-4 h-4 {inputMetode === 'bank' ? 'text-primary' : ''}" />
 							<span>Transfer Bank</span>
@@ -919,31 +1121,32 @@
 						<button
 							type="button"
 							onclick={() => (inputMetode = 'qris')}
-							class="flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all {inputMetode === 'qris' ? 'bg-card text-foreground shadow-xs border border-border' : 'text-foreground/60 hover:text-foreground'}"
+							class="flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer {inputMetode === 'qris' ? 'bg-card text-foreground shadow-xs border border-border' : 'text-foreground/60 hover:text-foreground'}"
 						>
 							<QrCode class="w-4 h-4 {inputMetode === 'qris' ? 'text-primary' : ''}" />
-							<span>QRIS Shodaqoh</span>
+							<span>QRIS Digital</span>
 						</button>
 					</div>
 				</div>
 
-				<!-- 2. FORM KHUSUS TRANSFER BANK -->
-				{#if inputMetode === 'bank'}
-					<div>
-						<label for="inputNamaBank" class="block text-xs font-semibold text-foreground mb-1">
-							Nama Bank / E-Wallet *
-						</label>
-						<input
-							type="text"
-							id="inputNamaBank"
-							name="namaBank"
-							bind:value={inputNamaBank}
-							placeholder="Misal: Bank Syariah Indonesia (BSI), BCA, Bank Mandiri"
-							required
-							class="w-full bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-						/>
-					</div>
+				<!-- Nama Bank / Layanan -->
+				<div>
+					<label for="inputNamaBank" class="block text-xs font-semibold text-foreground mb-1">
+						{inputMetode === 'qris' ? 'Nama Layanan / Penyelenggara QRIS *' : 'Nama Bank *'}
+					</label>
+					<input
+						type="text"
+						id="inputNamaBank"
+						name="namaBank"
+						required
+						bind:value={inputNamaBank}
+						placeholder={inputMetode === 'qris' ? 'Contoh: QRIS BSI, QRIS ShopeePay, QRIS BCA' : 'Contoh: Bank Syariah Indonesia (BSI), BCA, Mandiri'}
+						class="w-full bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+					/>
+				</div>
 
+				<!-- Nomor Rekening (Wajib untuk Bank, Opsional untuk QRIS) -->
+				{#if inputMetode === 'bank'}
 					<div>
 						<label for="inputNomorRekening" class="block text-xs font-semibold text-foreground mb-1">
 							Nomor Rekening *
@@ -952,193 +1155,131 @@
 							type="text"
 							id="inputNomorRekening"
 							name="nomorRekening"
+							required
+							inputmode="numeric"
 							bind:value={inputNomorRekening}
-							placeholder="Misal: 7123456789 atau 081234567890"
-							required
-							class="w-full font-mono bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-						/>
-					</div>
-
-					<div>
-						<label for="inputAtasNama" class="block text-xs font-semibold text-foreground mb-1">
-							Atas Nama Rekening *
-						</label>
-						<input
-							type="text"
-							id="inputAtasNama"
-							name="atasNama"
-							bind:value={inputAtasNama}
-							placeholder="Misal: Kas Infaq Majelis Kebayoran"
-							required
-							class="w-full bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+							placeholder="Nomor rekening bank tujuan transfer"
+							class="w-full bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 						/>
 					</div>
 				{:else}
-					<!-- 3. FORM KHUSUS QRIS -->
-					<div>
-						<label for="inputAtasNamaQris" class="block text-xs font-semibold text-foreground mb-1">
-							Atas Nama QRIS / Merchant *
-						</label>
-						<input
-							type="text"
-							id="inputAtasNamaQris"
-							name="atasNama"
-							bind:value={inputAtasNama}
-							placeholder="Misal: QRIS Kas Pembangunan Majelis Kebayoran"
-							required
-							class="w-full bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-						/>
-					</div>
+					<input type="hidden" name="nomorRekening" value="QRIS" />
+				{/if}
 
-					<div>
-						<label for="inputNamaProviderQris" class="block text-xs font-semibold text-foreground mb-1">
-							Label / Provider QRIS (Opsional)
-						</label>
-						<input
-							type="text"
-							id="inputNamaProviderQris"
-							name="namaBank"
-							bind:value={inputNamaBank}
-							placeholder="Default: QRIS (atau QRIS Mandiri, QRIS BCA, dll)"
-							class="w-full bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-						/>
-					</div>
+				<!-- Atas Nama Pemilik Rekening / Merchant QRIS -->
+				<div>
+					<label for="inputAtasNama" class="block text-xs font-semibold text-foreground mb-1">
+						Atas Nama Rekening / Merchant *
+					</label>
+					<input
+						type="text"
+						id="inputAtasNama"
+						name="atasNama"
+						required
+						bind:value={inputAtasNama}
+						placeholder="Contoh: DKM Masjid Al-Huda / Bendahara Kelompok"
+						class="w-full bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+					/>
+				</div>
 
-					<!-- UPLOAD BERKAS / URL GAMBAR QRIS -->
-					<div class="space-y-2 p-3 bg-secondary/30 border border-border rounded-xl">
-						<div class="flex items-center justify-between">
-							<span class="block text-xs font-semibold text-foreground">
-								Gambar QRIS Shodaqoh *
-							</span>
-							<div class="flex items-center gap-1 text-[11px]">
-								<button
-									type="button"
-									onclick={() => (inputQrisMode = 'upload')}
-									class="px-2 py-0.5 rounded font-medium transition-colors {inputQrisMode === 'upload' ? 'bg-primary text-primary-foreground' : 'text-foreground/60 hover:text-foreground'}"
-								>
-									Unggah Berkas
-								</button>
-								<button
-									type="button"
-									onclick={() => (inputQrisMode = 'url')}
-									class="px-2 py-0.5 rounded font-medium transition-colors {inputQrisMode === 'url' ? 'bg-primary text-primary-foreground' : 'text-foreground/60 hover:text-foreground'}"
-								>
-									Tautan URL
-								</button>
-							</div>
+				<!-- Tipe Alokasi Tujuan Shodaqoh -->
+				<div>
+					<label for="inputTipeTujuan" class="block text-xs font-semibold text-foreground mb-1">
+						Pos Alokasi Tujuan Shodaqoh *
+					</label>
+					<input
+						type="text"
+						id="inputTipeTujuan"
+						name="tipeTujuan"
+						required
+						bind:value={inputTipeTujuan}
+						placeholder="Contoh: Infaq & Shodaqoh, Pembangunan, Kas Sosial"
+						class="w-full bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+					/>
+				</div>
+
+				<!-- Khusus QRIS: Unggah Gambar atau URL -->
+				{#if inputMetode === 'qris'}
+					<div class="space-y-2 p-3 bg-secondary/30 rounded-xl border border-border">
+						<span class="block text-xs font-semibold text-foreground">
+							Gambar Barcode QRIS
+						</span>
+						<div class="flex gap-2">
+							<button
+								type="button"
+								onclick={() => (inputQrisMode = 'upload')}
+								class="px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all {inputQrisMode === 'upload' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-foreground/60'}"
+							>
+								Unggah File
+							</button>
+							<button
+								type="button"
+								onclick={() => (inputQrisMode = 'url')}
+								class="px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all {inputQrisMode === 'url' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-foreground/60'}"
+							>
+								Tautan URL
+							</button>
 						</div>
 
 						{#if inputQrisMode === 'upload'}
 							<input
 								type="file"
-								id="qrisFile"
 								name="qrisFile"
 								accept="image/*"
 								onchange={handleQrisFileChange}
-								class="w-full text-xs text-foreground/80 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
+								class="block w-full text-xs text-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
 							/>
-							<p class="text-[11px] text-foreground/50">
-								Format: PNG, JPG, JPEG, WEBP.
-							</p>
 						{:else}
 							<input
-								type="text"
-								id="inputQrisImageUrl"
-								name="qrisImageUrl"
+								type="url"
+								name="qrisUrl"
 								bind:value={inputQrisImageUrl}
-								oninput={() => (qrisFilePreview = inputQrisImageUrl)}
-								placeholder="https://... atau /uploads/qris/..."
-								class="w-full bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+								placeholder="https://.../qris.jpg"
+								class="w-full bg-secondary/50 border border-border rounded-xl px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 							/>
 						{/if}
 
 						{#if qrisFilePreview || inputQrisImageUrl}
-							<div class="pt-2 flex items-center gap-3">
-								<div class="w-16 h-16 bg-white rounded-lg p-1 border border-border shrink-0 flex items-center justify-center overflow-hidden">
-									<img
-										src={qrisFilePreview || inputQrisImageUrl}
-										alt="Preview QRIS"
-										class="max-w-full max-h-full object-contain"
-									/>
-								</div>
-								<span class="text-xs text-foreground/60">
-									Pratinjau gambar QRIS yang akan ditampilkan kepada jamaah.
-								</span>
+							<div class="mt-2 text-center p-2 bg-card rounded-lg border border-border">
+								<img
+									src={qrisFilePreview || inputQrisImageUrl}
+									alt="Pratinjau QRIS"
+									class="max-h-36 mx-auto rounded object-contain"
+								/>
 							</div>
 						{/if}
+						<input type="hidden" name="existingQrisUrl" value={inputQrisImageUrl} />
 					</div>
 				{/if}
 
-				<!-- 4. TIPE ALOKASI / TUJUAN (SEARCHABLE SELECT DENGAN OPSI CUSTOM TERISOLASI) -->
-				<div>
-					<label for="inputTipeTujuan" class="block text-xs font-semibold text-foreground mb-1">
-						Tipe Alokasi / Tujuan Shodaqoh *
-					</label>
-					<SearchableSelect
-						id="inputTipeTujuan"
-						name="tipeTujuan"
-						options={alokasiOptions}
-						bind:value={inputTipeTujuan}
-						allowCustom={true}
-						customLabel="Gunakan alokasi baru"
-						searchPlaceholder="Cari alokasi atau ketik nama alokasi baru..."
-						placeholder="-- Pilih Alokasi Shodaqoh --"
-						required={true}
-					/>
-					<p class="text-[11px] text-foreground/50 mt-1">
-						Pilih alokasi standar, alokasi wilayah ini, atau ketik langsung nama alokasi baru.
-					</p>
-				</div>
-
+				<!-- Catatan / Keterangan Tambahan -->
 				<div>
 					<label for="inputKeterangan" class="block text-xs font-semibold text-foreground mb-1">
-						Catatan / Pesan Shodaqoh
+						Catatan / Keterangan Transfer (Opsional)
 					</label>
 					<textarea
 						id="inputKeterangan"
 						name="keterangan"
-						bind:value={inputKeterangan}
 						rows="2"
-						placeholder="Misal: Mohon sertakan berita transfer atau konfirmasi ke bendahara."
+						bind:value={inputKeterangan}
+						placeholder="Contoh: Sertakan kode unik 01 di akhir nominal..."
 						class="w-full bg-secondary/50 border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 					></textarea>
 				</div>
-
-				{#if isEditingRekening}
-					<div class="flex items-center gap-2 pt-1">
-						<input
-							type="checkbox"
-							id="inputIsActive"
-							name="isActive"
-							value="1"
-							bind:checked={inputIsActive}
-							class="rounded border-border text-primary focus:ring-primary"
-						/>
-						<label for="inputIsActive" class="text-xs font-medium text-foreground">
-							Rekening aktif (Dapat dilihat jamaah)
-						</label>
-					</div>
-				{/if}
 
 				<div class="flex items-center justify-end gap-2 pt-3 border-t border-border">
 					<button
 						type="button"
 						onclick={closeRekeningModal}
-						class="px-4 py-2 rounded-xl text-xs font-semibold text-foreground/70 hover:bg-secondary transition-colors"
+						class="px-4 py-2 rounded-xl text-xs font-semibold text-foreground/70 hover:bg-secondary transition-colors cursor-pointer"
 					>
 						Batal
 					</button>
 					<button
 						type="submit"
-						class="px-4 py-2 rounded-xl text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-xs"
+						class="px-5 py-2 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-xs cursor-pointer active:scale-95"
 					>
-						{isEditingRekening
-							? inputMetode === 'qris'
-								? 'Simpan QRIS'
-								: 'Simpan Rekening'
-							: inputMetode === 'qris'
-								? 'Tambah QRIS'
-								: 'Tambah Rekening'}
+						{isEditingRekening ? 'Simpan Perubahan' : 'Tambahkan Rekening'}
 					</button>
 				</div>
 			</form>
@@ -1146,42 +1287,37 @@
 	</div>
 {/if}
 
-<!-- MODAL PREVIEW QRIS -->
+<!-- MODAL PREVIEW QRIS DIGITAL -->
 {#if previewQrisUrl}
 	<div
-		class="fixed inset-0 z-60 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
+		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150"
 		role="dialog"
 		aria-modal="true"
-		onclick={(e) => {
-			if (e.target === e.currentTarget) previewQrisUrl = null;
-		}}
+		onclick={() => (previewQrisUrl = null)}
 	>
-		<div class="bg-card border border-border rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4 text-center">
+		<div class="bg-card border border-border rounded-3xl p-6 max-w-sm w-full text-center space-y-4 shadow-2xl">
 			<div class="flex items-center justify-between pb-2 border-b border-border">
-				<h3 class="font-bold text-sm text-foreground">{previewQrisTitle || 'Kode QRIS Shodaqoh'}</h3>
+				<h3 class="text-sm font-bold text-foreground truncate">{previewQrisTitle}</h3>
 				<button
 					type="button"
 					onclick={() => (previewQrisUrl = null)}
-					class="p-1 rounded-lg text-foreground/40 hover:text-foreground transition-colors"
+					class="p-1 rounded-lg text-foreground/40 hover:text-foreground hover:bg-secondary transition-colors cursor-pointer"
 				>
 					<X class="w-4 h-4" />
 				</button>
 			</div>
 
-			<div class="p-3 bg-white rounded-xl shadow-inner flex items-center justify-center">
-				<img
-					src={previewQrisUrl}
-					alt="QRIS Shodaqoh"
-					class="max-w-full max-h-72 object-contain rounded"
-					onerror={(e) => {
-						(e.currentTarget as HTMLImageElement).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>';
-					}}
-				/>
+			<div class="p-4 bg-white rounded-2xl flex items-center justify-center shadow-xs">
+				<img src={previewQrisUrl} alt="Kode QRIS" class="max-w-full max-h-72 object-contain" />
 			</div>
 
-			<p class="text-xs text-foreground/60">
-				Pindai QRIS ini melalui aplikasi M-Banking atau Dompet Digital untuk menyalurkan shodaqoh.
-			</p>
+			<button
+				type="button"
+				onclick={() => (previewQrisUrl = null)}
+				class="w-full py-2.5 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground text-xs font-bold transition-colors cursor-pointer"
+			>
+				Tutup Pratinjau
+			</button>
 		</div>
 	</div>
 {/if}

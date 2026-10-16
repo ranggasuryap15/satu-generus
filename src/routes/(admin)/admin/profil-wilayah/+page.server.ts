@@ -1,17 +1,27 @@
 /**
  * @file src/routes/(admin)/admin/profil-wilayah/+page.server.ts
- * @purpose Backend controller halaman dedicated Profil Wilayah: hanya dapat diakses/dilihat oleh seluruh jajaran 4S & Superadmin, dengan seleksi filter scope adaptif bergaya shodaqoh (Kelompok, Desa, Daerah), hak modifikasi rekening/QRIS shodaqoh khusus KU dan Superadmin, serta pelestarian state scope & id wilayah pada setiap action
+ * @purpose Backend controller halaman dedicated Profil Wilayah: manajemen lokasi & tempat pengajian (termasuk opsi pewarisan lokasi Desa dari Kelompok binaan), dashboard statistik jamaah & persentase capaian setoran isrun/FR bulan ini, daftar sesi pengajian terbaru dengan direct shortcut tambah jadwal, rekening/QRIS shodaqoh resmi, serta filter wilayah adaptif (Kelompok, Desa, Daerah)
  * @usedBy src/routes/(admin)/admin/profil-wilayah/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm, @sveltejs/kit, src/lib/server/upload
  * @publicFunctions load, actions (updateLokasi, addRekening, updateRekening, deleteRekening)
- * @sideEffects Query dan mutasi SQLite pada tabel kelompok, desa, daerah, dan rekening_wilayah (minimum I/O & index-optimized)
+ * @sideEffects Query terindeks multi-tabel (keluarga, anggota_keluarga, presensi_jadwal, transaksi_fr, rekening_wilayah) dengan minimum I/O dan mutasi data lokasi/rekening
  */
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import { db, first } from '#lib/db/index.js';
-import { daerah, desa, kelompok, subKelompok, rekeningWilayah } from '#lib/db/schema.js';
-import { and, desc, eq } from 'drizzle-orm';
+import {
+	daerah,
+	desa,
+	kelompok,
+	rekeningWilayah,
+	keluarga,
+	anggotaKeluarga,
+	users,
+	transaksiFr,
+	presensiJadwal
+} from '#lib/db/schema.js';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { getAdminScope, getAccessibleWilayah, canManageRekening } from '#lib/server/scope.js';
 import { saveUploadedFile } from '#lib/server/upload.js';
 
@@ -42,7 +52,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	// Penentuan wilayah aktif berdasarkan scope role dan parameter URL
 	if (paramScope && paramId) {
-		// Validasi apakah admin berhak mengakses wilayah ini
 		if (paramScope === 'Kelompok') {
 			if (adminScope.isPusat || accessibleWilayah.allowedKelompokIdSet.has(paramId)) {
 				activeScope = 'Kelompok';
@@ -64,8 +73,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	}
 
 	// Default fallback sesuai hak akses jika paramId tidak ada di URL:
-	// - Jika admin tingkat kelompok: langsung otomatis pilih kelompoknya sendiri dan sematkan ke URL.
-	// - Jika admin tingkat atas (Desa/Daerah/Pusat) dengan banyak opsi: default NULL (harus dipilih manual via filter fleksibel).
 	const isAdminKelompok =
 		adminScope.level === 'Kelompok' &&
 		(adminScope.kelompokIds.length > 0 || Boolean(locals.user.kelompokId));
@@ -88,115 +95,258 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// Ambil detail wilayah terpilih
 	let profilData: any = null;
 	let daftarRekening: Array<typeof rekeningWilayah.$inferSelect> = [];
-	let subWilayahList: any[] = [];
 	let canManageFinance = false;
+	let kelompokInDesa: Array<{
+		id: number;
+		nama: string;
+		lokasiNama: string | null;
+		latitude: string | null;
+		longitude: string | null;
+		radiusMeter: number | null;
+		gmapsUrl: string | null;
+	}> = [];
+
+	// Data Metrik Dashboard Jamaah & Isrun
+	let dashboardStats = {
+		totalJamaah: 0,
+		totalKk: 0,
+		totalLaki: 0,
+		totalPerempuan: 0,
+		totalWajibIsrun: 0,
+		sudahBayarIsrunCount: 0,
+		persenBayarIsrun: 0,
+		totalNominalIsrunBulanIni: 0,
+		tahunIni: new Date().getFullYear(),
+		bulanIni: new Date().getMonth() + 1
+	};
+
+	// Daftar Jadwal Pengajian Terdekat / Terbaru
+	let daftarJadwal: Array<typeof presensiJadwal.$inferSelect> = [];
 
 	if (activeScope && activeId) {
 		canManageFinance = await canManageRekening(roles, activeScope, activeId);
 
+		const now = new Date();
+		const tahunIni = now.getFullYear();
+		const bulanIni = now.getMonth() + 1;
+		dashboardStats.tahunIni = tahunIni;
+		dashboardStats.bulanIni = bulanIni;
+
 		if (activeScope === 'Kelompok') {
-			const k = (await first(db
-				.select({
-					id: kelompok.id,
-					nama: kelompok.nama,
-					desaId: kelompok.desaId,
-					kelurahan: kelompok.kelurahan,
-					lokasiNama: kelompok.lokasiNama,
-					latitude: kelompok.latitude,
-					longitude: kelompok.longitude,
-					radiusMeter: kelompok.radiusMeter,
-					gmapsUrl: kelompok.gmapsUrl,
-					desaNama: desa.nama,
-					daerahId: desa.daerahId,
-					daerahNama: daerah.nama
-				})
-				.from(kelompok)
-				.innerJoin(desa, eq(kelompok.desaId, desa.id))
-				.innerJoin(daerah, eq(desa.daerahId, daerah.id))
-				.where(eq(kelompok.id, activeId))
-				));
+			const k = await first(
+				db
+					.select({
+						id: kelompok.id,
+						nama: kelompok.nama,
+						desaId: kelompok.desaId,
+						kelurahan: kelompok.kelurahan,
+						lokasiNama: kelompok.lokasiNama,
+						latitude: kelompok.latitude,
+						longitude: kelompok.longitude,
+						radiusMeter: kelompok.radiusMeter,
+						gmapsUrl: kelompok.gmapsUrl,
+						desaNama: desa.nama,
+						daerahId: desa.daerahId,
+						daerahNama: daerah.nama
+					})
+					.from(kelompok)
+					.innerJoin(desa, eq(kelompok.desaId, desa.id))
+					.innerJoin(daerah, eq(desa.daerahId, daerah.id))
+					.where(eq(kelompok.id, activeId))
+			);
 
 			if (k) {
 				profilData = k;
-				subWilayahList = (await db
-					.select()
-					.from(subKelompok)
-					.where(eq(subKelompok.kelompokId, activeId))
-);
-				daftarRekening = (await db
+
+				// 1. Rekening & QRIS Kelompok
+				daftarRekening = await db
 					.select()
 					.from(rekeningWilayah)
 					.where(and(eq(rekeningWilayah.tingkatScope, 'Kelompok'), eq(rekeningWilayah.kelompokId, activeId)))
-					.orderBy(desc(rekeningWilayah.createdAt))
-);
+					.orderBy(desc(rekeningWilayah.createdAt));
+
+				// 2. Metrik Dashboard Jamaah Kelompok (Single Join Terindeks)
+				const [statJamaah] = await db
+					.select({
+						totalJamaah: sql<number>`count(distinct ${anggotaKeluarga.id})`,
+						totalLaki: sql<number>`count(case when ${anggotaKeluarga.jenisKelamin} = 'L' then 1 end)`,
+						totalPerempuan: sql<number>`count(case when ${anggotaKeluarga.jenisKelamin} = 'P' then 1 end)`,
+						totalKk: sql<number>`count(distinct ${keluarga.id})`,
+						totalWajibIsrun: sql<number>`count(case when ${anggotaKeluarga.isrun} = 'Ya' then 1 end)`
+					})
+					.from(anggotaKeluarga)
+					.innerJoin(keluarga, eq(anggotaKeluarga.keluargaId, keluarga.id))
+					.innerJoin(users, eq(keluarga.kepalaKeluargaId, users.id))
+					.where(and(eq(users.kelompokId, activeId), eq(anggotaKeluarga.statusJamaah, 'Aktif')));
+
+				if (statJamaah) {
+					dashboardStats.totalJamaah = Number(statJamaah.totalJamaah) || 0;
+					dashboardStats.totalLaki = Number(statJamaah.totalLaki) || 0;
+					dashboardStats.totalPerempuan = Number(statJamaah.totalPerempuan) || 0;
+					dashboardStats.totalKk = Number(statJamaah.totalKk) || 0;
+					dashboardStats.totalWajibIsrun = Number(statJamaah.totalWajibIsrun) || 0;
+				}
+
+				// 3. Setoran Isrun Bulan Ini
+				const [statIsrun] = await db
+					.select({
+						sudahBayarCount: sql<number>`count(distinct ${transaksiFr.anggotaKeluargaId})`,
+						totalNominal: sql<number>`coalesce(sum(${transaksiFr.nominal}), 0)`
+					})
+					.from(transaksiFr)
+					.where(
+						and(
+							eq(transaksiFr.kelompokId, activeId),
+							eq(transaksiFr.tahun, tahunIni),
+							eq(transaksiFr.bulan, bulanIni),
+							sql`${transaksiFr.nominal} > 0`
+						)
+					);
+
+				if (statIsrun) {
+					dashboardStats.sudahBayarIsrunCount = Number(statIsrun.sudahBayarCount) || 0;
+					dashboardStats.totalNominalIsrunBulanIni = Number(statIsrun.totalNominal) || 0;
+					dashboardStats.persenBayarIsrun =
+						dashboardStats.totalWajibIsrun > 0
+							? Math.min(100, Math.round((dashboardStats.sudahBayarIsrunCount / dashboardStats.totalWajibIsrun) * 100))
+							: 0;
+				}
+
+				// 4. Jadwal Pengajian Kelompok
+				daftarJadwal = await db
+					.select()
+					.from(presensiJadwal)
+					.where(eq(presensiJadwal.kelompokId, activeId))
+					.orderBy(desc(presensiJadwal.tanggal), desc(presensiJadwal.jamMulai))
+					.limit(6);
 			}
 		} else if (activeScope === 'Desa') {
-			const d = (await first(db
-				.select({
-					id: desa.id,
-					nama: desa.nama,
-					daerahId: desa.daerahId,
-					kecamatan: desa.kecamatan,
-					lokasiNama: desa.lokasiNama,
-					latitude: desa.latitude,
-					longitude: desa.longitude,
-					radiusMeter: desa.radiusMeter,
-					gmapsUrl: desa.gmapsUrl,
-					lokasiKelompokId: desa.lokasiKelompokId,
-					daerahNama: daerah.nama
-				})
-				.from(desa)
-				.innerJoin(daerah, eq(desa.daerahId, daerah.id))
-				.where(eq(desa.id, activeId))
-				));
+			const d = await first(
+				db
+					.select({
+						id: desa.id,
+						nama: desa.nama,
+						daerahId: desa.daerahId,
+						kecamatan: desa.kecamatan,
+						lokasiNama: desa.lokasiNama,
+						latitude: desa.latitude,
+						longitude: desa.longitude,
+						radiusMeter: desa.radiusMeter,
+						gmapsUrl: desa.gmapsUrl,
+						lokasiKelompokId: desa.lokasiKelompokId,
+						daerahNama: daerah.nama
+					})
+					.from(desa)
+					.innerJoin(daerah, eq(desa.daerahId, daerah.id))
+					.where(eq(desa.id, activeId))
+			);
 
 			if (d) {
 				profilData = d;
-				subWilayahList = (await db
-					.select()
+
+				// Daftar kelompok binaan di desa ini untuk opsi pilihan lokasi pengajian desa
+				kelompokInDesa = await db
+					.select({
+						id: kelompok.id,
+						nama: kelompok.nama,
+						lokasiNama: kelompok.lokasiNama,
+						latitude: kelompok.latitude,
+						longitude: kelompok.longitude,
+						radiusMeter: kelompok.radiusMeter,
+						gmapsUrl: kelompok.gmapsUrl
+					})
 					.from(kelompok)
 					.where(eq(kelompok.desaId, activeId))
-);
-				daftarRekening = (await db
+					.orderBy(kelompok.nama);
+
+				// Rekening Desa
+				daftarRekening = await db
 					.select()
 					.from(rekeningWilayah)
 					.where(and(eq(rekeningWilayah.tingkatScope, 'Desa'), eq(rekeningWilayah.desaId, activeId)))
-					.orderBy(desc(rekeningWilayah.createdAt))
-);
+					.orderBy(desc(rekeningWilayah.createdAt));
+
+				// Metrik Dashboard Jamaah Desa (Agregasi seluruh kelompok di desa)
+				const kIds = kelompokInDesa.map((k) => k.id);
+				if (kIds.length > 0) {
+					const [statJamaah] = await db
+						.select({
+							totalJamaah: sql<number>`count(distinct ${anggotaKeluarga.id})`,
+							totalLaki: sql<number>`count(case when ${anggotaKeluarga.jenisKelamin} = 'L' then 1 end)`,
+							totalPerempuan: sql<number>`count(case when ${anggotaKeluarga.jenisKelamin} = 'P' then 1 end)`,
+							totalKk: sql<number>`count(distinct ${keluarga.id})`,
+							totalWajibIsrun: sql<number>`count(case when ${anggotaKeluarga.isrun} = 'Ya' then 1 end)`
+						})
+						.from(anggotaKeluarga)
+						.innerJoin(keluarga, eq(anggotaKeluarga.keluargaId, keluarga.id))
+						.innerJoin(users, eq(keluarga.kepalaKeluargaId, users.id))
+						.where(and(inArray(users.kelompokId, kIds), eq(anggotaKeluarga.statusJamaah, 'Aktif')));
+
+					if (statJamaah) {
+						dashboardStats.totalJamaah = Number(statJamaah.totalJamaah) || 0;
+						dashboardStats.totalLaki = Number(statJamaah.totalLaki) || 0;
+						dashboardStats.totalPerempuan = Number(statJamaah.totalPerempuan) || 0;
+						dashboardStats.totalKk = Number(statJamaah.totalKk) || 0;
+						dashboardStats.totalWajibIsrun = Number(statJamaah.totalWajibIsrun) || 0;
+					}
+
+					const [statIsrun] = await db
+						.select({
+							sudahBayarCount: sql<number>`count(distinct ${transaksiFr.anggotaKeluargaId})`,
+							totalNominal: sql<number>`coalesce(sum(${transaksiFr.nominal}), 0)`
+						})
+						.from(transaksiFr)
+						.where(
+							and(
+								inArray(transaksiFr.kelompokId, kIds),
+								eq(transaksiFr.tahun, tahunIni),
+								eq(transaksiFr.bulan, bulanIni),
+								sql`${transaksiFr.nominal} > 0`
+							)
+						);
+
+					if (statIsrun) {
+						dashboardStats.sudahBayarIsrunCount = Number(statIsrun.sudahBayarCount) || 0;
+						dashboardStats.totalNominalIsrunBulanIni = Number(statIsrun.totalNominal) || 0;
+						dashboardStats.persenBayarIsrun =
+							dashboardStats.totalWajibIsrun > 0
+								? Math.min(100, Math.round((dashboardStats.sudahBayarIsrunCount / dashboardStats.totalWajibIsrun) * 100))
+								: 0;
+					}
+				}
+
+				// Jadwal Pengajian Desa
+				daftarJadwal = await db
+					.select()
+					.from(presensiJadwal)
+					.where(eq(presensiJadwal.desaId, activeId))
+					.orderBy(desc(presensiJadwal.tanggal), desc(presensiJadwal.jamMulai))
+					.limit(6);
 			}
 		} else if (activeScope === 'Daerah') {
-			const dr = (await first(db
-				.select()
-				.from(daerah)
-				.where(eq(daerah.id, activeId))
-				));
+			const dr = await first(db.select().from(daerah).where(eq(daerah.id, activeId)));
 
 			if (dr) {
 				profilData = dr;
-				const desas = (await db
-					.select()
-					.from(desa)
-					.where(eq(desa.daerahId, activeId))
-);
-				const kelompokInDaerah = accessibleWilayah.kelompokList.filter(
-					(k) => k.daerahId === activeId
-				);
-				subWilayahList = desas.map((des) => ({
-					...des,
-					kelompokCount: kelompokInDaerah.filter((k) => k.desaId === des.id).length
-				}));
 
-				daftarRekening = (await db
+				daftarRekening = await db
 					.select()
 					.from(rekeningWilayah)
 					.where(and(eq(rekeningWilayah.tingkatScope, 'Daerah'), eq(rekeningWilayah.daerahId, activeId)))
-					.orderBy(desc(rekeningWilayah.createdAt))
-);
+					.orderBy(desc(rekeningWilayah.createdAt));
+
+				// Jadwal Tingkat Daerah (jika ada)
+				daftarJadwal = await db
+					.select()
+					.from(presensiJadwal)
+					.where(eq(presensiJadwal.tingkatScope, 'Daerah'))
+					.orderBy(desc(presensiJadwal.tanggal), desc(presensiJadwal.jamMulai))
+					.limit(6);
 			}
 		}
 	}
 
-	// Ambil alokasi kustom unik yang sudah tersimpan di wilayah ini (hanya scope wilayah ini, tidak bocor ke wilayah lain)
+	// Alokasi kustom unik pada wilayah aktif
 	const standardAlokasi = ['Infaq/Shodaqoh', 'Pembangunan', 'Lainnya'];
 	const customAlokasiList = Array.from(
 		new Set(
@@ -205,6 +355,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				.filter((t): t is string => Boolean(t && !standardAlokasi.includes(t)))
 		)
 	);
+
 	return {
 		adminScope,
 		accessibleWilayah,
@@ -213,14 +364,17 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		profilData,
 		daftarRekening,
 		customAlokasiList,
-		subWilayahList,
-		canManageFinance
+		canManageFinance,
+		kelompokInDesa,
+		dashboardStats,
+		daftarJadwal
 	};
 };
 
 export const actions: Actions = {
 	/**
 	 * Memperbarui titik lokasi, koordinat GPS, radius geofencing, dan link GMaps
+	 * Untuk Desa: mendukung opsi memilih dari kelompok binaan atau koordinat manual
 	 */
 	updateLokasi: async ({ request, locals }) => {
 		if (!locals.user || !locals.isAdmin) {
@@ -235,13 +389,16 @@ export const actions: Actions = {
 		const longitude = String(formData.get('longitude') || '').trim() || null;
 		const radiusMeter = Number(formData.get('radiusMeter') || 100);
 		const gmapsUrl = String(formData.get('gmapsUrl') || '').trim() || null;
+		const lokasiKelompokIdStr = formData.get('lokasiKelompokId')?.toString() || '';
+		const lokasiKelompokId = lokasiKelompokIdStr ? Number(lokasiKelompokIdStr) : null;
 
 		if (!id || !scope) {
 			return fail(400, { error: 'Parameter wilayah tidak valid.' });
 		}
 
 		if (scope === 'Kelompok') {
-(await db.update(kelompok)
+			await db
+				.update(kelompok)
 				.set({
 					lokasiNama: lokasiNama || null,
 					latitude,
@@ -249,21 +406,42 @@ export const actions: Actions = {
 					radiusMeter,
 					gmapsUrl
 				})
-				.where(eq(kelompok.id, id))
-);
+				.where(eq(kelompok.id, id));
 		} else if (scope === 'Desa') {
-(await db.update(desa)
+			let finalNama = lokasiNama;
+			let finalLat = latitude;
+			let finalLng = longitude;
+			let finalRadius = radiusMeter;
+			let finalGmaps = gmapsUrl;
+
+			// Jika memilih dari kelompok binaan, warisi data lokasi dari kelompok tersebut
+			if (lokasiKelompokId) {
+				const srcKelompok = await first(
+					db.select().from(kelompok).where(eq(kelompok.id, lokasiKelompokId))
+				);
+				if (srcKelompok) {
+					finalNama = lokasiNama || srcKelompok.lokasiNama || `Masjid ${srcKelompok.nama}`;
+					finalLat = srcKelompok.latitude || latitude;
+					finalLng = srcKelompok.longitude || longitude;
+					finalRadius = srcKelompok.radiusMeter || radiusMeter;
+					finalGmaps = srcKelompok.gmapsUrl || gmapsUrl;
+				}
+			}
+
+			await db
+				.update(desa)
 				.set({
-					lokasiNama: lokasiNama || null,
-					latitude,
-					longitude,
-					radiusMeter,
-					gmapsUrl
+					lokasiNama: finalNama || null,
+					latitude: finalLat,
+					longitude: finalLng,
+					radiusMeter: finalRadius,
+					gmapsUrl: finalGmaps,
+					lokasiKelompokId: lokasiKelompokId || null
 				})
-				.where(eq(desa.id, id))
-);
+				.where(eq(desa.id, id));
 		} else if (scope === 'Daerah') {
-(await db.update(daerah)
+			await db
+				.update(daerah)
 				.set({
 					lokasiNama: lokasiNama || null,
 					latitude,
@@ -271,11 +449,10 @@ export const actions: Actions = {
 					radiusMeter,
 					gmapsUrl
 				})
-				.where(eq(daerah.id, id))
-);
+				.where(eq(daerah.id, id));
 		}
 
-		return { success: true, message: 'Informasi lokasi wilayah berhasil diperbarui.', scope, id };
+		return { success: true, message: 'Informasi lokasi pengajian wilayah berhasil diperbarui.', scope, id };
 	},
 
 	/**
@@ -298,61 +475,54 @@ export const actions: Actions = {
 		}
 
 		const metode = String(formData.get('metode') || 'bank'); // 'bank' | 'qris'
+		const namaBank = String(formData.get('namaBank') || '').trim();
+		const nomorRekening = String(formData.get('nomorRekening') || '').trim();
 		const atasNama = String(formData.get('atasNama') || '').trim();
-		const tipeTujuan = String(formData.get('tipeTujuan') || 'Infaq/Shodaqoh').trim();
+		const tipeTujuan = String(formData.get('tipeTujuan') || 'Infaq & Shodaqoh').trim();
 		const keterangan = String(formData.get('keterangan') || '').trim() || null;
+		const isActive = formData.get('isActive') !== 'false';
 
-		let namaBank = '';
-		let nomorRekening = '';
 		let qrisImageUrl: string | null = null;
+		const qrisFile = formData.get('qrisFile');
+		const qrisUrlInput = String(formData.get('qrisUrl') || '').trim();
 
 		if (metode === 'qris') {
-			namaBank = String(formData.get('namaBank') || 'QRIS').trim() || 'QRIS';
-			nomorRekening = String(formData.get('nomorRekening') || '-').trim() || '-';
-
-			if (!atasNama) {
-				return fail(400, { error: 'Atas nama QRIS wajib diisi.' });
-			}
-
-			const qrisFile = formData.get('qrisFile');
-			const qrisUrlText = String(formData.get('qrisImageUrl') || '').trim();
-			qrisImageUrl = await saveUploadedQris(
-				qrisFile instanceof File && qrisFile.size > 0 ? qrisFile : qrisUrlText
-			);
-			if (!qrisImageUrl) {
-				return fail(400, { error: 'Gambar QRIS wajib diunggah atau diisi tautan gambarnya.' });
-			}
-		} else {
-			// Transfer Bank
-			namaBank = String(formData.get('namaBank') || '').trim();
-			nomorRekening = String(formData.get('nomorRekening') || '').trim();
-
-			if (!namaBank || !nomorRekening || !atasNama) {
-				return fail(400, { error: 'Nama bank, nomor rekening, dan atas nama rekening wajib diisi.' });
+			if (qrisFile instanceof File && qrisFile.size > 0) {
+				qrisImageUrl = await saveUploadedQris(qrisFile);
+			} else if (qrisUrlInput) {
+				qrisImageUrl = qrisUrlInput;
 			}
 		}
 
-(await db.insert(rekeningWilayah)
-			.values({
-				tingkatScope: scope,
-				daerahId: scope === 'Daerah' ? id : null,
-				desaId: scope === 'Desa' ? id : null,
-				kelompokId: scope === 'Kelompok' ? id : null,
-				namaBank,
-				nomorRekening,
-				atasNama,
-				tipeTujuan,
-				qrisImageUrl,
-				keterangan,
-				isActive: true,
-				createdAt: Math.floor(Date.now() / 1000)
-			})
-);
-		return { success: true, message: 'Rekening/QRIS shodaqoh berhasil ditambahkan.', scope, id };
+		if (!namaBank || !atasNama) {
+			return fail(400, { error: 'Nama Bank / Layanan dan Atas Nama wajib diisi.' });
+		}
+		if (metode === 'bank' && !nomorRekening) {
+			return fail(400, { error: 'Nomor rekening bank wajib diisi.' });
+		}
+
+		const newRekening = {
+			tingkatScope: scope,
+			daerahId: scope === 'Daerah' ? id : null,
+			desaId: scope === 'Desa' ? id : null,
+			kelompokId: scope === 'Kelompok' ? id : null,
+			namaBank,
+			nomorRekening: metode === 'qris' ? (nomorRekening || 'QRIS') : nomorRekening,
+			atasNama,
+			tipeTujuan: tipeTujuan || 'Infaq & Shodaqoh',
+			qrisImageUrl,
+			keterangan,
+			isActive,
+			createdAt: Date.now()
+		};
+
+		await db.insert(rekeningWilayah).values(newRekening);
+
+		return { success: true, message: 'Rekening shodaqoh berhasil ditambahkan.', scope, id };
 	},
 
 	/**
-	 * Memperbarui rekening shodaqoh atau QRIS (Khusus KU / Kyai / Sekretaris / Superadmin)
+	 * Memperbarui rekening shodaqoh atau QRIS
 	 */
 	updateRekening: async ({ request, locals }) => {
 		if (!locals.user || !locals.isAdmin) {
@@ -367,72 +537,58 @@ export const actions: Actions = {
 		const canManage = await canManageRekening(locals.roles || [], scope, id);
 		if (!canManage) {
 			return fail(403, {
-				error: 'Akses ditolak: Hanya pengurus KU/Bendahara atau Superadmin yang berwenang memperbarui rekening/QRIS shodaqoh.'
+				error: 'Akses ditolak: Hanya pengurus KU/Bendahara atau Superadmin yang berwenang mengubah rekening/QRIS.'
 			});
 		}
 
-		const existing = (await first(db.select().from(rekeningWilayah).where(eq(rekeningWilayah.id, rekeningId))));
-		if (!existing) {
-			return fail(404, { error: 'Data rekening tidak ditemukan.' });
-		}
-
 		const metode = String(formData.get('metode') || 'bank');
+		const namaBank = String(formData.get('namaBank') || '').trim();
+		const nomorRekening = String(formData.get('nomorRekening') || '').trim();
 		const atasNama = String(formData.get('atasNama') || '').trim();
-		const tipeTujuan = String(formData.get('tipeTujuan') || 'Infaq/Shodaqoh').trim();
+		const tipeTujuan = String(formData.get('tipeTujuan') || 'Infaq & Shodaqoh').trim();
 		const keterangan = String(formData.get('keterangan') || '').trim() || null;
-		const isActive = formData.get('isActive') === '1' || formData.get('isActive') === 'true';
+		const isActive = formData.get('isActive') !== 'false';
 
-		let namaBank = '';
-		let nomorRekening = '';
-		let qrisImageUrl: string | null = existing.qrisImageUrl;
+		let qrisImageUrl: string | null = null;
+		const existingQris = String(formData.get('existingQrisUrl') || '').trim() || null;
+		const qrisFile = formData.get('qrisFile');
+		const qrisUrlInput = String(formData.get('qrisUrl') || '').trim();
 
 		if (metode === 'qris') {
-			namaBank = String(formData.get('namaBank') || 'QRIS').trim() || 'QRIS';
-			nomorRekening = String(formData.get('nomorRekening') || '-').trim() || '-';
-
-			if (!atasNama) {
-				return fail(400, { error: 'Atas nama QRIS wajib diisi.' });
-			}
-
-			const qrisFile = formData.get('qrisFile');
-			const qrisUrlText = String(formData.get('qrisImageUrl') || '').trim();
-			if ((qrisFile instanceof File && qrisFile.size > 0) || qrisUrlText) {
-				qrisImageUrl = await saveUploadedQris(
-					qrisFile instanceof File && qrisFile.size > 0 ? qrisFile : qrisUrlText
-				);
-			}
-
-			if (!qrisImageUrl) {
-				return fail(400, { error: 'Gambar QRIS wajib diunggah atau diisi tautan gambarnya.' });
-			}
-		} else {
-			// Transfer Bank
-			namaBank = String(formData.get('namaBank') || '').trim();
-			nomorRekening = String(formData.get('nomorRekening') || '').trim();
-			qrisImageUrl = null;
-
-			if (!namaBank || !nomorRekening || !atasNama) {
-				return fail(400, { error: 'Nama bank, nomor rekening, dan atas nama rekening wajib diisi.' });
+			if (qrisFile instanceof File && qrisFile.size > 0) {
+				qrisImageUrl = await saveUploadedQris(qrisFile);
+			} else if (qrisUrlInput) {
+				qrisImageUrl = qrisUrlInput;
+			} else {
+				qrisImageUrl = existingQris;
 			}
 		}
 
-(await db.update(rekeningWilayah)
+		if (!namaBank || !atasNama) {
+			return fail(400, { error: 'Nama Bank dan Atas Nama wajib diisi.' });
+		}
+		if (metode === 'bank' && !nomorRekening) {
+			return fail(400, { error: 'Nomor rekening bank wajib diisi.' });
+		}
+
+		await db
+			.update(rekeningWilayah)
 			.set({
 				namaBank,
-				nomorRekening,
+				nomorRekening: metode === 'qris' ? (nomorRekening || 'QRIS') : nomorRekening,
 				atasNama,
-				tipeTujuan,
+				tipeTujuan: tipeTujuan || 'Infaq & Shodaqoh',
 				qrisImageUrl,
 				keterangan,
 				isActive
 			})
-			.where(eq(rekeningWilayah.id, rekeningId))
-);
-		return { success: true, message: 'Rekening/QRIS shodaqoh berhasil diperbarui.', scope, id };
+			.where(eq(rekeningWilayah.id, rekeningId));
+
+		return { success: true, message: 'Rekening berhasil diperbarui.', scope, id };
 	},
 
 	/**
-	 * Menghapus rekening shodaqoh (Khusus KU / Superadmin)
+	 * Menghapus rekening shodaqoh
 	 */
 	deleteRekening: async ({ request, locals }) => {
 		if (!locals.user || !locals.isAdmin) {
@@ -447,13 +603,16 @@ export const actions: Actions = {
 		const canManage = await canManageRekening(locals.roles || [], scope, id);
 		if (!canManage) {
 			return fail(403, {
-				error: 'Akses ditolak: Hanya pengurus KU/Bendahara atau Superadmin yang berwenang menghapus rekening shodaqoh.'
+				error: 'Akses ditolak: Hanya pengurus KU/Bendahara atau Superadmin yang berwenang menghapus rekening.'
 			});
 		}
 
-(await db.delete(rekeningWilayah).where(eq(rekeningWilayah.id, rekeningId)));
+		if (!rekeningId) {
+			return fail(400, { error: 'ID rekening tidak valid.' });
+		}
 
-		return { success: true, message: 'Rekening shodaqoh berhasil dihapus.', scope, id };
+		await db.delete(rekeningWilayah).where(eq(rekeningWilayah.id, rekeningId));
+
+		return { success: true, message: 'Rekening berhasil dihapus.', scope, id };
 	}
 };
-
