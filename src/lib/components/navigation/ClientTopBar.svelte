@@ -67,13 +67,13 @@
 	class="sticky top-0 z-30 w-full bg-card/90 backdrop-blur-md border-b border-border transition-colors"
 >
 	<div class="max-w-md mx-auto px-4 h-14 flex items-center justify-between">
-		<div class="flex items-center gap-2">
+		<div class="flex items-center gap-2.5">
 			<div
-				class="w-8 h-8 rounded-lg bg-primary text-primary-foreground font-semibold flex items-center justify-center text-sm shadow-sm"
+				class="w-9 h-9 rounded-2xl bg-[#009B60] text-white font-bold flex items-center justify-center text-xs shadow-xs tracking-tight"
 			>
 				SG
 			</div>
-			<h1 class="text-base font-semibold text-foreground tracking-tight line-clamp-1">{title}</h1>
+			<h1 class="text-base font-bold text-foreground tracking-tight line-clamp-1">{title}</h1>
 		</div>
 
 		<div class="flex items-center gap-1.5">
@@ -91,22 +91,22 @@
 
 			<button
 				type="button"
-				class="p-2 text-foreground/70 hover:text-foreground rounded-lg hover:bg-secondary transition-colors"
+				class="p-2 text-foreground/80 hover:text-foreground rounded-xl hover:bg-secondary transition-colors cursor-pointer"
 				aria-label="Pencarian"
 			>
-				<Search class="w-5 h-5" />
+				<Search class="w-5 h-5 stroke-[2]" />
 			</button>
 
 			<!-- Tombol Lonceng Notifikasi Mobile -->
 			<button
 				type="button"
 				onclick={toggleNotif}
-				class="p-2 text-foreground/70 hover:text-foreground rounded-lg hover:bg-secondary transition-colors relative cursor-pointer active:scale-95"
+				class="p-2 text-foreground/80 hover:text-foreground rounded-xl hover:bg-secondary transition-colors relative cursor-pointer active:scale-95"
 				aria-label="Buka Notifikasi Pengajian"
 				aria-expanded={isNotifOpen}
 				aria-haspopup="dialog"
 			>
-				<Bell class="w-5 h-5" />
+				<Bell class="w-5 h-5 stroke-[2]" />
 				{#if unreadCount > 0}
 					<span
 						class="absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full bg-rose-500 text-white font-bold text-[9px] flex items-center justify-center shadow-xs animate-pulse"
@@ -114,7 +114,7 @@
 						{unreadCount > 9 ? '9+' : unreadCount}
 					</span>
 				{:else if notifikasiList.length > 0}
-					<span class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary"></span>
+					<span class="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-amber-400 border-2 border-card"></span>
 				{/if}
 			</button>
 

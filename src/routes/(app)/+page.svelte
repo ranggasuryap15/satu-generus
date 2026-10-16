@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(app)/+page.svelte
-  @purpose Halaman beranda client/jamaah (Mobile-First) dengan standar Zero Over-Information: launcher Quick Access 5 kolom (Presensi, Isrun/FR, Keluarga, SI-PPG, Lainnya), jadwal pengajian, dan modal ekosistem aplikasi
+  @purpose Halaman beranda client/jamaah (Modern, Minimalis & Flat) sesuai spesifikasi visual mockup: kartu sambutan Fresh Emerald, launcher 5 kolom pastel, kartu Infaq & Shodaqoh warm amber, tab pengajian segmented control, dan modal ekosistem
   @usedBy Route utama client '/'
   @dependencies @lucide/svelte, #lib/utils (formatDateDDMMYYYY), #lib/jadwal (formatDateIndoFull), Svelte 5 Runes
   @publicFunctions openAppDetail, closeModals
@@ -8,7 +8,6 @@
 -->
 <script lang="ts">
 	import {
-		AlertCircle,
 		Calendar,
 		ChevronRight,
 		Clock,
@@ -20,7 +19,6 @@
 		LayoutGrid,
 		MapPin,
 		QrCode,
-		Sparkles,
 		Users,
 		X
 	} from '@lucide/svelte';
@@ -53,209 +51,223 @@
 </svelte:head>
 
 <div class="space-y-4 sm:space-y-5">
-	<!-- Sambutan & Status Pengguna -->
-	<section class="bg-card border border-border rounded-2xl p-4 sm:p-5 shadow-sm">
+	<!-- 1. Sambutan & Status Pengguna (Solid Fresh Emerald Card) -->
+	<section class="bg-[#009B60] dark:bg-[#064E3B] text-white rounded-3xl p-5 sm:p-6 shadow-xs border border-transparent dark:border-emerald-700/30">
 		<div class="flex items-center justify-between">
-			<div>
-				<p class="text-xs sm:text-sm font-medium text-foreground/60">Selamat Datang,</p>
-				<h2 class="text-lg sm:text-xl font-bold text-foreground tracking-tight">{data.user.namaLengkap}</h2>
-			</div>
-			<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary">
+			<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-white/20 text-white backdrop-blur-xs">
+				Jamaah
+			</span>
+			<span class="text-xs sm:text-sm font-medium text-white/90">
 				{data.kelompokNama}
 			</span>
 		</div>
+		<div class="mt-4 sm:mt-5">
+			<p class="text-xs sm:text-sm text-white/80 font-normal">Selamat Datang,</p>
+			<h2 class="text-xl sm:text-2xl font-bold text-white tracking-tight mt-0.5">{data.user.namaLengkap}</h2>
+		</div>
 	</section>
 
-	<!-- Akses Cepat Aplikasi & Layanan (Quick Access Launcher) -->
-	<section class="bg-card border border-border rounded-2xl p-4 sm:p-5 shadow-sm space-y-3.5">
-		<div class="flex items-center justify-between px-1">
-			<div class="flex items-center gap-2">
-				<Sparkles class="w-4 h-4 text-primary" />
-				<h3 class="text-sm sm:text-base font-bold text-foreground tracking-tight">Akses Cepat & Aplikasi</h3>
-			</div>
+	<!-- 2. Akses Cepat (Header Bersih & 5 Kolom Launcher Pastel) -->
+	<section class="space-y-3.5 pt-1">
+		<div class="flex items-center justify-between px-0.5">
+			<h3 class="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight">
+				Akses Cepat
+			</h3>
 			<button
 				type="button"
 				onclick={() => (showAppsModal = true)}
-				class="text-xs sm:text-sm font-semibold text-primary hover:underline flex items-center gap-0.5"
+				class="text-xs sm:text-sm font-semibold text-[#009B60] dark:text-emerald-400 hover:underline flex items-center gap-0.5"
 			>
-				Lihat Semua <ChevronRight class="w-3.5 h-3.5" />
+				Lihat Semua <ChevronRight class="w-4 h-4" />
 			</button>
 		</div>
 
-		<!-- Grid Ikon Aplikasi: 5 Kolom Proporsional di Mobile & Tablet -->
+		<!-- Grid Ikon Aplikasi: 5 Kolom Proporsional Sesuai Desain Mockup -->
 		<div class="grid grid-cols-5 gap-2 sm:gap-3 text-center">
-			<!-- 1. Presensi -->
+			<!-- 1. Presensi (Mint Pastel) -->
 			<a
 				href="/presensi"
-				class="flex flex-col items-center group transition-all"
+				class="flex flex-col items-center group transition-transform"
 			>
-				<div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-xs group-hover:scale-105 group-hover:bg-emerald-500/20 group-active:scale-95 transition-all">
-					<QrCode class="w-6 h-6 stroke-[2.2]" />
+				<div class="w-13 h-13 sm:w-15 sm:h-15 rounded-2xl bg-[#D7F5E9] dark:bg-emerald-950/60 text-[#009B60] dark:text-emerald-400 flex items-center justify-center group-hover:scale-105 group-active:scale-95 transition-all">
+					<QrCode class="w-6 h-6 stroke-[2]" />
 				</div>
-				<span class="text-xs sm:text-sm font-semibold text-foreground mt-1.5 leading-tight group-hover:text-primary transition-colors">
+				<span class="text-xs font-medium text-slate-800 dark:text-slate-200 mt-2 leading-tight">
 					Presensi
 				</span>
 			</a>
 
-			<!-- 2. Isrun / FR -->
+			<!-- 2. Isrun/FR (Warm Cream) -->
 			<a
 				href="/fr"
-				class="flex flex-col items-center group transition-all"
+				class="flex flex-col items-center group transition-transform"
 			>
-				<div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-teal-500/10 border border-teal-500/20 text-teal-600 dark:text-teal-400 flex items-center justify-center shadow-xs group-hover:scale-105 group-hover:bg-teal-500/20 group-active:scale-95 transition-all">
-					<HandCoins class="w-6 h-6 stroke-[2.2]" />
+				<div class="w-13 h-13 sm:w-15 sm:h-15 rounded-2xl bg-[#FEF0D6] dark:bg-amber-950/50 text-[#D97706] dark:text-amber-400 flex items-center justify-center group-hover:scale-105 group-active:scale-95 transition-all">
+					<HandCoins class="w-6 h-6 stroke-[2]" />
 				</div>
-				<span class="text-xs sm:text-sm font-semibold text-foreground mt-1.5 leading-tight group-hover:text-primary transition-colors">
+				<span class="text-xs font-medium text-slate-800 dark:text-slate-200 mt-2 leading-tight">
 					Isrun/FR
 				</span>
 			</a>
 
-			<!-- 3. Data Keluarga -->
+			<!-- 3. Keluarga (Soft Sky Blue) -->
 			<a
 				href="/sensus"
-				class="flex flex-col items-center group transition-all"
+				class="flex flex-col items-center group transition-transform"
 			>
-				<div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-sky-500/10 border border-sky-500/20 text-sky-600 dark:text-sky-400 flex items-center justify-center shadow-xs group-hover:scale-105 group-hover:bg-sky-500/20 group-active:scale-95 transition-all">
-					<Users class="w-6 h-6 stroke-[2.2]" />
+				<div class="w-13 h-13 sm:w-15 sm:h-15 rounded-2xl bg-[#E0F2FE] dark:bg-sky-950/50 text-[#0284C7] dark:text-sky-400 flex items-center justify-center group-hover:scale-105 group-active:scale-95 transition-all">
+					<Users class="w-6 h-6 stroke-[2]" />
 				</div>
-				<span class="text-xs sm:text-sm font-semibold text-foreground mt-1.5 leading-tight group-hover:text-primary transition-colors">
+				<span class="text-xs font-medium text-slate-800 dark:text-slate-200 mt-2 leading-tight">
 					Keluarga
 				</span>
 			</a>
 
-			<!-- 4. SI-PPG -->
+			<!-- 4. SI-PPG (Soft Lilac) -->
 			<button
 				type="button"
 				onclick={() => openAppDetail('ppg')}
-				class="flex flex-col items-center group transition-all"
+				class="flex flex-col items-center group transition-transform"
 			>
-				<div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 flex items-center justify-center shadow-xs group-hover:scale-105 group-hover:bg-purple-500/20 group-active:scale-95 transition-all">
-					<GraduationCap class="w-6 h-6 stroke-[2.2]" />
+				<div class="w-13 h-13 sm:w-15 sm:h-15 rounded-2xl bg-[#F3E8FF] dark:bg-purple-950/50 text-[#9333EA] dark:text-purple-400 flex items-center justify-center group-hover:scale-105 group-active:scale-95 transition-all">
+					<GraduationCap class="w-6 h-6 stroke-[2]" />
 				</div>
-				<span class="text-[11px] sm:text-xs font-semibold text-foreground mt-1.5 leading-tight group-hover:text-primary transition-colors">
+				<span class="text-xs font-medium text-slate-800 dark:text-slate-200 mt-2 leading-tight">
 					SI-PPG
 				</span>
 			</button>
 
-			<!-- 5. Lainnya (Etc) -->
+			<!-- 5. Lainnya (Slate Neutral) -->
 			<button
 				type="button"
 				onclick={() => (showAppsModal = true)}
-				class="flex flex-col items-center group transition-all"
+				class="flex flex-col items-center group transition-transform"
 			>
-				<div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-secondary border border-border text-foreground/70 flex items-center justify-center shadow-xs group-hover:scale-105 group-hover:text-primary group-active:scale-95 transition-all">
-					<LayoutGrid class="w-6 h-6 stroke-[2.2]" />
+				<div class="w-13 h-13 sm:w-15 sm:h-15 rounded-2xl bg-[#F1F5F9] dark:bg-slate-800/80 text-[#52525B] dark:text-slate-300 flex items-center justify-center group-hover:scale-105 group-active:scale-95 transition-all">
+					<LayoutGrid class="w-6 h-6 stroke-[2]" />
 				</div>
-				<span class="text-xs sm:text-sm font-semibold text-foreground mt-1.5 leading-tight group-hover:text-primary transition-colors">
+				<span class="text-xs font-medium text-slate-800 dark:text-slate-200 mt-2 leading-tight">
 					Lainnya
 				</span>
 			</button>
 		</div>
 	</section>
 
-	<!-- Pintasan Infaq & Shodaqoh Jamaah -->
+	<!-- 3. Pintasan Infaq & Shodaqoh Wilayah (Warm Amber Card) -->
 	<a
 		href="/shodaqoh"
-		class="block p-3.5 rounded-2xl bg-gradient-to-r from-teal-500/10 via-emerald-500/10 to-teal-500/5 border border-teal-500/25 hover:border-teal-500/40 transition-all shadow-2xs group"
+		class="block p-4 sm:p-4.5 rounded-2xl sm:rounded-3xl bg-[#FEF3C7]/70 hover:bg-[#FEF3C7] dark:bg-[#20180d] dark:hover:bg-[#281e10] border border-[#FDE68A]/70 dark:border-amber-900/40 transition-all shadow-xs group"
 	>
 		<div class="flex items-center justify-between gap-3">
-			<div class="flex items-center gap-3">
-				<div class="w-10 h-10 rounded-xl bg-teal-500/15 text-teal-600 dark:text-teal-400 flex items-center justify-center border border-teal-500/25 group-hover:scale-105 transition-transform">
-					<HeartHandshake class="w-5 h-5" />
+			<div class="flex items-center gap-3.5">
+				<div class="w-12 h-12 rounded-2xl bg-[#F59E0B] text-[#451A03] dark:text-amber-950 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-2xs">
+					<HeartHandshake class="w-6 h-6 stroke-[2.2]" />
 				</div>
 				<div>
-					<h3 class="text-xs sm:text-sm font-bold text-foreground flex items-center gap-1.5">
-						<span>Infaq & Shodaqoh Wilayah</span>
-						<span class="px-1.5 py-0.2 rounded-md bg-teal-500/20 text-teal-700 dark:text-teal-300 text-[9px] font-bold">QRIS & Bank</span>
+					<h3 class="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100">
+						Infaq & Shodaqoh Wilayah
 					</h3>
+					<p class="text-xs text-[#92400E] dark:text-amber-300/90 font-medium mt-0.5">
+						Bayar via QRIS & Bank
+					</p>
 				</div>
 			</div>
-			<div class="w-7 h-7 rounded-lg bg-card border border-border flex items-center justify-center text-foreground/50 group-hover:text-teal-600 group-hover:translate-x-0.5 transition-all shrink-0">
-				<ChevronRight class="w-4 h-4" />
-			</div>
+			<ChevronRight class="w-5 h-5 text-[#B45309] dark:text-amber-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
 		</div>
 	</a>
 
-	<!-- Jadwal Kegiatan Terdekat (Kelompok & Desa) -->
-	<section class="bg-card border border-border rounded-2xl p-4 sm:p-5 shadow-sm space-y-3.5">
-		<div class="flex items-center justify-between">
+	<!-- 4. Jadwal Pengajian (Header, Segmented Tabs, List / Empty State) -->
+	<section class="space-y-3.5 pt-1">
+		<div class="flex items-center justify-between px-0.5">
 			<div class="flex items-center gap-2">
-				<Calendar class="w-4 h-4 text-primary" />
-				<h3 class="text-sm sm:text-base font-bold text-foreground">Jadwal Pengajian Terdekat</h3>
+				<Calendar class="w-5 h-5 text-[#009B60] dark:text-emerald-400" />
+				<h3 class="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100">
+					Jadwal Pengajian
+				</h3>
 			</div>
-			<a href="/presensi" class="text-xs sm:text-sm font-semibold text-primary hover:underline flex items-center">
-				Presensi Mandiri <ChevronRight class="w-3.5 h-3.5 ml-0.5" />
+			<a
+				href="/presensi"
+				class="text-xs sm:text-sm font-semibold text-[#009B60] dark:text-emerald-400 hover:underline flex items-center gap-0.5"
+			>
+				Presensi Mandiri <ChevronRight class="w-4 h-4" />
 			</a>
 		</div>
 
-		<!-- Switcher Tab: Kelompok vs Desa -->
-		<div class="flex items-center gap-2 border-b border-border/70 pb-2 text-xs sm:text-sm">
+		<!-- Segmented Control Flat Switcher: Kelompok vs Desa -->
+		<div class="grid grid-cols-2 p-1.5 bg-[#EEF2F6] dark:bg-slate-800/70 rounded-2xl text-xs sm:text-sm">
 			<button
 				type="button"
 				onclick={() => (jadwalTab = 'kelompok')}
-				class="px-3 py-1.5 rounded-lg font-bold transition-all {jadwalTab === 'kelompok'
-					? 'bg-primary/10 text-primary border border-primary/20'
-					: 'text-foreground/60 hover:text-foreground'}"
+				class="py-2.5 px-3 rounded-xl transition-all text-center truncate {jadwalTab === 'kelompok'
+					? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-bold'
+					: 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 font-medium'}"
 			>
 				Kelompok ({data.kelompokNama})
 			</button>
 			<button
 				type="button"
 				onclick={() => (jadwalTab = 'desa')}
-				class="px-3 py-1.5 rounded-lg font-bold transition-all {jadwalTab === 'desa'
-					? 'bg-primary/10 text-primary border border-primary/20'
-					: 'text-foreground/60 hover:text-foreground'}"
+				class="py-2.5 px-3 rounded-xl transition-all text-center truncate {jadwalTab === 'desa'
+					? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-bold'
+					: 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 font-medium'}"
 			>
 				Desa ({data.desaNama})
 			</button>
 		</div>
 
-		<!-- Daftar Jadwal Terdekat -->
-		<div class="space-y-3 pt-1">
+		<!-- Daftar Jadwal Terdekat (Cards atau Empty State Dashed) -->
+		<div class="space-y-3 pt-0.5">
 			{#if currentJadwalList.length === 0}
-				<p class="text-sm text-foreground/50 py-4 text-center">
-					Belum ada jadwal pengajian {jadwalTab === 'kelompok' ? 'kelompok' : 'desa'} terdekat saat ini.
-				</p>
+				<div class="border border-dashed border-slate-200 dark:border-slate-800 bg-white/40 dark:bg-slate-900/20 rounded-3xl p-8 sm:p-10 text-center">
+					<div class="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 mx-auto flex items-center justify-center mb-3">
+						<Calendar class="w-6 h-6 stroke-[1.8]" />
+					</div>
+					<p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-xs mx-auto leading-relaxed">
+						Belum ada jadwal pengajian {jadwalTab === 'kelompok' ? 'kelompok' : 'desa'} terdekat saat ini.
+					</p>
+				</div>
 			{:else}
 				{#each currentJadwalList as jadwal}
-					<div class="p-3.5 rounded-xl border border-border/80 bg-background/50 hover:border-primary/40 transition-all space-y-2 {jadwal.isOverride ? 'border-amber-500/30 bg-amber-500/5' : ''}">
+					<div class="p-4 rounded-2xl border transition-colors space-y-2.5 {jadwal.isOverride
+						? 'bg-amber-50/50 border-amber-200/80 dark:bg-amber-950/20 dark:border-amber-900/40'
+						: 'bg-white border-slate-200/80 dark:bg-card dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700'} shadow-xs">
 						<div class="flex items-center justify-between gap-2">
-							<div class="flex items-center gap-2">
-								<span class="text-sm font-bold text-foreground">
+							<div class="flex items-center gap-2 flex-wrap">
+								<span class="text-sm font-bold text-slate-900 dark:text-slate-100">
 									{formatDateIndoFull(jadwal.tanggal)}
 								</span>
 								{#if jadwal.status === 'libur'}
-									<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400">
+									<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200/70 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900/50">
 										Libur
 									</span>
 								{/if}
 								{#if jadwal.isOverride}
-									<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300">
+									<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200/70 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/50">
 										Perubahan Khusus
 									</span>
 								{/if}
 							</div>
 
-							<!-- Jam Pelaksanaan (Wajib diisi & jelas) -->
-							<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-primary/10 text-primary font-mono">
+							<!-- Jam Pelaksanaan (Fresh Emerald Badge) -->
+							<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold bg-[#D7F5E9] text-[#009B60] dark:bg-emerald-950/60 dark:text-emerald-400 font-mono shrink-0">
 								<Clock class="w-3.5 h-3.5" />
 								<span>{jadwal.jamMulai}{jadwal.jamSelesai ? ` - ${jadwal.jamSelesai}` : ''} WIB</span>
 							</span>
 						</div>
 
-						<h4 class="text-sm font-semibold text-foreground/90">
+						<h4 class="text-sm font-semibold text-slate-800 dark:text-slate-200">
 							{jadwal.namaKegiatan}
 						</h4>
 
 						{#if jadwal.detailMateri}
-							<p class="text-xs sm:text-sm text-foreground/75 bg-secondary/30 p-2.5 rounded-lg leading-relaxed whitespace-pre-line">
+							<p class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 border border-slate-200/50 dark:border-slate-700/50 p-2.5 rounded-xl leading-relaxed whitespace-pre-line">
 								{jadwal.detailMateri}
 							</p>
 						{/if}
 
 						{#if jadwal.lokasiNama}
-							<div class="flex items-center gap-1.5 text-xs text-foreground/60 pt-0.5">
-								<MapPin class="w-3.5 h-3.5 text-foreground/40 shrink-0" />
+							<div class="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 pt-0.5">
+								<MapPin class="w-3.5 h-3.5 text-slate-400 shrink-0" />
 								<span class="truncate">{jadwal.lokasiNama}</span>
 							</div>
 						{/if}
@@ -266,23 +278,31 @@
 	</section>
 </div>
 
-<!-- Modal Dialog: Semua Aplikasi & Layanan Ekosistem Satu Generus -->
+<!-- Modal Dialog: Semua Aplikasi & Layanan Ekosistem Satu Generus (Modern Flat) -->
 {#if showAppsModal}
 	<div
-		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
+		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"
 		role="dialog"
 		aria-modal="true"
+		tabindex="-1"
 	>
-		<div class="bg-card border border-border rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4">
-			<div class="flex items-center justify-between border-b border-border pb-3">
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="fixed inset-0"
+			onclick={closeModals}
+		></div>
+
+		<div class="relative bg-card border border-border/80 dark:border-border/60 rounded-3xl max-w-sm w-full p-5 shadow-xl space-y-4">
+			<div class="flex items-center justify-between border-b border-border/60 pb-3">
 				<div class="flex items-center gap-2">
-					<LayoutGrid class="w-4 h-4 text-primary" />
+					<LayoutGrid class="w-5 h-5 text-[#009B60] dark:text-emerald-400" />
 					<h3 class="text-sm font-bold text-foreground">Semua Layanan & Aplikasi</h3>
 				</div>
 				<button
 					type="button"
 					onclick={closeModals}
-					class="p-1 text-foreground/50 hover:text-foreground rounded-lg"
+					class="p-1 text-muted-foreground hover:text-foreground rounded-lg transition-colors"
 					aria-label="Tutup"
 				>
 					<X class="w-4 h-4" />
@@ -293,100 +313,100 @@
 				<a
 					href="/presensi"
 					onclick={closeModals}
-					class="flex items-center gap-3 p-2.5 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/70 transition-colors"
+					class="flex items-center gap-3 p-3 rounded-2xl border border-border/60 bg-slate-50/80 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors"
 				>
-					<div class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-						<QrCode class="w-5 h-5" />
+					<div class="w-10 h-10 rounded-xl bg-[#D7F5E9] dark:bg-emerald-950/60 text-[#009B60] dark:text-emerald-400 flex items-center justify-center shrink-0">
+						<QrCode class="w-5 h-5 stroke-[2]" />
 					</div>
 					<div class="flex-1 min-w-0">
 						<h4 class="text-xs font-bold text-foreground">Presensi Pengajian</h4>
-						<p class="text-[11px] text-foreground/60 truncate">Scan QR kehadiran kegiatan pengajian</p>
+						<p class="text-[11px] text-muted-foreground truncate">Scan QR kehadiran kegiatan pengajian</p>
 					</div>
-					<ChevronRight class="w-4 h-4 text-foreground/40 shrink-0" />
+					<ChevronRight class="w-4 h-4 text-muted-foreground/60 shrink-0" />
 				</a>
 
 				<a
 					href="/fr"
 					onclick={closeModals}
-					class="flex items-center gap-3 p-2.5 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/70 transition-colors"
+					class="flex items-center gap-3 p-3 rounded-2xl border border-border/60 bg-slate-50/80 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors"
 				>
-					<div class="w-10 h-10 rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0">
-						<HandCoins class="w-5 h-5" />
+					<div class="w-10 h-10 rounded-xl bg-[#FEF0D6] dark:bg-amber-950/50 text-[#D97706] dark:text-amber-400 flex items-center justify-center shrink-0">
+						<HandCoins class="w-5 h-5 stroke-[2]" />
 					</div>
 					<div class="flex-1 min-w-0">
 						<div class="flex items-center gap-1.5">
 							<h4 class="text-xs font-bold text-foreground">Isrun / FR Jamaah</h4>
-							<span class="text-[9px] font-bold px-1.5 py-0.2 rounded bg-teal-500/20 text-teal-700 dark:text-teal-300">Wajib</span>
+							<span class="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">Wajib</span>
 						</div>
-						<p class="text-[11px] text-foreground/60 truncate">Lembar kewajiban 4 pos & pelaporan setoran FR</p>
+						<p class="text-[11px] text-muted-foreground truncate">Lembar kewajiban 4 pos & pelaporan setoran FR</p>
 					</div>
-					<ChevronRight class="w-4 h-4 text-foreground/40 shrink-0" />
+					<ChevronRight class="w-4 h-4 text-muted-foreground/60 shrink-0" />
 				</a>
 
 				<a
 					href="/sensus"
 					onclick={closeModals}
-					class="flex items-center gap-3 p-2.5 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/70 transition-colors"
+					class="flex items-center gap-3 p-3 rounded-2xl border border-border/60 bg-slate-50/80 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors"
 				>
-					<div class="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
-						<Users class="w-5 h-5" />
+					<div class="w-10 h-10 rounded-xl bg-[#E0F2FE] dark:bg-sky-950/50 text-[#0284C7] dark:text-sky-400 flex items-center justify-center shrink-0">
+						<Users class="w-5 h-5 stroke-[2]" />
 					</div>
 					<div class="flex-1 min-w-0">
 						<h4 class="text-xs font-bold text-foreground">Data Keluarga (Sensus)</h4>
-						<p class="text-[11px] text-foreground/60 truncate">Kelola data KK & anggota keluarga</p>
+						<p class="text-[11px] text-muted-foreground truncate">Kelola data KK & anggota keluarga</p>
 					</div>
-					<ChevronRight class="w-4 h-4 text-foreground/40 shrink-0" />
+					<ChevronRight class="w-4 h-4 text-muted-foreground/60 shrink-0" />
 				</a>
 
 				<button
 					type="button"
 					onclick={() => openAppDetail('ppg')}
-					class="flex items-center gap-3 p-2.5 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/70 text-left transition-colors w-full"
+					class="flex items-center gap-3 p-3 rounded-2xl border border-border/60 bg-slate-50/80 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800/80 text-left transition-colors w-full"
 				>
-					<div class="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
-						<GraduationCap class="w-5 h-5" />
+					<div class="w-10 h-10 rounded-xl bg-[#F3E8FF] dark:bg-purple-950/50 text-[#9333EA] dark:text-purple-400 flex items-center justify-center shrink-0">
+						<GraduationCap class="w-5 h-5 stroke-[2]" />
 					</div>
 					<div class="flex-1 min-w-0">
 						<div class="flex items-center gap-1.5">
 							<h4 class="text-xs font-bold text-foreground">SI-PPG</h4>
-							<span class="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-700 dark:text-purple-300">Ekosistem</span>
+							<span class="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300">Ekosistem</span>
 						</div>
-						<p class="text-[11px] text-foreground/60 truncate">Sistem Pembinaan Penggerak Pembina Generus</p>
+						<p class="text-[11px] text-muted-foreground truncate">Sistem Pembinaan Penggerak Pembina Generus</p>
 					</div>
-					<ChevronRight class="w-4 h-4 text-foreground/40 shrink-0" />
+					<ChevronRight class="w-4 h-4 text-muted-foreground/60 shrink-0" />
 				</button>
 
 				<a
 					href="/shodaqoh"
 					onclick={closeModals}
-					class="flex items-center gap-3 p-2.5 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/70 transition-colors"
+					class="flex items-center gap-3 p-3 rounded-2xl border border-border/60 bg-slate-50/80 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors"
 				>
-					<div class="w-10 h-10 rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0">
-						<HeartHandshake class="w-5 h-5" />
+					<div class="w-10 h-10 rounded-xl bg-[#FEF0D6] dark:bg-amber-950/50 text-[#D97706] dark:text-amber-400 flex items-center justify-center shrink-0">
+						<HeartHandshake class="w-5 h-5 stroke-[2]" />
 					</div>
 					<div class="flex-1 min-w-0">
 						<h4 class="text-xs font-bold text-foreground">Infaq & Shodaqoh</h4>
-						<p class="text-[11px] text-foreground/60 truncate">QRIS, rekening bank & konfirmasi transfer</p>
+						<p class="text-[11px] text-muted-foreground truncate">QRIS, rekening bank & konfirmasi transfer</p>
 					</div>
-					<ChevronRight class="w-4 h-4 text-foreground/40 shrink-0" />
+					<ChevronRight class="w-4 h-4 text-muted-foreground/60 shrink-0" />
 				</a>
 
 				<button
 					type="button"
 					onclick={() => openAppDetail('haramain')}
-					class="flex items-center gap-3 p-2.5 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/70 text-left transition-colors w-full"
+					class="flex items-center gap-3 p-3 rounded-2xl border border-border/60 bg-slate-50/80 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800/80 text-left transition-colors w-full"
 				>
-					<div class="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-						<Compass class="w-5 h-5" />
+					<div class="w-10 h-10 rounded-xl bg-[#FEF0D6] dark:bg-amber-950/50 text-[#D97706] dark:text-amber-400 flex items-center justify-center shrink-0">
+						<Compass class="w-5 h-5 stroke-[2]" />
 					</div>
 					<div class="flex-1 min-w-0">
 						<div class="flex items-center gap-1.5">
 							<h4 class="text-xs font-bold text-foreground">Menuju Haramain</h4>
-							<span class="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300">Ekosistem</span>
+							<span class="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">Ekosistem</span>
 						</div>
-						<p class="text-[11px] text-foreground/60 truncate">Program & tabungan umroh/haji jamaah</p>
+						<p class="text-[11px] text-muted-foreground truncate">Program & tabungan umroh/haji jamaah</p>
 					</div>
-					<ChevronRight class="w-4 h-4 text-foreground/40 shrink-0" />
+					<ChevronRight class="w-4 h-4 text-muted-foreground/60 shrink-0" />
 				</button>
 			</div>
 		</div>
@@ -396,51 +416,59 @@
 <!-- Modal Detail Aplikasi Khusus (Menuju Haramain / SI-PPG) -->
 {#if selectedAppModal}
 	<div
-		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
+		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"
 		role="dialog"
 		aria-modal="true"
+		tabindex="-1"
 	>
-		<div class="bg-card border border-border rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4">
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="fixed inset-0"
+			onclick={closeModals}
+		></div>
+
+		<div class="relative bg-card border border-border/80 dark:border-border/60 rounded-3xl max-w-sm w-full p-5 shadow-xl space-y-4">
 			<div class="flex items-start justify-between">
 				<div class="flex items-center gap-3">
 					{#if selectedAppModal === 'haramain'}
-						<div class="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shadow-xs">
-							<Compass class="w-6 h-6 stroke-[2.2]" />
+						<div class="w-12 h-12 rounded-2xl bg-[#FEF0D6] dark:bg-amber-950/50 text-[#D97706] dark:text-amber-400 flex items-center justify-center">
+							<Compass class="w-6 h-6 stroke-[2]" />
 						</div>
 						<div>
 							<h3 class="text-base font-bold text-foreground">Menuju Haramain</h3>
-							<span class="text-xs font-semibold text-amber-600 dark:text-amber-400">Aplikasi Terintegrasi</span>
+							<span class="text-xs font-medium text-amber-700 dark:text-amber-400">Aplikasi Terintegrasi</span>
 						</div>
 					{:else}
-						<div class="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 flex items-center justify-center shadow-xs">
-							<GraduationCap class="w-6 h-6 stroke-[2.2]" />
+						<div class="w-12 h-12 rounded-2xl bg-[#F3E8FF] dark:bg-purple-950/50 text-[#9333EA] dark:text-purple-400 flex items-center justify-center">
+							<GraduationCap class="w-6 h-6 stroke-[2]" />
 						</div>
 						<div>
 							<h3 class="text-base font-bold text-foreground">SI-PPG</h3>
-							<span class="text-xs font-semibold text-purple-600 dark:text-purple-400">Sistem Informasi PPG</span>
+							<span class="text-xs font-medium text-purple-700 dark:text-purple-400">Sistem Informasi PPG</span>
 						</div>
 					{/if}
 				</div>
 				<button
 					type="button"
 					onclick={closeModals}
-					class="p-1.5 text-foreground/50 hover:text-foreground rounded-lg"
+					class="p-1.5 text-muted-foreground hover:text-foreground rounded-lg transition-colors"
 					aria-label="Tutup"
 				>
 					<X class="w-4 h-4" />
 				</button>
 			</div>
 
-			<div class="text-sm text-foreground/80 space-y-2.5 leading-relaxed">
+			<div class="text-xs sm:text-sm text-foreground/80 space-y-2.5 leading-relaxed">
 				{#if selectedAppModal === 'haramain'}
 					<p>
-						<strong>Menuju Haramain</strong> adalah platform pendampingan dan perencanaan ibadah Umroh & Haji bagi warga jamaah.
+						<strong class="font-semibold text-foreground">Menuju Haramain</strong> adalah platform pendampingan dan perencanaan ibadah Umroh & Haji bagi warga jamaah.
 					</p>
-					<div class="p-3 bg-secondary/50 rounded-xl space-y-2 text-xs">
+					<div class="p-3 bg-slate-50 dark:bg-slate-800/40 border border-border/60 rounded-2xl space-y-1.5 text-xs">
 						<div class="flex items-center gap-1.5 text-foreground font-semibold">
-							<span>✨</span> <span>Fitur Unggulan:</span>
+							<span>Fitur Layanan:</span>
 						</div>
-						<ul class="list-disc list-inside space-y-1 text-foreground/75">
+						<ul class="list-disc list-inside space-y-1 text-muted-foreground">
 							<li>Simulasi & tabungan ibadah terencana</li>
 							<li>Informasi jadwal keberangkatan resmi</li>
 							<li>Panduan manasik & doa digital</li>
@@ -448,13 +476,13 @@
 					</div>
 				{:else}
 					<p>
-						<strong>SI-PPG</strong> (Sistem Informasi Pembinaan Penggerak Pembina Generus) mengelola kurikulum dan target capaian generasi penerus.
+						<strong class="font-semibold text-foreground">SI-PPG</strong> (Sistem Informasi Pembinaan Penggerak Pembina Generus) mengelola kurikulum dan target capaian generasi penerus.
 					</p>
-					<div class="p-3 bg-secondary/50 rounded-xl space-y-2 text-xs">
+					<div class="p-3 bg-slate-50 dark:bg-slate-800/40 border border-border/60 rounded-2xl space-y-1.5 text-xs">
 						<div class="flex items-center gap-1.5 text-foreground font-semibold">
-							<span>📚</span> <span>Fokus Pembinaan:</span>
+							<span>Fokus Pembinaan:</span>
 						</div>
-						<ul class="list-disc list-inside space-y-1 text-foreground/75">
+						<ul class="list-disc list-inside space-y-1 text-muted-foreground">
 							<li>Evaluasi capaian 3 Sukses Generus</li>
 							<li>Monitoring jenjang Paud s/d Usia Nikah</li>
 							<li>Silabus dan bahan ajar pengajian terstandar</li>
@@ -463,21 +491,21 @@
 				{/if}
 			</div>
 
-			<div class="flex gap-2.5 pt-2">
+			<div class="flex gap-2.5 pt-1">
 				<button
 					type="button"
 					onclick={closeModals}
-					class="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold text-foreground/80 hover:bg-secondary transition-colors"
+					class="flex-1 py-2.5 rounded-xl border border-border/80 text-xs sm:text-sm font-semibold text-muted-foreground hover:text-foreground hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
 				>
 					Tutup
 				</button>
 				<button
 					type="button"
 					onclick={closeModals}
-					class="flex-1 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+					class="flex-1 py-2.5 rounded-xl bg-[#009B60] text-white hover:bg-[#008753] dark:bg-emerald-600 dark:hover:bg-emerald-500 text-xs sm:text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 shadow-xs"
 				>
 					<span>Buka Layanan</span>
-					<ExternalLink class="w-4 h-4" />
+					<ExternalLink class="w-3.5 h-3.5" />
 				</button>
 			</div>
 		</div>

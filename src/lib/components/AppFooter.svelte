@@ -11,8 +11,8 @@
 </script>
 
 <footer class="pt-6 pb-2 text-center select-none {className}">
-	<p class="text-[11px] text-foreground/40 font-medium tracking-wide">
-		&bull; Created by Generus Koding &copy; 2026
+	<p class="text-xs text-foreground/50 font-normal tracking-wide">
+		Created by Generus Koding &copy; 2026
 	</p>
 </footer>
 

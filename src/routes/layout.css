@@ -58,7 +58,7 @@
   --popover: #FFFFFF;
   --popover-foreground: #0F172A;
 
-  --primary: #059669;
+  --primary: #009B60;
   --primary-foreground: #FFFFFF;
 
   --secondary: #F1F5F9;
@@ -75,7 +75,7 @@
 
   --border: #E2E8F0;
   --input: #E2E8F0;
-  --ring: #059669;
+  --ring: #009B60;
   --radius: 0.5rem;
 }
 
