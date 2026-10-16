@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(app)/presensi/+page.svelte
-  @purpose Halaman presensi mandiri jamaah (Hadir Offline/Online, Izin/Sakit, Riwayat, Kartu QR) sesuai konsep Flat Design Minimalist yang di-upsize: Header Hijau Melengkung terintegrasi, Switcher Mode Admin ⇄ Jamaah, Floating 4-Tab Bar, card dark slate, input dan tombol semantik
+  @purpose Halaman presensi mandiri jamaah (tingkat kelompok & desa; Hadir Offline/Online, Izin/Sakit, Riwayat, Kartu QR) sesuai konsep Flat Design Minimalist yang di-upsize: Header Hijau Melengkung terintegrasi, Switcher Mode Admin ⇄ Jamaah, Floating 4-Tab Bar, card dark slate, input dan tombol semantik
   @usedBy Route client '/presensi'
   @dependencies qrcode, @lucide/svelte, $app/forms, $app/state (page), #lib/utils (formatDateDDMMYYYY), #lib/components/ThemeToggle.svelte, Svelte 5 Runes
   @publicFunctions captureLocation, calculateDistanceMeters, handleFotoChange, resetPresensiForm, openPreviewFoto, closePreviewFoto
@@ -442,7 +442,7 @@
 						if (metodeKehadiran === 'offline' && !effectiveVenue.hasLocation) {
 							await confirmAction({
 								title: 'Lokasi Belum Diset',
-								message: 'Titik lokasi kelompok belum didaftarkan oleh admin. Silakan beralih ke metode Online.',
+								message: 'Titik lokasi kegiatan belum didaftarkan oleh admin. Silakan beralih ke metode Online.',
 								confirmText: 'Mengerti',
 								cancelText: '',
 								variant: 'warning'
@@ -514,7 +514,7 @@
 							>
 								{#each data.activeJadwalList as j}
 									<option value={j.id}>
-										{j.namaKegiatan} · {formatDateDDMMYYYY(j.tanggal)}{j.jamMulai ? ` · ${j.jamMulai}` : ''}{j.bisaPresensi === false ? ' (Ditutup)' : ''}
+										{j.isDesaScope ? '[Desa] ' : ''}{j.namaKegiatan} · {formatDateDDMMYYYY(j.tanggal)}{j.jamMulai ? ` · ${j.jamMulai}` : ''}{j.bisaPresensi === false ? ' (Ditutup)' : ''}
 									</option>
 								{/each}
 							</select>
@@ -797,7 +797,7 @@
 							>
 								{#each data.activeJadwalList as j}
 									<option value={j.id}>
-										{j.namaKegiatan} · {formatDateDDMMYYYY(j.tanggal)}{j.jamMulai ? ` · ${j.jamMulai}` : ''}
+										{j.isDesaScope ? '[Desa] ' : ''}{j.namaKegiatan} · {formatDateDDMMYYYY(j.tanggal)}{j.jamMulai ? ` · ${j.jamMulai}` : ''}
 									</option>
 								{/each}
 							</select>

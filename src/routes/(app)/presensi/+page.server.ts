@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(app)/presensi/+page.server.ts
- * @purpose Memuat jadwal pengajian aktif rentang kemarin s/d besok (H-1 s/d H+1) tingkat kelompok & desa, pewarisan lokasi kelompok/desa persisten yang terikat ke profil jamaah tanpa tergantung ada/tidaknya jadwal aktif, QR token unik, validasi radius GPS, serta mutasi presensi mandiri & permohonan izin
+ * @purpose Memuat jadwal pengajian aktif rentang kemarin s/d besok (H-1 s/d H+1) tingkat kelompok & desa, pewarisan lokasi kelompok/desa persisten (termasuk via desa.lokasiKelompokId) yang terikat ke profil jamaah tanpa tergantung ada/tidaknya jadwal aktif, QR token unik, validasi radius GPS, serta mutasi presensi mandiri & permohonan izin
  * @usedBy src/routes/(app)/presensi/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, drizzle-orm, src/lib/server/upload, src/lib/presensi-waktu (validasiWaktuPresensi, getWaktuSekarangWIB)
  * @publicFunctions load, actions.presensiMandiri, actions.ajukanIzin
@@ -31,6 +31,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	let kelompokNama = 'Kelompok';
 	let kelompokData: (typeof kelompok.$inferSelect) | undefined = undefined;
 	let desaData: (typeof desa.$inferSelect) | undefined = undefined;
+	let desaLokasiKelompok: (typeof kelompok.$inferSelect) | undefined = undefined;
 
 	if (userKelompokId) {
 		kelompokData = (await first(db.select().from(kelompok).where(eq(kelompok.id, userKelompokId))));
@@ -38,16 +39,28 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			kelompokNama = kelompokData.nama;
 			if (kelompokData.desaId) {
 				desaData = (await first(db.select().from(desa).where(eq(desa.id, kelompokData.desaId))));
+				if (desaData?.lokasiKelompokId) {
+					desaLokasiKelompok = await first(
+						db.select().from(kelompok).where(eq(kelompok.id, desaData.lokasiKelompokId))
+					);
+				}
 			}
 		}
 	}
 
+	// Lokasi efektif desa (jika desa menunjuk lokasiKelompokId)
+	const desaEffectiveLat = desaData?.latitude || desaLokasiKelompok?.latitude || null;
+	const desaEffectiveLng = desaData?.longitude || desaLokasiKelompok?.longitude || null;
+	const desaEffectiveRadius = desaData?.radiusMeter || desaLokasiKelompok?.radiusMeter || 100;
+	const desaEffectiveLokasiNama = desaData?.lokasiNama || desaData?.nama || desaLokasiKelompok?.lokasiNama || desaLokasiKelompok?.nama || null;
+	const desaEffectiveGmapsUrl = desaData?.gmapsUrl || desaLokasiKelompok?.gmapsUrl || null;
+
 	// Lokasi basis kelompok jamaah (fallback ke desa jika kelompok belum set lat/lng)
-	const kelompokLat = kelompokData?.latitude || desaData?.latitude || null;
-	const kelompokLng = kelompokData?.longitude || desaData?.longitude || null;
-	const kelompokRadius = kelompokData?.radiusMeter || desaData?.radiusMeter || 100;
-	const kelompokLokasiNama = kelompokData?.lokasiNama || kelompokData?.nama || desaData?.lokasiNama || desaData?.nama || kelompokNama;
-	const kelompokGmapsUrl = kelompokData?.gmapsUrl || desaData?.gmapsUrl || null;
+	const kelompokLat = kelompokData?.latitude || desaEffectiveLat || null;
+	const kelompokLng = kelompokData?.longitude || desaEffectiveLng || null;
+	const kelompokRadius = kelompokData?.radiusMeter || desaEffectiveRadius || 100;
+	const kelompokLokasiNama = kelompokData?.lokasiNama || kelompokData?.nama || desaEffectiveLokasiNama || kelompokNama;
+	const kelompokGmapsUrl = kelompokData?.gmapsUrl || desaEffectiveGmapsUrl || null;
 
 	// Ambil jadwal kegiatan untuk kelompok jamaah maupun desa jamaah
 	const userDesaId = kelompokData?.desaId || null;
@@ -91,12 +104,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	const jadwalWithStatus = jadwalList.map((j) => {
 		const rec = recordMap.get(j.id);
-		const isDesaScope = Boolean(j.desaId && !j.kelompokId);
-		const defaultLat = isDesaScope ? (desaData?.latitude || kelompokLat) : (kelompokLat || desaData?.latitude);
-		const defaultLng = isDesaScope ? (desaData?.longitude || kelompokLng) : (kelompokLng || desaData?.longitude);
-		const defaultRadius = isDesaScope ? (desaData?.radiusMeter || kelompokRadius) : (kelompokRadius || desaData?.radiusMeter);
-		const defaultNama = isDesaScope ? (desaData?.lokasiNama || desaData?.nama || kelompokLokasiNama) : (kelompokLokasiNama || desaData?.lokasiNama);
-		const defaultGmaps = isDesaScope ? (desaData?.gmapsUrl || kelompokGmapsUrl) : (kelompokGmapsUrl || desaData?.gmapsUrl);
+		const isDesaScope = j.tingkatScope === 'Desa' || Boolean(j.desaId && !j.kelompokId);
+		const defaultLat = isDesaScope ? (desaEffectiveLat || kelompokLat) : (kelompokLat || desaEffectiveLat);
+		const defaultLng = isDesaScope ? (desaEffectiveLng || kelompokLng) : (kelompokLng || desaEffectiveLng);
+		const defaultRadius = isDesaScope ? (desaEffectiveRadius || kelompokRadius) : (kelompokRadius || desaEffectiveRadius);
+		const defaultNama = isDesaScope ? (desaEffectiveLokasiNama || kelompokLokasiNama) : (kelompokLokasiNama || desaEffectiveLokasiNama);
+		const defaultGmaps = isDesaScope ? (desaEffectiveGmapsUrl || kelompokGmapsUrl) : (kelompokGmapsUrl || desaEffectiveGmapsUrl);
 
 		const venueLat = j.latitude || defaultLat || null;
 		const venueLng = j.longitude || defaultLng || null;
@@ -107,6 +120,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 		return {
 			id: j.id,
+			isDesaScope,
 			tanggal: j.tanggal,
 			jamMulai: j.jamMulai,
 			jamSelesai: j.jamSelesai,
@@ -234,16 +248,27 @@ export const actions: Actions = {
 				? await first(db.select().from(desa).where(eq(desa.id, targetDesaId)))
 				: null;
 
-			const isDesaSesi = Boolean(jadwal.desaId && !jadwal.kelompokId);
+			let targetDesaLokasiKelompok: typeof targetKelompok = null;
+			if (targetDesa?.lokasiKelompokId) {
+				targetDesaLokasiKelompok = await first(
+					db.select().from(kelompok).where(eq(kelompok.id, targetDesa.lokasiKelompokId))
+				);
+			}
+
+			const isDesaSesi = jadwal.tingkatScope === 'Desa' || Boolean(jadwal.desaId && !jadwal.kelompokId);
+			const targetDesaLat = targetDesa?.latitude || targetDesaLokasiKelompok?.latitude;
+			const targetDesaLng = targetDesa?.longitude || targetDesaLokasiKelompok?.longitude;
+			const targetDesaRadius = targetDesa?.radiusMeter || targetDesaLokasiKelompok?.radiusMeter;
+
 			const fallbackLat = isDesaSesi
-				? (targetDesa?.latitude || targetKelompok?.latitude)
-				: (targetKelompok?.latitude || targetDesa?.latitude);
+				? (targetDesaLat || targetKelompok?.latitude)
+				: (targetKelompok?.latitude || targetDesaLat);
 			const fallbackLng = isDesaSesi
-				? (targetDesa?.longitude || targetKelompok?.longitude)
-				: (targetKelompok?.longitude || targetDesa?.longitude);
+				? (targetDesaLng || targetKelompok?.longitude)
+				: (targetKelompok?.longitude || targetDesaLng);
 			const fallbackRadius = isDesaSesi
-				? (targetDesa?.radiusMeter || targetKelompok?.radiusMeter)
-				: (targetKelompok?.radiusMeter || targetDesa?.radiusMeter);
+				? (targetDesaRadius || targetKelompok?.radiusMeter)
+				: (targetKelompok?.radiusMeter || targetDesaRadius);
 
 			const targetLatStr = jadwal.latitude || fallbackLat || null;
 			const targetLngStr = jadwal.longitude || fallbackLng || null;
@@ -251,7 +276,7 @@ export const actions: Actions = {
 
 			if (!targetLatStr || !targetLngStr) {
 				return fail(400, {
-					error: 'Lokasi kelompok belum didaftarkan oleh admin. Anda tidak dapat presensi menggunakan lokasi. Silakan gunakan metode Hadir Online dengan foto bukti gambar.'
+					error: 'Lokasi kegiatan belum didaftarkan oleh admin. Anda tidak dapat presensi menggunakan lokasi. Silakan gunakan metode Hadir Online dengan foto bukti gambar.'
 				});
 			}
 
@@ -281,7 +306,7 @@ export const actions: Actions = {
 
 			if (distanceMeters > targetRadius) {
 				return fail(400, {
-					error: `Di luar radius lokasi kelompok (~${distanceMeters}m). Silakan beralih ke Hadir Online.`
+					error: `Di luar radius lokasi kegiatan (~${distanceMeters}m). Silakan beralih ke Hadir Online.`
 				});
 			}
 
