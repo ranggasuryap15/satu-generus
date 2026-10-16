@@ -1,9 +1,9 @@
 /**
  * @file src/lib/presensi-waktu.ts
- * @purpose Utility domain untuk validasi integritas waktu presensi jamaah: wajib tanggal sama dan minimal 1 jam sebelum jam kegiatan dimulai
- * @usedBy src/routes/(app)/presensi/+page.server.ts, src/routes/(app)/presensi/+page.svelte
+ * @purpose Utility domain untuk validasi waktu presensi jamaah, normalisasi format jam 24H (HH:mm) dengan default 20:00 - 21:30, dan kalkulasi batas buka presensi 1 jam sebelum acara
+ * @usedBy src/routes/(app)/presensi/+page.server.ts, src/routes/(app)/presensi/+page.svelte, src/routes/(admin)/admin/jadwal/+page.server.ts
  * @dependencies src/lib/utils (formatDateDDMMYYYY)
- * @publicFunctions parseJamMulai, hitungWaktuBukaPresensi, getWaktuSekarangWIB, validasiWaktuPresensi
+ * @publicFunctions normalizeJam24H, parseJamMulai, hitungWaktuBukaPresensi, getWaktuSekarangWIB, validasiWaktuPresensi
  * @sideEffects Tidak ada (pure utility / deterministic validation)
  */
 
@@ -16,17 +16,38 @@ export interface ValidasiPresensiResult {
 }
 
 /**
- * Parsing jam mulai kegiatan dari string ke komponen jam dan menit
- * Fallback ke default 08:00 jika nilai kosong atau tidak valid
+ * Normalisasi string jam ke format standar 24 Jam (HH:mm)
+ * Mendukung pemisah titik (.) maupun titik dua (:).
+ * Contoh: "20.00" -> "20:00", "21.30" -> "21:30"
+ */
+export function normalizeJam24H(jamInput?: string | null, fallback: string = '20:00'): string {
+	if (!jamInput || !jamInput.trim()) return fallback;
+	const cleaned = jamInput.trim().replace('.', ':');
+	const parts = cleaned.split(':');
+	const jam = parseInt(parts[0], 10);
+	const menit = parseInt(parts[1], 10) || 0;
+	if (isNaN(jam) || jam < 0 || jam > 23 || menit < 0 || menit > 59) {
+		return fallback;
+	}
+	return `${String(jam).padStart(2, '0')}:${String(menit).padStart(2, '0')}`;
+}
+
+/**
+ * Parsing jam mulai kegiatan dari string ke komponen jam dan menit (24H)
+ * Fallback ke default 20:00 jika nilai kosong atau tidak valid
  */
 export function parseJamMulai(jamMulai?: string | null): { jam: number; menit: number; formatted: string } {
-	if (!jamMulai) return { jam: 8, menit: 0, formatted: '08:00' };
+	if (!jamMulai) return { jam: 20, menit: 0, formatted: '20:00' };
 	const cleaned = jamMulai.trim().replace('.', ':');
 	const parts = cleaned.split(':');
-	const jam = parseInt(parts[0], 10) || 0;
+	const jam = parseInt(parts[0], 10);
 	const menit = parseInt(parts[1], 10) || 0;
-	const formatted = `${String(jam).padStart(2, '0')}:${String(menit).padStart(2, '0')}`;
-	return { jam, menit, formatted };
+	if (isNaN(jam) || jam < 0 || jam > 23) {
+		return { jam: 20, menit: 0, formatted: '20:00' };
+	}
+	const cleanMenit = isNaN(menit) || menit < 0 || menit > 59 ? 0 : menit;
+	const formatted = `${String(jam).padStart(2, '0')}:${String(cleanMenit).padStart(2, '0')}`;
+	return { jam, menit: cleanMenit, formatted };
 }
 
 /**

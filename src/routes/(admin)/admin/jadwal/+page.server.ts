@@ -1,8 +1,8 @@
 /**
  * @file src/routes/(admin)/admin/jadwal/+page.server.ts
- * @purpose Server load & actions untuk pengelolaan jadwal pengajian bertingkat (Desa & Kelompok), default NULL saat klik tab pengajian, persistensi filter terpilih, template siklus rutin, generator sesi bulanan dengan fitur auto-replace sesi rutin lama tanpa menghapus sesi manual, pewarisan lokasi default Desa & Kelompok, serta penghapusan aman sesi pengajian
+ * @purpose Server load & actions untuk pengelolaan jadwal pengajian bertingkat (Desa & Kelompok), default NULL saat klik tab pengajian, persistensi filter terpilih, template siklus rutin berformat 24H (default 20:00 - 21:30), generator sesi bulanan dengan fitur auto-replace sesi rutin lama tanpa menghapus sesi manual, pewarisan lokasi default Desa & Kelompok, serta penghapusan aman sesi pengajian
  * @usedBy src/routes/(admin)/admin/jadwal/+page.svelte
- * @dependencies src/lib/db, src/lib/db/schema (jadwalPengajianTemplate, presensiJadwal, presensiKehadiran, kelompok, desa), src/lib/server/scope, src/lib/jadwal, drizzle-orm
+ * @dependencies src/lib/db, src/lib/db/schema (jadwalPengajianTemplate, presensiJadwal, presensiKehadiran, kelompok, desa), src/lib/server/scope, src/lib/jadwal, src/lib/presensi-waktu (normalizeJam24H), drizzle-orm
  * @publicFunctions load, actions.saveTemplate, actions.deleteTemplate, actions.generateSesiBulanan, actions.createSesiManual, actions.updateSesiOverride, actions.deleteSesi
  * @sideEffects Menulis dan membaca tabel jadwal_pengajian_template, presensi_jadwal, dan presensi_kehadiran di SQLite, serta menyimpan preferensi tab aktif di cookies
  */
@@ -14,6 +14,7 @@ import { jadwalPengajianTemplate, presensiJadwal, presensiKehadiran, kelompok, d
 import { getAdminScope, getAccessibleWilayah, isKelompokAllowed } from '#lib/server/scope.js';
 import { hitungTanggalSesiBulanan } from '#lib/jadwal.js';
 import { normalizeDateToISO } from '#lib/utils.js';
+import { normalizeJam24H } from '#lib/presensi-waktu.js';
 import { eq, and, desc, asc, isNotNull, gte, lte, inArray } from 'drizzle-orm';
 
 const COOKIE_OPTS = { path: '/', httpOnly: false, sameSite: 'lax' as const, maxAge: 60 * 60 * 24 * 7 };
@@ -210,8 +211,8 @@ export const actions: Actions = {
 		const tipePola = (formData.get('tipePola')?.toString() || (tingkatScope === 'Desa' ? 'mingguan_ke' : 'hari_rutin')) as 'mingguan_ke' | 'hari_rutin';
 		const mingguKeRaw = formData.get('mingguKe')?.toString();
 		const hariRaw = formData.get('hari')?.toString() || '0';
-		const jamMulai = formData.get('jamMulai')?.toString()?.trim();
-		const jamSelesai = formData.get('jamSelesai')?.toString()?.trim() || null;
+		const rawJamMulai = formData.get('jamMulai')?.toString()?.trim();
+		const rawJamSelesai = formData.get('jamSelesai')?.toString()?.trim() || null;
 		const namaKegiatan = formData.get('namaKegiatan')?.toString()?.trim();
 		const detailMateri = formData.get('detailMateri')?.toString()?.trim() || null;
 		const isLibur = formData.get('isLibur')?.toString() === 'true';
@@ -222,9 +223,12 @@ export const actions: Actions = {
 		if (!namaKegiatan) {
 			return fail(400, { error: 'Nama kegiatan pengajian wajib diisi.' });
 		}
-		if (!jamMulai) {
-			return fail(400, { error: 'Jam mulai kegiatan wajib diisi (contoh: 08:30).' });
+		if (!rawJamMulai) {
+			return fail(400, { error: 'Jam mulai kegiatan wajib diisi (contoh: 20:00).' });
 		}
+
+		const jamMulai = normalizeJam24H(rawJamMulai, '20:00');
+		const jamSelesai = rawJamSelesai ? normalizeJam24H(rawJamSelesai, '21:30') : null;
 
 		const desaId = desaIdRaw ? parseInt(desaIdRaw, 10) : null;
 		const kelompokId = kelompokIdRaw ? parseInt(kelompokIdRaw, 10) : null;
@@ -543,8 +547,8 @@ export const actions: Actions = {
 		const desaId = formData.get('desaId') ? parseInt(formData.get('desaId')!.toString(), 10) : null;
 		const kelompokId = formData.get('kelompokId') ? parseInt(formData.get('kelompokId')!.toString(), 10) : null;
 		const tanggalRaw = formData.get('tanggal')?.toString();
-		const jamMulai = formData.get('jamMulai')?.toString()?.trim();
-		const jamSelesai = formData.get('jamSelesai')?.toString()?.trim() || null;
+		const rawJamMulai = formData.get('jamMulai')?.toString()?.trim();
+		const rawJamSelesai = formData.get('jamSelesai')?.toString()?.trim() || null;
 		const namaKegiatan = formData.get('namaKegiatan')?.toString()?.trim();
 		const detailMateri = formData.get('detailMateri')?.toString()?.trim() || null;
 		const status = formData.get('status')?.toString() || 'aktif';
@@ -553,7 +557,10 @@ export const actions: Actions = {
 
 		if (!namaKegiatan) return fail(400, { error: 'Nama kegiatan wajib diisi.' });
 		if (!tanggalRaw) return fail(400, { error: 'Tanggal kegiatan wajib diisi.' });
-		if (!jamMulai) return fail(400, { error: 'Jam mulai kegiatan wajib diisi.' });
+		if (!rawJamMulai) return fail(400, { error: 'Jam mulai kegiatan wajib diisi.' });
+
+		const jamMulai = normalizeJam24H(rawJamMulai, '20:00');
+		const jamSelesai = rawJamSelesai ? normalizeJam24H(rawJamSelesai, '21:30') : null;
 
 		syncJadwalCookies(cookies, tingkatScope, desaId, kelompokId);
 
@@ -635,8 +642,8 @@ export const actions: Actions = {
 		const id = parseInt(formData.get('id')?.toString() || '0', 10);
 		if (!id) return fail(400, { error: 'ID sesi jadwal tidak valid.' });
 
-		const jamMulai = formData.get('jamMulai')?.toString()?.trim();
-		const jamSelesai = formData.get('jamSelesai')?.toString()?.trim() || null;
+		const rawJamMulai = formData.get('jamMulai')?.toString()?.trim();
+		const rawJamSelesai = formData.get('jamSelesai')?.toString()?.trim() || null;
 		const namaKegiatan = formData.get('namaKegiatan')?.toString()?.trim();
 		const detailMateri = formData.get('detailMateri')?.toString()?.trim() || null;
 		const status = formData.get('status')?.toString() || 'aktif';
@@ -644,7 +651,10 @@ export const actions: Actions = {
 		const gmapsUrl = formData.get('gmapsUrl')?.toString()?.trim() || null;
 
 		if (!namaKegiatan) return fail(400, { error: 'Nama kegiatan wajib diisi.' });
-		if (!jamMulai) return fail(400, { error: 'Jam mulai wajib diisi.' });
+		if (!rawJamMulai) return fail(400, { error: 'Jam mulai wajib diisi.' });
+
+		const jamMulai = normalizeJam24H(rawJamMulai, '20:00');
+		const jamSelesai = rawJamSelesai ? normalizeJam24H(rawJamSelesai, '21:30') : null;
 
 		try {
 			const existing = (await first(db.select().from(presensiJadwal).where(eq(presensiJadwal.id, id))));

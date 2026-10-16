@@ -233,8 +233,8 @@ export const presensiJadwal = pgTable(
 		kelompokId: integer('kelompok_id').references(() => kelompok.id, { onDelete: 'cascade' }),
 		templateId: integer('template_id').references(() => jadwalPengajianTemplate.id, { onDelete: 'set null' }),
 		tanggal: text('tanggal').notNull(), // ISO8601 YYYY-MM-DD
-		jamMulai: text('jam_mulai').notNull().default('08:00'), // HH:mm (Wajib diisi)
-		jamSelesai: text('jam_selesai'), // HH:mm
+		jamMulai: text('jam_mulai').notNull().default('20:00'), // HH:mm 24H (Wajib diisi, default 20:00)
+		jamSelesai: text('jam_selesai').default('21:30'), // HH:mm 24H (default 21:30)
 		namaKegiatan: text('nama_kegiatan').notNull(),
 		detailMateri: text('detail_materi'),
 		isOverride: boolean('is_override').notNull().default(false),

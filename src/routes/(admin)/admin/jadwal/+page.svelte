@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(admin)/admin/jadwal/+page.svelte
-  @purpose Antarmuka manajemen jadwal pengajian bertingkat (Desa & Kelompok), pelabelan sesi "Rutin" vs manual, generator sesi bulanan dengan auto-replace sesi rutin, default selector NULL saat klik tab pengajian, retensi filter terpilih setelah simpan/edit/hapus/override/generate via URL query params & cookies, helper getActionUrl penjaga query params form submit (?/actionName&params), selector kelompok & desa tanpa refresh kasar, override mendadak, pewarisan lokasi default Desa & Kelompok pada sesi manual, penghapusan sesi & template dengan modal konfirmasi aman serta scroll retention
+  @purpose Antarmuka manajemen jadwal pengajian bertingkat (Desa & Kelompok), pelabelan sesi "Rutin" vs manual, generator sesi bulanan dengan auto-replace sesi rutin, format input jam 24H dengan default 20:00 s/d 21:30, default selector NULL saat klik tab pengajian, retensi filter terpilih setelah simpan/edit/hapus/override/generate via URL query params & cookies, helper getActionUrl penjaga query params form submit (?/actionName&params), selector kelompok & desa tanpa refresh kasar, override mendadak, pewarisan lokasi default Desa & Kelompok pada sesi manual, penghapusan sesi & template dengan modal konfirmasi aman serta scroll retention
   @usedBy Route admin '/admin/jadwal'
   @dependencies @lucide/svelte, $app/forms, $app/navigation, $app/state, #lib/confirm.svelte, #lib/keepScroll.ts, #lib/components/SearchableSelect.svelte, #lib/jadwal (getNamaHari, getMingguKe, formatDateIndoFull, formatWhatsAppReminder, generateWhatsAppLink, NAMA_HARI_INDO, NAMA_BULAN_INDO), Svelte 5 Runes
   @publicFunctions getActionUrl, switchTab, handleSelectKelompok, handleSelectDesa, openCreateTemplateModal, openEditTemplateModal, openOverrideModal, openWaModal, openGenerateModal, copyWaText
@@ -236,8 +236,8 @@
 			tipePola: scope === 'Desa' ? 'mingguan_ke' : 'hari_rutin',
 			mingguKe: 1,
 			hari: 0,
-			jamMulai: '08:30',
-			jamSelesai: '10:30',
+			jamMulai: '20:00',
+			jamSelesai: '21:30',
 			namaKegiatan: scope === 'Desa' ? 'Pengajian Rutin Desa' : 'Pengajian Rutin Kelompok',
 			detailMateri: scope === 'Desa' ? "Qur'an Makna + Hadits + Nasehat" : "Qur'an Makna + Hadits",
 			isLibur: false,
@@ -1174,16 +1174,17 @@
 					</div>
 				</div>
 
-				<!-- Jam Pelaksanaan (Wajib diisi) -->
+				<!-- Jam Pelaksanaan (Format 24H: contoh 20:00 s/d 21:30) -->
 				<div class="grid grid-cols-2 gap-3">
 					<div>
 						<label for="tmplJamMulai" class="block font-semibold text-foreground/80 mb-1">
-							Jam Mulai <span class="text-destructive">*</span>
+							Jam Mulai (24H) <span class="text-destructive">*</span>
 						</label>
 						<input
 							id="tmplJamMulai"
 							name="jamMulai"
 							type="time"
+							step="60"
 							required
 							bind:value={editingTemplate.jamMulai}
 							class="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-2 text-xs text-foreground font-mono focus:ring-1 focus:ring-primary"
@@ -1191,12 +1192,13 @@
 					</div>
 					<div>
 						<label for="tmplJamSelesai" class="block font-semibold text-foreground/80 mb-1">
-							Jam Selesai (Opsional)
+							Jam Selesai (24H)
 						</label>
 						<input
 							id="tmplJamSelesai"
 							name="jamSelesai"
 							type="time"
+							step="60"
 							bind:value={editingTemplate.jamSelesai}
 							class="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-2 text-xs text-foreground font-mono focus:ring-1 focus:ring-primary"
 						/>
@@ -1357,12 +1359,13 @@
 				<div class="grid grid-cols-2 gap-3">
 					<div>
 						<label for="sesiJamMulai" class="block font-semibold text-foreground/80 mb-1">
-							Jam Mulai <span class="text-destructive">*</span>
+							Jam Mulai (24H) <span class="text-destructive">*</span>
 						</label>
 						<input
 							id="sesiJamMulai"
 							name="jamMulai"
 							type="time"
+							step="60"
 							required
 							bind:value={editingSesi.jamMulai}
 							class="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-2 text-xs text-foreground font-mono focus:ring-1 focus:ring-primary"
@@ -1370,12 +1373,13 @@
 					</div>
 					<div>
 						<label for="sesiJamSelesai" class="block font-semibold text-foreground/80 mb-1">
-							Jam Selesai
+							Jam Selesai (24H)
 						</label>
 						<input
 							id="sesiJamSelesai"
 							name="jamSelesai"
 							type="time"
+							step="60"
 							bind:value={editingSesi.jamSelesai}
 							class="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-2 text-xs text-foreground font-mono focus:ring-1 focus:ring-primary"
 						/>
@@ -1538,30 +1542,32 @@
 					/>
 				</div>
 
-				<!-- Jam Pelaksanaan -->
+				<!-- Jam Pelaksanaan (Format 24H: contoh 20:00 s/d 21:30) -->
 				<div class="grid grid-cols-2 gap-3">
 					<div>
 						<label for="manualJamMulai" class="block font-semibold text-foreground/80 mb-1">
-							Jam Mulai <span class="text-destructive">*</span>
+							Jam Mulai (24H) <span class="text-destructive">*</span>
 						</label>
 						<input
 							id="manualJamMulai"
 							name="jamMulai"
 							type="time"
+							step="60"
 							required
-							value="08:30"
+							value="20:00"
 							class="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-2 text-xs text-foreground font-mono focus:ring-1 focus:ring-primary"
 						/>
 					</div>
 					<div>
 						<label for="manualJamSelesai" class="block font-semibold text-foreground/80 mb-1">
-							Jam Selesai
+							Jam Selesai (24H)
 						</label>
 						<input
 							id="manualJamSelesai"
 							name="jamSelesai"
 							type="time"
-							value="10:30"
+							step="60"
+							value="21:30"
 							class="w-full bg-secondary/50 border border-border rounded-lg px-2.5 py-2 text-xs text-foreground font-mono focus:ring-1 focus:ring-primary"
 						/>
 					</div>
