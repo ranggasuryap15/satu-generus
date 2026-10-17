@@ -1,9 +1,9 @@
 <!--
   @file src/routes/(admin)/admin/sensus/batch/+page.svelte
-  @purpose Antarmuka batch insert sensus massal terstruktur: grouping keluarga hierarkis untuk KK dan kartu baris tunggal datar untuk Jamaah Mandiri/Perantau, DateInput dengan manual typing & kalender, auto-kalkulasi generus, validasi noTelepon numerik (wajib jika buat akun), layout form responsif desktop & mobile, paste spreadsheet otomatis, unggah langsung file Excel/CSV, dan opsi pembuatan akun
+  @purpose Antarmuka batch insert sensus massal terstruktur: grouping keluarga hierarkis untuk KK dan kartu baris tunggal datar untuk Jamaah Mandiri/Perantau, DateInput dengan manual typing & kalender, auto-kalkulasi generus, validasi noTelepon numerik (wajib jika buat akun), layout form responsif desktop & mobile, unggah langsung file Excel/CSV, dan opsi pembuatan akun
   @usedBy Route admin '/admin/sensus/batch'
   @dependencies @lucide/svelte, $app/forms, #lib/components/SearchableSelect.svelte, #lib/components/DateInput.svelte, #lib/generus (hitungUmur, hitungStatusGenerus, getDaftarStatusKeluargaByGender, daftar konstanta), Svelte 5 Runes
-  @publicFunctions addFamily, addPerantauFamily, removeFamily, addMemberToFamily, removeMember, clearFamilies, convertToPerantau, convertToFamily, onGlobalKelompokChange, onJenisKelaminChange, onStatusKeluargaChange, onTanggalLahirOrMenikahChange, processPastedSpreadsheet, handleBatchFileUpload, toggleAllBuatAkun
+  @publicFunctions addFamily, addPerantauFamily, removeFamily, addMemberToFamily, removeMember, clearFamilies, convertToPerantau, convertToFamily, onGlobalKelompokChange, onJenisKelaminChange, onStatusKeluargaChange, onTanggalLahirOrMenikahChange, handleBatchFileUpload, toggleAllBuatAkun
   @sideEffects Mengirim payload JSON batchData (FamilyBatchGroup[]) ke server action untuk transaksi database atomik
 -->
 <script lang="ts">
@@ -26,9 +26,7 @@
 		AlertCircle,
 		ArrowLeft,
 		CheckCircle2,
-		Clipboard,
 		Download,
-		FileSpreadsheet,
 		Home,
 		KeyRound,
 		Loader2,
@@ -133,10 +131,6 @@
 		}
 		return data.wilayahOptions.kelompokList[0]?.id || '';
 	}
-
-	// Modal Paste Spreadsheet
-	let showPasteModal = $state(false);
-	let pasteText = $state('');
 
 	// Unggah File Spreadsheet Excel/CSV Langsung
 	let batchFileInput: HTMLInputElement | undefined = $state();
@@ -405,279 +399,6 @@
 		}
 	}
 
-	// Parsing Text Clipboard dari Google Sheets / Excel
-	async function processPastedSpreadsheet() {
-		if (!pasteText.trim()) return;
-
-		const lines = pasteText.trim().split(/\r?\n/);
-		const parsedFamilies: FamilyGroupData[] = [];
-		let currentFamily: FamilyGroupData | null = null;
-		const kkMap = new Map<string, FamilyGroupData>();
-
-		// Deteksi header kolom jika baris pertama adalah judul kolom
-		const headerMap: Record<string, number> = {};
-		let hasHeader = false;
-
-		if (lines.length > 0) {
-			const firstLine = lines[0];
-			const firstCols = firstLine.split('\t').map((c) => c.trim().toLowerCase());
-			if (
-				firstCols.some(
-					(c) =>
-						c === 'no' ||
-						c.includes('nama') ||
-						c.includes('kelompok') ||
-						c.includes('lahir') ||
-						c.includes('kk')
-				)
-			) {
-				hasHeader = true;
-				firstCols.forEach((c, idx) => {
-					if (c.includes('nama') && !c.includes('keluarga')) headerMap['nama'] = idx;
-					else if (c === 'jk' || c.includes('kelamin') || c.includes('gender')) headerMap['jk'] = idx;
-					else if (c.includes('tempat')) headerMap['tempat'] = idx;
-					else if (c.includes('tgl') || c.includes('tanggal') || (c.includes('lahir') && !c.includes('tempat')))
-						headerMap['tgl'] = idx;
-					else if (c.includes('alamat') || c.includes('domisili')) headerMap['alamat'] = idx;
-					else if (c.includes('profesi') || c.includes('pekerjaan')) headerMap['profesi'] = idx;
-					else if (c.includes('hp') || c.includes('telp') || c.includes('wa') || c.includes('telepon'))
-						headerMap['telp'] = idx;
-					else if (c.includes('menikah') || c.includes('nikah') || c.includes('perkawinan'))
-						headerMap['menikah'] = idx;
-					else if (c.includes('keluarga') || c.includes('hubungan')) headerMap['keluarga'] = idx;
-					else if (c.includes('kk')) headerMap['kk'] = idx;
-					else if (c.includes('isrun')) headerMap['isrun'] = idx;
-					else if (c.includes('jamaah')) headerMap['statusJam'] = idx;
-					else if (c.includes('darah') || c.includes('gol')) headerMap['goldar'] = idx;
-				});
-			}
-		}
-
-		const startIndex = hasHeader ? 1 : 0;
-
-		for (let i = startIndex; i < lines.length; i++) {
-			const line = lines[i];
-			if (!line.trim()) continue;
-			const cols = line.split('\t').map((c) => c.trim());
-
-			let rNama = '';
-			let rJk: 'L' | 'P' = 'L';
-			let rTempat = '';
-			let rTgl = '';
-			let rAlamat = '';
-			let rProfesi = '';
-			let rTelp = '';
-			let rMenikah: 'Belum Menikah' | 'Sudah Menikah' = 'Belum Menikah';
-			let rKeluarga = '';
-			let rKk = '';
-			let rStatusJam: 'Aktif' | 'Tidak Aktif' = 'Aktif';
-			let rIsrun: 'Ya' | 'Tidak' = 'Tidak';
-			let rGoldar = '';
-
-			if (hasHeader && headerMap['nama'] !== undefined) {
-				// 1. Parsing otomatis berbasis nama header spreadsheet
-				rNama = cols[headerMap['nama']] || '';
-				const jkRaw = (headerMap['jk'] !== undefined ? cols[headerMap['jk']] || '' : '').trim().toUpperCase();
-				rJk = jkRaw === 'P' || jkRaw.startsWith('PEREMPUAN') || jkRaw.startsWith('WANITA') ? 'P' : 'L';
-				rTempat = headerMap['tempat'] !== undefined ? cols[headerMap['tempat']] || '' : '';
-				rTgl = headerMap['tgl'] !== undefined ? cols[headerMap['tgl']] || '' : '';
-				rAlamat = headerMap['alamat'] !== undefined ? cols[headerMap['alamat']] || '' : '';
-				rProfesi = headerMap['profesi'] !== undefined ? cols[headerMap['profesi']] || '' : '';
-				rTelp = headerMap['telp'] !== undefined ? cols[headerMap['telp']] || '' : '';
-				rMenikah =
-					headerMap['menikah'] !== undefined && cols[headerMap['menikah']]?.toLowerCase().includes('sudah')
-						? 'Sudah Menikah'
-						: 'Belum Menikah';
-				rKeluarga = headerMap['keluarga'] !== undefined ? cols[headerMap['keluarga']]?.trim() || '' : '';
-				rKk =
-					headerMap['kk'] !== undefined ? (cols[headerMap['kk']] || '').replace(/\D/g, '').slice(0, 16) : '';
-				rStatusJam =
-					headerMap['statusJam'] !== undefined && cols[headerMap['statusJam']]?.toLowerCase().includes('tidak')
-						? 'Tidak Aktif'
-						: 'Aktif';
-				rIsrun =
-					headerMap['isrun'] !== undefined && cols[headerMap['isrun']]?.toLowerCase().includes('ya')
-						? 'Ya'
-						: 'Tidak';
-				rGoldar =
-					headerMap['goldar'] !== undefined && cols[headerMap['goldar']] && cols[headerMap['goldar']] !== '-'
-						? cols[headerMap['goldar']]
-						: '';
-			} else if (cols.length >= 15) {
-				// 2. Format 16-17 kolom lama (dengan kolom Umur di col 6 & Generus di col 10)
-				rNama = cols[2] || '';
-				const jkRaw = (cols[3] || '').trim().toUpperCase();
-				rJk = jkRaw === 'P' || jkRaw.startsWith('PEREMPUAN') || jkRaw.startsWith('WANITA') ? 'P' : 'L';
-				rTempat = cols[4] || '';
-				rTgl = cols[5] || '';
-				rAlamat = cols[7] || '';
-				rProfesi = cols[8] || '';
-				rTelp = cols[9] || '';
-				rMenikah = cols[11]?.toLowerCase().includes('sudah') ? 'Sudah Menikah' : 'Belum Menikah';
-				rKeluarga = cols[12]?.trim() || '';
-				rKk = (cols[13] || '').replace(/\D/g, '').slice(0, 16);
-				rStatusJam = cols[14]?.toLowerCase().includes('tidak') ? 'Tidak Aktif' : 'Aktif';
-				rIsrun = cols[15]?.toLowerCase().includes('ya') ? 'Ya' : 'Tidak';
-				rGoldar = cols[16] && cols[16] !== '-' ? cols[16] : '';
-			} else if (cols.length >= 10) {
-				// 3. Format Ringkas Praktis: No | Kelompok | Nama | JK | Tempat | Tgl | Alamat | Profesi | HP | Menikah | Keluarga | KK | Isrun
-				rNama = cols[2] || '';
-				const jkRaw = (cols[3] || '').trim().toUpperCase();
-				rJk = jkRaw === 'P' || jkRaw.startsWith('PEREMPUAN') || jkRaw.startsWith('WANITA') ? 'P' : 'L';
-				rTempat = cols[4] || '';
-				rTgl = cols[5] || '';
-				rAlamat = cols[6] || '';
-				rProfesi = cols[7] || '';
-				rTelp = cols[8] || '';
-				rMenikah = cols[9]?.toLowerCase().includes('sudah') ? 'Sudah Menikah' : 'Belum Menikah';
-				rKeluarga = cols[10]?.trim() || '';
-				rKk = (cols[11] || '').replace(/\D/g, '').slice(0, 16);
-				rIsrun = cols[12]?.toLowerCase().includes('ya') ? 'Ya' : 'Tidak';
-				rStatusJam = 'Aktif';
-				rGoldar = '';
-			} else if (cols.length >= 4) {
-				// 4. Format Minimal
-				rNama = cols[0] || '';
-				const jkRaw = (cols[1] || '').trim().toUpperCase();
-				rJk = jkRaw === 'P' || jkRaw.startsWith('PEREMPUAN') || jkRaw.startsWith('WANITA') ? 'P' : 'L';
-				rTgl = cols[2] || '';
-				rKk = (cols[3] || '').replace(/\D/g, '').slice(0, 16);
-				if (cols[4]) rKeluarga = cols[4].trim();
-				if (cols[5]) rTelp = cols[5];
-				if (cols[6]) rAlamat = cols[6];
-			}
-
-			if (!rNama) continue;
-
-			if (rKeluarga.toLowerCase() === 'bapak' || rKeluarga.toLowerCase() === 'kepala keluarga') {
-				rJk = 'L';
-			} else if (rKeluarga.toLowerCase() === 'ibu' || rKeluarga.toLowerCase() === 'istri') {
-				rJk = 'P';
-			}
-
-			const allowedStatuses = getDaftarStatusKeluargaByGender(rJk);
-			let finalKeluarga = '';
-			const matched = allowedStatuses.find((s) => s.toLowerCase() === rKeluarga.toLowerCase());
-			if (matched) {
-				finalKeluarga = matched;
-			} else {
-				finalKeluarga = rKeluarga || 'Anak';
-			}
-
-			const isPerantauDetected =
-				rKeluarga.toLowerCase().includes('perantau') ||
-				rKeluarga.toLowerCase().includes('mandiri');
-
-			if (isPerantauDetected) {
-				finalKeluarga = 'Mandiri / Perantau';
-			}
-
-			if (isStatusHubunganMenikah(finalKeluarga)) {
-				rMenikah = 'Sudah Menikah';
-			}
-
-			// Umur otomatis dihitung dari Tanggal Lahir
-			const umurCalc = hitungUmur(rTgl);
-			// Status Generus selalu otomatis mengikuti Umur & Status Menikah
-			const finalGenerus = hitungStatusGenerus(umurCalc, rMenikah);
-
-			const newMemberData: MemberRowData = {
-				id: Math.random().toString(36).substring(2, 9),
-				namaLengkap: rNama,
-				jenisKelamin: rJk,
-				tempatLahir: rTempat,
-				tanggalLahir: rTgl,
-				umur: umurCalc,
-				alamat: rAlamat,
-				profesi: rProfesi,
-				noTelepon: rTelp,
-				statusGenerus: finalGenerus,
-				statusMenikah: rMenikah,
-				statusKeluarga: finalKeluarga,
-				nik: '',
-				statusJamaah: rStatusJam,
-				isrun: (!isPerantauDetected && finalKeluarga === 'Kepala Keluarga' && (rIsrun === 'Tidak' || !rIsrun))
-					? 'Ya'
-					: rIsrun,
-				golonganDarah: rGoldar,
-				buatAkun: false,
-				email: '',
-				password: ''
-			};
-
-			if (isPerantauDetected) {
-				const perantauFam: FamilyGroupData = {
-					id: Math.random().toString(36).substring(2, 9),
-					noKk: '',
-					alamat: rAlamat,
-					isPerantau: true,
-					kelompokId: getInitialFamilyKelompokId(),
-					members: [newMemberData]
-				};
-				parsedFamilies.push(perantauFam);
-				currentFamily = null;
-			} else if (rKk && rKk.trim()) {
-				const cleanKk = rKk.trim();
-				let existingFam = kkMap.get(cleanKk);
-				if (!existingFam) {
-					existingFam = {
-						id: Math.random().toString(36).substring(2, 9),
-						noKk: cleanKk,
-						alamat: rAlamat,
-						isPerantau: false,
-						kelompokId: getInitialFamilyKelompokId(),
-						members: []
-					};
-					kkMap.set(cleanKk, existingFam);
-					parsedFamilies.push(existingFam);
-				}
-				existingFam.members.push(newMemberData);
-				currentFamily = existingFam;
-			} else {
-				if (
-					!currentFamily ||
-					currentFamily.isPerantau ||
-					finalKeluarga === 'Kepala Keluarga' ||
-					finalKeluarga === 'Bapak'
-				) {
-					currentFamily = {
-						id: Math.random().toString(36).substring(2, 9),
-						noKk: '',
-						alamat: rAlamat,
-						isPerantau: false,
-						kelompokId: getInitialFamilyKelompokId(),
-						members: [newMemberData]
-					};
-					parsedFamilies.push(currentFamily);
-				} else {
-					currentFamily.members.push(newMemberData);
-				}
-			}
-		}
-
-		if (parsedFamilies.length > 0) {
-			if (
-				families.length === 1 &&
-				families[0].members.length === 1 &&
-				!families[0].members[0].namaLengkap
-			) {
-				families = parsedFamilies;
-			} else {
-				families = [...families, ...parsedFamilies];
-			}
-			pasteText = '';
-			showPasteModal = false;
-		} else {
-			await confirmAction({
-				title: 'Data Tidak Terbaca',
-				message: 'Tidak ada data baris yang berhasil dikenali. Pastikan Anda menyalin kolom dari Excel / Google Sheets.',
-				confirmText: 'Mengerti',
-				cancelText: '',
-				variant: 'warning'
-			});
-		}
-	}
-
 	// Metrik Ringkasan Terhitung Real-time
 	const totalJiwa = $derived(families.reduce((acc, f) => acc + f.members.length, 0));
 	const totalKeluargaKK = $derived(families.filter((f) => !f.isPerantau).length);
@@ -745,15 +466,6 @@
 				<Download class="w-3.5 h-3.5 text-muted-foreground" />
 				<span>Template</span>
 			</a>
-
-			<button
-				type="button"
-				onclick={() => (showPasteModal = true)}
-				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold transition-colors"
-			>
-				<Clipboard class="w-3.5 h-3.5" />
-				<span>Paste Spreadsheet</span>
-			</button>
 
 			<button
 				type="button"
@@ -1791,79 +1503,3 @@
 		</div>
 	</form>
 </div>
-
-<!-- Modal Paste Spreadsheet -->
-{#if showPasteModal}
-	<div
-		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
-		role="dialog"
-		aria-modal="true"
-	>
-		<div
-			class="bg-card border border-border rounded-2xl max-w-2xl w-full p-5 shadow-2xl space-y-4"
-		>
-			<div class="flex items-center justify-between border-b border-border pb-3">
-				<div>
-					<h3 class="text-sm font-bold text-foreground flex items-center gap-2">
-						<Clipboard class="w-4 h-4 text-primary" />
-						<span>Paste dari Excel / Google Sheets</span>
-					</h3>
-					<p class="text-xs text-foreground/60 mt-0.5">
-						Salin (Ctrl+C) rentang kolom dari Google Sheets, lalu tempel (Ctrl+V) ke dalam kotak di bawah ini.
-					</p>
-				</div>
-				<button
-					type="button"
-					onclick={() => (showPasteModal = false)}
-					class="text-foreground/50 hover:text-foreground text-sm font-semibold p-1"
-				>
-					✕
-				</button>
-			</div>
-
-			<div class="space-y-2">
-				<div
-					class="text-[11px] text-foreground/70 bg-secondary/50 p-3 rounded-xl border border-border space-y-1.5"
-				>
-					<p class="font-bold text-foreground">💡 Tips Urutan Kolom Spreadsheet Praktis:</p>
-					<p class="font-mono text-[10.5px] bg-card p-2 rounded-lg border border-border/60 text-primary font-semibold overflow-x-auto select-all">
-						No | Kelompok | Nama Lengkap | JK | Tempat Lahir | Tgl Lahir | Alamat | Profesi | No HP | Status Menikah | Status Keluarga | No KK | Isrun
-					</p>
-					<div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[10.5px] text-foreground/70 pt-1 border-t border-border/40">
-						<div>✨ <strong>Umur:</strong> Otomatis dihitung dari Tanggal Lahir</div>
-						<div>✨ <strong>Status Generus:</strong> Otomatis mengikuti Umur & Pernikahan</div>
-						<div>✨ <strong>Status Jamaah:</strong> Default otomatis <strong>Aktif</strong></div>
-						<div>✨ <strong>Golongan Darah:</strong> Default kosong / null (opsional)</div>
-					</div>
-					<p class="text-[10px] text-foreground/50 pt-0.5">
-						Baris Mandiri otomatis dibuatkan kartu tunggal, sedangkan baris keluarga otomatis dikelompokkan ke KK yang sama.
-					</p>
-				</div>
-
-				<textarea
-					rows="8"
-					bind:value={pasteText}
-					placeholder="Tempel data di sini (Ctrl+V)..."
-					class="w-full bg-background border border-border rounded-xl p-3 text-xs font-mono text-foreground focus:ring-2 focus:ring-primary focus:outline-none resize-none"
-				></textarea>
-			</div>
-
-			<div class="flex items-center justify-end gap-2 pt-2 border-t border-border">
-				<button
-					type="button"
-					onclick={() => (showPasteModal = false)}
-					class="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary transition-colors"
-				>
-					Batal
-				</button>
-				<button
-					type="button"
-					onclick={processPastedSpreadsheet}
-					class="px-5 py-2 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold transition-all shadow-sm"
-				>
-					Proses & Kelompokkan ke KK
-				</button>
-			</div>
-		</div>
-	</div>
-{/if}

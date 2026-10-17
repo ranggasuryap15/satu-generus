@@ -32,7 +32,7 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 
 	// Default: Microsoft Excel (.xlsx)
 	const xlsxBuffer = generateSensusTemplateXlsx();
-	return new Response(xlsxBuffer, {
+	return new Response(new Uint8Array(xlsxBuffer), {
 		headers: {
 			'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 			'Content-Disposition': 'attachment; filename="Template_Sensus_Jamaah.xlsx"',
