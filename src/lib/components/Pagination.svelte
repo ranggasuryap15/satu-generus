@@ -7,6 +7,7 @@
   @sideEffects Mengubah nilai reaktif currentPage dan pageSize via $bindable
 -->
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import {
 		ChevronLeft,
 		ChevronRight,
@@ -37,11 +38,14 @@
 
 	// Koreksi otomatis jika currentPage melampaui totalPages
 	$effect(() => {
-		if (currentPage > totalPages) {
-			currentPage = totalPages;
-		} else if (currentPage < 1) {
-			currentPage = 1;
-		}
+		const max = totalPages;
+		untrack(() => {
+			if (currentPage > max) {
+				currentPage = max;
+			} else if (currentPage < 1) {
+				currentPage = 1;
+			}
+		});
 	});
 
 	let startIndex = $derived(totalItems === 0 ? 0 : isAll ? 1 : (currentPage - 1) * pageSize + 1);

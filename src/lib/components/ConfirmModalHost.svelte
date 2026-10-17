@@ -39,6 +39,9 @@
 		onclick={(e) => {
 			if (e.target === e.currentTarget) handleCancel();
 		}}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') handleCancel();
+		}}
 	>
 		<div
 			class="bg-card border border-border rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 text-center animate-in zoom-in-95 duration-150 relative"

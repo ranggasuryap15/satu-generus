@@ -564,10 +564,15 @@ export function parseSensusBuffer(
 		if (!Array.isArray(row)) continue;
 
 		const tempMap: Record<string, number> = {};
+		let namaScore = 0;
+
 		row.forEach((cell, idx) => {
 			const norm = normalizeHeaderName(String(cell));
-			if (norm.includes('nama') && !norm.includes('kelompok') && !norm.includes('keluarga')) {
-				tempMap['nama'] = idx;
+			if (!norm) return;
+
+			// 1. Tempat Lahir dicek terlebih dahulu agar jika ada teks "Nama Kota / Tempat Lahir" tidak tertangkap sebagai Nama
+			if (norm.includes('tempat') || norm.includes('kota') || norm.includes('kabupaten') || norm.includes('ttl') || norm === 'asalkota') {
+				tempMap['tempatLahir'] = idx;
 			} else if (norm.includes('kelompok')) {
 				tempMap['kelompok'] = idx;
 			} else if (norm.includes('idkeluarga') || norm.includes('nokeluarga') || norm.includes('kodekeluarga')) {
@@ -580,8 +585,6 @@ export function parseSensusBuffer(
 				tempMap['hubungan'] = idx;
 			} else if (norm === 'jk' || norm.includes('kelamin') || norm.includes('gender')) {
 				tempMap['jk'] = idx;
-			} else if (norm.includes('tempat') || norm.includes('tempatlahir')) {
-				tempMap['tempatLahir'] = idx;
 			} else if (norm.includes('tgl') || norm.includes('tanggal') || norm.includes('tgllahir')) {
 				tempMap['tanggalLahir'] = idx;
 			} else if (norm.includes('nikah') || norm.includes('pernikahan') || norm.includes('perkawinan')) {
@@ -604,8 +607,39 @@ export function parseSensusBuffer(
 				tempMap['isrun'] = idx;
 			} else if (norm.includes('buatakun') || norm.includes('akun')) {
 				tempMap['buatAkun'] = idx;
+			} else if (
+				norm.includes('nama') &&
+				!norm.includes('kelompok') &&
+				!norm.includes('keluarga') &&
+				!norm.includes('tempat') &&
+				!norm.includes('kota') &&
+				!norm.includes('desa') &&
+				!norm.includes('daerah') &&
+				!norm.includes('ayah') &&
+				!norm.includes('ibu') &&
+				!norm.includes('ortu') &&
+				!norm.includes('dapukan')
+			) {
+				const isExactNama = norm === 'namalengkap' || norm === 'nama' || norm === 'namajamaah' || norm === 'namapeserta' || norm === 'namawarga';
+				if (isExactNama || namaScore < 2) {
+					tempMap['nama'] = idx;
+					namaScore = isExactNama ? 2 : 1;
+				}
 			}
 		});
+
+		// Safeguard posisi kolom standar (Kolom F index 5 = Nama Lengkap, Kolom I index 8 = Tempat Lahir)
+		// Jika kolom nama tertangkap di index 8 (Kolom I) atau sama dengan tempat lahir, pastikan Kolom F index 5 adalah Nama dan Kolom I index 8 adalah Tempat Lahir
+		if (tempMap['nama'] === 8 || tempMap['nama'] === tempMap['tempatLahir']) {
+			tempMap['tempatLahir'] = 8;
+			tempMap['nama'] = 5;
+		}
+		if (tempMap['nama'] === undefined && row[5] !== undefined) {
+			tempMap['nama'] = 5;
+		}
+		if (tempMap['tempatLahir'] === undefined && row[8] !== undefined) {
+			tempMap['tempatLahir'] = 8;
+		}
 
 		if (tempMap['nama'] !== undefined && (tempMap['tanggalLahir'] !== undefined || tempMap['jk'] !== undefined)) {
 			headerRowIndex = r;

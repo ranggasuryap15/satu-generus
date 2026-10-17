@@ -11,7 +11,7 @@ import { db, first } from "#lib/db/index.js";
 import { dapukan, userDapukan, users } from "#lib/db/schema.js";
 import { getSessionUserId } from "#lib/server/auth.js";
 import { redirect } from "@sveltejs/kit";
-import type { Handle } from "@sveltejs/kit/hooks";
+import type { Handle, HandleServerError } from "@sveltejs/kit/hooks";
 import { eq } from "drizzle-orm";
 
 export const handle: Handle = async ({ event, resolve }) => {
@@ -128,4 +128,15 @@ export const handle: Handle = async ({ event, resolve }) => {
   }
 
   return response;
+};
+
+export const handleError: HandleServerError = ({ error, event }) => {
+  console.error('[UNHANDLED_SERVER_ERROR]:', {
+    url: event.url.href,
+    error,
+    stack: error instanceof Error ? error.stack : undefined
+  });
+  return {
+    message: error instanceof Error ? error.message : 'Terjadi kesalahan internal server.'
+  };
 };

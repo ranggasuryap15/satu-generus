@@ -80,6 +80,7 @@
 	}
 
 	let defaultPassword = $state('jokam354');
+	// svelte-ignore state_referenced_locally
 	let defaultKelompokId = $state<number | string>(
 		data.wilayahOptions.kelompokList[0]?.id || 'ALL'
 	);

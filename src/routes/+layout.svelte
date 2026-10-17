@@ -9,7 +9,6 @@
 <script lang="ts">
 	import './layout.css';
 	import { onMount } from 'svelte';
-	import favicon from '#lib/assets/favicon.svg';
 	import { pwaState } from '#lib/pwa.svelte.ts';
 	import ConfirmModalHost from '#lib/components/ConfirmModalHost.svelte';
 
@@ -21,7 +20,7 @@
 </script>
 
 <svelte:head>
-	<link rel="icon" href={favicon} />
+	<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 	<title>Satu Generus</title>
 </svelte:head>
 

@@ -201,15 +201,31 @@ export const actions: Actions = {
 		// Optimasi CPU: Pre-hash default password sekali saja
 		const defaultPasswordHash = await hashPassword(defaultPassword);
 
-		// Persiapan data existing users untuk mencegah crash unik email
-		const existingUserEmails = new Set(
-(await db
-				.select({ email: users.email })
-				.from(users)
-				)
-				.filter((u) => !!u.email)
-				.map((u) => u.email!.toLowerCase())
-		);
+		// Cache email & no telepon existing untuk cegah crash constraint unik dan menghubungkan akun yang sudah ada
+		const allExistingUsers = await db
+			.select({ id: users.id, email: users.email, noTelepon: users.noTelepon })
+			.from(users);
+
+		const userByPhone = new Map<string, string>();
+		const userByEmail = new Map<string, string>();
+		const existingUserEmails = new Set<string>();
+		const existingPhones = new Set<string>();
+
+		for (const u of allExistingUsers) {
+			if (u.noTelepon) {
+				const cleanP = cleanPhoneNumber(u.noTelepon);
+				if (cleanP) {
+					userByPhone.set(cleanP, u.id);
+					existingPhones.add(cleanP);
+				}
+			}
+			if (u.email) {
+				const em = u.email.toLowerCase().trim();
+				userByEmail.set(em, u.id);
+				existingUserEmails.add(em);
+			}
+		}
+
 		let totalUsersCreated = 0;
 		let totalKeluargaCreated = 0;
 		let totalAnggotaCreated = 0;
@@ -239,23 +255,33 @@ export const actions: Actions = {
 
 					const memberUserIds: Array<string | null> = new Array(fam.members.length).fill(null);
 
-					// 1. Proses pembuatan akun user jika diminta
+					// 1. Tautkan akun user yang sudah ada atau buat akun user baru jika diminta
 					for (let i = 0; i < fam.members.length; i++) {
 						const m = fam.members[i];
-						if (m.buatAkun) {
-							let userEmail = m.email?.trim()?.toLowerCase() || null;
+						const cleanHp = m.noTelepon ? cleanPhoneNumber(m.noTelepon) : '';
+						let userEmail = m.email?.trim()?.toLowerCase() || null;
+						const isKepala = i === headIndex || isStatusHubunganKepala(m.statusKeluarga);
+
+						// Cek apakah akun user sudah ada berdasarkan nomor telepon atau email
+						const matchedExistingUserId = (cleanHp && userByPhone.get(cleanHp)) || (userEmail && userByEmail.get(userEmail)) || null;
+
+						if (matchedExistingUserId) {
+							memberUserIds[i] = matchedExistingUserId;
+							if (isKepala && !kepalaKeluargaUserId) {
+								kepalaKeluargaUserId = matchedExistingUserId;
+							}
+						} else if (m.buatAkun) {
 							if (userEmail && existingUserEmails.has(userEmail)) {
 								userEmail = null;
 							}
 							if (userEmail) existingUserEmails.add(userEmail);
+							if (cleanHp) existingPhones.add(cleanHp);
 
 							const kId = m.kelompokId
 								? parseInt(String(m.kelompokId), 10)
 								: fam.kelompokId
 									? parseInt(String(fam.kelompokId), 10)
 									: defaultKelompokId;
-
-							const cleanHp = m.noTelepon ? m.noTelepon.trim().replace(/\D/g, '') : null;
 
 							const [createdUser] = await tx
 								.insert(users)
@@ -268,12 +294,19 @@ export const actions: Actions = {
 								})
 								.returning();
 							memberUserIds[i] = createdUser.id;
+							if (cleanHp) userByPhone.set(cleanHp, createdUser.id);
+							if (userEmail) userByEmail.set(userEmail, createdUser.id);
 							totalUsersCreated++;
 
-							if (i === headIndex) {
+							if (isKepala && !kepalaKeluargaUserId) {
 								kepalaKeluargaUserId = createdUser.id;
 							}
 						}
+					}
+
+					// Pastikan kepalaKeluargaUserId terisi jika ada member kepala yang memiliki user_id
+					if (!kepalaKeluargaUserId && headIndex !== -1 && memberUserIds[headIndex]) {
+						kepalaKeluargaUserId = memberUserIds[headIndex];
 					}
 
 					// 2. Buat record keluarga (1 KK atau 1 Mandiri/Perantau)

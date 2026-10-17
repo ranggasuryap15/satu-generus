@@ -177,8 +177,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 					}
 				}
 
-				const effectiveUserId = a.userId || (a.statusHubungan === 'Kepala Keluarga' ? k.kepalaKeluargaId : null);
-				const effectiveUserEmail = a.userEmail || (a.statusHubungan === 'Kepala Keluarga' ? k.kepalaKeluargaEmail : null);
+				const isKepala = isStatusHubunganKepala(a.statusHubungan);
+				const effectiveUserId = a.userId || (isKepala ? k.kepalaKeluargaId : null);
+				const effectiveUserEmail = a.userEmail || (isKepala ? k.kepalaKeluargaEmail : null);
 
 				const aRoles = effectiveUserId ? roleByUserIdMap.get(effectiveUserId) || [] : [];
 				const aIsPengurus = aRoles.length > 0;
@@ -193,19 +194,19 @@ export const load: PageServerLoad = async ({ locals }) => {
 				const umur = a.tanggalLahir ? hitungUmur(a.tanggalLahir) : 0;
 				const statusGenerusResolved = a.statusGenerus || (a.tanggalLahir ? hitungStatusGenerus(umur, statusPernikahanResolved || 'Belum Menikah') : null);
 
-					const effectiveNoTelepon =
-						a.noTelepon ||
-						(a.userId ? a.userNoTelepon : null) ||
-						(a.statusHubungan === 'Kepala Keluarga' ? k.kepalaKeluargaNoTelepon : null) ||
-						'';
+				const effectiveNoTelepon =
+					a.noTelepon ||
+					(a.userId ? a.userNoTelepon : null) ||
+					(isKepala ? k.kepalaKeluargaNoTelepon : null) ||
+					'';
 
-					return {
+				return {
 					id: a.id,
 					userId: effectiveUserId,
 					userEmail: effectiveUserEmail || null,
 					namaLengkap:
 						a.namaLengkap ||
-						(a.statusHubungan === 'Kepala Keluarga' ? k.kepalaKeluargaNama || 'Kepala Keluarga' : a.statusHubungan),
+						(isKepala ? k.kepalaKeluargaNama || 'Kepala Keluarga' : a.statusHubungan),
 					nikMasked,
 					hasNik,
 					nikRaw: nikPlain,
@@ -223,7 +224,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 					statusPernikahan: statusPernikahanResolved || '-',
 					statusPernikahanRaw: statusPernikahanResolved || '',
 					statusJamaah: a.statusJamaah || 'Aktif',
-					isrun: a.isrun || ((isKk && a.statusHubungan === 'Kepala Keluarga') ? 'Ya' : 'Tidak'),
+					isrun: a.isrun || ((isKk && isKepala) ? 'Ya' : 'Tidak'),
 					golonganDarah: a.golonganDarah || '-',
 					golonganDarahRaw: a.golonganDarah || '',
 					isPengurus: aIsPengurus,
@@ -813,10 +814,11 @@ export const actions: Actions = {
 			return fail(400, { errorAccount: 'Anggota ini sudah memiliki akun login mandiri.' });
 		}
 
-		// Cari kelompok keluarga untuk user baru
+		// Cari kelompok keluarga dan status kepala keluarga untuk user baru
 		const parentKeluarga = (await first(db
 			.select({
-				kelompokId: users.kelompokId
+				kelompokId: users.kelompokId,
+				kepalaKeluargaId: keluarga.kepalaKeluargaId
 			})
 			.from(keluarga)
 			.leftJoin(users, eq(keluarga.kepalaKeluargaId, users.id))
@@ -841,8 +843,34 @@ export const actions: Actions = {
 			.from(users)
 			.where(eq(users.noTelepon, cleanNoTelepon))
 			));
+
 		if (existingPhone) {
-			return fail(400, { errorAccount: `Nomor HP ${cleanNoTelepon} sudah terdaftar pada akun lain.`, field: 'noTelepon' });
+			// Jika nomor HP sudah ada, tautkan langsung akun user yang ada ke anggota keluarga ini
+			try {
+				await db.transaction(async (tx) => {
+					await tx
+						.update(anggotaKeluarga)
+						.set({
+							userId: existingPhone.id,
+							noTelepon: cleanNoTelepon
+						})
+						.where(eq(anggotaKeluarga.id, anggotaId));
+
+					if (isStatusHubunganKepala(targetAnggota.statusHubungan) || !parentKeluarga?.kepalaKeluargaId) {
+						await tx
+							.update(keluarga)
+							.set({ kepalaKeluargaId: existingPhone.id })
+							.where(eq(keluarga.id, targetAnggota.keluargaId));
+					}
+				});
+
+				return {
+					success: 'Akun login yang sudah ada berhasil ditautkan ke data anggota keluarga ini.'
+				};
+			} catch (err: any) {
+				console.error('Gagal menautkan akun user yang sudah ada:', err);
+				return fail(500, { errorAccount: 'Gagal menautkan akun login yang sudah ada.' });
+			}
 		}
 
 		const passwordHash = await hashPassword(password);
@@ -859,14 +887,20 @@ export const actions: Actions = {
 						passwordHash
 					})
 					.returning()
-);
-(await tx.update(anggotaKeluarga)
+				);
+
+				await tx.update(anggotaKeluarga)
 					.set({
 						userId: newUser.id,
 						noTelepon: cleanNoTelepon
 					})
-					.where(eq(anggotaKeluarga.id, anggotaId))
-);
+					.where(eq(anggotaKeluarga.id, anggotaId));
+
+				if (isStatusHubunganKepala(targetAnggota.statusHubungan) || !parentKeluarga?.kepalaKeluargaId) {
+					await tx.update(keluarga)
+						.set({ kepalaKeluargaId: newUser.id })
+						.where(eq(keluarga.id, targetAnggota.keluargaId));
+				}
 			});
 
 			return {
@@ -1819,17 +1853,30 @@ export const actions: Actions = {
 
 		const defaultPasswordHash = await hashPassword(defaultPassword);
 
-		// Cache email & no telepon existing untuk cegah crash constraint unik
-		const existingUserEmails = new Set(
-			(await db.select({ email: users.email }).from(users))
-				.filter((u) => !!u.email)
-				.map((u) => u.email!.toLowerCase())
-		);
-		const existingPhones = new Set(
-			(await db.select({ noTelepon: users.noTelepon }).from(users))
-				.filter((u) => !!u.noTelepon)
-				.map((u) => u.noTelepon!)
-		);
+		// Cache email & no telepon existing untuk cegah crash constraint unik dan menghubungkan akun yang sudah ada
+		const allExistingUsers = await db
+			.select({ id: users.id, email: users.email, noTelepon: users.noTelepon })
+			.from(users);
+
+		const userByPhone = new Map<string, string>();
+		const userByEmail = new Map<string, string>();
+		const existingUserEmails = new Set<string>();
+		const existingPhones = new Set<string>();
+
+		for (const u of allExistingUsers) {
+			if (u.noTelepon) {
+				const cleanP = cleanPhoneNumber(u.noTelepon);
+				if (cleanP) {
+					userByPhone.set(cleanP, u.id);
+					existingPhones.add(cleanP);
+				}
+			}
+			if (u.email) {
+				const em = u.email.toLowerCase().trim();
+				userByEmail.set(em, u.id);
+				existingUserEmails.add(em);
+			}
+		}
 
 		let totalUsersCreated = 0;
 		let totalKeluargaCreated = 0;
@@ -1857,44 +1904,59 @@ export const actions: Actions = {
 
 					const memberUserIds: Array<string | null> = new Array(fam.members.length).fill(null);
 
-					// 1. Buat akun user jika diminta
+					// 1. Tautkan akun user yang sudah ada atau buat akun user baru jika diminta
 					for (let i = 0; i < fam.members.length; i++) {
 						const m = fam.members[i];
-						if (m.buatAkun && m.noTelepon) {
-							const cleanHp = cleanPhoneNumber(m.noTelepon);
-							if (cleanHp && /^\d{8,16}$/.test(cleanHp) && !existingPhones.has(cleanHp)) {
-								let userEmail = m.email?.trim()?.toLowerCase() || null;
-								if (userEmail && existingUserEmails.has(userEmail)) {
-									userEmail = null;
-								}
-								if (userEmail) existingUserEmails.add(userEmail);
-								existingPhones.add(cleanHp);
+						const cleanHp = m.noTelepon ? cleanPhoneNumber(m.noTelepon) : '';
+						let userEmail = m.email?.trim()?.toLowerCase() || null;
+						const isKepala = i === headIndex || isStatusHubunganKepala(m.statusKeluarga);
 
-								const kId = m.kelompokId
-									? parseInt(String(m.kelompokId), 10)
-									: fam.kelompokId
-										? parseInt(String(fam.kelompokId), 10)
-										: defaultKelompokId;
+						// Cek apakah akun user sudah ada berdasarkan nomor telepon atau email
+						const matchedExistingUserId = (cleanHp && userByPhone.get(cleanHp)) || (userEmail && userByEmail.get(userEmail)) || null;
 
-								const [createdUser] = await tx
-									.insert(users)
-									.values({
-										kelompokId: kId,
-										namaLengkap: m.namaLengkap.trim(),
-										email: userEmail,
-										noTelepon: cleanHp,
-										passwordHash: defaultPasswordHash
-									})
-									.returning();
+						if (matchedExistingUserId) {
+							memberUserIds[i] = matchedExistingUserId;
+							if (isKepala && !kepalaKeluargaUserId) {
+								kepalaKeluargaUserId = matchedExistingUserId;
+							}
+						} else if (m.buatAkun && cleanHp && /^\d{8,16}$/.test(cleanHp)) {
+							if (userEmail && existingUserEmails.has(userEmail)) {
+								userEmail = null;
+							}
+							if (userEmail) existingUserEmails.add(userEmail);
+							existingPhones.add(cleanHp);
 
-								memberUserIds[i] = createdUser.id;
-								totalUsersCreated++;
+							const kId = m.kelompokId
+								? parseInt(String(m.kelompokId), 10)
+								: fam.kelompokId
+									? parseInt(String(fam.kelompokId), 10)
+									: defaultKelompokId;
 
-								if (i === headIndex) {
-									kepalaKeluargaUserId = createdUser.id;
-								}
+							const [createdUser] = await tx
+								.insert(users)
+								.values({
+									kelompokId: kId,
+									namaLengkap: m.namaLengkap.trim(),
+									email: userEmail,
+									noTelepon: cleanHp,
+									passwordHash: defaultPasswordHash
+								})
+								.returning();
+
+							memberUserIds[i] = createdUser.id;
+							userByPhone.set(cleanHp, createdUser.id);
+							if (userEmail) userByEmail.set(userEmail, createdUser.id);
+							totalUsersCreated++;
+
+							if (isKepala && !kepalaKeluargaUserId) {
+								kepalaKeluargaUserId = createdUser.id;
 							}
 						}
+					}
+
+					// Pastikan kepalaKeluargaUserId terisi jika ada member kepala yang memiliki user_id
+					if (!kepalaKeluargaUserId && headIndex !== -1 && memberUserIds[headIndex]) {
+						kepalaKeluargaUserId = memberUserIds[headIndex];
 					}
 
 					// 2. Buat record keluarga

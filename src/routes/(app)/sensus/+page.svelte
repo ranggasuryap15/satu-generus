@@ -73,6 +73,7 @@
 	let activeModal = $state<'none' | 'editKk' | 'editAnggota'>('none');
 	let selectedAnggota = $state<(typeof data.anggotaList)[number] | null>(null);
 	let isSubmitting = $state(false);
+	let hapusAnggotaFormRef = $state<HTMLFormElement | null>(null);
 
 	let editKkNoKk = $state('');
 	let editKkAlamat = $state('');
@@ -143,11 +144,12 @@
 
 	function onEditAnggotaStatusChange(newStatus: string) {
 		editAnggotaStatus = newStatus;
-		if (newStatus === 'Istri') {
+		if (newStatus === 'Istri' || newStatus === 'Ibu') {
 			editAnggotaJk = 'P';
-			editAnggotaStatusPernikahan = 'Menikah';
-		} else if (newStatus === 'Kepala Keluarga') {
+			editAnggotaStatusPernikahan = 'Sudah Menikah';
+		} else if (newStatus === 'Kepala Keluarga' || newStatus === 'Bapak' || newStatus === 'Suami') {
 			editAnggotaJk = 'L';
+			editAnggotaStatusPernikahan = 'Sudah Menikah';
 		}
 	}
 
@@ -604,6 +606,9 @@
 		onclick={(e) => {
 			if (e.target === e.currentTarget) closeEditKkModal();
 		}}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') closeEditKkModal();
+		}}
 	>
 		<div class="w-full max-w-sm bg-[#1E293B] border border-slate-700 rounded-3xl shadow-2xl overflow-hidden p-6 space-y-4">
 			<div class="flex items-center justify-between border-b border-slate-700/60 pb-3">
@@ -709,6 +714,9 @@
 		onclick={(e) => {
 			if (e.target === e.currentTarget) closeEditAnggotaModal();
 		}}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') closeEditAnggotaModal();
+		}}
 	>
 		<div class="bg-[#1E293B] border border-slate-700 rounded-3xl max-w-xl w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
 			<div class="flex items-center justify-between pb-3 border-b border-slate-700/60">
@@ -800,11 +808,15 @@
 							class="w-full bg-[#0F172A] border border-slate-700 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-500"
 						>
 							<option value="Kepala Keluarga">Kepala Keluarga</option>
+							<option value="Bapak">Bapak</option>
+							<option value="Ibu">Ibu</option>
 							<option value="Istri">Istri</option>
+							<option value="Suami">Suami</option>
 							<option value="Anak">Anak</option>
 							<option value="Orang Tua">Orang Tua</option>
 							<option value="Mertua">Mertua</option>
 							<option value="Famili Lain">Famili Lain</option>
+							<option value="Mandiri / Perantau">Mandiri / Perantau</option>
 						</select>
 					</div>
 
@@ -868,8 +880,9 @@
 							class="w-full bg-[#0F172A] border border-slate-700 rounded-xl px-3.5 py-2.5 text-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-500"
 						>
 							<option value="Belum Menikah">Belum Menikah</option>
-							<option value="Menikah">Menikah</option>
-							<option value="Pernah Menikah">Pernah Menikah (Duda/Janda)</option>
+							<option value="Sudah Menikah">Sudah Menikah</option>
+							<option value="Duda">Duda</option>
+							<option value="Janda">Janda</option>
 						</select>
 					</div>
 
@@ -946,34 +959,24 @@
 				<div class="flex items-center justify-between pt-3 border-t border-slate-700/60">
 					<!-- Tombol Hapus Anggota jika anggota keluarga > 1 -->
 					{#if data.anggotaList.length > 1}
-						<form
-							method="POST"
-							action="?/hapusAnggota"
-							use:enhance={keepScrollSubmit({
-								onSuccess: () => { closeEditAnggotaModal(); }
-							})}
+						<button
+							type="button"
+							onclick={async () => {
+								const ok = await confirmAction({
+									title: 'Hapus Anggota Keluarga?',
+									message: `Apakah Anda yakin ingin menghapus data anggota ${selectedAnggota?.namaLengkap || 'ini'}?`,
+									confirmText: 'Ya, Hapus',
+									variant: 'danger'
+								});
+								if (ok && hapusAnggotaFormRef) {
+									hapusAnggotaFormRef.requestSubmit();
+								}
+							}}
+							class="px-3.5 py-2 rounded-xl text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 font-bold transition-colors cursor-pointer flex items-center gap-1.5"
 						>
-							<input type="hidden" name="anggotaId" value={selectedAnggota.id} />
-							<button
-								type="button"
-								onclick={async (e) => {
-									const formEl = (e.currentTarget as HTMLButtonElement).closest('form');
-									const ok = await confirmAction({
-										title: 'Hapus Anggota Keluarga?',
-										message: `Apakah Anda yakin ingin menghapus data anggota ${selectedAnggota?.namaLengkap || 'ini'}?`,
-										confirmText: 'Ya, Hapus',
-										variant: 'danger'
-									});
-									if (ok && formEl) {
-										formEl.requestSubmit();
-									}
-								}}
-								class="px-3.5 py-2 rounded-xl text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 font-bold transition-colors cursor-pointer flex items-center gap-1.5"
-							>
-								<Trash2 class="w-4 h-4" />
-								<span>Hapus</span>
-							</button>
-						</form>
+							<Trash2 class="w-4 h-4" />
+							<span>Hapus</span>
+						</button>
 					{:else}
 						<div></div>
 					{/if}
@@ -998,4 +1001,19 @@
 			</form>
 		</div>
 	</div>
+
+	<!-- Form Hapus Anggota (di luar form updateAnggota agar tidak terjadi nested form) -->
+	<form
+		bind:this={hapusAnggotaFormRef}
+		method="POST"
+		action="?/hapusAnggota"
+		class="hidden"
+		use:enhance={keepScrollSubmit({
+			onSuccess: () => {
+				closeEditAnggotaModal();
+			}
+		})}
+	>
+		<input type="hidden" name="anggotaId" value={selectedAnggota.id} />
+	</form>
 {/if}

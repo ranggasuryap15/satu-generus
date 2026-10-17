@@ -7,7 +7,7 @@
   @sideEffects Menampilkan metrik, unmask data sensitif, parsing file spreadsheet XLSX/CSV, submit actions (createSensus, importSensus, addAnggotaKeluarga, updateAnggota, updateKeluarga, deleteSensus, pindahKelompok, toggleStatusJamaah, createMemberAccount, assignDapukan) dengan retensi posisi scroll dan in-modal error display
 -->
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { enhance } from '$app/forms';
 	import DateInput from '#lib/components/DateInput.svelte';
 	import Pagination from '#lib/components/Pagination.svelte';
@@ -935,8 +935,8 @@
 			// 1. Text Search
 			const q = searchQuery.toLowerCase().trim();
 			if (q) {
-				const matchKk = k.noKkMasked.toLowerCase().includes(q);
-				const matchNama = k.kepalaKeluargaNama.toLowerCase().includes(q);
+				const matchKk = (k.noKkMasked || '').toLowerCase().includes(q);
+				const matchNama = (k.kepalaKeluargaNama || '').toLowerCase().includes(q);
 				const matchEmail = (k.kepalaKeluargaEmail || '').toLowerCase().includes(q);
 				const matchAlamat = (k.alamatLengkap || '').toLowerCase().includes(q);
 				const matchKelompok = (k.kelompokNama || '').toLowerCase().includes(q);
@@ -992,7 +992,11 @@
 		filterKelompokId;
 		filterPeran;
 		filterTipeSensus;
-		currentPage = 1;
+		untrack(() => {
+			if (currentPage !== 1) {
+				currentPage = 1;
+			}
+		});
 	});
 
 	let paginatedKeluarga = $derived(
@@ -1008,8 +1012,15 @@
 
 	// Prune checklist terpilih jika item tidak ada lagi di filteredKeluarga
 	$effect(() => {
-		const validIds = new Set(filteredKeluarga.map((k: any) => k.id));
-		selectedKeluargaIds = selectedKeluargaIds.filter((id) => validIds.has(id));
+		const validIds = new Set((filteredKeluarga || []).map((k: any) => k.id));
+		untrack(() => {
+			if (selectedKeluargaIds.length > 0) {
+				const pruned = selectedKeluargaIds.filter((id) => validIds.has(id));
+				if (pruned.length !== selectedKeluargaIds.length) {
+					selectedKeluargaIds = pruned;
+				}
+			}
+		});
 	});
 
 	const isAllSelected = $derived(
@@ -2154,8 +2165,12 @@
 		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
 		role="dialog"
 		aria-modal="true"
+		tabindex="-1"
 		onclick={(e) => {
 			if (e.target === e.currentTarget) closeCreateModal();
+		}}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') closeCreateModal();
 		}}
 	>
 		<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
@@ -2988,8 +3003,12 @@
 		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
 		role="dialog"
 		aria-modal="true"
+		tabindex="-1"
 		onclick={(e) => {
 			if (e.target === e.currentTarget) closeAddMemberModal();
+		}}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') closeAddMemberModal();
 		}}
 	>
 		<div class="bg-card border border-border rounded-2xl max-w-xl w-full p-4 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
@@ -3090,9 +3109,9 @@
 
 						<!-- Checklist Isrun -->
 						<div>
-							<label class="block font-semibold text-foreground mb-1">
+							<span class="block font-semibold text-foreground mb-1">
 								Checklist Isrun *
-							</label>
+							</span>
 							<label class="flex items-center gap-2.5 p-2 rounded-lg bg-card border border-border cursor-pointer hover:bg-secondary/50 transition-colors">
 								<input
 									type="checkbox"
@@ -3355,8 +3374,12 @@
 		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
 		role="dialog"
 		aria-modal="true"
+		tabindex="-1"
 		onclick={(e) => {
 			if (e.target === e.currentTarget) closeDetailModal();
+		}}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') closeDetailModal();
 		}}
 	>
 		<div class="bg-card border border-border rounded-2xl max-w-2xl w-full p-4 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
@@ -3636,8 +3659,12 @@
 		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150"
 		role="dialog"
 		aria-modal="true"
+		tabindex="-1"
 		onclick={(e) => {
 			if (e.target === e.currentTarget) closeEditAnggotaModal();
+		}}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') closeEditAnggotaModal();
 		}}
 	>
 		<div class="bg-card border border-border rounded-2xl max-w-xl w-full p-4 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
@@ -3705,9 +3732,9 @@
 
 						<!-- Checklist Isrun -->
 						<div>
-							<label class="block font-semibold text-foreground mb-1">
+							<span class="block font-semibold text-foreground mb-1">
 								Checklist Isrun *
-							</label>
+							</span>
 							<label class="flex items-center gap-2.5 p-2 rounded-lg bg-card border border-border cursor-pointer hover:bg-secondary/50 transition-colors">
 								<input
 									type="checkbox"
@@ -3960,8 +3987,12 @@
 		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150"
 		role="dialog"
 		aria-modal="true"
+		tabindex="-1"
 		onclick={(e) => {
 			if (e.target === e.currentTarget) closeEditKeluargaModal();
+		}}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') closeEditKeluargaModal();
 		}}
 	>
 		<div class="bg-card border border-border rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-2xl space-y-4">
@@ -4274,8 +4305,15 @@
 		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
 		role="dialog"
 		aria-modal="true"
+		tabindex="-1"
 		onclick={(e) => {
 			if (e.target === e.currentTarget) {
+				showUnmaskModal = false;
+				unmaskedData = null;
+			}
+		}}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') {
 				showUnmaskModal = false;
 				unmaskedData = null;
 			}
@@ -4322,8 +4360,12 @@
 		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150"
 		role="dialog"
 		aria-modal="true"
+		tabindex="-1"
 		onclick={(e) => {
 			if (e.target === e.currentTarget) closePindahKelompokModal();
+		}}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') closePindahKelompokModal();
 		}}
 	>
 		<div class="bg-card border border-border rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-2xl space-y-4">
@@ -4440,8 +4482,12 @@
 		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-150"
 		role="dialog"
 		aria-modal="true"
+		tabindex="-1"
 		onclick={(e) => {
 			if (e.target === e.currentTarget) closeAssignDapukanModal();
+		}}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') closeAssignDapukanModal();
 		}}
 	>
 		<div class="bg-card border border-border rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">

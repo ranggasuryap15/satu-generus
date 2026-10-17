@@ -28,6 +28,23 @@ class PwaState {
 
 		// 3. Daftarkan Service Worker
 		if ('serviceWorker' in navigator) {
+			if (import.meta.env.DEV) {
+				// Di mode development, unregister service worker dan bersihkan cache agar tidak meng-cache halaman error atau merusak HMR
+				navigator.serviceWorker.getRegistrations().then((registrations) => {
+					for (const registration of registrations) {
+						registration.unregister();
+					}
+				});
+				if ('caches' in window) {
+					caches.keys().then((keys) => {
+						for (const key of keys) {
+							caches.delete(key);
+						}
+					});
+				}
+				return;
+			}
+
 			navigator.serviceWorker
 				.register('/service-worker.js')
 				.then((reg) => {

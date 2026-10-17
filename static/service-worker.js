@@ -45,6 +45,9 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
 	const url = new URL(event.request.url);
 
+	// Jangan intercept localhost di development
+	if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') return;
+
 	// Jangan intercept requests non-GET atau request API dinamis / server actions
 	if (event.request.method !== 'GET') return;
 	if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/data/')) return;

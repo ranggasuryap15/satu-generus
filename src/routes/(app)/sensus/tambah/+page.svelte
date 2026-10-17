@@ -57,6 +57,7 @@
 		noTelepon?: string;
 	}
 
+	// svelte-ignore state_referenced_locally
 	let anggotaList = $state<AnggotaItem[]>([
 		{
 			id: '1',
@@ -609,8 +610,12 @@
 		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
 		role="dialog"
 		aria-modal="true"
+		tabindex="-1"
 		onclick={(e) => {
 			if (e.target === e.currentTarget) showConfirmModal = false;
+		}}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') showConfirmModal = false;
 		}}
 	>
 		<div class="bg-card border border-border rounded-2xl max-w-sm w-full p-6 shadow-xl space-y-4">
