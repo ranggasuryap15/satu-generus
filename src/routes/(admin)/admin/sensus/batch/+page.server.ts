@@ -213,6 +213,7 @@ export const actions: Actions = {
 		let totalUsersCreated = 0;
 		let totalKeluargaCreated = 0;
 		let totalAnggotaCreated = 0;
+		const createdKeluargaIds: string[] = [];
 
 		try {
 			await db.transaction(async (tx) => {
@@ -256,7 +257,7 @@ export const actions: Actions = {
 
 							const cleanHp = m.noTelepon ? m.noTelepon.trim().replace(/\D/g, '') : null;
 
-							const [createdUser] = (await tx
+							const [createdUser] = await tx
 								.insert(users)
 								.values({
 									kelompokId: kId,
@@ -265,8 +266,7 @@ export const actions: Actions = {
 									noTelepon: cleanHp || null,
 									passwordHash: defaultPasswordHash
 								})
-								.returning()
-);
+								.returning();
 							memberUserIds[i] = createdUser.id;
 							totalUsersCreated++;
 
@@ -277,7 +277,7 @@ export const actions: Actions = {
 					}
 
 					// 2. Buat record keluarga (1 KK atau 1 Mandiri/Perantau)
-					const [newKeluarga] = (await tx
+					const [newKeluarga] = await tx
 						.insert(keluarga)
 						.values({
 							isKk: isActualKk,
@@ -285,8 +285,8 @@ export const actions: Actions = {
 							kepalaKeluargaId: kepalaKeluargaUserId,
 							alamatLengkap: familyAlamat
 						})
-						.returning()
-);
+						.returning();
+					createdKeluargaIds.push(newKeluarga.id);
 					totalKeluargaCreated++;
 
 					// 3. Simpan seluruh anggota keluarga ke dalam record keluarga ini
@@ -301,25 +301,23 @@ export const actions: Actions = {
 						const rawNik = m.nik ? m.nik.trim().replace(/\D/g, '').slice(0, 16) : '';
 						const nikEncrypted = rawNik ? encryptSensitive(rawNik) : null;
 
-(await tx.insert(anggotaKeluarga)
-							.values({
-								keluargaId: newKeluarga.id,
-								userId: memberUserIds[i] || null,
-								namaLengkap: m.namaLengkap.trim(),
-								nikEncrypted,
-								statusHubungan: statusHubunganFinal,
-								tanggalLahir: normalizeDateToISO(m.tanggalLahir),
-								jenisKelamin: m.jenisKelamin === 'P' ? 'P' : 'L',
-								tempatLahir: m.tempatLahir?.trim() || null,
-								profesi: m.profesi?.trim() || null,
-								noTelepon: m.noTelepon?.trim() || null,
-								statusGenerus: statusGenerusFinal,
-								statusPernikahan: statusMenikahFinal,
-								statusJamaah: m.statusJamaah || 'Aktif',
-								isrun: m.isrun || 'Tidak',
-								golonganDarah: m.golonganDarah && m.golonganDarah !== '-' ? m.golonganDarah.trim() : null
-							})
-);
+						await tx.insert(anggotaKeluarga).values({
+							keluargaId: newKeluarga.id,
+							userId: memberUserIds[i] || null,
+							namaLengkap: m.namaLengkap.trim(),
+							nikEncrypted,
+							statusHubungan: statusHubunganFinal,
+							tanggalLahir: normalizeDateToISO(m.tanggalLahir),
+							jenisKelamin: m.jenisKelamin === 'P' ? 'P' : 'L',
+							tempatLahir: m.tempatLahir?.trim() || null,
+							profesi: m.profesi?.trim() || null,
+							noTelepon: m.noTelepon?.trim() || null,
+							statusGenerus: statusGenerusFinal,
+							statusPernikahan: statusMenikahFinal,
+							statusJamaah: m.statusJamaah || 'Aktif',
+							isrun: m.isrun || 'Tidak',
+							golonganDarah: m.golonganDarah && m.golonganDarah !== '-' ? m.golonganDarah.trim() : null
+						});
 						totalAnggotaCreated++;
 					}
 				}
@@ -337,6 +335,13 @@ export const actions: Actions = {
 				totalJiwa: totalAnggotaCreated,
 				totalKeluarga: totalKeluargaCreated,
 				totalAkun: totalUsersCreated
+			},
+			importedBatch: {
+				keluargaIds: createdKeluargaIds,
+				totalKeluarga: totalKeluargaCreated,
+				totalJiwa: totalAnggotaCreated,
+				totalAkun: totalUsersCreated,
+				timestamp: Date.now()
 			}
 		};
 	}

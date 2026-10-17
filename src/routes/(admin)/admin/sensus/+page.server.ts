@@ -3,7 +3,7 @@
  * @purpose Rekapitulasi sensus KK & Mandiri, metrik dashboard, penugasan dapukan pengurus KK, pengurutan hierarki keluarga standar (Kepala Keluarga -> Istri -> Anak), validasi integritas keunikan Kyai, validasi keunikan email & noTelepon, sinkronisasi noTelepon akun, penyediaan nilai dekripsi NIK/KK asli untuk modal edit, resolusi effectiveUserId & default isrun Kepala Keluarga, pembuatan akun mandiri (createMemberAccount) dengan default password jokam354, serta form actions sensus
  * @usedBy src/routes/(admin)/admin/sensus/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/auth, src/lib/server/scope, src/lib/utils (normalizeDateToISO), src/lib/generus (hitungUmur, hitungStatusGenerus, isStatusHubunganMenikah, resolveStatusPernikahan, isStatusGenerusBelumMenikah, sortAnggotaKeluargaHierarki), drizzle-orm
- * @publicFunctions load, actions.createSensus, actions.addAnggotaKeluarga, actions.updateAnggota, actions.updateKeluarga, actions.deleteSensus, actions.pindahKelompok, actions.toggleStatusJamaah, actions.createMemberAccount, actions.assignDapukan, actions.importSensus
+ * @publicFunctions load, actions.createSensus, actions.addAnggotaKeluarga, actions.updateAnggota, actions.updateKeluarga, actions.deleteSensus, actions.deleteBatchSensus, actions.pindahKelompok, actions.toggleStatusJamaah, actions.createMemberAccount, actions.assignDapukan, actions.importSensus
  * @sideEffects Transaksi penulisan database tabel users, keluarga, anggota_keluarga, user_dapukan; query join multi-tabel terindeks; sinkronisasi user_id, no_telepon & default isrun Kepala Keluarga; penanganan error duplikasi email & nomor HP; import massal XLSX/CSV
  */
 
@@ -1244,6 +1244,117 @@ export const actions: Actions = {
 	},
 
 	/**
+	 * Menghapus Batch Sensus (Multiple Kartu Keluarga atau Jamaah Mandiri/Perantau)
+	 * Digunakan untuk: Checklist Delete & Pembatalan (Undo) Import Batch
+	 */
+	deleteBatchSensus: async ({ request, locals }) => {
+		if (!locals.user || !locals.isAdmin) {
+			return fail(403, { error: 'Akses ditolak.' });
+		}
+
+		const adminScope = getAdminScope(locals.roles);
+		const accessibleWilayah = await getAccessibleWilayah(adminScope);
+
+		const formData = await request.formData();
+		const rawKeluargaIds = formData.get('keluargaIds')?.toString() || '';
+		let keluargaIds: string[] = [];
+		try {
+			keluargaIds = JSON.parse(rawKeluargaIds);
+		} catch (_) {
+			if (rawKeluargaIds) {
+				keluargaIds = rawKeluargaIds.split(',').map((s) => s.trim()).filter(Boolean);
+			}
+		}
+
+		if (!Array.isArray(keluargaIds) || keluargaIds.length === 0) {
+			return fail(400, { error: 'Pilih minimal satu data sensus untuk dihapus.' });
+		}
+
+		const targetKeluargaList = (await db
+			.select({
+				id: keluarga.id,
+				kepalaKeluargaId: keluarga.kepalaKeluargaId,
+				kelompokId: users.kelompokId
+			})
+			.from(keluarga)
+			.leftJoin(users, eq(keluarga.kepalaKeluargaId, users.id))
+			.where(inArray(keluarga.id, keluargaIds))
+		);
+
+		if (targetKeluargaList.length === 0) {
+			return fail(404, { error: 'Data sensus yang dipilih tidak ditemukan.' });
+		}
+
+		// Validasi scope wewenang
+		for (const k of targetKeluargaList) {
+			if (
+				k.kelompokId &&
+				!isKelompokAllowed(k.kelompokId, accessibleWilayah.allowedKelompokIdSet, adminScope.isPusat)
+			) {
+				return fail(403, { error: 'Akses ditolak: Sebagian data sensus berada di luar cakupan wewenang Anda.' });
+			}
+		}
+
+		// Cegah admin menghapus akunnya sendiri yang sedang login
+		for (const k of targetKeluargaList) {
+			if (k.kepalaKeluargaId && k.kepalaKeluargaId === locals.user.id) {
+				return fail(400, { error: 'Anda tidak dapat menghapus sensus akun Anda sendiri saat sedang login.' });
+			}
+		}
+
+		const validKeluargaIds = targetKeluargaList.map((k) => k.id);
+
+		try {
+			// Kumpulkan semua userId yang terkait dengan seluruh KK ini
+			const rawAnggotaWithUser = (await db
+				.select({ userId: anggotaKeluarga.userId })
+				.from(anggotaKeluarga)
+				.where(and(inArray(anggotaKeluarga.keluargaId, validKeluargaIds), isNotNull(anggotaKeluarga.userId)))
+			);
+
+			const userIdsToDelete: string[] = [];
+			for (const k of targetKeluargaList) {
+				if (k.kepalaKeluargaId && k.kepalaKeluargaId !== locals.user.id && !userIdsToDelete.includes(k.kepalaKeluargaId)) {
+					userIdsToDelete.push(k.kepalaKeluargaId);
+				}
+			}
+			for (const a of rawAnggotaWithUser) {
+				if (a.userId && a.userId !== locals.user.id && !userIdsToDelete.includes(a.userId)) {
+					userIdsToDelete.push(a.userId);
+				}
+			}
+
+			await db.transaction(async (tx) => {
+				// Bersihkan presensi & peran jika ada
+				if (userIdsToDelete.length > 0) {
+					await tx.delete(userDapukan).where(inArray(userDapukan.userId, userIdsToDelete));
+					await tx.delete(presensiKehadiran).where(inArray(presensiKehadiran.userId, userIdsToDelete));
+				}
+
+				// Hapus seluruh anggota keluarga
+				await tx.delete(anggotaKeluarga).where(inArray(anggotaKeluarga.keluargaId, validKeluargaIds));
+
+				// Hapus record keluarga
+				await tx.delete(keluarga).where(inArray(keluarga.id, validKeluargaIds));
+
+				// Hapus akun user
+				if (userIdsToDelete.length > 0) {
+					await tx.delete(users).where(inArray(users.id, userIdsToDelete));
+				}
+			});
+
+			return {
+				success: `Berhasil menghapus ${validKeluargaIds.length} data sensus secara permanen.`,
+				deletedKeluargaIds: validKeluargaIds,
+				deletedBatchCount: validKeluargaIds.length
+			};
+		} catch (err) {
+			console.error('Gagal menghapus batch sensus:', err);
+			return fail(500, { error: 'Terjadi kesalahan sistem saat menghapus data sensus terpilih.' });
+		}
+	},
+
+	/**
 	 * Memindahkan Sensus ke kelompok lain yang terdaftar dalam wewenang admin
 	 */
 	pindahKelompok: async ({ request, locals }) => {
@@ -1723,6 +1834,7 @@ export const actions: Actions = {
 		let totalUsersCreated = 0;
 		let totalKeluargaCreated = 0;
 		let totalAnggotaCreated = 0;
+		const createdKeluargaIds: string[] = [];
 
 		try {
 			await db.transaction(async (tx) => {
@@ -1796,6 +1908,7 @@ export const actions: Actions = {
 						})
 						.returning();
 
+					createdKeluargaIds.push(newKeluarga.id);
 					totalKeluargaCreated++;
 
 					// 3. Masukkan seluruh anggota keluarga
@@ -1839,7 +1952,14 @@ export const actions: Actions = {
 		}
 
 		return {
-			success: `Berhasil mengimpor ${totalAnggotaCreated} jiwa (${totalKeluargaCreated} entri keluarga) dan membuat ${totalUsersCreated} akun login baru.`
+			success: `Berhasil mengimpor ${totalAnggotaCreated} jiwa (${totalKeluargaCreated} entri keluarga) dan membuat ${totalUsersCreated} akun login baru.`,
+			importedBatch: {
+				keluargaIds: createdKeluargaIds,
+				totalKeluarga: totalKeluargaCreated,
+				totalJiwa: totalAnggotaCreated,
+				totalAkun: totalUsersCreated,
+				timestamp: Date.now()
+			}
 		};
 	}
 };

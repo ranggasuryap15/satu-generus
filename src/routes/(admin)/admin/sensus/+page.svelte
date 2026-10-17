@@ -7,6 +7,7 @@
   @sideEffects Menampilkan metrik, unmask data sensitif, parsing file spreadsheet XLSX/CSV, submit actions (createSensus, importSensus, addAnggotaKeluarga, updateAnggota, updateKeluarga, deleteSensus, pindahKelompok, toggleStatusJamaah, createMemberAccount, assignDapukan) dengan retensi posisi scroll dan in-modal error display
 -->
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { enhance } from '$app/forms';
 	import DateInput from '#lib/components/DateInput.svelte';
 	import Pagination from '#lib/components/Pagination.svelte';
@@ -995,8 +996,166 @@
 	});
 
 	let paginatedKeluarga = $derived(
-		filteredKeluarga.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+		pageSize <= 0
+			? filteredKeluarga
+			: filteredKeluarga.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 	);
+
+	// State Checklist Bulk Selection & Batch Deletion
+	let selectedKeluargaIds = $state<string[]>([]);
+	let deleteBatchForm: HTMLFormElement | null = $state(null);
+	let batchDeleteTargetIds = $state<string[]>([]);
+
+	// Prune checklist terpilih jika item tidak ada lagi di filteredKeluarga
+	$effect(() => {
+		const validIds = new Set(filteredKeluarga.map((k: any) => k.id));
+		selectedKeluargaIds = selectedKeluargaIds.filter((id) => validIds.has(id));
+	});
+
+	const isAllSelected = $derived(
+		paginatedKeluarga.length > 0 &&
+		paginatedKeluarga.every((k: any) => selectedKeluargaIds.includes(k.id))
+	);
+
+	const isSomeSelected = $derived(
+		selectedKeluargaIds.length > 0 && !isAllSelected
+	);
+
+	function toggleSelectAll() {
+		if (isAllSelected) {
+			const pageIds = new Set(paginatedKeluarga.map((k: any) => k.id));
+			selectedKeluargaIds = selectedKeluargaIds.filter((id) => !pageIds.has(id));
+		} else {
+			const currentSelected = new Set(selectedKeluargaIds);
+			for (const k of paginatedKeluarga) {
+				currentSelected.add(k.id);
+			}
+			selectedKeluargaIds = Array.from(currentSelected);
+		}
+	}
+
+	function toggleSelectKeluarga(id: string) {
+		if (selectedKeluargaIds.includes(id)) {
+			selectedKeluargaIds = selectedKeluargaIds.filter((x) => x !== id);
+		} else {
+			selectedKeluargaIds = [...selectedKeluargaIds, id];
+		}
+	}
+
+	function clearSelection() {
+		selectedKeluargaIds = [];
+	}
+
+	async function handleDeleteSelected() {
+		const count = selectedKeluargaIds.length;
+		if (count === 0) return;
+
+		const selectedFamilies = (data.daftarKeluarga || []).filter((k: any) =>
+			selectedKeluargaIds.includes(k.id)
+		);
+		const totalJiwa = selectedFamilies.reduce(
+			(sum: number, k: any) => sum + (k.jumlahAnggota || k.anggota?.length || 0),
+			0
+		);
+
+		const ok = await confirmAction({
+			title: `Hapus ${count} Data Sensus Terpilih?`,
+			message: `Apakah Anda yakin ingin menghapus ${count} entri sensus (${totalJiwa} jiwa) yang dipilih? Seluruh data anggota keluarga dan akun terkait akan dihapus secara permanen.`,
+			confirmText: `Ya, Hapus (${count}) Data`,
+			cancelText: 'Batal',
+			variant: 'danger'
+		});
+
+		if (ok) {
+			batchDeleteTargetIds = [...selectedKeluargaIds];
+			clearSelection();
+			setTimeout(() => {
+				deleteBatchForm?.requestSubmit();
+			}, 30);
+		}
+	}
+
+	// State Undo Batch / Import Terakhir
+	interface ImportedBatchInfo {
+		keluargaIds: string[];
+		totalKeluarga: number;
+		totalJiwa: number;
+		totalAkun: number;
+		timestamp: number;
+	}
+	let lastImportBatch = $state<ImportedBatchInfo | null>(null);
+
+	$effect(() => {
+		if (form?.importedBatch) {
+			lastImportBatch = form.importedBatch;
+			if (typeof window !== 'undefined') {
+				sessionStorage.setItem('satu_generus_last_import_batch', JSON.stringify(form.importedBatch));
+			}
+		}
+	});
+
+	$effect(() => {
+		if (form?.deletedBatchCount || form?.deletedKeluargaIds) {
+			lastImportBatch = null;
+			if (typeof window !== 'undefined') {
+				sessionStorage.removeItem('satu_generus_last_import_batch');
+			}
+		}
+	});
+
+	onMount(() => {
+		try {
+			const stored = sessionStorage.getItem('satu_generus_last_import_batch');
+			if (stored) {
+				const parsed = JSON.parse(stored);
+				if (parsed && Array.isArray(parsed.keluargaIds) && parsed.keluargaIds.length > 0) {
+					const existingIds = new Set((data.daftarKeluarga || []).map((k: any) => k.id));
+					const stillPresent = parsed.keluargaIds.filter((id: string) => existingIds.has(id));
+					if (stillPresent.length > 0) {
+						lastImportBatch = {
+							...parsed,
+							keluargaIds: stillPresent,
+							totalKeluarga: stillPresent.length
+						};
+					} else {
+						sessionStorage.removeItem('satu_generus_last_import_batch');
+					}
+				}
+			}
+		} catch (e) {
+			// ignore parse error
+		}
+	});
+
+	async function handleUndoLastImport() {
+		if (!lastImportBatch || lastImportBatch.keluargaIds.length === 0) return;
+		const count = lastImportBatch.keluargaIds.length;
+		const ok = await confirmAction({
+			title: 'Batalkan & Hapus Data Batch Barusan?',
+			message: `Apakah Anda yakin ingin membatalkan input/import barusan? Sebanyak ${count} keluarga/mandiri (${lastImportBatch.totalJiwa} jiwa) beserta akun yang dibuat akan dihapus secara permanen.`,
+			confirmText: 'Ya, Batalkan (Undo)',
+			cancelText: 'Tidak Jadi',
+			variant: 'danger'
+		});
+
+		if (ok) {
+			batchDeleteTargetIds = [...lastImportBatch.keluargaIds];
+			if (typeof window !== 'undefined') {
+				sessionStorage.removeItem('satu_generus_last_import_batch');
+			}
+			lastImportBatch = null;
+			setTimeout(() => {
+				deleteBatchForm?.requestSubmit();
+			}, 30);
+		}
+	}
+
+	function dismissUndoBanner() {
+		if (typeof window !== 'undefined') {
+			sessionStorage.removeItem('satu_generus_last_import_batch');
+		}
+		lastImportBatch = null;
+	}
 
 	function resetFilters() {
 		searchQuery = '';
@@ -1365,6 +1524,46 @@
 		</div>
 	{/if}
 
+	<!-- Banner Undo Batch / Import Terakhir -->
+	{#if lastImportBatch && lastImportBatch.keluargaIds.length > 0}
+		<div
+			class="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs animate-in fade-in slide-in-from-top-2 duration-200"
+		>
+			<div class="flex items-start sm:items-center gap-2.5">
+				<div class="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
+					<RotateCcw class="w-4 h-4" />
+				</div>
+				<div>
+					<p class="font-bold text-foreground">
+						Batch sensus baru saja ditambahkan ({lastImportBatch.totalKeluarga} KK/Mandiri • {lastImportBatch.totalJiwa} Jiwa • {lastImportBatch.totalAkun} Akun)
+					</p>
+					<p class="text-[11px] text-foreground/70 mt-0.5">
+						Salah input atau ingin mengembalikan seperti semula? Anda dapat membatalkan seluruh data batch ini sekaligus.
+					</p>
+				</div>
+			</div>
+
+			<div class="flex items-center gap-2 w-full sm:w-auto justify-end shrink-0">
+				<button
+					type="button"
+					onclick={handleUndoLastImport}
+					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-destructive hover:bg-destructive/90 text-destructive-foreground font-semibold text-xs transition-colors shadow-xs cursor-pointer"
+				>
+					<RotateCcw class="w-3.5 h-3.5" />
+					<span>Batalkan (Undo)</span>
+				</button>
+				<button
+					type="button"
+					onclick={dismissUndoBanner}
+					class="p-1.5 rounded-lg hover:bg-amber-500/20 text-foreground/60 hover:text-foreground transition-colors cursor-pointer"
+					title="Tutup pemberitahuan ini"
+				>
+					<X class="w-4 h-4" />
+				</button>
+			</div>
+		</div>
+	{/if}
+
 	<!-- 1. DASHBOARD STATISTIK DI BAGIAN ATAS -->
 	<div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
 		<!-- Total Kartu Keluarga -->
@@ -1586,31 +1785,62 @@
 	{:else}
 		<!-- 1. Tampilan Mobile: Compact Cards -->
 		<div class="md:hidden space-y-3">
+			<!-- Bar Pilih Semua Mobile -->
+			<div class="flex items-center justify-between px-1 text-xs text-foreground/70">
+				<label class="inline-flex items-center gap-2 cursor-pointer select-none">
+					<input
+						type="checkbox"
+						checked={isAllSelected}
+						indeterminate={isSomeSelected}
+						onchange={toggleSelectAll}
+						class="w-4 h-4 rounded border-border text-primary focus:ring-primary accent-primary cursor-pointer"
+					/>
+					<span class="font-medium">Pilih Semua ({paginatedKeluarga.length})</span>
+				</label>
+				{#if selectedKeluargaIds.length > 0}
+					<button
+						type="button"
+						onclick={clearSelection}
+						class="text-xs text-muted-foreground hover:text-foreground underline cursor-pointer"
+					>
+						Batalkan Pilihan
+					</button>
+				{/if}
+			</div>
+
 			{#each paginatedKeluarga as k}
-				<div class="bg-card border border-border rounded-xl p-3.5 shadow-xs space-y-3">
-					<!-- Header Kartu: Nama & Badge -->
+				<div class="bg-card border border-border rounded-xl p-3.5 shadow-xs space-y-3 transition-colors {selectedKeluargaIds.includes(k.id) ? 'ring-1 ring-primary bg-primary/5' : ''}">
+					<!-- Header Kartu: Checkbox, Nama & Badge -->
 					<div class="flex items-start justify-between gap-2">
-						<div class="min-w-0">
-							<div class="flex items-center gap-1.5 flex-wrap">
-								<h3 class="text-sm font-semibold text-foreground truncate">{k.kepalaKeluargaNama}</h3>
-								{#if !k.isKk}
-									<span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
-										Mandiri
-									</span>
-								{/if}
-								{#if k.is4S}
-									<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-										4S{k.dapukanNama ? ` • ${k.dapukanNama}` : ''}
-									</span>
-								{:else if k.isPengurus}
-									<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-										Pengurus{k.dapukanNama ? ` • ${k.dapukanNama}` : ''}
-									</span>
+						<div class="flex items-start gap-2.5 min-w-0">
+							<input
+								type="checkbox"
+								checked={selectedKeluargaIds.includes(k.id)}
+								onchange={() => toggleSelectKeluarga(k.id)}
+								class="mt-0.5 w-4 h-4 rounded border-border text-primary focus:ring-primary accent-primary cursor-pointer shrink-0"
+							/>
+							<div class="min-w-0">
+								<div class="flex items-center gap-1.5 flex-wrap">
+									<h3 class="text-sm font-semibold text-foreground truncate">{k.kepalaKeluargaNama}</h3>
+									{#if !k.isKk}
+										<span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+											Mandiri
+										</span>
+									{/if}
+									{#if k.is4S}
+										<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+											4S{k.dapukanNama ? ` • ${k.dapukanNama}` : ''}
+										</span>
+									{:else if k.isPengurus}
+										<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+											Pengurus{k.dapukanNama ? ` • ${k.dapukanNama}` : ''}
+										</span>
+									{/if}
+								</div>
+								{#if k.kepalaKeluargaEmail}
+									<p class="text-xs text-foreground/50 truncate mt-0.5">{k.kepalaKeluargaEmail}</p>
 								{/if}
 							</div>
-							{#if k.kepalaKeluargaEmail}
-								<p class="text-xs text-foreground/50 truncate mt-0.5">{k.kepalaKeluargaEmail}</p>
-							{/if}
 						</div>
 
 						<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-secondary text-foreground/80 shrink-0">
@@ -1708,7 +1938,7 @@
 			{/each}
 
 			<div class="rounded-xl border border-border overflow-hidden">
-				<Pagination bind:currentPage bind:pageSize totalItems={filteredKeluarga.length} />
+				<Pagination bind:currentPage bind:pageSize pageSizeOptions={[10, 25, 50, 100, -1]} totalItems={filteredKeluarga.length} />
 			</div>
 		</div>
 
@@ -1718,6 +1948,16 @@
 				<table class="w-full text-left text-sm text-foreground/80">
 					<thead class="bg-secondary/40 text-foreground/60 uppercase text-xs tracking-wider border-b border-border">
 						<tr>
+							<th class="py-3 px-3 w-10 text-center">
+								<input
+									type="checkbox"
+									checked={isAllSelected}
+									indeterminate={isSomeSelected}
+									onchange={toggleSelectAll}
+									class="w-4 h-4 rounded border-border text-primary focus:ring-primary accent-primary cursor-pointer align-middle"
+									title="Pilih Semua di Halaman Ini"
+								/>
+							</th>
 							<th class="py-3 px-4 font-semibold">No. KK / Tipe Sensus</th>
 							<th class="py-3 px-4 font-semibold">Kepala Keluarga / Jamaah</th>
 							<th class="py-3 px-4 font-semibold">Wilayah Basis</th>
@@ -1728,7 +1968,17 @@
 					</thead>
 					<tbody class="divide-y divide-border">
 						{#each paginatedKeluarga as k}
-							<tr class="hover:bg-secondary/20 transition-colors">
+							<tr class="hover:bg-secondary/20 transition-colors {selectedKeluargaIds.includes(k.id) ? 'bg-primary/5' : ''}">
+								<!-- Checkbox Pilih -->
+								<td class="py-3.5 px-3 text-center">
+									<input
+										type="checkbox"
+										checked={selectedKeluargaIds.includes(k.id)}
+										onchange={() => toggleSelectKeluarga(k.id)}
+										class="w-4 h-4 rounded border-border text-primary focus:ring-primary accent-primary cursor-pointer align-middle"
+									/>
+								</td>
+
 								<!-- No. KK / Tipe Sensus dengan Unmask Eye -->
 								<td class="py-3.5 px-4 font-mono font-medium text-foreground">
 									<div class="flex items-center gap-1.5 flex-wrap">
@@ -1858,8 +2108,43 @@
 					</tbody>
 				</table>
 			</div>
-			<Pagination bind:currentPage bind:pageSize totalItems={filteredKeluarga.length} />
+			<Pagination bind:currentPage bind:pageSize pageSizeOptions={[10, 25, 50, 100, -1]} totalItems={filteredKeluarga.length} />
 		</div>
+
+		<!-- Toolbar Melayang Aksi Batch Sensus Terpilih -->
+		{#if selectedKeluargaIds.length > 0}
+			<div
+				class="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-card/95 backdrop-blur-md border border-border/80 shadow-2xl rounded-2xl px-4 py-3 flex items-center gap-3 sm:gap-4 text-xs animate-in slide-in-from-bottom-5 duration-200"
+			>
+				<div class="flex items-center gap-2 text-foreground font-medium whitespace-nowrap">
+					<span class="w-6 h-6 rounded-full bg-primary/20 text-primary font-bold flex items-center justify-center text-xs">
+						{selectedKeluargaIds.length}
+					</span>
+					<span class="hidden sm:inline">Data dipilih</span>
+				</div>
+
+				<div class="h-4 w-px bg-border"></div>
+
+				<div class="flex items-center gap-2">
+					<button
+						type="button"
+						onclick={handleDeleteSelected}
+						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-destructive hover:bg-destructive/90 text-destructive-foreground font-semibold transition-colors shadow-xs cursor-pointer whitespace-nowrap"
+					>
+						<Trash2 class="w-3.5 h-3.5" />
+						<span>Hapus ({selectedKeluargaIds.length}) Terpilih</span>
+					</button>
+
+					<button
+						type="button"
+						onclick={clearSelection}
+						class="px-2.5 py-1.5 rounded-xl border border-border hover:bg-secondary text-foreground/70 hover:text-foreground font-medium transition-colors cursor-pointer"
+					>
+						Batal
+					</button>
+				</div>
+			</div>
+		{/if}
 	{/if}
 </div>
 
@@ -4460,6 +4745,17 @@
 	class="hidden"
 >
 	<input type="hidden" name="keluargaId" value={deleteTargetKeluargaId} />
+</form>
+
+<!-- Form Tersembunyi untuk Eksekusi Hapus Batch / Undo Sensus -->
+<form
+	bind:this={deleteBatchForm}
+	method="POST"
+	action="?/deleteBatchSensus"
+	use:enhance={keepScrollSubmit()}
+	class="hidden"
+>
+	<input type="hidden" name="keluargaIds" value={JSON.stringify(batchDeleteTargetIds)} />
 </form>
 
 <!-- Form Tersembunyi untuk Eksekusi Toggle Status Keaktifan Jamaah -->

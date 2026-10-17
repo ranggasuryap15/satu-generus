@@ -83,6 +83,12 @@
 	let defaultKelompokId = $state<number | string>(
 		data.wilayahOptions.kelompokList[0]?.id || 'ALL'
 	);
+
+	$effect(() => {
+		if (form?.success && form?.importedBatch && typeof window !== 'undefined') {
+			sessionStorage.setItem('satu_generus_last_import_batch', JSON.stringify(form.importedBatch));
+		}
+	});
 	let isSubmitting = $state(false);
 
 	interface KelompokOptionItem {
@@ -707,8 +713,16 @@
 			}
 
 			isSubmitting = true;
-			return async ({ update }) => {
+			return async ({ result, update }) => {
 				isSubmitting = false;
+				if (result.type === 'success' && result.data && (result.data as any).importedBatch) {
+					if (typeof window !== 'undefined') {
+						sessionStorage.setItem(
+							'satu_generus_last_import_batch',
+							JSON.stringify((result.data as any).importedBatch)
+						);
+					}
+				}
 				await update();
 			};
 		}}

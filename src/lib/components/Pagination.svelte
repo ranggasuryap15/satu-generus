@@ -18,7 +18,7 @@
 		currentPage = $bindable(1),
 		pageSize = $bindable(10),
 		totalItems = 0,
-		pageSizeOptions = [10, 25, 50, 100],
+		pageSizeOptions = [10, 25, 50, 100, -1],
 		showPageSizeSelector = true,
 		showInfo = true,
 		class: className = ''
@@ -32,7 +32,8 @@
 		class?: string;
 	}>();
 
-	let totalPages = $derived(Math.max(1, Math.ceil(totalItems / (pageSize || 10))));
+	let isAll = $derived(pageSize !== undefined && pageSize <= 0);
+	let totalPages = $derived(isAll ? 1 : Math.max(1, Math.ceil(totalItems / (pageSize || 10))));
 
 	// Koreksi otomatis jika currentPage melampaui totalPages
 	$effect(() => {
@@ -43,8 +44,8 @@
 		}
 	});
 
-	let startIndex = $derived(totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1);
-	let endIndex = $derived(Math.min(totalItems, currentPage * pageSize));
+	let startIndex = $derived(totalItems === 0 ? 0 : isAll ? 1 : (currentPage - 1) * pageSize + 1);
+	let endIndex = $derived(isAll ? totalItems : Math.min(totalItems, currentPage * pageSize));
 
 	// Logika halaman yang ditampilkan dengan ellipsis
 	let visiblePages = $derived.by(() => {
@@ -102,7 +103,11 @@
 		<div class="flex flex-wrap items-center gap-2 sm:gap-3 text-foreground/70 w-full sm:w-auto justify-between sm:justify-start">
 			{#if showInfo}
 				<span class="text-xs">
-					Menampilkan <strong class="text-foreground">{startIndex}</strong> - <strong class="text-foreground">{endIndex}</strong> dari <strong class="text-foreground">{totalItems}</strong> data
+					{#if isAll}
+						Menampilkan seluruh <strong class="text-foreground">{totalItems}</strong> data
+					{:else}
+						Menampilkan <strong class="text-foreground">{startIndex}</strong> - <strong class="text-foreground">{endIndex}</strong> dari <strong class="text-foreground">{totalItems}</strong> data
+					{/if}
 				</span>
 			{/if}
 
@@ -115,7 +120,7 @@
 						class="bg-background border border-border rounded-lg px-2 py-1 text-xs text-foreground focus:ring-1 focus:ring-primary focus:border-primary outline-hidden cursor-pointer"
 					>
 						{#each pageSizeOptions as opt}
-							<option value={opt}>{opt}</option>
+							<option value={opt}>{opt <= 0 ? 'Semua' : opt}</option>
 						{/each}
 					</select>
 				</div>

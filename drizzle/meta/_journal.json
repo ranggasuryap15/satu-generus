@@ -8,6 +8,13 @@
       "when": 1791988073204,
       "tag": "0000_lethal_wonder_man",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792265249319,
+      "tag": "0001_next_loki",
+      "breakpoints": true
     }
   ]
 }
