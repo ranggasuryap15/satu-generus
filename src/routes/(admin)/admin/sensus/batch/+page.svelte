@@ -21,6 +21,7 @@
 		getDaftarStatusPernikahanByGender,
 		hitungStatusGenerus,
 		hitungUmur,
+		isStatusHubunganKepala,
 		isStatusHubunganMenikah,
 		cleanPhoneNumber,
 		type StatusPernikahanType
@@ -240,9 +241,9 @@
 			statusKeluarga: statusKeluargaDefault,
 			nik: '',
 			statusJamaah: 'Aktif',
-			isrun: statusKeluargaDefault === 'Kepala Keluarga' ? 'Ya' : 'Tidak',
+			isrun: isStatusHubunganKepala(statusKeluargaDefault) ? 'Ya' : 'Tidak',
 			golonganDarah: '',
-			buatAkun: false,
+			buatAkun: isStatusHubunganKepala(statusKeluargaDefault),
 			email: '',
 			password: ''
 		};
@@ -395,10 +396,15 @@
 	}
 
 	function onStatusKeluargaChange(member: MemberRowData) {
-		if (member.statusKeluarga === 'Bapak' || member.statusKeluarga === 'Kepala Keluarga') {
+		if (member.statusKeluarga === 'Bapak' || member.statusKeluarga === 'Kepala Keluarga' || member.statusKeluarga === 'Suami') {
 			member.jenisKelamin = 'L';
 		} else if (member.statusKeluarga === 'Ibu' || member.statusKeluarga === 'Istri') {
 			member.jenisKelamin = 'P';
+		}
+
+		if (isStatusHubunganKepala(member.statusKeluarga)) {
+			member.isrun = 'Ya';
+			member.buatAkun = true;
 		}
 
 		if (isStatusHubunganMenikah(member.statusKeluarga)) {

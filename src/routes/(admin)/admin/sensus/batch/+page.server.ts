@@ -15,7 +15,7 @@ import { encryptSensitive } from '#lib/server/crypto.js';
 import { hashPassword } from '#lib/server/auth.js';
 import { getAdminScope, getAccessibleWilayah, isKelompokAllowed } from '#lib/server/scope.js';
 import { normalizeDateToISO } from '#lib/utils.js';
-import { cleanPhoneNumber, hitungStatusGenerus, hitungUmur, resolveStatusPernikahan, type StatusPernikahanType } from '#lib/generus.js';
+import { cleanPhoneNumber, hitungStatusGenerus, hitungUmur, isStatusHubunganKepala, resolveStatusPernikahan, type StatusPernikahanType } from '#lib/generus.js';
 
 export interface BatchRowInput {
 	id?: string;
@@ -224,12 +224,8 @@ export const actions: Actions = {
 					const noKkEncrypted =
 						isActualKk && rawNoKk ? encryptSensitive(rawNoKk) : null;
 
-					// Cari kepala keluarga: cari member 'Kepala Keluarga' atau 'Bapak'
-					let headIndex = fam.members.findIndex(
-						(m) =>
-							m.statusKeluarga.toLowerCase() === 'kepala keluarga' ||
-							m.statusKeluarga.toLowerCase() === 'bapak'
-					);
+					// Cari kepala keluarga (Kepala Keluarga, Bapak, Suami, Mandiri), fallback index 0
+					let headIndex = fam.members.findIndex((m) => isStatusHubunganKepala(m.statusKeluarga));
 					if (headIndex === -1) {
 						headIndex = 0;
 					}

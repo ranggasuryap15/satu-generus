@@ -26,6 +26,7 @@ import {
 	hitungUmur,
 	hitungStatusGenerus,
 	isStatusHubunganMenikah,
+	isStatusHubunganKepala,
 	resolveStatusPernikahan,
 	isStatusGenerusBelumMenikah,
 	sortAnggotaKeluargaHierarki,
@@ -1732,12 +1733,8 @@ export const actions: Actions = {
 					const rawNoKk = (fam.noKk || fam.virtualNoKk || '').trim().replace(/\D/g, '').slice(0, 16);
 					const noKkEncrypted = isActualKk && rawNoKk ? encryptSensitive(rawNoKk) : null;
 
-					// Cari kepala keluarga: 'Kepala Keluarga' atau 'Bapak', fallback index 0
-					let headIndex = fam.members.findIndex(
-						(m: any) =>
-							m.statusKeluarga?.toLowerCase() === 'kepala keluarga' ||
-							m.statusKeluarga?.toLowerCase() === 'bapak'
-					);
+					// Cari kepala keluarga (Kepala Keluarga, Bapak, Suami, Mandiri), fallback index 0
+					let headIndex = fam.members.findIndex((m: any) => isStatusHubunganKepala(m.statusKeluarga));
 					if (headIndex === -1) headIndex = 0;
 
 					let kepalaKeluargaUserId: string | null = null;

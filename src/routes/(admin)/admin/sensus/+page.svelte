@@ -4750,6 +4750,11 @@
 																<CheckCircle2 class="w-3 h-3" />
 																Akun: {mem.noTelepon}
 															</span>
+														{:else if mem.buatAkun && !mem.noTelepon}
+															<span class="text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1" title="Nomor HP kosong sehingga akun belum dapat dibuat">
+																<AlertCircle class="w-3 h-3" />
+																Butuh No HP
+															</span>
 														{/if}
 														{#if mem.errors.length > 0}
 															<span class="text-rose-600 dark:text-rose-400 font-bold">

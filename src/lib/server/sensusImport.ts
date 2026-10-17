@@ -18,6 +18,7 @@ import {
 	getDaftarStatusKeluargaByGender,
 	hitungStatusGenerus,
 	hitungUmur,
+	isStatusHubunganKepala,
 	isStatusHubunganMenikah,
 	resolveStatusPernikahan,
 	type StatusPernikahanType
@@ -802,6 +803,7 @@ export function parseSensusBuffer(
 
 		const rawIsrun = colMap['isrun'] !== undefined ? String(row[colMap['isrun']] ?? '').trim() : '';
 		let isrun: 'Ya' | 'Tidak' = 'Tidak';
+		const isKepala = isStatusHubunganKepala(statusKeluarga);
 		if (rawIsrun) {
 			const isrunLow = rawIsrun.toLowerCase();
 			if (isrunLow === 'ya' || isrunLow === 'y' || isrunLow === 'true' || isrunLow === '1') {
@@ -809,24 +811,31 @@ export function parseSensusBuffer(
 			} else if (isrunLow === 'tidak' || isrunLow === 't' || isrunLow === 'false' || isrunLow === '0') {
 				isrun = 'Tidak';
 			} else {
-				isrun = statusKeluarga === 'Kepala Keluarga' ? 'Ya' : 'Tidak';
+				isrun = isKepala ? 'Ya' : 'Tidak';
 				warnings.push(`Nilai isrun "${rawIsrun}" tidak standar, diatur ke "${isrun}".`);
 			}
-		} else if (statusKeluarga === 'Kepala Keluarga') {
+		} else if (isKepala) {
 			isrun = 'Ya';
 		}
 
-		// Buat Akun
+		// Buat Akun (Default aktif untuk Kepala Keluarga / Bapak / Suami / Mandiri)
 		const rawBuatAkun = colMap['buatAkun'] !== undefined ? String(row[colMap['buatAkun']] ?? '').trim() : '';
 		let buatAkun = false;
 		if (rawBuatAkun) {
-			buatAkun = rawBuatAkun.toLowerCase().includes('ya') || rawBuatAkun.toLowerCase().includes('true');
-		} else if (statusKeluarga === 'Kepala Keluarga' && cleanHp) {
+			const buatAkunLow = rawBuatAkun.toLowerCase();
+			if (buatAkunLow === 'ya' || buatAkunLow === 'y' || buatAkunLow === 'true' || buatAkunLow === '1') {
+				buatAkun = true;
+			} else if (buatAkunLow === 'tidak' || buatAkunLow === 't' || buatAkunLow === 'false' || buatAkunLow === '0') {
+				buatAkun = false;
+			} else {
+				buatAkun = isKepala;
+			}
+		} else if (isKepala) {
 			buatAkun = true;
 		}
 
 		if (buatAkun && !cleanHp) {
-			warnings.push(`Pilihan buat akun diaktifkan, namun Nomor HP kosong (akun memerlukan No HP untuk login).`);
+			warnings.push(`Pilihan buat akun diaktifkan untuk ${rawNama || 'Kepala Keluarga'}, namun Nomor HP kosong (akun memerlukan No HP untuk login).`);
 		}
 
 		// ID / No Keluarga (Grouping Marker)
@@ -858,7 +867,8 @@ export function parseSensusBuffer(
 			kelompokNama: rowKelompokNama || undefined,
 			errors,
 			warnings,
-			// Custom field simpan referensi token
+			// Custom field simpan referensi token & raw buatAkun
+			_rawBuatAkun: rawBuatAkun,
 			...(rawIdKel ? { idKeluargaToken: rawIdKel } : {})
 		} as any);
 	}
@@ -932,7 +942,7 @@ export function parseSensusBuffer(
 			currentFamily = fam;
 		} else {
 			// Prioritas 3: Pengelompokan Berurutan Alami (Natural Sequence)
-			if (!currentFamily || currentFamily.isPerantau || m.statusKeluarga === 'Kepala Keluarga') {
+			if (!currentFamily || currentFamily.isPerantau || isStatusHubunganKepala(m.statusKeluarga)) {
 				const virtualKk = generateVirtualNoKk();
 				currentFamily = {
 					id: `fam_${Math.random().toString(36).substring(2, 9)}`,
@@ -953,7 +963,7 @@ export function parseSensusBuffer(
 		}
 	}
 
-	// 4. Hitung ringkasan statistik
+	// 4. Hitung ringkasan statistik & pastikan akun Kepala Keluarga aktif secara default
 	let totalJiwa = 0;
 	let totalKeluarga = 0;
 	let totalMandiri = 0;
@@ -961,6 +971,33 @@ export function parseSensusBuffer(
 	let hasErrors = false;
 
 	for (const f of parsedFamilies) {
+		// Pastikan kepala keluarga pada setiap keluarga memiliki akun aktif secara default
+		let headIndex = f.members.findIndex((m) => isStatusHubunganKepala(m.statusKeluarga));
+		if (headIndex === -1 && f.members.length > 0) {
+			headIndex = 0;
+		}
+
+		if (headIndex !== -1 && f.members[headIndex]) {
+			const head = f.members[headIndex];
+			const rawAkun = (head as any)._rawBuatAkun as string | undefined;
+			if (!head.buatAkun) {
+				const isExplicitNo =
+					rawAkun &&
+					(rawAkun.toLowerCase() === 'tidak' ||
+						rawAkun.toLowerCase() === 't' ||
+						rawAkun.toLowerCase() === 'false' ||
+						rawAkun.toLowerCase() === '0');
+				if (!isExplicitNo) {
+					head.buatAkun = true;
+					if (!head.noTelepon) {
+						head.warnings.push(
+							`Pilihan buat akun diaktifkan untuk Kepala Keluarga (${head.namaLengkap}), namun Nomor HP kosong (akun memerlukan No HP untuk login).`
+						);
+					}
+				}
+			}
+		}
+
 		if (f.isPerantau) {
 			totalMandiri++;
 		} else {

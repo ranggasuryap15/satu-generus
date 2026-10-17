@@ -52,13 +52,6 @@
     "tsx": "^4.23.15",
     "xlsx": "^0.18.5"
   },
-  "allowScripts": {
-    "esbuild": true
-  },
-  "engines": {
-    "node": ">=22.17",
-    "npm": ">=10"
-  },
   "overrides": {
     "runed": {
       "@sveltejs/kit": "$@sveltejs/kit"
@@ -66,5 +59,12 @@
     "drizzle-kit": {
       "@esbuild-kit/esm-loader": "npm:tsx@^4.21.0"
     }
+  },
+  "allowScripts": {
+    "esbuild": true
+  },
+  "engines": {
+    "node": ">=22.17",
+    "npm": ">=10"
   }
 }

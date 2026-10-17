@@ -3,7 +3,7 @@
  * @purpose Helper kalkulasi umur, klasifikasi status generus otomatis, opsi metadata sensus jamaah sesuai jenis kelamin, dan default status pernikahan berdasarkan hubungan keluarga
  * @usedBy Form sensus, modul batch insert (/admin/sensus/batch), dan visualisasi data generus
  * @dependencies Tidak ada (Pure utility TypeScript)
- * @publicFunctions hitungUmur, hitungStatusGenerus, getDaftarStatusKeluargaByGender, isStatusHubunganMenikah, resolveStatusPernikahan, isStatusGenerusBelumMenikah, resolvePernikahanFromGenerus, getHierarkiHubunganWeight, sortAnggotaKeluargaHierarki, DAFTAR_STATUS_GENERUS, DAFTAR_STATUS_PERNIKAHAN, DAFTAR_STATUS_KELUARGA, DAFTAR_GOLONGAN_DARAH
+ * @publicFunctions hitungUmur, hitungStatusGenerus, getDaftarStatusKeluargaByGender, isStatusHubunganMenikah, isStatusHubunganKepala, resolveStatusPernikahan, isStatusGenerusBelumMenikah, resolvePernikahanFromGenerus, getHierarkiHubunganWeight, sortAnggotaKeluargaHierarki, DAFTAR_STATUS_GENERUS, DAFTAR_STATUS_PERNIKAHAN, DAFTAR_STATUS_KELUARGA, DAFTAR_GOLONGAN_DARAH
  * @sideEffects Tidak ada (Fungsi murni deterministik / read-only date)
  */
 
@@ -210,6 +210,22 @@ export function isStatusHubunganMenikah(statusHubungan?: string | null): boolean
 }
 
 /**
+ * Mengecek apakah status hubungan keluarga mengindikasikan kepala keluarga:
+ * 'Kepala Keluarga', 'Bapak', 'Suami', atau 'Mandiri / Perantau'
+ */
+export function isStatusHubunganKepala(statusHubungan?: string | null): boolean {
+	if (!statusHubungan) return false;
+	const s = statusHubungan.trim().toLowerCase();
+	return (
+		s === 'kepala keluarga' ||
+		s === 'bapak' ||
+		s === 'suami' ||
+		s.includes('perantau') ||
+		s.includes('mandiri')
+	);
+}
+
+/**
  * Menentukan status pernikahan default:
  * Jika status eksplisit telah ditentukan ('Sudah Menikah', 'Belum Menikah', 'Duda', 'Janda'), gunakan status tersebut.
  * Jika kosong / belum ditentukan, otomatis 'Sudah Menikah' jika hubungannya Kepala Keluarga, Suami, Istri, Bapak, atau Ibu.
@@ -294,8 +310,8 @@ export function resolvePernikahanFromGenerus(
 export function getHierarkiHubunganWeight(statusHubungan?: string | null): number {
 	if (!statusHubungan) return 99;
 	const s = statusHubungan.trim().toLowerCase();
-	if (s === 'kepala keluarga') return 1;
-	if (s === 'istri') return 2;
+	if (s === 'kepala keluarga' || s === 'bapak') return 1;
+	if (s === 'istri' || s === 'ibu') return 2;
 	if (s === 'suami') return 2.5;
 	if (s === 'anak') return 3;
 	if (s === 'orang tua' || s === 'mertua') return 4;
