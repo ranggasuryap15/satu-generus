@@ -8,6 +8,7 @@
  */
 
 import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import {
 	DAFTAR_GOLONGAN_DARAH,
 	DAFTAR_STATUS_GENERUS,
@@ -208,68 +209,205 @@ export const SAMPLE_ROWS = [
 ];
 
 /**
- * Menghasilkan file buffer Excel (.xlsx) dengan Sheet 1 (Template) dan Sheet 2 (Panduan Nilai Valid)
+ * Menghasilkan file buffer Excel (.xlsx) dengan Sheet 1 (Template ber-Data Validation Dropdown) dan Sheet 2 (Panduan Nilai Valid)
  */
-export function generateSensusTemplateXlsx(): Buffer {
-	const wb = XLSX.utils.book_new();
+export async function generateSensusTemplateXlsx(): Promise<Buffer> {
+	const wb = new ExcelJS.Workbook();
+	wb.creator = 'Satu Generus';
+	wb.created = new Date();
+	wb.modified = new Date();
 
 	// 1. Sheet 1: Data Sensus Jamaah
-	const wsData = [TEMPLATE_HEADERS, ...SAMPLE_ROWS];
-	const ws1 = XLSX.utils.aoa_to_sheet(wsData);
+	const ws1 = wb.addWorksheet('Data Sensus Jamaah', {
+		views: [{ showGridLines: true }]
+	});
 
-	// Tentukan lebar kolom agar nyaman dibaca
-	ws1['!cols'] = [
-		{ wch: 5 }, // No
-		{ wch: 20 }, // Nama Kelompok
-		{ wch: 18 }, // ID / No Keluarga
-		{ wch: 20 }, // No KK
-		{ wch: 20 }, // NIK
-		{ wch: 25 }, // Nama Lengkap
-		{ wch: 20 }, // Hubungan Keluarga
-		{ wch: 14 }, // Jenis Kelamin
-		{ wch: 18 }, // Tempat Lahir
-		{ wch: 26 }, // Tanggal Lahir (DD-MM-YYYY)
-		{ wch: 20 }, // Status Pernikahan
-		{ wch: 18 }, // Status Generus
-		{ wch: 20 }, // No HP / WhatsApp
-		{ wch: 25 }, // Email
-		{ wch: 32 }, // Alamat Lengkap
-		{ wch: 20 }, // Profesi
-		{ wch: 15 }, // Golongan Darah
-		{ wch: 15 }, // Status Jamaah
-		{ wch: 10 }, // Isrun
-		{ wch: 18 } // Buatkan Akun Login
+	ws1.columns = [
+		{ header: 'No', key: 'no', width: 6 },
+		{ header: 'Nama Kelompok', key: 'kelompok', width: 22 },
+		{ header: 'ID / No Keluarga', key: 'keluargaId', width: 18 },
+		{ header: 'No KK', key: 'noKk', width: 22 },
+		{ header: 'NIK', key: 'nik', width: 22 },
+		{ header: 'Nama Lengkap', key: 'nama', width: 28 },
+		{ header: 'Hubungan Keluarga', key: 'hubungan', width: 22 },
+		{ header: 'Jenis Kelamin', key: 'jk', width: 15 },
+		{ header: 'Tempat Lahir', key: 'tempatLahir', width: 20 },
+		{ header: 'Tanggal Lahir (DD-MM-YYYY)', key: 'tanggalLahir', width: 28 },
+		{ header: 'Status Pernikahan', key: 'pernikahan', width: 22 },
+		{ header: 'Status Generus', key: 'generus', width: 20 },
+		{ header: 'No HP / WhatsApp', key: 'noTelepon', width: 22 },
+		{ header: 'Email', key: 'email', width: 26 },
+		{ header: 'Alamat Lengkap', key: 'alamat', width: 34 },
+		{ header: 'Profesi', key: 'profesi', width: 22 },
+		{ header: 'Golongan Darah', key: 'golonganDarah', width: 16 },
+		{ header: 'Status Jamaah', key: 'statusJamaah', width: 16 },
+		{ header: 'Isrun', key: 'isrun', width: 12 },
+		{ header: 'Buatkan Akun Login', key: 'buatAkun', width: 20 }
 	];
 
-	XLSX.utils.book_append_sheet(wb, ws1, 'Data Sensus Jamaah');
+	// Styling baris Header Sheet 1
+	const headerRow1 = ws1.getRow(1);
+	headerRow1.height = 28;
+	headerRow1.eachCell((cell) => {
+		cell.font = { name: 'Calibri', bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+		cell.fill = {
+			type: 'pattern',
+			pattern: 'solid',
+			fgColor: { argb: 'FF1E293B' } // Slate 800
+		};
+		cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+		cell.border = {
+			top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+			left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+			bottom: { style: 'medium', color: { argb: 'FF64748B' } },
+			right: { style: 'thin', color: { argb: 'FFCBD5E1' } }
+		};
+	});
 
-	// 2. Sheet 2: Panduan & Nilai Valid
-	const wsGuideData = [
-		['PANDUAN & ATURAN PENGISIAN TEMPLATE SENSUS JAMAAH', ''],
-		['', ''],
-		['KOLOM', 'ATURAN & PENJELASAN PENGISIAN'],
-		['ID / No Keluarga', 'Pengikat keluarga sederhana (contoh: 1, 2, KEL-01). Baris dengan ID yang sama otomatis disatukan menjadi 1 Kartu Keluarga. Jika keluarga tidak memiliki No KK fisik, sistem akan membuatkan No KK Virtual unik terenkripsi secara otomatis.'],
-		['No KK', 'Opsional (16 digit angka). Jika tidak punya No KK, kolom ini cukup dikosongkan.'],
-		['NIK', 'Opsional (16 digit angka). Disimpan dengan enkripsi dua arah AES-256-GCM.'],
-		['Nama Lengkap', 'Wajib diisi.'],
-		['Hubungan Keluarga', 'Pilihan: Kepala Keluarga, Istri, Suami, Anak, Bapak, Ibu, Famili Lain, Mandiri / Perantau.'],
-		['Jenis Kelamin', 'Pilihan: L (Laki-laki) atau P (Perempuan).'],
-		['Tanggal Lahir', 'Wajib format DD-MM-YYYY (contoh: 15-08-1990) atau format tanggal Excel asli.'],
-		['Status Pernikahan', 'Pilihan: Sudah Menikah, Belum Menikah, Duda, Janda. Otomatis terisi jika kosong.'],
-		['Status Generus', 'Otomatis dihitung dari Umur & Status Pernikahan jika dikosongkan. Opsi: Paud, Caberawit, Pra Remaja, Remaja, Pra Nikah, Usia Nikah, Dewasa Menikah, Lansia.'],
-		['No HP / WhatsApp', 'Wajib diisi jika jamaah ingin dibuatkan akun login (8-16 digit angka, tanda strip dan spasi otomatis dibersihkan).'],
-		['Email', 'Opsional untuk login alternatif.'],
-		['Alamat Lengkap', 'Cukup diisi pada baris Kepala Keluarga / Mandiri.'],
-		['Golongan Darah', 'Pilihan: A, B, AB, O, -'],
-		['Status Jamaah', 'Pilihan: Aktif, Tidak Aktif (Default: Aktif).'],
-		['Isrun', 'Pilihan: Ya, Tidak (Default Ya untuk Kepala Keluarga).'],
-		['Buatkan Akun Login', 'Pilihan: Ya, Tidak (Default Ya untuk Kepala Keluarga yang memiliki No HP). Password awal: jokam354.']
+	// Tambahkan contoh data baris
+	for (const row of SAMPLE_ROWS) {
+		const addedRow = ws1.addRow(row);
+		addedRow.alignment = { vertical: 'middle' };
+	}
+
+	// Terapkan format sel khusus & Data Validation (Dropdown) dari baris 2 hingga 500
+	const maxRow = 500;
+	for (let r = 2; r <= maxRow; r++) {
+		// Format sel teks agar nomor panjang (NIK, No KK) tidak jadi eksponensial dan 0 depan No HP tidak hilang
+		ws1.getCell(`D${r}`).numFmt = '@';
+		ws1.getCell(`E${r}`).numFmt = '@';
+		ws1.getCell(`J${r}`).numFmt = '@';
+		ws1.getCell(`M${r}`).numFmt = '@';
+
+		// Kolom G: Hubungan Keluarga
+		ws1.getCell(`G${r}`).dataValidation = {
+			type: 'list',
+			allowBlank: true,
+			formulae: ['"Kepala Keluarga,Istri,Suami,Anak,Bapak,Ibu,Famili Lain,Mandiri / Perantau"'],
+			showErrorMessage: true,
+			errorTitle: 'Hubungan Keluarga Tidak Valid',
+			error: 'Pilih salah satu hubungan keluarga dari daftar dropdown.'
+		};
+
+		// Kolom H: Jenis Kelamin
+		ws1.getCell(`H${r}`).dataValidation = {
+			type: 'list',
+			allowBlank: true,
+			formulae: ['"L,P"'],
+			showErrorMessage: true,
+			errorTitle: 'Jenis Kelamin Tidak Valid',
+			error: 'Pilih "L" untuk Laki-laki atau "P" untuk Perempuan.'
+		};
+
+		// Kolom K: Status Pernikahan (4 Enum Resmi)
+		ws1.getCell(`K${r}`).dataValidation = {
+			type: 'list',
+			allowBlank: true,
+			formulae: ['"Belum Menikah,Sudah Menikah,Duda,Janda"'],
+			showErrorMessage: true,
+			errorTitle: 'Status Pernikahan Tidak Valid',
+			error: 'Pilih salah satu status pernikahan: Belum Menikah, Sudah Menikah, Duda, atau Janda.'
+		};
+
+		// Kolom L: Status Generus (8 Kategori Resmi)
+		ws1.getCell(`L${r}`).dataValidation = {
+			type: 'list',
+			allowBlank: true,
+			formulae: ['"Paud,Caberawit,Pra Remaja,Remaja,Pra Nikah,Usia Nikah,Dewasa Menikah,Lansia"'],
+			showErrorMessage: false
+		};
+
+		// Kolom Q: Golongan Darah
+		ws1.getCell(`Q${r}`).dataValidation = {
+			type: 'list',
+			allowBlank: true,
+			formulae: ['"-,A,B,AB,O"'],
+			showErrorMessage: true,
+			errorTitle: 'Golongan Darah Tidak Valid',
+			error: 'Pilih golongan darah: -, A, B, AB, atau O.'
+		};
+
+		// Kolom R: Status Jamaah
+		ws1.getCell(`R${r}`).dataValidation = {
+			type: 'list',
+			allowBlank: true,
+			formulae: ['"Aktif,Tidak Aktif"'],
+			showErrorMessage: true,
+			errorTitle: 'Status Jamaah Tidak Valid',
+			error: 'Pilih "Aktif" atau "Tidak Aktif".'
+		};
+
+		// Kolom S: Isrun
+		ws1.getCell(`S${r}`).dataValidation = {
+			type: 'list',
+			allowBlank: true,
+			formulae: ['"Ya,Tidak"'],
+			showErrorMessage: true,
+			errorTitle: 'Isrun Tidak Valid',
+			error: 'Pilih "Ya" atau "Tidak".'
+		};
+
+		// Kolom T: Buatkan Akun Login
+		ws1.getCell(`T${r}`).dataValidation = {
+			type: 'list',
+			allowBlank: true,
+			formulae: ['"Ya,Tidak"'],
+			showErrorMessage: true,
+			errorTitle: 'Pilihan Buat Akun Tidak Valid',
+			error: 'Pilih "Ya" atau "Tidak".'
+		};
+	}
+
+	// 2. Sheet 2: Petunjuk & Nilai Valid
+	const ws2 = wb.addWorksheet('Petunjuk & Nilai Valid', {
+		views: [{ showGridLines: true }]
+	});
+	ws2.columns = [
+		{ header: 'KOLOM', key: 'kolom', width: 25 },
+		{ header: 'PILIHAN DROPDOWN / FORMAT', key: 'opsi', width: 45 },
+		{ header: 'ATURAN & PENJELASAN PENGISIAN', key: 'penjelasan', width: 80 }
 	];
-	const ws2 = XLSX.utils.aoa_to_sheet(wsGuideData);
-	ws2['!cols'] = [{ wch: 25 }, { wch: 100 }];
-	XLSX.utils.book_append_sheet(wb, ws2, 'Petunjuk & Nilai Valid');
 
-	return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+	const headerRow2 = ws2.getRow(1);
+	headerRow2.height = 26;
+	headerRow2.eachCell((cell) => {
+		cell.font = { name: 'Calibri', bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+		cell.fill = {
+			type: 'pattern',
+			pattern: 'solid',
+			fgColor: { argb: 'FF1E293B' }
+		};
+		cell.alignment = { vertical: 'middle', horizontal: 'center' };
+	});
+
+	const guideRows = [
+		['ID / No Keluarga', '1, 2, KEL-01', 'Pengikat keluarga sederhana. Baris dengan ID yang sama otomatis disatukan menjadi 1 Kartu Keluarga. Jika tidak punya No KK fisik, sistem membuat No KK Virtual unik terenkripsi secara otomatis.'],
+		['No KK', '3216xxxxxxxxxxxx', 'Opsional (16 digit angka). Jika tidak punya No KK, kolom ini cukup dikosongkan.'],
+		['NIK', '3216xxxxxxxxxxxx', 'Opsional (16 digit angka). Disimpan dengan enkripsi dua arah AES-256-GCM.'],
+		['Nama Lengkap', 'Nama Lengkap Jamaah', 'Wajib diisi.'],
+		['Hubungan Keluarga', 'Kepala Keluarga, Istri, Suami, Anak, Bapak, Ibu, Famili Lain, Mandiri / Perantau', 'Pilih dari dropdown.'],
+		['Jenis Kelamin', 'L, P', 'Pilih "L" (Laki-laki) atau "P" (Perempuan).'],
+		['Tempat Lahir', 'Nama Kota / Kabupaten', 'Opsional.'],
+		['Tanggal Lahir (DD-MM-YYYY)', '15-08-1990', 'Wajib format DD-MM-YYYY (contoh: 15-08-1990) atau format tanggal Excel asli.'],
+		['Status Pernikahan', 'Belum Menikah, Sudah Menikah, Duda, Janda', 'Pilih dari dropdown. Jika diisi nilai di luar enum resmi, sistem secara otomatis menyesuaikan berdasarkan hubungan keluarga.'],
+		['Status Generus', 'Paud, Caberawit, Pra Remaja, Remaja, Pra Nikah, Usia Nikah, Dewasa Menikah, Lansia', 'Otomatis dihitung dari Umur & Status Pernikahan jika dikosongkan.'],
+		['No HP / WhatsApp', '081234567890', 'Wajib jika ingin dibuatkan akun login (8-16 digit angka). Spasi, tanda strip (-), titik, dan awalan +62/62/8 otomatis dibersihkan.'],
+		['Email', 'ahmad@example.com', 'Opsional untuk login alternatif.'],
+		['Alamat Lengkap', 'Jl. Melati No. 10 RT 02/03', 'Cukup diisi pada baris Kepala Keluarga / Mandiri.'],
+		['Profesi', 'Karyawan Swasta / Pelajar', 'Opsional.'],
+		['Golongan Darah', '-, A, B, AB, O', 'Pilih dari dropdown. Jika diisi nilai selain opsi resmi, otomatis dikosongkan (null).'],
+		['Status Jamaah', 'Aktif, Tidak Aktif', 'Pilih dari dropdown (Default: Aktif).'],
+		['Isrun', 'Ya, Tidak', 'Pilih dari dropdown (Default: Ya untuk Kepala Keluarga).'],
+		['Buatkan Akun Login', 'Ya, Tidak', 'Pilih dari dropdown (Default: Ya untuk Kepala Keluarga yang memiliki No HP). Password awal: jokam354.']
+	];
+
+	for (const grow of guideRows) {
+		const r = ws2.addRow(grow);
+		r.alignment = { vertical: 'middle', wrapText: true };
+	}
+
+	const buf = await wb.xlsx.writeBuffer();
+	return Buffer.from(buf);
 }
 
 /**
@@ -567,8 +705,16 @@ export function parseSensusBuffer(
 			const sNikah = rawNikah.toLowerCase();
 			if (sNikah.includes('duda')) {
 				statusMenikah = 'Duda';
+				if (jk === 'P') {
+					statusMenikah = 'Janda';
+					warnings.push(`Status pernikahan "Duda" untuk perempuan diselaraskan menjadi "Janda".`);
+				}
 			} else if (sNikah.includes('janda')) {
 				statusMenikah = 'Janda';
+				if (jk === 'L') {
+					statusMenikah = 'Duda';
+					warnings.push(`Status pernikahan "Janda" untuk laki-laki diselaraskan menjadi "Duda".`);
+				}
 			} else if (sNikah.includes('cerai')) {
 				statusMenikah = jk === 'P' ? 'Janda' : 'Duda';
 			} else if (sNikah.includes('sudah') || sNikah.includes('kawin') || sNikah === 'menikah') {
@@ -577,6 +723,7 @@ export function parseSensusBuffer(
 				statusMenikah = 'Belum Menikah';
 			} else {
 				statusMenikah = resolveStatusPernikahan(statusKeluarga);
+				warnings.push(`Status pernikahan "${rawNikah}" tidak valid sesuai aturan enum, otomatis disesuaikan menjadi "${statusMenikah}".`);
 			}
 		} else {
 			statusMenikah = resolveStatusPernikahan(statusKeluarga);
@@ -584,8 +731,16 @@ export function parseSensusBuffer(
 
 		// Status Generus
 		const rawGenerus = colMap['generus'] !== undefined ? String(row[colMap['generus']] ?? '').trim() : '';
-		let statusGenerus = rawGenerus;
-		if (!statusGenerus) {
+		let statusGenerus = '';
+		if (rawGenerus) {
+			const matchedGenerus = DAFTAR_STATUS_GENERUS.find((g) => g.toLowerCase() === rawGenerus.toLowerCase());
+			if (matchedGenerus) {
+				statusGenerus = matchedGenerus;
+			} else {
+				statusGenerus = hitungStatusGenerus(umur, statusMenikah);
+				warnings.push(`Status generus "${rawGenerus}" tidak valid sesuai aturan enum, otomatis dihitung ulang menjadi "${statusGenerus}".`);
+			}
+		} else {
 			statusGenerus = hitungStatusGenerus(umur, statusMenikah);
 		}
 
@@ -621,16 +776,42 @@ export function parseSensusBuffer(
 
 		// Golongan Darah
 		const rawGoldar = colMap['golonganDarah'] !== undefined ? String(row[colMap['golonganDarah']] ?? '').trim().toUpperCase() : '';
-		const golonganDarah = DAFTAR_GOLONGAN_DARAH.includes(rawGoldar as any) && rawGoldar !== '-' ? rawGoldar : undefined;
+		let golonganDarah: string | undefined = undefined;
+		if (rawGoldar && rawGoldar !== '-') {
+			if (['A', 'B', 'AB', 'O'].includes(rawGoldar)) {
+				golonganDarah = rawGoldar;
+			} else {
+				warnings.push(`Golongan darah "${rawGoldar}" tidak valid sesuai enum (A, B, AB, O, -), otomatis dikosongkan (null).`);
+				golonganDarah = undefined;
+			}
+		}
 
 		// Status Jamaah & Isrun
 		const rawStatusJam = colMap['statusJamaah'] !== undefined ? String(row[colMap['statusJamaah']] ?? '').trim() : '';
-		const statusJamaah: 'Aktif' | 'Tidak Aktif' = rawStatusJam.toLowerCase().includes('tidak') ? 'Tidak Aktif' : 'Aktif';
+		let statusJamaah: 'Aktif' | 'Tidak Aktif' = 'Aktif';
+		if (rawStatusJam) {
+			const sLow = rawStatusJam.toLowerCase();
+			if (sLow.includes('tidak') || sLow.includes('non') || sLow.includes('pasif')) {
+				statusJamaah = 'Tidak Aktif';
+			} else if (sLow.includes('aktif')) {
+				statusJamaah = 'Aktif';
+			} else {
+				warnings.push(`Status jamaah "${rawStatusJam}" tidak standar, diatur ke "Aktif".`);
+			}
+		}
 
 		const rawIsrun = colMap['isrun'] !== undefined ? String(row[colMap['isrun']] ?? '').trim() : '';
 		let isrun: 'Ya' | 'Tidak' = 'Tidak';
 		if (rawIsrun) {
-			isrun = rawIsrun.toLowerCase().includes('ya') ? 'Ya' : 'Tidak';
+			const isrunLow = rawIsrun.toLowerCase();
+			if (isrunLow === 'ya' || isrunLow === 'y' || isrunLow === 'true' || isrunLow === '1') {
+				isrun = 'Ya';
+			} else if (isrunLow === 'tidak' || isrunLow === 't' || isrunLow === 'false' || isrunLow === '0') {
+				isrun = 'Tidak';
+			} else {
+				isrun = statusKeluarga === 'Kepala Keluarga' ? 'Ya' : 'Tidak';
+				warnings.push(`Nilai isrun "${rawIsrun}" tidak standar, diatur ke "${isrun}".`);
+			}
 		} else if (statusKeluarga === 'Kepala Keluarga') {
 			isrun = 'Ya';
 		}

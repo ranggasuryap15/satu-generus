@@ -31,7 +31,7 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 	}
 
 	// Default: Microsoft Excel (.xlsx)
-	const xlsxBuffer = generateSensusTemplateXlsx();
+	const xlsxBuffer = await generateSensusTemplateXlsx();
 	return new Response(new Uint8Array(xlsxBuffer), {
 		headers: {
 			'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
