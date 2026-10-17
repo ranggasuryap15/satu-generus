@@ -3,8 +3,8 @@
  * @purpose Rekapitulasi sensus KK & Mandiri, metrik dashboard, penugasan dapukan pengurus KK, pengurutan hierarki keluarga standar (Kepala Keluarga -> Istri -> Anak), validasi integritas keunikan Kyai, validasi keunikan email & noTelepon, sinkronisasi noTelepon akun, penyediaan nilai dekripsi NIK/KK asli untuk modal edit, resolusi effectiveUserId & default isrun Kepala Keluarga, serta form actions sensus
  * @usedBy src/routes/(admin)/admin/sensus/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/auth, src/lib/server/scope, src/lib/utils (normalizeDateToISO), src/lib/generus (hitungUmur, hitungStatusGenerus, isStatusHubunganMenikah, resolveStatusPernikahan, isStatusGenerusBelumMenikah, sortAnggotaKeluargaHierarki), drizzle-orm
- * @publicFunctions load, actions.createSensus, actions.addAnggotaKeluarga, actions.updateAnggota, actions.updateKeluarga, actions.deleteSensus, actions.pindahKelompok, actions.toggleStatusJamaah, actions.createMemberAccount, actions.assignDapukan
- * @sideEffects Transaksi penulisan database tabel users, keluarga, anggota_keluarga, user_dapukan; query join multi-tabel terindeks; sinkronisasi user_id, no_telepon & default isrun Kepala Keluarga; penanganan error duplikasi email & nomor HP
+ * @publicFunctions load, actions.createSensus, actions.addAnggotaKeluarga, actions.updateAnggota, actions.updateKeluarga, actions.deleteSensus, actions.pindahKelompok, actions.toggleStatusJamaah, actions.createMemberAccount, actions.assignDapukan, actions.importSensus
+ * @sideEffects Transaksi penulisan database tabel users, keluarga, anggota_keluarga, user_dapukan; query join multi-tabel terindeks; sinkronisasi user_id, no_telepon & default isrun Kepala Keluarga; penanganan error duplikasi email & nomor HP; import massal XLSX/CSV
  */
 
 import { fail, redirect } from '@sveltejs/kit';
@@ -1624,5 +1624,222 @@ export const actions: Actions = {
 			console.error('Gagal menugaskan dapukan sensus:', err);
 			return fail(500, { error: 'Terjadi kesalahan sistem saat menyimpan penugasan dapukan.' });
 		}
+	},
+
+	/**
+	 * Import Data Sensus Massal dari file Excel (.xlsx/.csv) yang telah divalidasi
+	 */
+	importSensus: async ({ request, locals }) => {
+		if (!locals.user || !locals.isAdmin) {
+			return fail(403, { error: 'Akses ditolak.' });
+		}
+
+		const formData = await request.formData();
+		const rawPayload = formData.get('importData')?.toString() || '[]';
+		const defaultPassword = formData.get('defaultPassword')?.toString() || 'jokam354';
+		const defaultKelompokIdRaw = formData.get('defaultKelompokId')?.toString() || '';
+		const defaultKelompokId =
+			defaultKelompokIdRaw && defaultKelompokIdRaw !== 'ALL' && !isNaN(Number(defaultKelompokIdRaw))
+				? parseInt(defaultKelompokIdRaw, 10)
+				: null;
+
+		let families: any[];
+		try {
+			families = JSON.parse(rawPayload);
+		} catch (_) {
+			return fail(400, { error: 'Format data import tidak valid.' });
+		}
+
+		if (!Array.isArray(families) || families.length === 0) {
+			return fail(400, { error: 'Belum ada data keluarga yang diimpor.' });
+		}
+
+		const adminScope = getAdminScope(locals.roles);
+		const accessibleWilayah = await getAccessibleWilayah(adminScope);
+
+		// Validasi setiap anggota keluarga
+		let totalJiwa = 0;
+		for (let fIdx = 0; fIdx < families.length; fIdx++) {
+			const fam = families[fIdx];
+			if (!fam.members || fam.members.length === 0) continue;
+
+			for (let mIdx = 0; mIdx < fam.members.length; mIdx++) {
+				const m = fam.members[mIdx];
+				const nama = m.namaLengkap?.trim();
+				if (!nama) {
+					return fail(400, {
+						error: `Keluarga #${fIdx + 1}, Anggota #${mIdx + 1}: Nama lengkap wajib diisi.`
+					});
+				}
+				if (!m.tanggalLahir?.trim()) {
+					return fail(400, {
+						error: `Keluarga #${fIdx + 1} (${nama}): Tanggal lahir wajib diisi.`
+					});
+				}
+
+				const kId = m.kelompokId
+					? parseInt(String(m.kelompokId), 10)
+					: fam.kelompokId
+						? parseInt(String(fam.kelompokId), 10)
+						: defaultKelompokId;
+
+				if (!kId) {
+					return fail(400, {
+						error: `Keluarga #${fIdx + 1} (${nama}): Kelompok belum dipilih.`
+					});
+				}
+
+				if (!isKelompokAllowed(kId, accessibleWilayah.allowedKelompokIdSet, adminScope.isPusat)) {
+					return fail(403, {
+						error: `Keluarga #${fIdx + 1} (${nama}): Anda tidak memiliki wewenang untuk kelompok ID ${kId}.`
+					});
+				}
+				totalJiwa++;
+			}
+		}
+
+		if (totalJiwa === 0) {
+			return fail(400, { error: 'Tidak ada anggota keluarga valid yang dapat diimpor.' });
+		}
+
+		const defaultPasswordHash = await hashPassword(defaultPassword);
+
+		// Cache email & no telepon existing untuk cegah crash constraint unik
+		const existingUserEmails = new Set(
+			(await db.select({ email: users.email }).from(users))
+				.filter((u) => !!u.email)
+				.map((u) => u.email!.toLowerCase())
+		);
+		const existingPhones = new Set(
+			(await db.select({ noTelepon: users.noTelepon }).from(users))
+				.filter((u) => !!u.noTelepon)
+				.map((u) => u.noTelepon!)
+		);
+
+		let totalUsersCreated = 0;
+		let totalKeluargaCreated = 0;
+		let totalAnggotaCreated = 0;
+
+		try {
+			await db.transaction(async (tx) => {
+				for (const fam of families) {
+					if (!fam.members || fam.members.length === 0) continue;
+
+					const isActualKk = !fam.isPerantau;
+					const rawNoKk = (fam.noKk || fam.virtualNoKk || '').trim().replace(/\D/g, '').slice(0, 16);
+					const noKkEncrypted = isActualKk && rawNoKk ? encryptSensitive(rawNoKk) : null;
+
+					// Cari kepala keluarga: 'Kepala Keluarga' atau 'Bapak', fallback index 0
+					let headIndex = fam.members.findIndex(
+						(m: any) =>
+							m.statusKeluarga?.toLowerCase() === 'kepala keluarga' ||
+							m.statusKeluarga?.toLowerCase() === 'bapak'
+					);
+					if (headIndex === -1) headIndex = 0;
+
+					let kepalaKeluargaUserId: string | null = null;
+					const familyAlamat =
+						fam.alamat?.trim() ||
+						fam.members.find((m: any) => m.alamat && m.alamat.trim())?.alamat?.trim() ||
+						'-';
+
+					const memberUserIds: Array<string | null> = new Array(fam.members.length).fill(null);
+
+					// 1. Buat akun user jika diminta
+					for (let i = 0; i < fam.members.length; i++) {
+						const m = fam.members[i];
+						if (m.buatAkun && m.noTelepon) {
+							const cleanHp = m.noTelepon.trim().replace(/\D/g, '');
+							if (cleanHp && /^\d{8,16}$/.test(cleanHp) && !existingPhones.has(cleanHp)) {
+								let userEmail = m.email?.trim()?.toLowerCase() || null;
+								if (userEmail && existingUserEmails.has(userEmail)) {
+									userEmail = null;
+								}
+								if (userEmail) existingUserEmails.add(userEmail);
+								existingPhones.add(cleanHp);
+
+								const kId = m.kelompokId
+									? parseInt(String(m.kelompokId), 10)
+									: fam.kelompokId
+										? parseInt(String(fam.kelompokId), 10)
+										: defaultKelompokId;
+
+								const [createdUser] = await tx
+									.insert(users)
+									.values({
+										kelompokId: kId,
+										namaLengkap: m.namaLengkap.trim(),
+										email: userEmail,
+										noTelepon: cleanHp,
+										passwordHash: defaultPasswordHash
+									})
+									.returning();
+
+								memberUserIds[i] = createdUser.id;
+								totalUsersCreated++;
+
+								if (i === headIndex) {
+									kepalaKeluargaUserId = createdUser.id;
+								}
+							}
+						}
+					}
+
+					// 2. Buat record keluarga
+					const [newKeluarga] = await tx
+						.insert(keluarga)
+						.values({
+							isKk: isActualKk,
+							noKkEncrypted,
+							kepalaKeluargaId: kepalaKeluargaUserId,
+							alamatLengkap: familyAlamat
+						})
+						.returning();
+
+					totalKeluargaCreated++;
+
+					// 3. Masukkan seluruh anggota keluarga
+					for (let i = 0; i < fam.members.length; i++) {
+						const m = fam.members[i];
+						const statusHubunganFinal = m.statusKeluarga || (i === 0 ? 'Kepala Keluarga' : 'Anak');
+						const statusMenikahFinal = resolveStatusPernikahan(statusHubunganFinal, m.statusMenikah);
+						const umurCalc = hitungUmur(m.tanggalLahir);
+						const statusGenerusFinal = hitungStatusGenerus(umurCalc, statusMenikahFinal);
+
+						const rawNik = m.nik ? m.nik.trim().replace(/\D/g, '').slice(0, 16) : '';
+						const nikEncrypted = rawNik ? encryptSensitive(rawNik) : null;
+
+						await tx.insert(anggotaKeluarga).values({
+							keluargaId: newKeluarga.id,
+							userId: memberUserIds[i] || null,
+							namaLengkap: m.namaLengkap.trim(),
+							nikEncrypted,
+							statusHubungan: statusHubunganFinal,
+							tanggalLahir: normalizeDateToISO(m.tanggalLahir),
+							jenisKelamin: m.jenisKelamin === 'P' ? 'P' : 'L',
+							tempatLahir: m.tempatLahir?.trim() || null,
+							profesi: m.profesi?.trim() || null,
+							noTelepon: m.noTelepon?.trim() || null,
+							statusGenerus: statusGenerusFinal,
+							statusPernikahan: statusMenikahFinal,
+							statusJamaah: m.statusJamaah || 'Aktif',
+							isrun: m.isrun || 'Tidak',
+							golonganDarah: m.golonganDarah && m.golonganDarah !== '-' ? m.golonganDarah.trim() : null
+						});
+
+						totalAnggotaCreated++;
+					}
+				}
+			});
+		} catch (dbErr: any) {
+			console.error('Error saat transaksi import sensus:', dbErr);
+			return fail(500, {
+				error: 'Terjadi kesalahan sistem saat menyimpan data import sensus: ' + (dbErr?.message || '')
+			});
+		}
+
+		return {
+			success: `Berhasil mengimpor ${totalAnggotaCreated} jiwa (${totalKeluargaCreated} entri keluarga) dan membuat ${totalUsersCreated} akun login baru.`
+		};
 	}
 };

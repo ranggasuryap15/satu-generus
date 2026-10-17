@@ -1,10 +1,10 @@
 <!--
   @file src/routes/(admin)/admin/sensus/+page.svelte
-  @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri, pagination tabel/kartu data, standarisasi tombol aksi simetris seragam, dashboard statistik, penugasan dapukan pengurus KK, modal detail lengkap, modal edit anggota/KK dengan retensi nilai NIK/KK asli pada form, pra-validasi sebelum dialog konfirmasi, pelaporan in-modal error feedback & field highlighting instan, serta pembuatan akun dengan retensi scroll
+  @purpose Rekapitulasi sensus Kartu Keluarga & Jamaah Mandiri, pagination tabel/kartu data, standarisasi tombol aksi simetris seragam, dashboard statistik, modal import data massal XLSX/CSV dengan virtual No KK & preview validasi, penugasan dapukan pengurus KK, modal detail lengkap, modal edit anggota/KK dengan retensi nilai NIK/KK asli pada form, pra-validasi sebelum dialog konfirmasi, pelaporan in-modal error feedback & field highlighting instan, serta pembuatan akun dengan retensi scroll
   @usedBy Route admin '/admin/sensus'
   @dependencies @lucide/svelte, Svelte 5 Runes, #lib/components/SearchableSelect.svelte, #lib/components/DateInput.svelte, #lib/components/Pagination.svelte, #lib/confirm.svelte, #lib/confirmSubmit.ts, #lib/keepScroll.ts (keepScrollSubmit), #lib/utils (formatDateDDMMYYYY), #lib/generus
-  @publicFunctions openDetailModal, closeDetailModal, requestUnmask, openCreateModal, closeCreateModal, openAddMemberModal, closeAddMemberModal, openCreateAccountModal, openEditAnggotaModal, closeEditAnggotaModal, openEditKeluargaModal, closeEditKeluargaModal, openPindahKelompokModal, closePindahKelompokModal, openAssignDapukanModal, closeAssignDapukanModal, handleHapusSensus, handleToggleStatusJamaah, resetFilters, toggleMobileFilter
-  @sideEffects Menampilkan metrik, unmask data sensitif, submit actions (createSensus, addAnggotaKeluarga, updateAnggota, updateKeluarga, deleteSensus, pindahKelompok, toggleStatusJamaah, createMemberAccount, assignDapukan) dengan retensi posisi scroll dan in-modal error display
+  @publicFunctions openDetailModal, closeDetailModal, openImportModal, closeImportModal, handleFileSelected, handleFileDrop, handleConfirmSubmitImport, requestUnmask, openCreateModal, closeCreateModal, openAddMemberModal, closeAddMemberModal, openCreateAccountModal, openEditAnggotaModal, closeEditAnggotaModal, openEditKeluargaModal, closeEditKeluargaModal, openPindahKelompokModal, closePindahKelompokModal, openAssignDapukanModal, closeAssignDapukanModal, handleHapusSensus, handleToggleStatusJamaah, resetFilters, toggleMobileFilter
+  @sideEffects Menampilkan metrik, unmask data sensitif, parsing file spreadsheet XLSX/CSV, submit actions (createSensus, importSensus, addAnggotaKeluarga, updateAnggota, updateKeluarga, deleteSensus, pindahKelompok, toggleStatusJamaah, createMemberAccount, assignDapukan) dengan retensi posisi scroll dan in-modal error display
 -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
@@ -32,6 +32,7 @@
 	  ChevronUp,
 	  Download,
 	  Eye,
+	  FileSpreadsheet,
 	  Filter,
 	  Home,
 	  KeyRound,
@@ -44,6 +45,7 @@
 	  ShieldCheck,
 	  TableProperties,
 	  Trash2,
+	  Upload,
 	  UserCheck,
 	  UserPlus,
 	  Users,
@@ -85,6 +87,150 @@
 
 	function closeDetailModal() {
 		selectedKeluargaId = null;
+	}
+
+	// State Modal Import Excel / CSV
+	let showImportModal = $state(false);
+	let importFile = $state<File | null>(null);
+	let importParsing = $state(false);
+	let importSubmitting = $state(false);
+	let importDefaultKelompokId = $state<string | number>('ALL');
+	let importDefaultPassword = $state('jokam354');
+	let importParseResult = $state<any | null>(null);
+	let importError = $state<string | null>(null);
+	let fileInputRef: HTMLInputElement | undefined = $state();
+	let importFormRef: HTMLFormElement | undefined = $state();
+
+	const importKelompokOptions = $derived([
+		{
+			value: 'ALL',
+			label: '🌐 Otomatis dari Kolom Spreadsheet / Campuran',
+			sublabel: 'Gunakan nama kelompok yang tertulis di masing-masing baris file'
+		},
+		...(data.wilayahOptions?.kelompokList || []).map((k: any) => ({
+			value: k.id,
+			label: `${k.nama} (Desa ${k.desaNama || '-'})`,
+			sublabel: k.daerahNama ? `Daerah ${k.daerahNama}` : undefined
+		}))
+	]);
+
+	function openImportModal() {
+		showImportModal = true;
+		importFile = null;
+		importParsing = false;
+		importSubmitting = false;
+		importParseResult = null;
+		importError = null;
+		if (data.wilayahOptions?.kelompokList?.length === 1) {
+			importDefaultKelompokId = data.wilayahOptions.kelompokList[0].id;
+		} else {
+			importDefaultKelompokId = 'ALL';
+		}
+	}
+
+	async function closeImportModal() {
+		if (importFile && !importSubmitting) {
+			const ok = await confirmAction({
+				title: 'Tutup Formulir Import?',
+				message: 'File yang sudah Anda pilih belum disimpan ke database. Yakin ingin membatalkan proses import?',
+				confirmText: 'Ya, Tutup',
+				cancelText: 'Lanjut Import',
+				variant: 'warning'
+			});
+			if (!ok) return;
+		}
+		showImportModal = false;
+		importFile = null;
+		importParseResult = null;
+		importError = null;
+	}
+
+	async function handleFileSelected(e: Event) {
+		const target = e.target as HTMLInputElement;
+		const files = target.files;
+		if (!files || files.length === 0) return;
+		await processFileForImport(files[0]);
+	}
+
+	async function handleFileDrop(e: DragEvent) {
+		e.preventDefault();
+		const files = e.dataTransfer?.files;
+		if (!files || files.length === 0) return;
+		await processFileForImport(files[0]);
+	}
+
+	async function processFileForImport(file: File) {
+		const ext = file.name.split('.').pop()?.toLowerCase();
+		if (!['xlsx', 'xls', 'csv'].includes(ext || '')) {
+			importError = 'Format file tidak didukung. Harap pilih file berekstensi .xlsx, .xls, atau .csv.';
+			return;
+		}
+
+		importFile = file;
+		importParsing = true;
+		importError = null;
+		importParseResult = null;
+
+		try {
+			const fd = new FormData();
+			fd.append('file', file);
+			if (importDefaultKelompokId && importDefaultKelompokId !== 'ALL') {
+				fd.append('defaultKelompokId', String(importDefaultKelompokId));
+			}
+
+			const res = await fetch('/api/sensus/parse', {
+				method: 'POST',
+				body: fd
+			});
+			const result = await res.json();
+			if (!res.ok || (!result.success && result.globalErrors?.length > 0)) {
+				importError = result.globalErrors?.[0] || 'Gagal membaca isi file spreadsheet.';
+			}
+			importParseResult = result;
+		} catch (err: any) {
+			console.error('Error parsing sensus file:', err);
+			importError = 'Terjadi kesalahan jaringan saat mengurai file: ' + (err?.message || '');
+		} finally {
+			importParsing = false;
+		}
+	}
+
+	async function handleDefaultKelompokChangeInImport(val: string | number) {
+		importDefaultKelompokId = val;
+		if (importFile) {
+			await processFileForImport(importFile);
+		}
+	}
+
+	async function handleConfirmSubmitImport() {
+		if (!importParseResult || !importParseResult.success || importParseResult.hasErrors) {
+			await confirmAction({
+				title: 'Data Belum Valid',
+				message: 'Masih ada kesalahan atau baris yang belum valid. Harap periksa rincian sebelum menyimpan.',
+				confirmText: 'Mengerti',
+				cancelText: '',
+				variant: 'warning'
+			});
+			return;
+		}
+
+		const totalJiwa = importParseResult.totalJiwa;
+		const totalKeluarga = importParseResult.totalKeluarga;
+		const totalMandiri = importParseResult.totalMandiri;
+		const totalAkun = importParseResult.totalAkun;
+
+		const ok = await confirmAction({
+			title: 'Simpan Import Data Sensus?',
+			message: `Anda akan mengimpor ${totalJiwa} jiwa (${totalKeluarga} KK, ${totalMandiri} Mandiri) dan membuat ${totalAkun} akun login. Yakin ingin menyimpan ke database?`,
+			confirmText: 'Ya, Simpan ke Database',
+			cancelText: 'Periksa Kembali',
+			variant: 'primary'
+		});
+
+		if (ok && importFormRef) {
+			importSubmitting = true;
+			importFormRef.requestSubmit();
+		}
 	}
 
 	let showUnmaskModal = $state(false);
@@ -1031,6 +1177,11 @@
 			showCreateModal = false;
 			showAddMemberModal = false;
 			showAssignDapukanModal = false;
+			showImportModal = false;
+			importFile = null;
+			importParseResult = null;
+			importSubmitting = false;
+			importError = null;
 			targetKeluargaForDapukan = null;
 			assignUserId = '';
 			createError = null;
@@ -1047,6 +1198,10 @@
 			}
 			if (showAddMemberModal && !addMemberError) {
 				addMemberError = form.error;
+			}
+			if (showImportModal && !importError) {
+				importError = form.error;
+				importSubmitting = false;
 			}
 		}
 		if (form?.errorAccount && memberForAccount && !createAccountError) {
@@ -1112,7 +1267,7 @@
 			</div>
 		</div>
 
-		<div class="flex items-center gap-2">
+		<div class="flex items-center gap-2 flex-wrap">
 			<a
 				href="/admin/sensus/batch"
 				class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-primary/30 bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 transition-all shadow-sm"
@@ -1123,11 +1278,21 @@
 
 			<button
 				type="button"
-				class="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-card text-xs font-medium text-foreground/80 hover:bg-secondary transition-colors"
+				onclick={openImportModal}
+				class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-xs font-semibold hover:bg-emerald-500/20 transition-all shadow-sm cursor-pointer"
 			>
-				<Download class="w-3.5 h-3.5" />
-				Export CSV
+				<FileSpreadsheet class="w-3.5 h-3.5" />
+				<span>Import Excel / CSV</span>
 			</button>
+
+			<a
+				href="/api/sensus/template?format=xlsx"
+				class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border bg-card text-xs font-medium text-foreground/80 hover:bg-secondary transition-colors"
+				title="Unduh Template Excel (.xlsx) resmi"
+			>
+				<Download class="w-3.5 h-3.5 text-muted-foreground" />
+				<span>Template Excel</span>
+			</a>
 
 			<button
 				type="button"
@@ -4245,3 +4410,329 @@
 	<input type="hidden" name="anggotaId" value={toggleTargetAnggotaId} />
 	<input type="hidden" name="statusJamaah" value={toggleTargetStatus} />
 </form>
+
+<!-- Form Tersembunyi untuk Eksekusi Import Sensus -->
+<form
+	bind:this={importFormRef}
+	method="POST"
+	action="?/importSensus"
+	use:enhance={keepScrollSubmit()}
+	class="hidden"
+>
+	<input type="hidden" name="importData" value={importParseResult ? JSON.stringify(importParseResult.families) : '[]'} />
+	<input type="hidden" name="defaultKelompokId" value={String(importDefaultKelompokId)} />
+	<input type="hidden" name="defaultPassword" value={importDefaultPassword} />
+</form>
+
+<!-- Modal Import Data Sensus Jamaah (XLSX & CSV) -->
+{#if showImportModal}
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-background/80 backdrop-blur-sm"
+		role="dialog"
+		aria-modal="true"
+	>
+		<div
+			class="bg-card border border-border rounded-2xl max-w-4xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+		>
+			<!-- Modal Header -->
+			<div class="flex items-center justify-between p-4 sm:p-5 border-b border-border shrink-0 bg-secondary/20">
+				<div class="flex items-center gap-3">
+					<div class="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+						<FileSpreadsheet class="w-5 h-5" />
+					</div>
+					<div>
+						<h3 class="text-sm sm:text-base font-bold text-foreground">
+							Import Sensus Jamaah (Excel & CSV)
+						</h3>
+						<p class="text-xs text-muted-foreground mt-0.5">
+							Unggah file spreadsheet untuk pendaftaran kartu keluarga dan anggota massal
+						</p>
+					</div>
+				</div>
+				<button
+					type="button"
+					onclick={closeImportModal}
+					class="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors cursor-pointer"
+					title="Tutup"
+				>
+					<X class="w-5 h-5" />
+				</button>
+			</div>
+
+			<!-- Modal Body (Scrollable) -->
+			<div class="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1">
+				<!-- Unduh Template Resmi Banner -->
+				<div class="p-3.5 rounded-xl border border-border bg-secondary/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+					<div class="space-y-0.5">
+						<p class="font-semibold text-foreground flex items-center gap-1.5">
+							<span>📄 Belum memiliki format file yang sesuai?</span>
+						</p>
+						<p class="text-muted-foreground text-[11px]">
+							Unduh template resmi berikut yang sudah dilengkapi contoh pengisian dan aturan kolom:
+						</p>
+					</div>
+					<div class="flex items-center gap-2 shrink-0">
+						<a
+							href="/api/sensus/template?format=xlsx"
+							class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs shadow-xs transition-colors"
+						>
+							<Download class="w-3.5 h-3.5" />
+							<span>Unduh Template (.xlsx)</span>
+						</a>
+						<a
+							href="/api/sensus/template?format=csv"
+							class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-card hover:bg-secondary text-foreground text-xs font-medium transition-colors"
+						>
+							<Download class="w-3.5 h-3.5" />
+							<span>CSV</span>
+						</a>
+					</div>
+				</div>
+
+				<!-- Pengaturan Default Batch -->
+				<div class="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 bg-secondary/20 rounded-xl border border-border text-xs">
+					<div>
+						<label for="importKelompokSelect" class="block font-semibold text-foreground mb-1">
+							Kelompok Default
+						</label>
+						<SearchableSelect
+							id="importKelompokSelect"
+							name="importKelompokSelect"
+							options={importKelompokOptions}
+							bind:value={importDefaultKelompokId}
+							onchange={handleDefaultKelompokChangeInImport}
+							placeholder="-- Pilih Kelompok / Otomatis --"
+							searchPlaceholder="Cari kelompok..."
+						/>
+						<p class="text-[10px] text-muted-foreground mt-1">
+							Digunakan jika baris di spreadsheet tidak menyertakan kolom kelompok
+						</p>
+					</div>
+
+					<div>
+						<label for="importPasswordInput" class="block font-semibold text-foreground mb-1 flex items-center gap-1">
+							<KeyRound class="w-3.5 h-3.5 text-primary" />
+							<span>Password Default Akun Baru</span>
+						</label>
+						<input
+							id="importPasswordInput"
+							type="text"
+							bind:value={importDefaultPassword}
+							placeholder="jokam354"
+							class="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary"
+						/>
+						<p class="text-[10px] text-muted-foreground mt-1">
+							Password awal untuk jamaah yang dibuatkan akun login aplikasi
+						</p>
+					</div>
+				</div>
+
+				<!-- Area Dropzone / Upload File -->
+				<div>
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div
+						class="border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all {importFile ? 'border-primary/50 bg-primary/5' : 'border-border hover:border-primary/40 hover:bg-secondary/40'}"
+						onclick={() => fileInputRef?.click()}
+						ondragover={(e) => e.preventDefault()}
+						ondrop={handleFileDrop}
+					>
+						<input
+							bind:this={fileInputRef}
+							type="file"
+							accept=".xlsx,.xls,.csv"
+							onchange={handleFileSelected}
+							class="hidden"
+						/>
+
+						{#if importParsing}
+							<div class="flex flex-col items-center justify-center gap-2 py-4 text-primary">
+								<Loader2 class="w-8 h-8 animate-spin" />
+								<p class="text-xs font-semibold">Sedang membaca dan memvalidasi isi spreadsheet...</p>
+							</div>
+						{:else if importFile}
+							<div class="flex flex-col items-center justify-center gap-2 py-2">
+								<div class="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+									<FileSpreadsheet class="w-5 h-5" />
+								</div>
+								<div class="text-xs">
+									<p class="font-bold text-foreground">{importFile.name}</p>
+									<p class="text-[11px] text-muted-foreground mt-0.5">
+										{(importFile.size / 1024).toFixed(1)} KB • Klik untuk mengganti file
+									</p>
+								</div>
+							</div>
+						{:else}
+							<div class="flex flex-col items-center justify-center gap-2 py-3 text-muted-foreground">
+								<div class="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-foreground/60">
+									<Upload class="w-5 h-5" />
+								</div>
+								<div>
+									<p class="text-xs font-semibold text-foreground">
+										Klik untuk memilih file atau seret file ke sini
+									</p>
+									<p class="text-[11px] text-muted-foreground mt-0.5">
+										Mendukung file Microsoft Excel (.xlsx, .xls) atau CSV (.csv) hingga 10 MB
+									</p>
+								</div>
+							</div>
+						{/if}
+					</div>
+				</div>
+
+				<!-- Alert Error / Peringatan -->
+				{#if importError}
+					<div class="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-start gap-2">
+						<AlertCircle class="w-4 h-4 shrink-0 mt-0.5" />
+						<div class="space-y-0.5">
+							<p class="font-bold">Gagal Memproses File</p>
+							<p class="text-[11px] leading-relaxed">{importError}</p>
+						</div>
+					</div>
+				{/if}
+
+				<!-- Pratinjau Hasil Pembacaan File (Preview) -->
+				{#if importParseResult && importParseResult.totalJiwa > 0}
+					<div class="space-y-3 pt-1">
+						<!-- Kartu Statistik Ringkasan -->
+						<div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+							<div class="bg-secondary/30 border border-border p-3 rounded-xl">
+								<p class="text-[10px] text-muted-foreground font-medium">Total Jiwa</p>
+								<p class="text-lg font-bold text-foreground mt-0.5">{importParseResult.totalJiwa} Jiwa</p>
+							</div>
+							<div class="bg-secondary/30 border border-border p-3 rounded-xl">
+								<p class="text-[10px] text-muted-foreground font-medium">Kartu Keluarga (KK)</p>
+								<p class="text-lg font-bold text-foreground mt-0.5">{importParseResult.totalKeluarga} KK</p>
+							</div>
+							<div class="bg-secondary/30 border border-border p-3 rounded-xl">
+								<p class="text-[10px] text-muted-foreground font-medium">Jamaah Mandiri</p>
+								<p class="text-lg font-bold text-blue-600 dark:text-blue-400 mt-0.5">{importParseResult.totalMandiri} Jiwa</p>
+							</div>
+							<div class="bg-secondary/30 border border-border p-3 rounded-xl">
+								<p class="text-[10px] text-muted-foreground font-medium">Buatkan Akun Login</p>
+								<p class="text-lg font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{importParseResult.totalAkun} Akun</p>
+							</div>
+						</div>
+
+						<!-- Penjelasan Virtual No KK -->
+						{#if importParseResult.families.some((f: any) => f.isVirtualKk)}
+							<div class="p-2.5 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-700 dark:text-blue-300 text-[11px] flex items-center gap-2">
+								<ShieldCheck class="w-4 h-4 shrink-0 text-blue-500" />
+								<span>
+									Keluarga tanpa No KK fisik otomatis dibuatkan <strong>Virtual No KK 16 Digit</strong> unik (awalan 99) dan langsung dienkripsi AES-256-GCM.
+								</span>
+							</div>
+						{/if}
+
+						<!-- Tabel Ringkasan Pratinjau Keluarga -->
+						<div class="border border-border rounded-xl overflow-hidden bg-card">
+							<div class="p-3 bg-secondary/30 border-b border-border flex items-center justify-between">
+								<span class="text-xs font-bold text-foreground">
+									Daftar Keluarga Terdeteksi ({importParseResult.families.length} Entri Sensus)
+								</span>
+								<span class="text-[11px] text-muted-foreground">
+									{importParseResult.totalJiwa} Anggota
+								</span>
+							</div>
+
+							<div class="max-h-60 overflow-y-auto divide-y divide-border text-xs">
+								{#each importParseResult.families as fam, fIdx}
+									<div class="p-3 hover:bg-secondary/15 transition-colors space-y-2">
+										<div class="flex items-center justify-between gap-2 flex-wrap">
+											<div class="flex items-center gap-2">
+												<span class="w-5 h-5 rounded-full bg-secondary font-mono text-[10px] font-bold flex items-center justify-center shrink-0">
+													{fIdx + 1}
+												</span>
+												<span class="font-bold text-foreground">
+													{fam.isPerantau ? 'Jamaah Mandiri' : `Keluarga #${fIdx + 1}`}
+												</span>
+												{#if fam.isPerantau}
+													<span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400">
+														Mandiri / Perantau
+													</span>
+												{:else if fam.isVirtualKk}
+													<span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-secondary text-muted-foreground font-mono">
+														Virtual KK: {fam.virtualNoKk?.slice(0, 4)}********{fam.virtualNoKk?.slice(-4)}
+													</span>
+												{:else if fam.noKk}
+													<span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary/10 text-primary font-mono">
+														No KK: {fam.noKk.slice(0, 4)}********{fam.noKk.slice(-4)}
+													</span>
+												{/if}
+											</div>
+											<div class="text-[11px] text-muted-foreground">
+												{fam.members.length} anggota
+											</div>
+										</div>
+
+										<!-- Anggota list -->
+										<div class="pl-7 space-y-1">
+											{#each fam.members as mem}
+												<div class="flex items-center justify-between gap-2 text-[11px] text-foreground/80 py-0.5">
+													<div class="flex items-center gap-2 min-w-0">
+														<span class="font-medium truncate text-foreground">{mem.namaLengkap}</span>
+														<span class="text-[10px] text-muted-foreground">({mem.statusKeluarga} • {mem.jenisKelamin})</span>
+														{#if mem.tanggalLahirDisplay}
+															<span class="text-[10px] text-muted-foreground">Lahir: {mem.tanggalLahirDisplay} ({mem.umur} th)</span>
+														{/if}
+														{#if mem.statusGenerus}
+															<span class="px-1.5 py-0.2 rounded text-[9.5px] bg-secondary text-muted-foreground font-semibold">
+																{mem.statusGenerus}
+															</span>
+														{/if}
+													</div>
+													<div class="flex items-center gap-2 shrink-0 text-[10px]">
+														{#if mem.buatAkun && mem.noTelepon}
+															<span class="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+																<CheckCircle2 class="w-3 h-3" />
+																Akun: {mem.noTelepon}
+															</span>
+														{/if}
+														{#if mem.errors.length > 0}
+															<span class="text-rose-600 dark:text-rose-400 font-bold">
+																⚠️ {mem.errors.join(', ')}
+															</span>
+														{/if}
+													</div>
+												</div>
+											{/each}
+										</div>
+									</div>
+								{/each}
+							</div>
+						</div>
+					</div>
+				{/if}
+			</div>
+
+			<!-- Modal Footer -->
+			<div class="flex items-center justify-between p-4 border-t border-border shrink-0 bg-secondary/10">
+				<button
+					type="button"
+					onclick={closeImportModal}
+					class="px-4 py-2 rounded-xl border border-border text-xs font-semibold text-foreground/80 hover:bg-secondary cursor-pointer transition-colors"
+				>
+					Batal
+				</button>
+
+				<button
+					type="button"
+					onclick={handleConfirmSubmitImport}
+					disabled={!importParseResult || !importParseResult.success || importParseResult.hasErrors || importParsing || importSubmitting}
+					class="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 disabled:opacity-50 transition-all shadow-sm cursor-pointer"
+				>
+					{#if importSubmitting}
+						<Loader2 class="w-4 h-4 animate-spin" />
+						<span>Menyimpan ke Database...</span>
+					{:else}
+						<FileSpreadsheet class="w-4 h-4" />
+						<span>
+							Simpan {importParseResult ? `${importParseResult.totalJiwa} Jiwa` : 'Data Import'}
+						</span>
+					{/if}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+

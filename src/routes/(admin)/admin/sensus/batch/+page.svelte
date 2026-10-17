@@ -1,9 +1,9 @@
 <!--
   @file src/routes/(admin)/admin/sensus/batch/+page.svelte
-  @purpose Antarmuka batch insert sensus massal terstruktur: grouping keluarga hierarkis untuk KK dan kartu baris tunggal datar untuk Jamaah Mandiri/Perantau, DateInput dengan manual typing & kalender, auto-kalkulasi generus, validasi noTelepon numerik (wajib jika buat akun), layout form responsif desktop & mobile, paste spreadsheet otomatis, dan opsi pembuatan akun
+  @purpose Antarmuka batch insert sensus massal terstruktur: grouping keluarga hierarkis untuk KK dan kartu baris tunggal datar untuk Jamaah Mandiri/Perantau, DateInput dengan manual typing & kalender, auto-kalkulasi generus, validasi noTelepon numerik (wajib jika buat akun), layout form responsif desktop & mobile, paste spreadsheet otomatis, unggah langsung file Excel/CSV, dan opsi pembuatan akun
   @usedBy Route admin '/admin/sensus/batch'
   @dependencies @lucide/svelte, $app/forms, #lib/components/SearchableSelect.svelte, #lib/components/DateInput.svelte, #lib/generus (hitungUmur, hitungStatusGenerus, getDaftarStatusKeluargaByGender, daftar konstanta), Svelte 5 Runes
-  @publicFunctions addFamily, addPerantauFamily, removeFamily, addMemberToFamily, removeMember, clearFamilies, convertToPerantau, convertToFamily, onGlobalKelompokChange, onJenisKelaminChange, onStatusKeluargaChange, onTanggalLahirOrMenikahChange, processPastedSpreadsheet, toggleAllBuatAkun
+  @publicFunctions addFamily, addPerantauFamily, removeFamily, addMemberToFamily, removeMember, clearFamilies, convertToPerantau, convertToFamily, onGlobalKelompokChange, onJenisKelaminChange, onStatusKeluargaChange, onTanggalLahirOrMenikahChange, processPastedSpreadsheet, handleBatchFileUpload, toggleAllBuatAkun
   @sideEffects Mengirim payload JSON batchData (FamilyBatchGroup[]) ke server action untuk transaksi database atomik
 -->
 <script lang="ts">
@@ -27,12 +27,16 @@
 		ArrowLeft,
 		CheckCircle2,
 		Clipboard,
+		Download,
+		FileSpreadsheet,
 		Home,
 		KeyRound,
+		Loader2,
 		Plus,
 		Save,
 		Sparkles,
 		Trash2,
+		Upload,
 		UserCheck,
 		UserPlus,
 		Users
@@ -132,6 +136,91 @@
 	// Modal Paste Spreadsheet
 	let showPasteModal = $state(false);
 	let pasteText = $state('');
+
+	// Unggah File Spreadsheet Excel/CSV Langsung
+	let batchFileInput: HTMLInputElement | undefined = $state();
+	let isBatchUploading = $state(false);
+
+	async function handleBatchFileUpload(e: Event) {
+		const target = e.target as HTMLInputElement;
+		const files = target.files;
+		if (!files || files.length === 0) return;
+		const file = files[0];
+
+		isBatchUploading = true;
+		try {
+			const fd = new FormData();
+			fd.append('file', file);
+			if (defaultKelompokId && defaultKelompokId !== 'ALL') {
+				fd.append('defaultKelompokId', String(defaultKelompokId));
+			}
+
+			const res = await fetch('/api/sensus/parse', {
+				method: 'POST',
+				body: fd
+			});
+			const result = await res.json();
+			if (!res.ok || (!result.success && result.globalErrors?.length > 0)) {
+				await confirmAction({
+					title: 'Gagal Membaca File',
+					message: result.globalErrors?.[0] || 'Gagal membaca isi file spreadsheet.',
+					confirmText: 'Mengerti',
+					cancelText: '',
+					variant: 'danger'
+				});
+				return;
+			}
+
+			const convertedFamilies: FamilyGroupData[] = result.families.map((f: any) => ({
+				id: f.id || Math.random().toString(36).substring(2, 9),
+				noKk: f.isVirtualKk ? '' : (f.noKk || ''),
+				alamat: f.alamat || '',
+				isPerantau: Boolean(f.isPerantau),
+				kelompokId: f.kelompokId || getInitialFamilyKelompokId(),
+				members: f.members.map((m: any) => ({
+					id: m.id || Math.random().toString(36).substring(2, 9),
+					namaLengkap: m.namaLengkap || '',
+					jenisKelamin: m.jenisKelamin || 'L',
+					tempatLahir: m.tempatLahir || '',
+					tanggalLahir: m.tanggalLahir || '',
+					umur: m.umur || 0,
+					alamat: m.alamat || '',
+					profesi: m.profesi || '',
+					noTelepon: m.noTelepon || '',
+					statusGenerus: m.statusGenerus || '',
+					statusMenikah: m.statusMenikah || 'Belum Menikah',
+					statusKeluarga: m.statusKeluarga || '',
+					nik: m.nik || '',
+					statusJamaah: m.statusJamaah || 'Aktif',
+					isrun: m.isrun || 'Tidak',
+					golonganDarah: m.golonganDarah || '',
+					buatAkun: Boolean(m.buatAkun),
+					email: m.email || '',
+					password: ''
+				}))
+			}));
+
+			if (convertedFamilies.length > 0) {
+				if (families.length === 1 && families[0].members.length === 1 && !families[0].members[0].namaLengkap) {
+					families = convertedFamilies;
+				} else {
+					families = [...families, ...convertedFamilies];
+				}
+			}
+		} catch (err: any) {
+			console.error('Error uploading batch file:', err);
+			await confirmAction({
+				title: 'Kesalahan Jaringan',
+				message: 'Terjadi kesalahan jaringan saat mengunggah file spreadsheet.',
+				confirmText: 'Mengerti',
+				cancelText: '',
+				variant: 'danger'
+			});
+		} finally {
+			isBatchUploading = false;
+			if (batchFileInput) batchFileInput.value = '';
+		}
+	}
 
 	function createEmptyMember(
 		statusKeluargaDefault = 'Kepala Keluarga',
@@ -623,6 +712,39 @@
 		</div>
 
 		<div class="flex items-center gap-2 flex-wrap">
+			<!-- Input file tersembunyi untuk upload langsung -->
+			<input
+				bind:this={batchFileInput}
+				type="file"
+				accept=".xlsx,.xls,.csv"
+				onchange={handleBatchFileUpload}
+				class="hidden"
+			/>
+
+			<button
+				type="button"
+				disabled={isBatchUploading}
+				onclick={() => batchFileInput?.click()}
+				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
+			>
+				{#if isBatchUploading}
+					<Loader2 class="w-3.5 h-3.5 animate-spin" />
+					<span>Membaca File...</span>
+				{:else}
+					<Upload class="w-3.5 h-3.5" />
+					<span>Unggah Excel / CSV</span>
+				{/if}
+			</button>
+
+			<a
+				href="/api/sensus/template?format=xlsx"
+				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-card hover:bg-secondary text-foreground text-xs font-medium transition-colors"
+				title="Unduh Template Excel (.xlsx) resmi"
+			>
+				<Download class="w-3.5 h-3.5 text-muted-foreground" />
+				<span>Template</span>
+			</a>
+
 			<button
 				type="button"
 				onclick={() => (showPasteModal = true)}
