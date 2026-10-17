@@ -85,7 +85,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const rekeningList = [...rekeningKelompokList, ...rekeningDesaList];
 
 	// 2. Ambil jenis shodaqoh aktif untuk Kelompok dan Desa
-	const listJenisKelompok = (await (targetKelompokId ? db
+	let listJenisKelompok = (await (targetKelompokId
+		? db
 				.select()
 				.from(jenisShodaqoh)
 				.where(
@@ -95,9 +96,87 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 						eq(jenisShodaqoh.isActive, true)
 					)
 				)
-				.orderBy(desc(jenisShodaqoh.isDefault), desc(jenisShodaqoh.createdAt)) : []));
+				.orderBy(desc(jenisShodaqoh.isDefault), desc(jenisShodaqoh.createdAt))
+		: []));
 
-	const listJenisDesa = (await (targetDesaId ? db
+	// Jika kelompok belum punya jenis shodaqoh di DB, auto-seed jenis default
+	if (listJenisKelompok.length === 0 && targetKelompokId) {
+		const kelNama = selectedKelompok?.nama || 'Kelompok';
+		const now = Math.floor(Date.now() / 1000);
+		try {
+			await db.insert(jenisShodaqoh).values([
+				{
+					tingkatScope: 'Kelompok',
+					kelompokId: targetKelompokId,
+					nama: `Shodaqoh ${kelNama}`,
+					deskripsi: `Penerimaan infaq & shodaqoh rutin operasional ${kelNama}`,
+					isDefault: true,
+					isActive: true,
+					createdAt: now,
+					updatedAt: now
+				},
+				{
+					tingkatScope: 'Kelompok',
+					kelompokId: targetKelompokId,
+					nama: 'Shodaqoh Kelompok Lainnya',
+					deskripsi: 'Alokasi shodaqoh umum atau keperluan mendesak kelompok',
+					isDefault: false,
+					isActive: true,
+					createdAt: now,
+					updatedAt: now
+				}
+			]);
+			listJenisKelompok = await db
+				.select()
+				.from(jenisShodaqoh)
+				.where(
+					and(
+						eq(jenisShodaqoh.tingkatScope, 'Kelompok'),
+						eq(jenisShodaqoh.kelompokId, targetKelompokId),
+						eq(jenisShodaqoh.isActive, true)
+					)
+				)
+				.orderBy(desc(jenisShodaqoh.isDefault), desc(jenisShodaqoh.createdAt));
+		} catch (err) {
+			console.warn('Gagal auto-seed jenis shodaqoh kelompok:', err);
+		}
+	}
+
+	// Fallback aman untuk jenis kelompok jika DB insert gagal
+	if (listJenisKelompok.length === 0) {
+		const kelNama = selectedKelompok?.nama || 'Kelompok';
+		listJenisKelompok = [
+			{
+				id: `default-kelompok-${targetKelompokId || '0'}`,
+				tingkatScope: 'Kelompok',
+				daerahId: null,
+				desaId: null,
+				kelompokId: targetKelompokId,
+				nama: `Shodaqoh ${kelNama}`,
+				deskripsi: `Penerimaan infaq & shodaqoh rutin operasional ${kelNama}`,
+				isDefault: true,
+				isActive: true,
+				createdAt: 0,
+				updatedAt: 0
+			},
+			{
+				id: `default-kelompok-lainnya-${targetKelompokId || '0'}`,
+				tingkatScope: 'Kelompok',
+				daerahId: null,
+				desaId: null,
+				kelompokId: targetKelompokId,
+				nama: 'Shodaqoh Kelompok Lainnya',
+				deskripsi: 'Alokasi shodaqoh umum atau keperluan mendesak kelompok',
+				isDefault: false,
+				isActive: true,
+				createdAt: 0,
+				updatedAt: 0
+			}
+		];
+	}
+
+	let listJenisDesa = (await (targetDesaId
+		? db
 				.select()
 				.from(jenisShodaqoh)
 				.where(
@@ -107,37 +186,86 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 						eq(jenisShodaqoh.isActive, true)
 					)
 				)
-				.orderBy(desc(jenisShodaqoh.isDefault), desc(jenisShodaqoh.createdAt)) : []));
+				.orderBy(desc(jenisShodaqoh.isDefault), desc(jenisShodaqoh.createdAt))
+		: []));
 
-	const rawCombinedJenis = [...listJenisKelompok, ...listJenisDesa];
+	// Jika desa belum punya jenis shodaqoh di DB, auto-seed jenis default
+	if (listJenisDesa.length === 0 && targetDesaId) {
+		const desaNama = selectedKelompok?.desaNama || 'Desa';
+		const now = Math.floor(Date.now() / 1000);
+		try {
+			await db.insert(jenisShodaqoh).values([
+				{
+					tingkatScope: 'Desa',
+					desaId: targetDesaId,
+					nama: `Shodaqoh Desa ${desaNama}`,
+					deskripsi: `Penerimaan infaq & shodaqoh rutin pembinaan tingkat Desa ${desaNama}`,
+					isDefault: true,
+					isActive: true,
+					createdAt: now,
+					updatedAt: now
+				},
+				{
+					tingkatScope: 'Desa',
+					desaId: targetDesaId,
+					nama: 'Shodaqoh Desa Lainnya',
+					deskripsi: 'Alokasi kegiatan bersama & pembinaan tingkat desa',
+					isDefault: false,
+					isActive: true,
+					createdAt: now,
+					updatedAt: now
+				}
+			]);
+			listJenisDesa = await db
+				.select()
+				.from(jenisShodaqoh)
+				.where(
+					and(
+						eq(jenisShodaqoh.tingkatScope, 'Desa'),
+						eq(jenisShodaqoh.desaId, targetDesaId),
+						eq(jenisShodaqoh.isActive, true)
+					)
+				)
+				.orderBy(desc(jenisShodaqoh.isDefault), desc(jenisShodaqoh.createdAt));
+		} catch (err) {
+			console.warn('Gagal auto-seed jenis shodaqoh desa:', err);
+		}
+	}
 
-	// Jika belum ada jenis di DB, fallback ke jenis default standar
-	const finalJenisList =
-		rawCombinedJenis.length > 0
-			? rawCombinedJenis
-			: [
-					{
-						id: 'default-kelompok',
-						nama: 'Shodaqoh Kelompok',
-						deskripsi: 'Penerimaan shodaqoh rutin kelompok',
-						tingkatScope: 'Kelompok',
-						isDefault: true
-					},
-					{
-						id: 'default-desa',
-						nama: 'Shodaqoh Desa',
-						deskripsi: 'Penerimaan shodaqoh rutin desa',
-						tingkatScope: 'Desa',
-						isDefault: true
-					},
-					{
-						id: 'default-lainnya',
-						nama: 'Shodaqoh Lainnya',
-						deskripsi: 'Alokasi shodaqoh umum atau keperluan mendesak',
-						tingkatScope: 'Kelompok',
-						isDefault: true
-					}
-				];
+	// Fallback aman untuk jenis desa jika DB insert gagal
+	if (listJenisDesa.length === 0) {
+		const desaNama = selectedKelompok?.desaNama || 'Desa';
+		listJenisDesa = [
+			{
+				id: `default-desa-${targetDesaId || '0'}`,
+				tingkatScope: 'Desa',
+				daerahId: null,
+				desaId: targetDesaId,
+				kelompokId: null,
+				nama: `Shodaqoh Desa ${desaNama}`,
+				deskripsi: `Penerimaan infaq & shodaqoh rutin pembinaan tingkat Desa ${desaNama}`,
+				isDefault: true,
+				isActive: true,
+				createdAt: 0,
+				updatedAt: 0
+			},
+			{
+				id: `default-desa-lainnya-${targetDesaId || '0'}`,
+				tingkatScope: 'Desa',
+				daerahId: null,
+				desaId: targetDesaId,
+				kelompokId: null,
+				nama: 'Shodaqoh Desa Lainnya',
+				deskripsi: 'Alokasi kegiatan bersama & pembinaan tingkat desa',
+				isDefault: false,
+				isActive: true,
+				createdAt: 0,
+				updatedAt: 0
+			}
+		];
+	}
+
+	const finalJenisList = [...listJenisKelompok, ...listJenisDesa];
 
 	// 3. Riwayat shodaqoh user yang login (jika ada)
 	const riwayatSaya = (await (user ? db
@@ -154,6 +282,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		rekeningKelompokList,
 		rekeningDesaList,
 		rekeningList,
+		jenisKelompokList: listJenisKelompok,
+		jenisDesaList: listJenisDesa,
 		jenisList: finalJenisList,
 		riwayatSaya,
 		user

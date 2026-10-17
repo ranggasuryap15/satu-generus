@@ -1,6 +1,6 @@
 <!--
   @file src/routes/(admin)/admin/presensi/+page.svelte
-  @purpose Halaman rekapitulasi jadwal pengajian dan pembuat jadwal baru bagi admin dengan auto-fill lokasi default saat memilih kelompok (dapat diubah manual), pagination tabel/kartu data, pemilihan lokasi interaktif serta scroll retention
+  @purpose Halaman rekapitulasi jadwal pengajian (tingkat kelompok dan desa) serta pembuat jadwal baru bagi admin dengan auto-fill lokasi default saat memilih kelompok, pagination data, pencarian nama wilayah kelompok/desa, pemilihan lokasi interaktif serta scroll retention
   @usedBy Route admin '/admin/presensi'
   @dependencies @lucide/svelte, Svelte 5 Runes, #lib/components/SearchableSelect.svelte, #lib/components/DateInput.svelte, #lib/components/LocationPicker.svelte, #lib/components/Pagination.svelte, #lib/utils (formatDateDDMMYYYY), $app/forms (enhance), #lib/keepScroll.ts (keepScrollSubmit)
   @publicFunctions openAddModal, closeAddModal, resetAddForm, isAddFormDirty, applyKelompokLocation
@@ -153,6 +153,7 @@
 			const q = searchQuery.toLowerCase();
 			return (
 				j.namaKegiatan.toLowerCase().includes(q) ||
+				(j.wilayahNama || '').toLowerCase().includes(q) ||
 				(j.kelompokNama || '').toLowerCase().includes(q) ||
 				(j.lokasiNama || '').toLowerCase().includes(q) ||
 				j.tanggal.includes(q) ||
@@ -239,9 +240,12 @@
 						</span>
 					</div>
 
-					{#if item.kelompokNama}
-						<div class="text-xs text-foreground/60 pt-1 border-t border-border/50">
-							Kelompok: <span class="font-medium text-foreground">{item.kelompokNama}</span>
+					{#if item.wilayahNama || item.kelompokNama}
+						<div class="text-xs text-foreground/60 pt-1 border-t border-border/50 flex items-center justify-between">
+							<span>{item.isDesa ? 'Desa' : 'Kelompok'}: <span class="font-medium text-foreground">{item.wilayahNama || item.kelompokNama}</span></span>
+							{#if item.isDesa}
+								<span class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-primary/10 text-primary">Desa</span>
+							{/if}
 						</div>
 					{/if}
 
@@ -276,7 +280,7 @@
 						<tr>
 							<th class="py-3 px-4 font-semibold">Tanggal</th>
 							<th class="py-3 px-4 font-semibold">Kegiatan & Lokasi</th>
-							<th class="py-3 px-4 font-semibold">Kelompok</th>
+							<th class="py-3 px-4 font-semibold">Wilayah</th>
 							<th class="py-3 px-4 font-semibold">Kehadiran</th>
 							<th class="py-3 px-4 font-semibold text-right">Aksi Input Presensi</th>
 						</tr>
@@ -297,7 +301,12 @@
 										</div>
 									{/if}
 								</td>
-								<td class="py-3.5 px-4 text-foreground/70">{item.kelompokNama || '-'}</td>
+								<td class="py-3.5 px-4 text-foreground/70">
+									<span class="font-medium text-foreground">{item.wilayahNama || item.kelompokNama || '-'}</span>
+									{#if item.isDesa}
+										<span class="block text-[10px] text-primary font-semibold">Tingkat Desa</span>
+									{/if}
+								</td>
 								<td class="py-3.5 px-4">
 									<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary">
 										<Users class="w-3.5 h-3.5" />

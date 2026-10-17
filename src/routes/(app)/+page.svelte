@@ -181,7 +181,7 @@
 				</a>
 
 				<!-- 2. Isrun/FR -->
-				<a href="/transaksi" class="flex flex-col items-center group cursor-pointer">
+				<a href="/fr" class="flex flex-col items-center group cursor-pointer">
 					<div class="w-13 h-13 sm:w-15 sm:h-15 rounded-full bg-amber-950/80 border border-amber-500/30 text-amber-400 flex items-center justify-center group-hover:scale-105 active:scale-95 transition-all shadow-xs">
 						<HandCoins class="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2]" />
 					</div>
@@ -419,7 +419,11 @@
 				</div>
 			{:else}
 				{#each data.transaksiTerakhir as item}
-					<div class="p-4 flex items-center justify-between gap-3">
+					{@const linkTarget = item.judul.toLowerCase().includes('infaq') || item.judul.toLowerCase().includes('shodaqoh') ? '/shodaqoh' : '/fr'}
+					<a
+						href={linkTarget}
+						class="p-4 flex items-center justify-between gap-3 hover:bg-slate-800/40 transition-colors group block cursor-pointer"
+					>
 						<div class="flex items-center gap-3.5 min-w-0">
 							<div class="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center shrink-0 {item.statusColor === 'emerald' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'}">
 								{#if item.judul.toLowerCase().includes('infaq') || item.judul.toLowerCase().includes('shodaqoh')}
@@ -429,7 +433,7 @@
 								{/if}
 							</div>
 							<div class="min-w-0">
-								<h4 class="text-sm sm:text-base font-bold text-slate-100 leading-snug truncate">
+								<h4 class="text-sm sm:text-base font-bold text-slate-100 group-hover:text-emerald-400 transition-colors leading-snug truncate">
 									{item.judul}
 								</h4>
 								<p class="text-xs sm:text-sm text-slate-400 font-medium mt-0.5">
@@ -446,7 +450,7 @@
 								{item.status}
 							</span>
 						</div>
-					</div>
+					</a>
 				{/each}
 			{/if}
 		</div>

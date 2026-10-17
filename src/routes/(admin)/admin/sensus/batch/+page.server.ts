@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(admin)/admin/sensus/batch/+page.server.ts
- * @purpose Server load & action untuk batch insert hierarki keluarga, mengikat anggota ke kartu keluarga yang sama (dengan atau tanpa No KK), kalkulasi otomatis generus, validasi noTelepon (wajib jika buat akun, opsional jika tidak), dan pembuatan akun login
+ * @purpose Server load & action untuk batch insert hierarki keluarga, mengikat anggota ke kartu keluarga yang sama (dengan atau tanpa No KK), kalkulasi otomatis generus, validasi noTelepon (wajib jika buat akun, opsional jika tidak), dan pembuatan akun login dengan default password jokam354
  * @usedBy src/routes/(admin)/admin/sensus/batch/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/auth, src/lib/server/scope, src/lib/generus, src/lib/utils, drizzle-orm
  * @publicFunctions load, actions.default
@@ -78,7 +78,7 @@ export const actions: Actions = {
 
 		const formData = await request.formData();
 		const rawBatchData = formData.get('batchData')?.toString() || '[]';
-		const defaultPassword = formData.get('defaultPassword')?.toString() || '12345678';
+		const defaultPassword = formData.get('defaultPassword')?.toString() || 'jokam354';
 		const defaultKelompokIdRaw = formData.get('defaultKelompokId')?.toString() || '';
 		const defaultKelompokId =
 			defaultKelompokIdRaw && defaultKelompokIdRaw !== 'ALL' && !isNaN(Number(defaultKelompokIdRaw))

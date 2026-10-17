@@ -1,17 +1,17 @@
 /**
  * @file src/routes/(admin)/admin/presensi/[jadwalId]/+page.server.ts
- * @purpose Memuat daftar checklist absensi jamaah per jadwal dengan proteksi scope wilayah admin, verifikasi bukti foto/lokasi, menangani approval izin/sakit, dan update status manual
+ * @purpose Memuat daftar checklist absensi jamaah per jadwal (Kelompok maupun Desa dengan grouping seluruh kelompok binaan sesuai abjad) dengan proteksi scope wilayah admin, verifikasi bukti foto/lokasi, menangani approval izin/sakit, dan update status manual
  * @usedBy src/routes/(admin)/admin/presensi/[jadwalId]/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, drizzle-orm
  * @publicFunctions load, actions.updateStatus, actions.approveIzin, actions.rejectIzin
- * @sideEffects Query detail jadwal & kehadiran sesuai wewenang admin, serta update record presensi_kehadiran ke SQLite
+ * @sideEffects Query detail jadwal & kehadiran jamaah multi-kelompok sesuai wewenang admin, serta update record presensi_kehadiran ke database
  */
 
 import { error, redirect, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { db, first } from '#lib/db/index.js';
-import { presensiJadwal, presensiKehadiran, users, kelompok } from '#lib/db/schema.js';
-import { eq, and } from 'drizzle-orm';
+import { presensiJadwal, presensiKehadiran, users, kelompok, desa } from '#lib/db/schema.js';
+import { eq, and, inArray } from 'drizzle-orm';
 import { getAdminScope, getAccessibleWilayah } from '#lib/server/scope.js';
 
 async function assertJadwalAccess(jadwalId: number, roles: App.UserRole[]) {
@@ -47,27 +47,57 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	// Validasi wewenang scope terhadap jadwal ini
 	const jadwal = await assertJadwalAccess(jadwalId, locals.roles || []);
 
-	const kelompokData = jadwal.kelompokId
-		? await first(db.select().from(kelompok).where(eq(kelompok.id, jadwal.kelompokId)))
-		: null;
+	const isDesa = jadwal.tingkatScope === 'Desa' || Boolean(jadwal.desaId && !jadwal.kelompokId);
+	let scopeBadge = isDesa ? 'Desa' : 'Kelompok';
+	let scopeNama = 'Wilayah';
+	let kelompokList: Array<{ id: number; nama: string }> = [];
 
-	// Ambil semua jamaah di kelompok ini
-	const jamaahList = (await (jadwal.kelompokId ? db
+	if (isDesa && jadwal.desaId) {
+		const desaData = await first(db.select().from(desa).where(eq(desa.id, jadwal.desaId)));
+		scopeNama = desaData?.nama || 'Desa';
+
+		// Ambil seluruh kelompok binaan di desa ini, urutkan nama kelompok sesuai abjad
+		kelompokList = await db
+			.select({
+				id: kelompok.id,
+				nama: kelompok.nama
+			})
+			.from(kelompok)
+			.where(eq(kelompok.desaId, jadwal.desaId))
+			.orderBy(kelompok.nama);
+	} else if (jadwal.kelompokId) {
+		const kelompokData = await first(db.select().from(kelompok).where(eq(kelompok.id, jadwal.kelompokId)));
+		scopeNama = kelompokData?.nama || 'Kelompok';
+		if (kelompokData) {
+			kelompokList = [{ id: kelompokData.id, nama: kelompokData.nama }];
+		}
+	}
+
+	const kelompokIds = kelompokList.map((k) => k.id);
+
+	// Ambil semua jamaah di kelompok-kelompok binaan terkait jadwal ini
+	const jamaahList = kelompokIds.length > 0
+		? await db
 				.select({
 					id: users.id,
 					namaLengkap: users.namaLengkap,
 					email: users.email,
-					noTelepon: users.noTelepon
+					noTelepon: users.noTelepon,
+					kelompokId: users.kelompokId,
+					kelompokNama: kelompok.nama
 				})
 				.from(users)
-				.where(eq(users.kelompokId, jadwal.kelompokId)) : []));
+				.innerJoin(kelompok, eq(users.kelompokId, kelompok.id))
+				.where(inArray(users.kelompokId, kelompokIds))
+				.orderBy(kelompok.nama, users.namaLengkap)
+		: [];
 
 	// Ambil status kehadiran yang sudah tercatat
-	const kehadiranList = (await db
+	const kehadiranList = await db
 		.select()
 		.from(presensiKehadiran)
-		.where(eq(presensiKehadiran.jadwalId, jadwalId))
-);
+		.where(eq(presensiKehadiran.jadwalId, jadwalId));
+
 	const recordMap = new Map<string, (typeof kehadiranList)[number]>();
 	kehadiranList.forEach((k) => {
 		recordMap.set(k.userId, k);
@@ -91,7 +121,11 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
 	return {
 		jadwal,
-		kelompokNama: kelompokData?.nama || 'Kelompok',
+		tingkatScope: scopeBadge,
+		scopeNama,
+		kelompokNama: scopeNama,
+		isDesa,
+		kelompokList,
 		pesertaList: pesertaWithStatus
 	};
 };

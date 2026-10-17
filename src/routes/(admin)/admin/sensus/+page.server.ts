@@ -1,6 +1,6 @@
 /**
  * @file src/routes/(admin)/admin/sensus/+page.server.ts
- * @purpose Rekapitulasi sensus KK & Mandiri, metrik dashboard, penugasan dapukan pengurus KK, pengurutan hierarki keluarga standar (Kepala Keluarga -> Istri -> Anak), validasi integritas keunikan Kyai, validasi keunikan email & noTelepon, sinkronisasi noTelepon akun, penyediaan nilai dekripsi NIK/KK asli untuk modal edit, resolusi effectiveUserId & default isrun Kepala Keluarga, serta form actions sensus
+ * @purpose Rekapitulasi sensus KK & Mandiri, metrik dashboard, penugasan dapukan pengurus KK, pengurutan hierarki keluarga standar (Kepala Keluarga -> Istri -> Anak), validasi integritas keunikan Kyai, validasi keunikan email & noTelepon, sinkronisasi noTelepon akun, penyediaan nilai dekripsi NIK/KK asli untuk modal edit, resolusi effectiveUserId & default isrun Kepala Keluarga, pembuatan akun mandiri (createMemberAccount) dengan default password jokam354, serta form actions sensus
  * @usedBy src/routes/(admin)/admin/sensus/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/crypto, src/lib/server/auth, src/lib/server/scope, src/lib/utils (normalizeDateToISO), src/lib/generus (hitungUmur, hitungStatusGenerus, isStatusHubunganMenikah, resolveStatusPernikahan, isStatusGenerusBelumMenikah, sortAnggotaKeluargaHierarki), drizzle-orm
  * @publicFunctions load, actions.createSensus, actions.addAnggotaKeluarga, actions.updateAnggota, actions.updateKeluarga, actions.deleteSensus, actions.pindahKelompok, actions.toggleStatusJamaah, actions.createMemberAccount, actions.assignDapukan, actions.importSensus
@@ -780,7 +780,8 @@ export const actions: Actions = {
 		const anggotaId = formData.get('anggotaId')?.toString() || '';
 		const email = formData.get('email')?.toString()?.trim() || '';
 		const noTelepon = formData.get('noTelepon')?.toString()?.trim() || '';
-		const password = formData.get('password')?.toString() || '';
+		const rawPassword = formData.get('password')?.toString()?.trim();
+		const password = rawPassword || 'jokam354';
 
 		if (!anggotaId) {
 			return fail(400, { errorAccount: 'ID anggota keluarga tidak valid.' });
@@ -866,7 +867,7 @@ export const actions: Actions = {
 			});
 
 			return {
-				success: 'Akun login mandiri berhasil dibuat untuk anggota keluarga!'
+				success: 'Akun login mandiri berhasil dibuat untuk anggota keluarga dengan password default: jokam354'
 			};
 		} catch (err: any) {
 			console.error('Gagal membuat akun anggota keluarga:', err);

@@ -1,16 +1,16 @@
 /**
  * @file src/routes/(admin)/admin/presensi/+page.server.ts
- * @purpose Memuat seluruh jadwal pengajian dengan urutan tanggal terdekat paling atas dan menangani aksi pembuatan jadwal kegiatan baru bagi admin dengan pembatasan wewenang scope wilayah serta pewarisan lokasi default kelompok
+ * @purpose Memuat seluruh jadwal pengajian (kelompok & desa) dengan urutan tanggal terdekat paling atas, join relasi kelompok/desa untuk identifikasi wilayah lengkap, dan menangani aksi pembuatan jadwal kegiatan baru bagi admin dengan pembatasan wewenang scope wilayah serta pewarisan lokasi default kelompok
  * @usedBy src/routes/(admin)/admin/presensi/+page.svelte
  * @dependencies src/lib/db, src/lib/db/schema, src/lib/server/scope, src/lib/utils (normalizeDateToISO), drizzle-orm
  * @publicFunctions load, actions.createJadwal
- * @sideEffects Query jadwal (diurutkan tanggal terdekat) & rekap kehadiran sesuai scope, insert jadwal pengajian baru ke SQLite dengan pewarisan lokasi kelompok
+ * @sideEffects Query jadwal & rekap kehadiran sesuai scope, insert jadwal pengajian baru ke PostgreSQL dengan pewarisan lokasi kelompok
  */
 
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { db, first } from '#lib/db/index.js';
-import { presensiJadwal, presensiKehadiran, kelompok } from '#lib/db/schema.js';
+import { presensiJadwal, presensiKehadiran, kelompok, desa } from '#lib/db/schema.js';
 import { eq, desc, inArray, or, sql } from 'drizzle-orm';
 import { normalizeDateToISO } from '#lib/utils.js';
 import { getAdminScope, getAccessibleWilayah, isKelompokAllowed } from '#lib/server/scope.js';
@@ -65,7 +65,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 		.select({
 			id: presensiJadwal.id,
 			kelompokId: presensiJadwal.kelompokId,
+			desaId: presensiJadwal.desaId,
+			tingkatScope: presensiJadwal.tingkatScope,
 			kelompokNama: kelompok.nama,
+			desaNama: desa.nama,
 			tanggal: presensiJadwal.tanggal,
 			namaKegiatan: presensiJadwal.namaKegiatan,
 			lokasiNama: presensiJadwal.lokasiNama,
@@ -76,6 +79,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		})
 		.from(presensiJadwal)
 		.leftJoin(kelompok, eq(presensiJadwal.kelompokId, kelompok.id))
+		.leftJoin(desa, eq(presensiJadwal.desaId, desa.id))
 		.orderBy(
 			sql`ABS(${presensiJadwal.tanggal}::date - CURRENT_DATE) ASC`,
 			sql`CASE WHEN ${presensiJadwal.tanggal}::date >= CURRENT_DATE THEN 0 ELSE 1 END ASC`,
@@ -94,8 +98,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const daftarJadwal = rawJadwal.map((j) => {
 		const kehadiranTerkait = rawKehadiran.filter((k) => k.jadwalId === j.id);
 		const hadirCount = kehadiranTerkait.filter((k) => k.status === 'Hadir').length;
+		const isDesa = j.tingkatScope === 'Desa' || Boolean(j.desaId && !j.kelompokId);
+		const wilayahNama = isDesa ? (j.desaNama || 'Desa') : (j.kelompokNama || j.desaNama || 'Kelompok');
 		return {
 			...j,
+			isDesa,
+			wilayahNama,
 			totalPeserta: kehadiranTerkait.length,
 			totalHadir: hadirCount
 		};
