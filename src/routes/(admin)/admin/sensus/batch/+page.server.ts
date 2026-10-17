@@ -15,7 +15,7 @@ import { encryptSensitive } from '#lib/server/crypto.js';
 import { hashPassword } from '#lib/server/auth.js';
 import { getAdminScope, getAccessibleWilayah, isKelompokAllowed } from '#lib/server/scope.js';
 import { normalizeDateToISO } from '#lib/utils.js';
-import { hitungStatusGenerus, hitungUmur, resolveStatusPernikahan } from '#lib/generus.js';
+import { cleanPhoneNumber, hitungStatusGenerus, hitungUmur, resolveStatusPernikahan, type StatusPernikahanType } from '#lib/generus.js';
 
 export interface BatchRowInput {
 	id?: string;
@@ -29,7 +29,7 @@ export interface BatchRowInput {
 	profesi?: string;
 	noTelepon?: string;
 	statusGenerus?: string;
-	statusMenikah: 'Belum Menikah' | 'Sudah Menikah';
+	statusMenikah: StatusPernikahanType;
 	statusKeluarga: string;
 	noKk?: string;
 	nik?: string;

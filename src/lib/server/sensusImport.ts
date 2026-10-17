@@ -13,11 +13,13 @@ import {
 	DAFTAR_STATUS_GENERUS,
 	DAFTAR_STATUS_JAMAAH,
 	DAFTAR_STATUS_PERNIKAHAN,
+	cleanPhoneNumber,
 	getDaftarStatusKeluargaByGender,
 	hitungStatusGenerus,
 	hitungUmur,
 	isStatusHubunganMenikah,
-	resolveStatusPernikahan
+	resolveStatusPernikahan,
+	type StatusPernikahanType
 } from '#lib/generus.js';
 import { formatDateDDMMYYYY, normalizeDateToISO } from '#lib/utils.js';
 
@@ -34,7 +36,7 @@ export interface ParsedMemberRow {
 	profesi?: string;
 	noTelepon?: string;
 	statusGenerus: string;
-	statusMenikah: 'Belum Menikah' | 'Sudah Menikah';
+	statusMenikah: StatusPernikahanType;
 	statusKeluarga: string;
 	noKk?: string;
 	nik?: string;
@@ -253,9 +255,9 @@ export function generateSensusTemplateXlsx(): Buffer {
 		['Hubungan Keluarga', 'Pilihan: Kepala Keluarga, Istri, Suami, Anak, Bapak, Ibu, Famili Lain, Mandiri / Perantau.'],
 		['Jenis Kelamin', 'Pilihan: L (Laki-laki) atau P (Perempuan).'],
 		['Tanggal Lahir', 'Wajib format DD-MM-YYYY (contoh: 15-08-1990) atau format tanggal Excel asli.'],
-		['Status Pernikahan', 'Pilihan: Sudah Menikah, Belum Menikah. Otomatis terisi jika kosong.'],
+		['Status Pernikahan', 'Pilihan: Sudah Menikah, Belum Menikah, Duda, Janda. Otomatis terisi jika kosong.'],
 		['Status Generus', 'Otomatis dihitung dari Umur & Status Pernikahan jika dikosongkan. Opsi: Paud, Caberawit, Pra Remaja, Remaja, Pra Nikah, Usia Nikah, Dewasa Menikah, Lansia.'],
-		['No HP / WhatsApp', 'Wajib diisi jika jamaah ingin dibuatkan akun login (8-16 digit angka).'],
+		['No HP / WhatsApp', 'Wajib diisi jika jamaah ingin dibuatkan akun login (8-16 digit angka, tanda strip dan spasi otomatis dibersihkan).'],
 		['Email', 'Opsional untuk login alternatif.'],
 		['Alamat Lengkap', 'Cukup diisi pada baris Kepala Keluarga / Mandiri.'],
 		['Golongan Darah', 'Pilihan: A, B, AB, O, -'],
@@ -560,9 +562,22 @@ export function parseSensusBuffer(
 
 		// Status Pernikahan
 		const rawNikah = colMap['pernikahan'] !== undefined ? String(row[colMap['pernikahan']] ?? '').trim() : '';
-		let statusMenikah: 'Belum Menikah' | 'Sudah Menikah' = 'Belum Menikah';
+		let statusMenikah: StatusPernikahanType = 'Belum Menikah';
 		if (rawNikah) {
-			statusMenikah = rawNikah.toLowerCase().includes('sudah') ? 'Sudah Menikah' : 'Belum Menikah';
+			const sNikah = rawNikah.toLowerCase();
+			if (sNikah.includes('duda')) {
+				statusMenikah = 'Duda';
+			} else if (sNikah.includes('janda')) {
+				statusMenikah = 'Janda';
+			} else if (sNikah.includes('cerai')) {
+				statusMenikah = jk === 'P' ? 'Janda' : 'Duda';
+			} else if (sNikah.includes('sudah') || sNikah.includes('kawin') || sNikah === 'menikah') {
+				statusMenikah = 'Sudah Menikah';
+			} else if (sNikah.includes('belum') || sNikah.includes('lajang') || sNikah.includes('single')) {
+				statusMenikah = 'Belum Menikah';
+			} else {
+				statusMenikah = resolveStatusPernikahan(statusKeluarga);
+			}
 		} else {
 			statusMenikah = resolveStatusPernikahan(statusKeluarga);
 		}
@@ -574,11 +589,11 @@ export function parseSensusBuffer(
 			statusGenerus = hitungStatusGenerus(umur, statusMenikah);
 		}
 
-		// No HP / WhatsApp
+		// No HP / WhatsApp (Pembersihan otomatis spasi, tanda strip '-', awalan +62 / 62 / 8)
 		const rawHp = colMap['noTelepon'] !== undefined ? String(row[colMap['noTelepon']] ?? '').trim() : '';
-		const cleanHp = rawHp.replace(/\D/g, '');
+		const cleanHp = cleanPhoneNumber(rawHp);
 		if (cleanHp && !/^\d{8,16}$/.test(cleanHp)) {
-			warnings.push(`Nomor HP "${rawHp}" di luar rentang valid 8-16 digit angka.`);
+			warnings.push(`Nomor HP "${rawHp}" (${cleanHp}) di luar rentang valid 8-16 digit angka.`);
 		}
 
 		// Email

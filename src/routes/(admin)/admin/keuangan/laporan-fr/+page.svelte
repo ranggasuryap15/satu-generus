@@ -8,6 +8,9 @@
 -->
 <script lang="ts">
 	import {
+		ArrowDown,
+		ArrowUp,
+		ArrowUpDown,
 		Building2,
 		Calendar,
 		ChevronRight,
@@ -91,25 +94,127 @@
 			: (data.targetKelompokList || []).reduce((acc: number, k: any) => acc + k.totalNominal, 0)
 	);
 
+	// State Sorting Tabel Kelompok
+	type KelompokSortKey = 'nama' | 'totalWajib' | 'setorCount' | 'totalNominal';
+	let kelompokSortKey = $state<KelompokSortKey>('nama');
+	let kelompokSortDirection = $state<'asc' | 'desc'>('asc');
+
+	function toggleKelompokSort(key: KelompokSortKey) {
+		if (kelompokSortKey === key) {
+			kelompokSortDirection = kelompokSortDirection === 'asc' ? 'desc' : 'asc';
+		} else {
+			kelompokSortKey = key;
+			kelompokSortDirection = key === 'nama' ? 'asc' : 'desc';
+		}
+	}
+
+	const sortedKelompokList = $derived.by(() => {
+		const list = [...(data.targetKelompokList || [])];
+		return list.sort((a, b) => {
+			let cmp = 0;
+			if (kelompokSortKey === 'nama') {
+				cmp = a.nama.localeCompare(b.nama, undefined, { numeric: true, sensitivity: 'base' });
+			} else if (kelompokSortKey === 'totalWajib') {
+				cmp = a.totalWajib - b.totalWajib;
+			} else if (kelompokSortKey === 'setorCount') {
+				const pctA = a.totalWajib > 0 ? a.setorCount / a.totalWajib : 0;
+				const pctB = b.totalWajib > 0 ? b.setorCount / b.totalWajib : 0;
+				cmp = pctA === pctB ? a.setorCount - b.setorCount : pctA - pctB;
+			} else if (kelompokSortKey === 'totalNominal') {
+				cmp = a.totalNominal - b.totalNominal;
+			}
+			return kelompokSortDirection === 'asc' ? cmp : -cmp;
+		});
+	});
+
+	// State Sorting Tabel Desa
+	type DesaSortKey = 'nama' | 'daerahNama' | 'kelompokCount' | 'totalNominal';
+	let desaSortKey = $state<DesaSortKey>('nama');
+	let desaSortDirection = $state<'asc' | 'desc'>('asc');
+
+	function toggleDesaSort(key: DesaSortKey) {
+		if (desaSortKey === key) {
+			desaSortDirection = desaSortDirection === 'asc' ? 'desc' : 'asc';
+		} else {
+			desaSortKey = key;
+			desaSortDirection = key === 'nama' ? 'asc' : 'desc';
+		}
+	}
+
+	const sortedDesaList = $derived.by(() => {
+		const list = [...(data.desaRekapList || [])];
+		return list.sort((a, b) => {
+			let cmp = 0;
+			if (desaSortKey === 'nama') {
+				cmp = a.nama.localeCompare(b.nama, undefined, { numeric: true, sensitivity: 'base' });
+			} else if (desaSortKey === 'daerahNama') {
+				cmp = (a.daerahNama || '').localeCompare(b.daerahNama || '', undefined, {
+					numeric: true,
+					sensitivity: 'base'
+				});
+			} else if (desaSortKey === 'kelompokCount') {
+				cmp = a.kelompokCount - b.kelompokCount;
+			} else if (desaSortKey === 'totalNominal') {
+				cmp = a.totalNominal - b.totalNominal;
+			}
+			return desaSortDirection === 'asc' ? cmp : -cmp;
+		});
+	});
+
+	// State Sorting Tabel Bulanan (Scope Kelompok)
+	type BulananSortKey = 'bulan' | 'totalWajib' | 'setorCount' | 'totalNominal';
+	let bulananSortKey = $state<BulananSortKey>('bulan');
+	let bulananSortDirection = $state<'asc' | 'desc'>('asc');
+
+	function toggleBulananSort(key: BulananSortKey) {
+		if (bulananSortKey === key) {
+			bulananSortDirection = bulananSortDirection === 'asc' ? 'desc' : 'asc';
+		} else {
+			bulananSortKey = key;
+			bulananSortDirection = key === 'bulan' ? 'asc' : 'desc';
+		}
+	}
+
+	const sortedBulananList = $derived.by(() => {
+		const list = [...(data.bulananList || [])];
+		return list.sort((a, b) => {
+			let cmp = 0;
+			if (bulananSortKey === 'bulan') {
+				cmp = a.bulan - b.bulan;
+			} else if (bulananSortKey === 'totalWajib') {
+				cmp = a.totalWajib - b.totalWajib;
+			} else if (bulananSortKey === 'setorCount') {
+				const pctA = a.totalWajib > 0 ? a.setorCount / a.totalWajib : 0;
+				const pctB = b.totalWajib > 0 ? b.setorCount / b.totalWajib : 0;
+				cmp = pctA === pctB ? a.setorCount - b.setorCount : pctA - pctB;
+			} else if (bulananSortKey === 'totalNominal') {
+				cmp = a.totalNominal - b.totalNominal;
+			}
+			return bulananSortDirection === 'asc' ? cmp : -cmp;
+		});
+	});
+
 	function exportToCsv() {
 		let rows: string[][] = [];
 		const namaBulan = bulanNames[selectedBulan - 1] || `Bulan ${selectedBulan}`;
 
 		if (data.scopeLevel === 'Kelompok') {
-			rows.push(['No', 'Bulan', 'Tahun', 'Total Jamaah Lunas', 'Total Nominal (Rp)']);
-			(data.bulananList || []).forEach((b: any, idx: number) => {
+			rows.push(['No', 'Bulan', 'Tahun', 'Target Jamaah Wajib', 'Sudah Menyetor', 'Total Nominal (Rp)']);
+			sortedBulananList.forEach((b: any, idx: number) => {
 				rows.push([
 					String(idx + 1),
-					b.namaBulan,
+					bulanNames[b.bulan - 1] || `Bulan ${b.bulan}`,
 					String(data.tahun),
 					String(b.totalWajib || 0),
+					String(b.setorCount || 0),
 					String(b.totalNominal || 0)
 				]);
 			});
 		} else {
-			rows.push(['No', 'Kelompok', 'Desa', 'Daerah', 'Periode', 'Target Jamaah', 'Jamaah Lunas', 'Persentase', 'Total Nominal (Rp)']);
-			(data.targetKelompokList || []).forEach((k: any, idx: number) => {
-				const pct = k.totalWajib > 0 ? Math.round((k.totalLunas / k.totalWajib) * 100) : 0;
+			rows.push(['No', 'Kelompok', 'Desa', 'Daerah', 'Periode', 'Target Jamaah', 'Sudah Menyetor', 'Persentase', 'Total Nominal (Rp)']);
+			sortedKelompokList.forEach((k: any, idx: number) => {
+				const count = k.setorCount ?? k.totalLunas ?? 0;
+				const pct = k.totalWajib > 0 ? Math.round((count / k.totalWajib) * 100) : 0;
 				rows.push([
 					String(idx + 1),
 					`"${(k.nama || '').replace(/"/g, '""')}"`,
@@ -117,7 +222,7 @@
 					`"${(k.daerahNama || '').replace(/"/g, '""')}"`,
 					`"${namaBulan} ${data.tahun}"`,
 					String(k.totalWajib || 0),
-					String(k.totalLunas || 0),
+					String(count),
 					`${pct}%`,
 					String(k.totalNominal || 0)
 				]);
@@ -282,23 +387,91 @@
 					Riwayat Setoran FR Tahun {data.tahun} - Kelompok {data.kelompokInfo?.nama}
 				</h3>
 				<p class="text-xs text-foreground/50 mt-0.5">
-					Total {data.bulananList?.[0]?.totalWajib ?? 0} jamaah wajib isrun terdaftar.
+					Total {data.bulananList?.[0]?.totalWajib ?? 0} jamaah wajib isrun terdaftar. Klik judul kolom untuk mengurutkan data.
 				</p>
 			</div>
 
 			<div class="border border-border rounded-xl overflow-x-auto shadow-xs">
 				<table class="w-full text-left text-xs min-w-[600px]">
-					<thead class="bg-secondary/60 text-foreground/70 uppercase text-[11px] tracking-wider border-b border-border">
+					<thead class="bg-secondary/60 text-foreground/70 uppercase text-[11px] tracking-wider border-b border-border select-none">
 						<tr>
-							<th class="py-3 px-4 font-semibold">Bulan</th>
-							<th class="py-3 px-4 font-semibold">Jamaah Wajib</th>
-							<th class="py-3 px-4 font-semibold">Sudah Menyetor</th>
-							<th class="py-3 px-4 font-semibold">Total Nominal (Rp)</th>
+							<th
+								class="py-3 px-4 font-semibold cursor-pointer hover:bg-secondary/80 transition-colors group"
+								onclick={() => toggleBulananSort('bulan')}
+								title="Urutkan berdasarkan Bulan"
+							>
+								<div class="flex items-center gap-1.5">
+									<span>Bulan</span>
+									{#if bulananSortKey === 'bulan'}
+										{#if bulananSortDirection === 'asc'}
+											<ArrowUp class="w-3.5 h-3.5 text-primary shrink-0" />
+										{:else}
+											<ArrowDown class="w-3.5 h-3.5 text-primary shrink-0" />
+										{/if}
+									{:else}
+										<ArrowUpDown class="w-3 h-3 text-muted-foreground/30 group-hover:text-foreground/60 shrink-0 transition-colors" />
+									{/if}
+								</div>
+							</th>
+							<th
+								class="py-3 px-4 font-semibold cursor-pointer hover:bg-secondary/80 transition-colors group"
+								onclick={() => toggleBulananSort('totalWajib')}
+								title="Urutkan berdasarkan Jumlah Jamaah Wajib"
+							>
+								<div class="flex items-center gap-1.5">
+									<span>Jamaah Wajib</span>
+									{#if bulananSortKey === 'totalWajib'}
+										{#if bulananSortDirection === 'asc'}
+											<ArrowUp class="w-3.5 h-3.5 text-primary shrink-0" />
+										{:else}
+											<ArrowDown class="w-3.5 h-3.5 text-primary shrink-0" />
+										{/if}
+									{:else}
+										<ArrowUpDown class="w-3 h-3 text-muted-foreground/30 group-hover:text-foreground/60 shrink-0 transition-colors" />
+									{/if}
+								</div>
+							</th>
+							<th
+								class="py-3 px-4 font-semibold cursor-pointer hover:bg-secondary/80 transition-colors group"
+								onclick={() => toggleBulananSort('setorCount')}
+								title="Urutkan berdasarkan Jumlah Sudah Menyetor"
+							>
+								<div class="flex items-center gap-1.5">
+									<span>Sudah Menyetor</span>
+									{#if bulananSortKey === 'setorCount'}
+										{#if bulananSortDirection === 'asc'}
+											<ArrowUp class="w-3.5 h-3.5 text-primary shrink-0" />
+										{:else}
+											<ArrowDown class="w-3.5 h-3.5 text-primary shrink-0" />
+										{/if}
+									{:else}
+										<ArrowUpDown class="w-3 h-3 text-muted-foreground/30 group-hover:text-foreground/60 shrink-0 transition-colors" />
+									{/if}
+								</div>
+							</th>
+							<th
+								class="py-3 px-4 font-semibold cursor-pointer hover:bg-secondary/80 transition-colors group"
+								onclick={() => toggleBulananSort('totalNominal')}
+								title="Urutkan berdasarkan Total Nominal"
+							>
+								<div class="flex items-center gap-1.5">
+									<span>Total Nominal (Rp)</span>
+									{#if bulananSortKey === 'totalNominal'}
+										{#if bulananSortDirection === 'asc'}
+											<ArrowUp class="w-3.5 h-3.5 text-primary shrink-0" />
+										{:else}
+											<ArrowDown class="w-3.5 h-3.5 text-primary shrink-0" />
+										{/if}
+									{:else}
+										<ArrowUpDown class="w-3 h-3 text-muted-foreground/30 group-hover:text-foreground/60 shrink-0 transition-colors" />
+									{/if}
+								</div>
+							</th>
 							<th class="py-3 px-4 font-semibold text-right">Aksi</th>
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-border">
-						{#each data.bulananList || [] as b}
+						{#each sortedBulananList as b}
 							<tr class="hover:bg-secondary/30 transition-colors">
 								<td class="py-3 px-4 font-bold text-foreground">
 									{bulanNames[b.bulan - 1]}
@@ -339,23 +512,91 @@
 					Rekapitulasi Kelompok Binaan - Periode {bulanNames[data.bulan - 1]} {data.tahun}
 				</h3>
 				<p class="text-xs text-foreground/50 mt-0.5">
-					Setiap kelompok yang diinput oleh admin KU kelompok akan otomatis tampil di sini secara real-time.
+					Setiap kelompok yang diinput oleh admin KU kelompok akan otomatis tampil di sini secara real-time. Klik judul kolom untuk mengurutkan data (ASC / DESC).
 				</p>
 			</div>
 
 			<div class="border border-border rounded-xl overflow-x-auto shadow-xs">
 				<table class="w-full text-left text-xs min-w-[650px]">
-					<thead class="bg-secondary/60 text-foreground/70 uppercase text-[11px] tracking-wider border-b border-border">
+					<thead class="bg-secondary/60 text-foreground/70 uppercase text-[11px] tracking-wider border-b border-border select-none">
 						<tr>
-							<th class="py-3 px-4 font-semibold">Nama Kelompok</th>
-							<th class="py-3 px-4 font-semibold">Jamaah Wajib Isrun</th>
-							<th class="py-3 px-4 font-semibold">Sudah Menyetor</th>
-							<th class="py-3 px-4 font-semibold">Total Nominal (Rp)</th>
+							<th
+								class="py-3 px-4 font-semibold cursor-pointer hover:bg-secondary/80 transition-colors group"
+								onclick={() => toggleKelompokSort('nama')}
+								title="Urutkan berdasarkan Nama Kelompok (A-Z / Z-A)"
+							>
+								<div class="flex items-center gap-1.5">
+									<span>Nama Kelompok</span>
+									{#if kelompokSortKey === 'nama'}
+										{#if kelompokSortDirection === 'asc'}
+											<ArrowUp class="w-3.5 h-3.5 text-primary shrink-0" />
+										{:else}
+											<ArrowDown class="w-3.5 h-3.5 text-primary shrink-0" />
+										{/if}
+									{:else}
+										<ArrowUpDown class="w-3 h-3 text-muted-foreground/30 group-hover:text-foreground/60 shrink-0 transition-colors" />
+									{/if}
+								</div>
+							</th>
+							<th
+								class="py-3 px-4 font-semibold cursor-pointer hover:bg-secondary/80 transition-colors group"
+								onclick={() => toggleKelompokSort('totalWajib')}
+								title="Urutkan berdasarkan Target Jamaah Wajib Isrun"
+							>
+								<div class="flex items-center gap-1.5">
+									<span>Jamaah Wajib Isrun</span>
+									{#if kelompokSortKey === 'totalWajib'}
+										{#if kelompokSortDirection === 'asc'}
+											<ArrowUp class="w-3.5 h-3.5 text-primary shrink-0" />
+										{:else}
+											<ArrowDown class="w-3.5 h-3.5 text-primary shrink-0" />
+										{/if}
+									{:else}
+										<ArrowUpDown class="w-3 h-3 text-muted-foreground/30 group-hover:text-foreground/60 shrink-0 transition-colors" />
+									{/if}
+								</div>
+							</th>
+							<th
+								class="py-3 px-4 font-semibold cursor-pointer hover:bg-secondary/80 transition-colors group"
+								onclick={() => toggleKelompokSort('setorCount')}
+								title="Urutkan berdasarkan Persentase / Jumlah yang Sudah Menyetor"
+							>
+								<div class="flex items-center gap-1.5">
+									<span>Sudah Menyetor</span>
+									{#if kelompokSortKey === 'setorCount'}
+										{#if kelompokSortDirection === 'asc'}
+											<ArrowUp class="w-3.5 h-3.5 text-primary shrink-0" />
+										{:else}
+											<ArrowDown class="w-3.5 h-3.5 text-primary shrink-0" />
+										{/if}
+									{:else}
+										<ArrowUpDown class="w-3 h-3 text-muted-foreground/30 group-hover:text-foreground/60 shrink-0 transition-colors" />
+									{/if}
+								</div>
+							</th>
+							<th
+								class="py-3 px-4 font-semibold cursor-pointer hover:bg-secondary/80 transition-colors group"
+								onclick={() => toggleKelompokSort('totalNominal')}
+								title="Urutkan berdasarkan Total Nominal Infaq FR"
+							>
+								<div class="flex items-center gap-1.5">
+									<span>Total Nominal (Rp)</span>
+									{#if kelompokSortKey === 'totalNominal'}
+										{#if kelompokSortDirection === 'asc'}
+											<ArrowUp class="w-3.5 h-3.5 text-primary shrink-0" />
+										{:else}
+											<ArrowDown class="w-3.5 h-3.5 text-primary shrink-0" />
+										{/if}
+									{:else}
+										<ArrowUpDown class="w-3 h-3 text-muted-foreground/30 group-hover:text-foreground/60 shrink-0 transition-colors" />
+									{/if}
+								</div>
+							</th>
 							<th class="py-3 px-4 font-semibold text-right">Aksi</th>
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-border">
-						{#each data.targetKelompokList as k}
+						{#each sortedKelompokList as k}
 							<tr class="hover:bg-secondary/30 transition-colors">
 								<td class="py-3 px-4 font-bold text-foreground">
 									{k.nama}
@@ -396,23 +637,91 @@
 					Rekapitulasi Desa - Periode {bulanNames[data.bulan - 1]} {data.tahun}
 				</h3>
 				<p class="text-xs text-foreground/50 mt-0.5">
-					Pilih salah satu desa untuk melihat rincian kelompok dan membuka data FR jamaah.
+					Pilih salah satu desa untuk melihat rincian kelompok dan membuka data FR jamaah. Klik judul kolom untuk mengurutkan data.
 				</p>
 			</div>
 
 			<div class="border border-border rounded-xl overflow-x-auto shadow-xs">
 				<table class="w-full text-left text-xs min-w-[650px]">
-					<thead class="bg-secondary/60 text-foreground/70 uppercase text-[11px] tracking-wider border-b border-border">
+					<thead class="bg-secondary/60 text-foreground/70 uppercase text-[11px] tracking-wider border-b border-border select-none">
 						<tr>
-							<th class="py-3 px-4 font-semibold">Nama Desa</th>
-							<th class="py-3 px-4 font-semibold">Daerah</th>
-							<th class="py-3 px-4 font-semibold">Jumlah Kelompok</th>
-							<th class="py-3 px-4 font-semibold">Total Setoran FR (Rp)</th>
+							<th
+								class="py-3 px-4 font-semibold cursor-pointer hover:bg-secondary/80 transition-colors group"
+								onclick={() => toggleDesaSort('nama')}
+								title="Urutkan berdasarkan Nama Desa"
+							>
+								<div class="flex items-center gap-1.5">
+									<span>Nama Desa</span>
+									{#if desaSortKey === 'nama'}
+										{#if desaSortDirection === 'asc'}
+											<ArrowUp class="w-3.5 h-3.5 text-primary shrink-0" />
+										{:else}
+											<ArrowDown class="w-3.5 h-3.5 text-primary shrink-0" />
+										{/if}
+									{:else}
+										<ArrowUpDown class="w-3 h-3 text-muted-foreground/30 group-hover:text-foreground/60 shrink-0 transition-colors" />
+									{/if}
+								</div>
+							</th>
+							<th
+								class="py-3 px-4 font-semibold cursor-pointer hover:bg-secondary/80 transition-colors group"
+								onclick={() => toggleDesaSort('daerahNama')}
+								title="Urutkan berdasarkan Nama Daerah"
+							>
+								<div class="flex items-center gap-1.5">
+									<span>Daerah</span>
+									{#if desaSortKey === 'daerahNama'}
+										{#if desaSortDirection === 'asc'}
+											<ArrowUp class="w-3.5 h-3.5 text-primary shrink-0" />
+										{:else}
+											<ArrowDown class="w-3.5 h-3.5 text-primary shrink-0" />
+										{/if}
+									{:else}
+										<ArrowUpDown class="w-3 h-3 text-muted-foreground/30 group-hover:text-foreground/60 shrink-0 transition-colors" />
+									{/if}
+								</div>
+							</th>
+							<th
+								class="py-3 px-4 font-semibold cursor-pointer hover:bg-secondary/80 transition-colors group"
+								onclick={() => toggleDesaSort('kelompokCount')}
+								title="Urutkan berdasarkan Jumlah Kelompok"
+							>
+								<div class="flex items-center gap-1.5">
+									<span>Jumlah Kelompok</span>
+									{#if desaSortKey === 'kelompokCount'}
+										{#if desaSortDirection === 'asc'}
+											<ArrowUp class="w-3.5 h-3.5 text-primary shrink-0" />
+										{:else}
+											<ArrowDown class="w-3.5 h-3.5 text-primary shrink-0" />
+										{/if}
+									{:else}
+										<ArrowUpDown class="w-3 h-3 text-muted-foreground/30 group-hover:text-foreground/60 shrink-0 transition-colors" />
+									{/if}
+								</div>
+							</th>
+							<th
+								class="py-3 px-4 font-semibold cursor-pointer hover:bg-secondary/80 transition-colors group"
+								onclick={() => toggleDesaSort('totalNominal')}
+								title="Urutkan berdasarkan Total Setoran FR"
+							>
+								<div class="flex items-center gap-1.5">
+									<span>Total Setoran FR (Rp)</span>
+									{#if desaSortKey === 'totalNominal'}
+										{#if desaSortDirection === 'asc'}
+											<ArrowUp class="w-3.5 h-3.5 text-primary shrink-0" />
+										{:else}
+											<ArrowDown class="w-3.5 h-3.5 text-primary shrink-0" />
+										{/if}
+									{:else}
+										<ArrowUpDown class="w-3 h-3 text-muted-foreground/30 group-hover:text-foreground/60 shrink-0 transition-colors" />
+									{/if}
+								</div>
+							</th>
 							<th class="py-3 px-4 font-semibold text-right">Aksi</th>
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-border">
-						{#each data.desaRekapList as d}
+						{#each sortedDesaList as d}
 							<tr class="hover:bg-secondary/30 transition-colors">
 								<td class="py-3 px-4 font-bold text-foreground">
 									{d.nama}

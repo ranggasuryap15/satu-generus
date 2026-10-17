@@ -42,6 +42,41 @@ export function hitungUmur(tanggalLahir: string): number {
 }
 
 /**
+ * Membersihkan dan menormalkan format nomor telepon:
+ * - Menghilangkan spasi, tanda strip (-), titik (.), dan simbol lainnya
+ * - Menormalkan awalan internasional (+62 atau 62) menjadi format nasional (0)
+ * - Menangani kasus angka 0 depan terpotong oleh Excel (857... -> 0857...)
+ */
+export function cleanPhoneNumber(raw?: string | null): string {
+	if (!raw) return '';
+	const str = String(raw).trim();
+	if (!str || str === '-') return '';
+
+	let digits = str.replace(/\D/g, '');
+	if (!digits) return '';
+
+	// Jika diawali 62 (misal dari +628... atau 628...), ubah 62 menjadi 0
+	if (digits.startsWith('62') && digits.length >= 10) {
+		digits = '0' + digits.slice(2);
+	}
+	// Jika angka diawali 8 (karena angka 0 di depan hilang terpotong Excel)
+	else if (digits.startsWith('8') && digits.length >= 9 && digits.length <= 14) {
+		digits = '0' + digits;
+	}
+
+	return digits;
+}
+
+/**
+ * Mengecek apakah status pernikahan mengindikasikan pernah menikah (Sudah Menikah, Duda, Janda)
+ */
+export function isStatusPernahMenikah(statusPernikahan?: string | null): boolean {
+	if (!statusPernikahan) return false;
+	const s = statusPernikahan.trim().toLowerCase();
+	return s === 'sudah menikah' || s === 'duda' || s === 'janda';
+}
+
+/**
  * Menghitung klasifikasi Status Generus berdasarkan umur dan status pernikahan
  * Aturan:
  * - SD (7-12) => Caberawit
@@ -49,14 +84,14 @@ export function hitungUmur(tanggalLahir: string): number {
  * - SMA (16-17) => Remaja
  * - Usia 18-22 (Belum Menikah) => Pra Nikah
  * - Usia > 22 (Belum Menikah) => Usia Nikah
- * - Sudah Menikah (< 60) => Dewasa Menikah
- * - Usia >= 60 (Sudah Menikah atau Lansia) => Lansia
+ * - Pernah Menikah (Sudah Menikah, Duda, Janda) (< 60) => Dewasa Menikah
+ * - Usia >= 60 (Pernah Menikah atau Lansia) => Lansia
  * - Usia < 7 => Paud
  */
 export function hitungStatusGenerus(umur: number, statusPernikahan: string = 'Belum Menikah'): string {
-	const isMenikah = statusPernikahan === 'Sudah Menikah';
+	const isPernahMenikah = isStatusPernahMenikah(statusPernikahan);
 
-	if (isMenikah) {
+	if (isPernahMenikah) {
 		if (umur >= 60) {
 			return 'Lansia';
 		}
@@ -97,7 +132,27 @@ export const DAFTAR_STATUS_GENERUS = [
 	'Lansia'
 ] as const;
 
-export const DAFTAR_STATUS_PERNIKAHAN = ['Belum Menikah', 'Sudah Menikah'] as const;
+export const DAFTAR_STATUS_PERNIKAHAN = [
+	'Belum Menikah',
+	'Sudah Menikah',
+	'Duda',
+	'Janda'
+] as const;
+
+export type StatusPernikahanType = (typeof DAFTAR_STATUS_PERNIKAHAN)[number];
+
+/**
+ * Mengambil opsi status pernikahan yang selaras dengan jenis kelamin
+ */
+export function getDaftarStatusPernikahanByGender(jenisKelamin?: string | null): readonly StatusPernikahanType[] {
+	if (jenisKelamin === 'L' || jenisKelamin === 'Laki-laki') {
+		return ['Belum Menikah', 'Sudah Menikah', 'Duda'] as const;
+	}
+	if (jenisKelamin === 'P' || jenisKelamin === 'Perempuan') {
+		return ['Belum Menikah', 'Sudah Menikah', 'Janda'] as const;
+	}
+	return DAFTAR_STATUS_PERNIKAHAN;
+}
 
 export const DAFTAR_STATUS_KELUARGA = [
 	'Kepala Keluarga',
@@ -156,14 +211,19 @@ export function isStatusHubunganMenikah(statusHubungan?: string | null): boolean
 
 /**
  * Menentukan status pernikahan default:
- * Jika status eksplisit telah ditentukan ('Sudah Menikah' atau 'Belum Menikah'), gunakan status tersebut.
+ * Jika status eksplisit telah ditentukan ('Sudah Menikah', 'Belum Menikah', 'Duda', 'Janda'), gunakan status tersebut.
  * Jika kosong / belum ditentukan, otomatis 'Sudah Menikah' jika hubungannya Kepala Keluarga, Suami, Istri, Bapak, atau Ibu.
  */
 export function resolveStatusPernikahan(
 	statusHubungan?: string | null,
 	explicitStatus?: string | null
-): 'Sudah Menikah' | 'Belum Menikah' {
-	if (explicitStatus === 'Sudah Menikah' || explicitStatus === 'Belum Menikah') {
+): StatusPernikahanType {
+	if (
+		explicitStatus === 'Sudah Menikah' ||
+		explicitStatus === 'Belum Menikah' ||
+		explicitStatus === 'Duda' ||
+		explicitStatus === 'Janda'
+	) {
 		return explicitStatus;
 	}
 	return isStatusHubunganMenikah(statusHubungan) ? 'Sudah Menikah' : 'Belum Menikah';
@@ -196,8 +256,12 @@ export function isStatusGenerusBelumMenikah(statusGenerus?: string | null): bool
 export function resolvePernikahanFromGenerus(
 	statusGenerus?: string | null,
 	currentPernikahan?: string | null
-): 'Sudah Menikah' | 'Belum Menikah' {
-	if (!statusGenerus) return currentPernikahan === 'Sudah Menikah' ? 'Sudah Menikah' : 'Belum Menikah';
+): StatusPernikahanType {
+	if (!statusGenerus) {
+		return isStatusPernahMenikah(currentPernikahan)
+			? (currentPernikahan as StatusPernikahanType)
+			: 'Belum Menikah';
+	}
 	const s = statusGenerus.trim().toLowerCase();
 	if (
 		s === 'paud' ||
@@ -210,9 +274,13 @@ export function resolvePernikahanFromGenerus(
 		return 'Belum Menikah';
 	}
 	if (s === 'dewasa menikah') {
-		return 'Sudah Menikah';
+		return isStatusPernahMenikah(currentPernikahan)
+			? (currentPernikahan as StatusPernikahanType)
+			: 'Sudah Menikah';
 	}
-	return currentPernikahan === 'Sudah Menikah' ? 'Sudah Menikah' : 'Belum Menikah';
+	return isStatusPernahMenikah(currentPernikahan)
+		? (currentPernikahan as StatusPernikahanType)
+		: 'Belum Menikah';
 }
 
 /**

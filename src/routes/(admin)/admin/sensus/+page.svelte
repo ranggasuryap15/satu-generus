@@ -18,7 +18,10 @@
 	  hitungUmur,
 	  isStatusGenerusBelumMenikah,
 	  isStatusHubunganMenikah,
-	  resolveStatusPernikahan
+	  resolveStatusPernikahan,
+	  cleanPhoneNumber,
+	  getDaftarStatusPernikahanByGender,
+	  isStatusPernahMenikah
 	} from '#lib/generus.js';
 	import { keepScrollSubmit } from '#lib/keepScroll.js';
 	import { confirmSubmit } from '#lib/confirmSubmit.ts';
@@ -330,21 +333,31 @@
 				}
 			}
 		} else if (editAnggotaStatusGenerus === 'Dewasa Menikah') {
-			editAnggotaStatusPernikahan = 'Sudah Menikah';
+			if (!isStatusPernahMenikah(editAnggotaStatusPernikahan)) {
+				editAnggotaStatusPernikahan = 'Sudah Menikah';
+			}
 		}
 	}
 
 	function onEditAnggotaStatusPernikahanChange() {
-		if (editAnggotaStatusPernikahan === 'Sudah Menikah') {
+		if (isStatusPernahMenikah(editAnggotaStatusPernikahan)) {
 			if (isStatusGenerusBelumMenikah(editAnggotaStatusGenerus)) {
 				const umur = editAnggotaTanggalLahir ? hitungUmur(editAnggotaTanggalLahir) : 0;
-				editAnggotaStatusGenerus = hitungStatusGenerus(umur, 'Sudah Menikah');
+				editAnggotaStatusGenerus = hitungStatusGenerus(umur, editAnggotaStatusPernikahan);
 			}
 		} else if (editAnggotaStatusPernikahan === 'Belum Menikah') {
 			if (editAnggotaStatusGenerus === 'Dewasa Menikah') {
 				const umur = editAnggotaTanggalLahir ? hitungUmur(editAnggotaTanggalLahir) : 0;
 				editAnggotaStatusGenerus = hitungStatusGenerus(umur, 'Belum Menikah');
 			}
+		}
+	}
+
+	function onEditAnggotaJenisKelaminChange() {
+		if (editAnggotaJenisKelamin === 'L' && editAnggotaStatusPernikahan === 'Janda') {
+			editAnggotaStatusPernikahan = 'Duda';
+		} else if (editAnggotaJenisKelamin === 'P' && editAnggotaStatusPernikahan === 'Duda') {
+			editAnggotaStatusPernikahan = 'Janda';
 		}
 	}
 
@@ -626,15 +639,17 @@
 				}
 			}
 		} else if (memberStatusGenerus === 'Dewasa Menikah') {
-			memberStatusPernikahan = 'Sudah Menikah';
+			if (!isStatusPernahMenikah(memberStatusPernikahan)) {
+				memberStatusPernikahan = 'Sudah Menikah';
+			}
 		}
 	}
 
 	function onMemberStatusPernikahanChange() {
-		if (memberStatusPernikahan === 'Sudah Menikah') {
+		if (isStatusPernahMenikah(memberStatusPernikahan)) {
 			if (isStatusGenerusBelumMenikah(memberStatusGenerus)) {
 				const umur = memberTanggalLahir ? hitungUmur(memberTanggalLahir) : 0;
-				memberStatusGenerus = hitungStatusGenerus(umur, 'Sudah Menikah');
+				memberStatusGenerus = hitungStatusGenerus(umur, memberStatusPernikahan);
 			}
 		} else if (memberStatusPernikahan === 'Belum Menikah') {
 			if (memberStatusGenerus === 'Dewasa Menikah') {
@@ -644,10 +659,18 @@
 		}
 	}
 
+	function onMemberJenisKelaminChange() {
+		if ((memberJenisKelamin === 'L' || memberJenisKelamin === 'Laki-laki') && memberStatusPernikahan === 'Janda') {
+			memberStatusPernikahan = 'Duda';
+		} else if ((memberJenisKelamin === 'P' || memberJenisKelamin === 'Perempuan') && memberStatusPernikahan === 'Duda') {
+			memberStatusPernikahan = 'Janda';
+		}
+	}
+
 	$effect(() => {
-		if (memberStatus === 'Istri' && memberJenisKelamin !== 'Perempuan') {
+		if (memberStatus === 'Istri' && memberJenisKelamin !== 'Perempuan' && memberJenisKelamin !== 'P') {
 			memberJenisKelamin = 'Perempuan';
-		} else if ((memberStatus === 'Kepala Keluarga' || memberStatus === 'Suami') && memberJenisKelamin !== 'Laki-laki') {
+		} else if ((memberStatus === 'Kepala Keluarga' || memberStatus === 'Suami') && memberJenisKelamin !== 'Laki-laki' && memberJenisKelamin !== 'L') {
 			memberJenisKelamin = 'Laki-laki';
 		}
 	});
@@ -691,15 +714,38 @@
 				}
 			}
 		} else if (row.statusGenerus === 'Dewasa Menikah') {
-			row.statusPernikahan = 'Sudah Menikah';
+			if (!isStatusPernahMenikah(row.statusPernikahan)) {
+				row.statusPernikahan = 'Sudah Menikah';
+			}
 		}
+	}
+
+	function onNewAnggotaJenisKelaminChange(idx: number) {
+		const row = newAnggotaList[idx];
+		if (!row) return;
+		if (row.jenisKelamin === 'Laki-laki' && row.statusPernikahan === 'Janda') {
+			row.statusPernikahan = 'Duda';
+		} else if (row.jenisKelamin === 'Perempuan' && row.statusPernikahan === 'Duda') {
+			row.statusPernikahan = 'Janda';
+		}
+		updateAnggotaGenerus(row);
 	}
 
 	function onNewMandiriGenerusChange() {
 		if (isStatusGenerusBelumMenikah(newStatusGenerusMandiri)) {
 			newStatusPernikahanMandiri = 'Belum Menikah';
 		} else if (newStatusGenerusMandiri === 'Dewasa Menikah') {
-			newStatusPernikahanMandiri = 'Sudah Menikah';
+			if (!isStatusPernahMenikah(newStatusPernikahanMandiri)) {
+				newStatusPernikahanMandiri = 'Sudah Menikah';
+			}
+		}
+	}
+
+	function onNewJenisKelaminMandiriChange() {
+		if (newJenisKelaminMandiri === 'Laki-laki' && newStatusPernikahanMandiri === 'Janda') {
+			newStatusPernikahanMandiri = 'Duda';
+		} else if (newJenisKelaminMandiri === 'Perempuan' && newStatusPernikahanMandiri === 'Duda') {
+			newStatusPernikahanMandiri = 'Janda';
 		}
 	}
 
@@ -2035,6 +2081,12 @@
 										createErrorField = null;
 									}
 								}}
+								onblur={() => {
+									newNoTelepon = cleanPhoneNumber(newNoTelepon);
+									if (newAnggotaList.length > 0) {
+										newAnggotaList[0].noTelepon = newNoTelepon;
+									}
+								}}
 								placeholder="0812xxxxxxxx"
 								class="w-full bg-secondary/60 border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 {createError && (createErrorField === 'noTelepon' || createError.toLowerCase().includes('nomor hp') || createError.toLowerCase().includes('no hp')) ? 'border-rose-500 focus:ring-rose-500 bg-rose-50/20 dark:bg-rose-950/20' : 'border-border focus:ring-primary'}"
 							/>
@@ -2229,6 +2281,7 @@
 											<select
 												id={`new-jk-${idx}`}
 												bind:value={anggota.jenisKelamin}
+												onchange={() => onNewAnggotaJenisKelaminChange(idx)}
 												required
 												class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 											>
@@ -2281,27 +2334,16 @@
 											<label for={`new-pernikahan-${idx}`} class="block text-[11px] font-semibold text-foreground mb-1">
 												Pernikahan *
 											</label>
-											{#if idx === 0}
-												<select
-													id={`new-pernikahan-${idx}`}
-													bind:value={anggota.statusPernikahan}
-													onchange={() => updateAnggotaGenerus(anggota)}
-													class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-												>
-													<option value="Sudah Menikah">Sudah Menikah</option>
-													<option value="Belum Menikah">Belum Menikah</option>
-												</select>
-											{:else}
-												<select
-													id={`new-pernikahan-${idx}`}
-													bind:value={anggota.statusPernikahan}
-													onchange={() => updateAnggotaGenerus(anggota)}
-													class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-												>
-													<option value="Belum Menikah">Belum Menikah</option>
-													<option value="Sudah Menikah">Sudah Menikah</option>
-												</select>
-											{/if}
+											<select
+												id={`new-pernikahan-${idx}`}
+												bind:value={anggota.statusPernikahan}
+												onchange={() => updateAnggotaGenerus(anggota)}
+												class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+											>
+												{#each getDaftarStatusPernikahanByGender(anggota.jenisKelamin === 'Perempuan' ? 'P' : 'L') as sp}
+													<option value={sp}>{sp}</option>
+												{/each}
+											</select>
 										</div>
 
 										<!-- Baris 3: Status Generus, NIK (di bawah Tgl Lahir) & No. HP / WhatsApp -->
@@ -2365,6 +2407,9 @@
 													bind:value={anggota.noTelepon}
 													oninput={(e) => {
 														anggota.noTelepon = e.currentTarget.value.replace(/\D/g, '');
+													}}
+													onblur={() => {
+														anggota.noTelepon = cleanPhoneNumber(anggota.noTelepon);
 													}}
 													placeholder="0812xxxxxxxx"
 													class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
@@ -2470,6 +2515,7 @@
 									id="jenisKelaminMandiri"
 									name="jenisKelamin"
 									bind:value={newJenisKelaminMandiri}
+									onchange={onNewJenisKelaminMandiriChange}
 									required
 									class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 								>
@@ -2488,8 +2534,9 @@
 									bind:value={newStatusPernikahanMandiri}
 									class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 								>
-									<option value="Belum Menikah">Belum Menikah</option>
-									<option value="Sudah Menikah">Sudah Menikah</option>
+									{#each getDaftarStatusPernikahanByGender(newJenisKelaminMandiri === 'Perempuan' ? 'P' : 'L') as sp}
+										<option value={sp}>{sp}</option>
+									{/each}
 								</select>
 							</div>
 
@@ -2824,6 +2871,7 @@
 							name="jenisKelamin"
 							required
 							bind:value={memberJenisKelamin}
+							onchange={onMemberJenisKelaminChange}
 							class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 						>
 							<option value="L">Laki-laki (L)</option>
@@ -2884,10 +2932,9 @@
 							onchange={onMemberStatusPernikahanChange}
 							class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
 						>
-							<option value="Belum Menikah">Belum Menikah</option>
-							<option value="Sudah Menikah">Sudah Menikah</option>
-							<option value="Duda">Duda</option>
-							<option value="Janda">Janda</option>
+							{#each getDaftarStatusPernikahanByGender(memberJenisKelamin) as sp}
+								<option value={sp}>{sp}</option>
+							{/each}
 						</select>
 					</div>
 
@@ -2948,6 +2995,9 @@
 							bind:value={memberNoTelepon}
 							oninput={(e) => {
 								memberNoTelepon = e.currentTarget.value.replace(/\D/g, '');
+							}}
+							onblur={() => {
+								memberNoTelepon = cleanPhoneNumber(memberNoTelepon);
 							}}
 							placeholder="0812xxxxxxxx (opsional)"
 							class="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
@@ -3457,6 +3507,7 @@
 							id="edit-jenisKelamin"
 							name="jenisKelamin"
 							bind:value={editAnggotaJenisKelamin}
+							onchange={onEditAnggotaJenisKelaminChange}
 							required
 							class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-primary"
 						>
@@ -3527,10 +3578,9 @@
 							class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:ring-1 focus:ring-primary"
 						>
 							<option value="">-- Pilih Status Pernikahan --</option>
-							<option value="Belum Menikah">Belum Menikah</option>
-							<option value="Sudah Menikah">Sudah Menikah</option>
-							<option value="Duda">Duda</option>
-							<option value="Janda">Janda</option>
+							{#each getDaftarStatusPernikahanByGender(editAnggotaJenisKelamin) as sp}
+								<option value={sp}>{sp}</option>
+							{/each}
 						</select>
 					</div>
 
@@ -3548,6 +3598,9 @@
 							bind:value={editAnggotaNoTelepon}
 							oninput={(e) => {
 								editAnggotaNoTelepon = e.currentTarget.value.replace(/\D/g, '');
+							}}
+							onblur={() => {
+								editAnggotaNoTelepon = cleanPhoneNumber(editAnggotaNoTelepon);
 							}}
 							placeholder="Contoh: 08123456789"
 							class="w-full bg-secondary/60 border border-border rounded-lg px-3 py-2 text-xs text-foreground font-mono focus:ring-1 focus:ring-primary"
@@ -3871,6 +3924,9 @@
 								createAccountError = null;
 								createAccountErrorField = null;
 							}
+						}}
+						onblur={() => {
+							newAccountPhone = cleanPhoneNumber(newAccountPhone);
 						}}
 						placeholder="0812xxxxxxxx"
 						class="w-full bg-secondary/50 border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:ring-1 {createAccountError && (createAccountErrorField === 'noTelepon' || createAccountError.toLowerCase().includes('nomor hp') || createAccountError.toLowerCase().includes('no hp')) ? 'border-rose-500 focus:ring-rose-500 bg-rose-50/20 dark:bg-rose-950/20' : 'border-border focus:ring-primary'}"

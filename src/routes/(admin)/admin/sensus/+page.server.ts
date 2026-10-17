@@ -28,7 +28,9 @@ import {
 	isStatusHubunganMenikah,
 	resolveStatusPernikahan,
 	isStatusGenerusBelumMenikah,
-	sortAnggotaKeluargaHierarki
+	sortAnggotaKeluargaHierarki,
+	cleanPhoneNumber,
+	resolvePernikahanFromGenerus
 } from '#lib/generus.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -415,7 +417,7 @@ export const actions: Actions = {
 		}
 
 		// Validasi No Telepon Wajib untuk Akun
-		const cleanNoTelepon = noTelepon.replace(/\D/g, '');
+		const cleanNoTelepon = cleanPhoneNumber(noTelepon);
 		if (!cleanNoTelepon) {
 			return fail(400, {
 				error: 'Nomor HP/WhatsApp wajib diisi untuk pendaftaran akun jamaah.'
@@ -510,7 +512,7 @@ export const actions: Actions = {
 					}
 				}
 				if (a.noTelepon && a.noTelepon.trim()) {
-					const cleanAnggotaHp = a.noTelepon.trim().replace(/\D/g, '');
+					const cleanAnggotaHp = cleanPhoneNumber(a.noTelepon);
 					if (!/^\d{8,16}$/.test(cleanAnggotaHp)) {
 						return fail(400, {
 							error: `Nomor HP anggota ke-${i + 1} (${a.namaLengkap || a.statusHubungan}) tidak valid (harus 8-16 digit angka).`
@@ -605,7 +607,7 @@ export const actions: Actions = {
 					const memberGenerus = (a as any).statusGenerus || calculatedGenerus;
 					const memberHp = isKepala
 						? cleanNoTelepon
-						: (a.noTelepon && a.noTelepon.trim() ? a.noTelepon.trim().replace(/\D/g, '') : null);
+						: (a.noTelepon && a.noTelepon.trim() ? cleanPhoneNumber(a.noTelepon) : null);
 					const normalizedJk = (a.jenisKelamin === 'P' || a.jenisKelamin === 'Perempuan') ? 'P' : 'L';
 
 					await tx.insert(anggotaKeluarga)
@@ -717,7 +719,7 @@ export const actions: Actions = {
 
 		let cleanNoTelepon: string | null = null;
 		if (noTelepon) {
-			cleanNoTelepon = noTelepon.replace(/\D/g, '');
+			cleanNoTelepon = cleanPhoneNumber(noTelepon);
 			if (!/^\d{8,16}$/.test(cleanNoTelepon)) {
 				return fail(400, { error: 'Nomor HP harus berupa angka valid (8-16 digit).' });
 			}
@@ -736,7 +738,7 @@ export const actions: Actions = {
 			if (isStatusGenerusBelumMenikah(statusGenerusInput)) {
 				resolvedPernikahan = 'Belum Menikah';
 			} else if (statusGenerusInput === 'Dewasa Menikah') {
-				resolvedPernikahan = 'Sudah Menikah';
+				resolvedPernikahan = resolvePernikahanFromGenerus(statusGenerusInput, resolvedPernikahan);
 			}
 			const isoTgl = normalizeDateToISO(tanggalLahir);
 			const umur = isoTgl ? hitungUmur(isoTgl) : 0;
@@ -750,7 +752,7 @@ export const actions: Actions = {
 					nikEncrypted: cleanNik ? encryptSensitive(cleanNik) : null,
 					statusHubungan,
 					tanggalLahir: isoTgl,
-					jenisKelamin,
+					jenisKelamin: jenisKelamin === 'P' || jenisKelamin === 'Perempuan' ? 'P' : 'L',
 					tempatLahir: tempatLahir || null,
 					profesi: profesi || null,
 					golonganDarah: golonganDarah || null,
@@ -789,7 +791,7 @@ export const actions: Actions = {
 		if (!password || password.length < 6) {
 			return fail(400, { errorAccount: 'Kata sandi akun minimal 6 karakter.' });
 		}
-		const cleanNoTelepon = noTelepon.replace(/\D/g, '');
+		const cleanNoTelepon = cleanPhoneNumber(noTelepon);
 		if (!cleanNoTelepon) {
 			return fail(400, { errorAccount: 'Nomor HP/WhatsApp wajib diisi untuk pembuatan akun anggota.' });
 		}
@@ -954,7 +956,7 @@ export const actions: Actions = {
 		const hasAccount =
 			!!existingAnggota.userId ||
 			(existingAnggota.statusHubungan === 'Kepala Keluarga' && !!parentKeluarga?.kepalaKeluargaId);
-		const cleanNoTelepon = noTelepon ? noTelepon.replace(/\D/g, '') : '';
+		const cleanNoTelepon = cleanPhoneNumber(noTelepon);
 
 		if (hasAccount) {
 			if (!cleanNoTelepon) {
@@ -976,7 +978,7 @@ export const actions: Actions = {
 			if (isStatusGenerusBelumMenikah(statusGenerus)) {
 				resolvedPernikahan = 'Belum Menikah';
 			} else if (statusGenerus === 'Dewasa Menikah') {
-				resolvedPernikahan = 'Sudah Menikah';
+				resolvedPernikahan = resolvePernikahanFromGenerus(statusGenerus, resolvedPernikahan);
 			}
 			const isoTgl = normalizeDateToISO(tanggalLahir);
 			const umur = isoTgl ? hitungUmur(isoTgl) : 0;
@@ -986,7 +988,7 @@ export const actions: Actions = {
 				namaLengkap,
 				statusHubungan,
 				tanggalLahir: isoTgl,
-				jenisKelamin,
+				jenisKelamin: jenisKelamin === 'P' || jenisKelamin === 'Perempuan' ? 'P' : 'L',
 				tempatLahir: tempatLahir || null,
 				profesi: profesi || null,
 				noTelepon: cleanNoTelepon || null,
@@ -1750,7 +1752,7 @@ export const actions: Actions = {
 					for (let i = 0; i < fam.members.length; i++) {
 						const m = fam.members[i];
 						if (m.buatAkun && m.noTelepon) {
-							const cleanHp = m.noTelepon.trim().replace(/\D/g, '');
+							const cleanHp = cleanPhoneNumber(m.noTelepon);
 							if (cleanHp && /^\d{8,16}$/.test(cleanHp) && !existingPhones.has(cleanHp)) {
 								let userEmail = m.email?.trim()?.toLowerCase() || null;
 								if (userEmail && existingUserEmails.has(userEmail)) {
@@ -1820,7 +1822,7 @@ export const actions: Actions = {
 							jenisKelamin: m.jenisKelamin === 'P' ? 'P' : 'L',
 							tempatLahir: m.tempatLahir?.trim() || null,
 							profesi: m.profesi?.trim() || null,
-							noTelepon: m.noTelepon?.trim() || null,
+							noTelepon: cleanPhoneNumber(m.noTelepon) || null,
 							statusGenerus: statusGenerusFinal,
 							statusPernikahan: statusMenikahFinal,
 							statusJamaah: m.statusJamaah || 'Aktif',

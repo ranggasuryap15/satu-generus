@@ -11,7 +11,7 @@ import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { db, first } from '#lib/db/index.js';
 import { kelompok, desa, daerah, anggotaKeluarga, keluarga, users, transaksiFr } from '#lib/db/schema.js';
-import { eq, and, sql, inArray } from 'drizzle-orm';
+import { eq, and, sql, inArray, asc } from 'drizzle-orm';
 import { getAdminScope, getAccessibleWilayah, canAccessKeuangan } from '#lib/server/scope.js';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -136,6 +136,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			.from(kelompok)
 			.innerJoin(desa, eq(kelompok.desaId, desa.id))
 			.where(eq(kelompok.desaId, activeDesaId))
+			.orderBy(asc(kelompok.nama))
 );
 		const kelompokIds = rawKelompoks.map((k) => k.id);
 
@@ -188,6 +189,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				setorCount: frMap.get(k.id)?.setorCount ?? 0,
 				totalNominal: frMap.get(k.id)?.totalNominal ?? 0
 			}));
+
+			// Natural alphanumeric sort (e.g. Tambun 1, Tambun 2, ... Tambun 10)
+			targetKelompokList.sort((a, b) =>
+				a.nama.localeCompare(b.nama, undefined, { numeric: true, sensitivity: 'base' })
+			);
 		}
 	} else {
 		// Tingkat Daerah / Pusat belum memilih desa: Tampilkan rekap per desa
@@ -225,6 +231,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 					totalNominal: frDesaMap.get(d.id) ?? 0
 				};
 			});
+
+			// Natural alphanumeric sort
+			desaRekapList.sort((a, b) =>
+				a.nama.localeCompare(b.nama, undefined, { numeric: true, sensitivity: 'base' })
+			);
 		}
 	}
 

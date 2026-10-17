@@ -18,9 +18,12 @@
 		DAFTAR_STATUS_JAMAAH,
 		DAFTAR_STATUS_PERNIKAHAN,
 		getDaftarStatusKeluargaByGender,
+		getDaftarStatusPernikahanByGender,
 		hitungStatusGenerus,
 		hitungUmur,
-		isStatusHubunganMenikah
+		isStatusHubunganMenikah,
+		cleanPhoneNumber,
+		type StatusPernikahanType
 	} from '#lib/generus.js';
 	import {
 		AlertCircle,
@@ -55,7 +58,7 @@
 		profesi: string;
 		noTelepon: string;
 		statusGenerus: string;
-		statusMenikah: 'Belum Menikah' | 'Sudah Menikah';
+		statusMenikah: StatusPernikahanType;
 		statusKeluarga: string;
 		nik: string;
 		statusJamaah: 'Aktif' | 'Tidak Aktif';
@@ -181,9 +184,9 @@
 					umur: m.umur || 0,
 					alamat: m.alamat || '',
 					profesi: m.profesi || '',
-					noTelepon: m.noTelepon || '',
+					noTelepon: cleanPhoneNumber(m.noTelepon) || '',
 					statusGenerus: m.statusGenerus || '',
-					statusMenikah: m.statusMenikah || 'Belum Menikah',
+					statusMenikah: (m.statusMenikah as StatusPernikahanType) || 'Belum Menikah',
 					statusKeluarga: m.statusKeluarga || '',
 					nik: m.nik || '',
 					statusJamaah: m.statusJamaah || 'Aktif',
@@ -383,6 +386,11 @@
 		const allowed = getDaftarStatusKeluargaByGender(member.jenisKelamin);
 		if (member.statusKeluarga && !allowed.includes(member.statusKeluarga as any)) {
 			member.statusKeluarga = '';
+		}
+		if (member.jenisKelamin === 'L' && member.statusMenikah === 'Janda') {
+			member.statusMenikah = 'Duda';
+		} else if (member.jenisKelamin === 'P' && member.statusMenikah === 'Duda') {
+			member.statusMenikah = 'Janda';
 		}
 	}
 
@@ -919,7 +927,7 @@
 									onchange={() => onTanggalLahirOrMenikahChange(row)}
 									class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
 								>
-									{#each DAFTAR_STATUS_PERNIKAHAN as sm}
+									{#each getDaftarStatusPernikahanByGender(row.jenisKelamin) as sm}
 										<option value={sm}>{sm}</option>
 									{/each}
 								</select>
@@ -942,6 +950,9 @@
 									bind:value={row.noTelepon}
 									oninput={(e) => {
 										row.noTelepon = e.currentTarget.value.replace(/\D/g, '');
+									}}
+									onblur={() => {
+										row.noTelepon = cleanPhoneNumber(row.noTelepon);
 									}}
 									placeholder="0812xxxx"
 									class="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary"
@@ -1325,7 +1336,7 @@
 													onchange={() => onTanggalLahirOrMenikahChange(row)}
 													class="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:ring-1 focus:ring-primary"
 												>
-													{#each DAFTAR_STATUS_PERNIKAHAN as sm}
+													{#each getDaftarStatusPernikahanByGender(row.jenisKelamin) as sm}
 														<option value={sm}>{sm}</option>
 													{/each}
 												</select>
@@ -1345,6 +1356,9 @@
 													bind:value={row.noTelepon}
 													oninput={(e) => {
 														row.noTelepon = e.currentTarget.value.replace(/\D/g, '');
+													}}
+													onblur={() => {
+														row.noTelepon = cleanPhoneNumber(row.noTelepon);
 													}}
 													placeholder="0812xxxx"
 													class="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary"
